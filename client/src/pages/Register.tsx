@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/lib/button-variants';
 import DoodleBackground from '@/components/DoodleBackground';
+import { useAuthStore } from '@/stores/authStore';
 
 const Register = () => {
     const [name, setName] = useState('');
@@ -12,28 +13,32 @@ const Register = () => {
     const [phone, setPhone] = useState('');
     const [qualification, setQualification] = useState('');
     const [address, setAddress] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState('');
+    const { register, isLoading, error, clearError } = useAuthStore();
+    const navigate = useNavigate();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setError('');
+        clearError();
 
-        setIsLoading(true);
-
-        // Simulate API call
-        setTimeout(() => {
-            console.log('Register attempt with:', {
+        try {
+            await register({
                 name,
                 email,
-                dateOfBirth,
                 phone,
                 qualification,
-                address
+                address,
+                dob: dateOfBirth
             });
-            setIsLoading(false);
-            // In a real app, you would navigate to dashboard or login on success
-        }, 1500);
+
+            // Navigate to login with success message
+            navigate('/login', {
+                state: {
+                    message: 'Registration successful! Your account is pending approval.'
+                }
+            });
+        } catch {
+            // Error is handled by the auth store
+        }
     };
 
     return (

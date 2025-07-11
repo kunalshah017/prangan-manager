@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import DoodleBackground from '@/components/DoodleBackground'
+import ProtectedRoute from '@/components/ProtectedRoute'
 
 // Layouts
 const Layout = lazy(() => import('./components/Layout'))
@@ -12,6 +13,7 @@ const Register = lazy(() => import('./pages/Register'))
 const Projects = lazy(() => import('./pages/projects/Projects'))
 const CreateProject = lazy(() => import('./pages/projects/CreateProject'))
 const EditProject = lazy(() => import('./pages/projects/EditProject'))
+const RegistrationRequests = lazy(() => import('./pages/RegistrationRequests'))
 
 // Loading fallback component
 const PageLoading = () => (
@@ -35,12 +37,28 @@ function App() {
           <Route path="/register" element={<Register />} />
 
           {/* Protected routes with layout */}
-          <Route element={<Layout />}>
-            <Route path="/projects" element={<Projects />} />
-            <Route path="/projects/new" element={<CreateProject />} />
-            <Route path="/projects/:id/edit" element={<EditProject />} />
-            {/* Add more routes here as needed */}
-            <Route path="/dashboard" element={<div className="container py-8">Dashboard coming soon</div>} />
+          <Route
+            path="/projects"
+            element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<Projects />} />
+            <Route path="new" element={<CreateProject />} />
+            <Route path=":id/edit" element={<EditProject />} />
+          </Route>
+
+          <Route
+            path="/registration-requests"
+            element={
+              <ProtectedRoute adminOnly>
+                <Layout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<RegistrationRequests />} />
           </Route>
 
           {/* Redirect any unmatched routes to home */}

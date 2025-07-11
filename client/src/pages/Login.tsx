@@ -1,25 +1,28 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/lib/button-variants';
 import DoodleBackground from '@/components/DoodleBackground';
+import { useAuthStore } from '@/stores/authStore';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const { login, isLoading, error, clearError } = useAuthStore();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
+    clearError();
 
-    // Simulate API call
-    setTimeout(() => {
-      console.log('Login attempt with:', { email, password });
-      setIsLoading(false);
-      // In a real app, you would navigate to dashboard on success
-    }, 1500);
+    try {
+      await login({ email, password });
+      // Navigate to projects page on successful login
+      navigate('/projects');
+    } catch {
+      // Error is handled by the auth store
+    }
   };
 
   return (
@@ -57,6 +60,12 @@ const Login = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
+            {error && (
+              <div className="bg-red-50 p-3 rounded-md border border-red-200 text-red-700 text-sm">
+                {error}
+              </div>
+            )}
+
             <form onSubmit={handleSubmit}>
               <div className="grid gap-4">
                 <div className="grid gap-2">

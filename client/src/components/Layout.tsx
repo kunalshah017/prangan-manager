@@ -1,21 +1,23 @@
 import React from 'react';
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, LogOut, User, Settings, PanelRightOpen, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/stores/authStore';
 
-
-// Mock user data - in a real app, this would come from authentication context
-const mockUser = {
-    name: 'John Doe',
-    email: 'john.doe@example.com',
-    avatar: null, // URL to avatar image if available
-};
 
 const Layout: React.FC = () => {
     const location = useLocation();
+    const navigate = useNavigate();
+    const { user, logout } = useAuthStore();
     const [userMenuOpen, setUserMenuOpen] = React.useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+
+    // Handle logout
+    const handleLogout = () => {
+        logout();
+        navigate('/login');
+    };
 
     // Close the user menu when clicking outside
     const userMenuRef = React.useRef<HTMLDivElement>(null);
@@ -76,15 +78,15 @@ const Layout: React.FC = () => {
                             Projects
                         </Link>
                         <Link
-                            to="/dashboard"
+                            to="/registration-requests"
                             className={cn(
                                 "text-sm font-medium transition-colors hover:text-primary",
-                                location.pathname === '/dashboard'
+                                location.pathname === '/registration-requests'
                                     ? "text-foreground"
                                     : "text-muted-foreground"
                             )}
                         >
-                            Dashboard
+                            Registration Requests
                         </Link>
                     </nav>
 
@@ -96,20 +98,12 @@ const Layout: React.FC = () => {
                                 className="flex items-center space-x-1 rounded-full bg-background p-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
                             >
                                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-700">
-                                    {mockUser.avatar ? (
-                                        <img
-                                            src={mockUser.avatar}
-                                            alt={mockUser.name}
-                                            className="h-8 w-8 rounded-full"
-                                        />
-                                    ) : (
-                                        <span className="text-sm font-medium">
-                                            {mockUser.name.charAt(0).toUpperCase()}
-                                        </span>
-                                    )}
+                                    <span className="text-sm font-medium">
+                                        {user?.name?.charAt(0).toUpperCase() || 'U'}
+                                    </span>
                                 </div>
                                 <span className="hidden md:inline-flex text-sm font-medium">
-                                    {mockUser.name}
+                                    {user?.name || 'User'}
                                 </span>
                                 <ChevronDown className="h-4 w-4 opacity-50" />
                             </button>
@@ -122,8 +116,8 @@ const Layout: React.FC = () => {
                                     className="absolute right-0 mt-1 w-48 rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
                                 >
                                     <div className="px-4 py-2 border-b">
-                                        <p className="text-sm font-medium">{mockUser.name}</p>
-                                        <p className="text-xs text-muted-foreground truncate">{mockUser.email}</p>
+                                        <p className="text-sm font-medium">{user?.name || 'User'}</p>
+                                        <p className="text-xs text-muted-foreground truncate">{user?.email || ''}</p>
                                     </div>
                                     <Link
                                         to="/profile"
@@ -139,13 +133,13 @@ const Layout: React.FC = () => {
                                         <Settings className="mr-2 h-4 w-4" />
                                         Settings
                                     </Link>
-                                    <Link
-                                        to="/login"
+                                    <button
+                                        onClick={handleLogout}
                                         className="flex w-full items-center px-4 py-2 text-sm text-red-600 hover:bg-accent"
                                     >
                                         <LogOut className="mr-2 h-4 w-4" />
                                         Sign out
-                                    </Link>
+                                    </button>
                                 </motion.div>
                             )}
                         </div>
@@ -205,16 +199,16 @@ const Layout: React.FC = () => {
                                     Projects
                                 </Link>
                                 <Link
-                                    to="/dashboard"
+                                    to="/registration-requests"
                                     onClick={() => setMobileMenuOpen(false)}
                                     className={cn(
                                         "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors hover:bg-accent",
-                                        location.pathname === '/dashboard'
+                                        location.pathname === '/registration-requests'
                                             ? "bg-accent text-accent-foreground"
                                             : "text-muted-foreground hover:text-foreground"
                                     )}
                                 >
-                                    Dashboard
+                                    Registration Requests
                                 </Link>
                             </nav>
 
@@ -222,21 +216,13 @@ const Layout: React.FC = () => {
                             <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-background">
                                 <div className="flex items-center space-x-3 mb-3">
                                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-700">
-                                        {mockUser.avatar ? (
-                                            <img
-                                                src={mockUser.avatar}
-                                                alt={mockUser.name}
-                                                className="h-8 w-8 rounded-full"
-                                            />
-                                        ) : (
-                                            <span className="text-sm font-medium">
-                                                {mockUser.name.charAt(0).toUpperCase()}
-                                            </span>
-                                        )}
+                                        <span className="text-sm font-medium">
+                                            {user?.name?.charAt(0).toUpperCase() || 'U'}
+                                        </span>
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium truncate">{mockUser.name}</p>
-                                        <p className="text-xs text-muted-foreground truncate">{mockUser.email}</p>
+                                        <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
+                                        <p className="text-xs text-muted-foreground truncate">{user?.email || ''}</p>
                                     </div>
                                 </div>
                                 <div className="space-y-1">
@@ -256,14 +242,16 @@ const Layout: React.FC = () => {
                                         <Settings className="mr-2 h-4 w-4" />
                                         Settings
                                     </Link>
-                                    <Link
-                                        to="/login"
-                                        onClick={() => setMobileMenuOpen(false)}
+                                    <button
+                                        onClick={() => {
+                                            setMobileMenuOpen(false);
+                                            handleLogout();
+                                        }}
                                         className="flex w-full items-center px-2 py-1.5 text-sm text-red-600 hover:bg-accent rounded-md"
                                     >
                                         <LogOut className="mr-2 h-4 w-4" />
                                         Sign out
-                                    </Link>
+                                    </button>
                                 </div>
                             </div>
                         </motion.div>
