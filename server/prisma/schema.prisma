@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  name          String
+  password      String
+  status        UserStatus @default(PENDING)
+  dob           DateTime?
+  phone         String?
+  qualification String?
+  address       String?
+  role          Role       @default(USER)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  PENDING
+  REJECTED
+  APPROVED
+}
+
+model Projects {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  metadata    Json?
+  projectType String?
+  imageUrl    String?
+  status      ProjectStatus @default(ACTIVE)
+  centers     Centers[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+enum ProjectStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model Centers {
+  id        String      @id @default(cuid())
+  name      String
+  metadata  Json?
+  projectId String
+  project   Projects    @relation(fields: [projectId], references: [id])
+  semesters Semesters[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+model Semesters {
+  id        String   @id @default(cuid())
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  centerId  String
+  center    Centers  @relation(fields: [centerId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
