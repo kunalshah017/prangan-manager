@@ -1,9 +1,14 @@
-import type{ FastifyInstance } from "fastify";
-import { registerUser, loginUser } from "../controllers/user.controller.js";
+import type { FastifyInstance } from "fastify";
+import {
+  registerUser,
+  loginUser,
+  getCurrentUser,
+} from "../controllers/user.controller.js";
+import { authChecker } from "../utils/authChecker.js";
 
 export const userRoutes = async (fastify: FastifyInstance): Promise<void> => {
   // Declare a route for the root path
-  fastify.post('/users/register', registerUser);
-  fastify.post('/users/login', loginUser);
-
+  fastify.post("/users/register", registerUser);
+  fastify.post("/users/login", loginUser);
+  fastify.get("/users/me", { preHandler: authChecker }, getCurrentUser);
 };

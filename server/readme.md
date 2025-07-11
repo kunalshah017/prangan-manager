@@ -11,6 +11,7 @@ cp .env.example .env
 ```
 
 Required environment variables:
+
 - `DATABASE_URL`: PostgreSQL connection string
 - `JWT_SECRET`: Secret key for JWT token generation
 - `PORT`: Server port (default: 4000)
@@ -42,9 +43,11 @@ The server will start on the port specified in your `.env` file (default: 4000).
 ## Health Check
 
 ### GET /health
+
 Check if the server is running.
 
 **Response:**
+
 ```json
 {
   "status": "OK",
@@ -60,9 +63,11 @@ All API endpoints are prefixed with `/api/v1`.
 ### User Routes
 
 #### POST /api/v1/users/register
+
 Register a new user.
 
 **Body:**
+
 ```json
 {
   "email": "user@example.com",
@@ -75,10 +80,20 @@ Register a new user.
 }
 ```
 
+**Response (201):**
+
+```json
+{
+  "message": "User registered successfully"
+}
+```
+
 #### POST /api/v1/users/login
+
 Login user and get JWT token.
 
 **Body:**
+
 ```json
 {
   "email": "user@example.com",
@@ -86,18 +101,64 @@ Login user and get JWT token.
 }
 ```
 
+**Response (200):**
+
+```json
+{
+  "message": "Login successful",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+#### GET /api/v1/users/me
+
+Get current user details.
+
+_Requires authentication_
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Response (200):**
+
+```json
+{
+  "message": "User details retrieved successfully",
+  "user": {
+    "id": "user_id",
+    "email": "user@example.com",
+    "name": "John Doe",
+    "role": "USER",
+    "status": "APPROVED",
+    "phone": "+1234567890",
+    "qualification": "Bachelor's Degree",
+    "address": "123 Main St, City, State",
+    "dob": "1990-01-01T00:00:00.000Z",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  }
+}
+```
+
 ### Project Routes
-*Requires authentication*
+
+_Requires authentication_
 
 #### POST /api/v1/projects/create
+
 Create a new project (Admin only).
 
 **Headers:**
+
 ```
 Authorization: Bearer <jwt_token>
 ```
 
 **Body:**
+
 ```json
 {
   "name": "Project Name",
@@ -108,26 +169,79 @@ Authorization: Bearer <jwt_token>
 }
 ```
 
+**Response (201):**
+
+```json
+{
+  "message": "Project created successfully",
+  "project": {
+    "id": "project_id",
+    "name": "Project Name",
+    "description": "Project description",
+    "metadata": {},
+    "projectType": "Type",
+    "imageUrl": "https://example.com/image.jpg",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  }
+}
+```
+
 #### GET /api/v1/projects
+
 List all projects.
 
 **Headers:**
+
 ```
 Authorization: Bearer <jwt_token>
 ```
 
+**Response (200):**
+
+```json
+{
+  "projects": [
+    {
+      "id": "project_id_1",
+      "name": "Project One",
+      "description": "First project description",
+      "metadata": {},
+      "projectType": "Web",
+      "imageUrl": "https://example.com/image1.jpg",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "project_id_2",
+      "name": "Project Two",
+      "description": "Second project description",
+      "metadata": {},
+      "projectType": "Mobile",
+      "imageUrl": "https://example.com/image2.jpg",
+      "createdAt": "2024-01-02T00:00:00.000Z",
+      "updatedAt": "2024-01-02T00:00:00.000Z"
+    }
+  ]
+}
+```
+
 ### Center Routes
-*Requires authentication*
+
+_Requires authentication_
 
 #### POST /api/v1/centers/create
+
 Create a new center.
 
 **Headers:**
+
 ```
 Authorization: Bearer <jwt_token>
 ```
 
 **Body:**
+
 ```json
 {
   "name": "Center Name",
@@ -136,31 +250,94 @@ Authorization: Bearer <jwt_token>
 }
 ```
 
+**Response (201):**
+
+```json
+{
+  "message": "Center created successfully",
+  "center": {
+    "id": "center_id",
+    "name": "Center Name",
+    "description": "Center description",
+    "location": "Center Location",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  }
+}
+```
+
 #### GET /api/v1/centers
+
 List all centers.
 
 **Headers:**
+
 ```
 Authorization: Bearer <jwt_token>
 ```
 
+**Response (200):**
+
+```json
+{
+  "centers": [
+    {
+      "id": "center_id_1",
+      "name": "Main Center",
+      "description": "Primary training center",
+      "location": "Downtown Location",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "center_id_2",
+      "name": "Branch Center",
+      "description": "Secondary training center",
+      "location": "Suburb Location",
+      "createdAt": "2024-01-02T00:00:00.000Z",
+      "updatedAt": "2024-01-02T00:00:00.000Z"
+    }
+  ]
+}
+```
+
 ### Semester Routes
-*Requires authentication*
+
+_Requires authentication_
 
 #### POST /api/v1/semesters/create
+
 Create a new semester.
 
 **Headers:**
+
 ```
 Authorization: Bearer <jwt_token>
 ```
 
 **Body:**
+
 ```json
 {
   "name": "Semester Name",
   "startDate": "2024-01-01",
   "endDate": "2024-06-30"
+}
+```
+
+**Response (201):**
+
+```json
+{
+  "message": "Semester created successfully",
+  "semester": {
+    "id": "semester_id",
+    "name": "Semester Name",
+    "startDate": "2024-01-01T00:00:00.000Z",
+    "endDate": "2024-06-30T00:00:00.000Z",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  }
 }
 ```
 
@@ -195,17 +372,43 @@ The API returns consistent error responses:
 
 ```json
 {
-  "error": "Error message",
-  "statusCode": 400
+  "message": "Error message"
 }
 ```
 
 Common status codes:
+
 - `400`: Bad Request
 - `401`: Unauthorized
 - `403`: Forbidden
 - `404`: Not Found
 - `500`: Internal Server Error
+
+**Example Error Responses:**
+
+```json
+{
+  "message": "Email, password, and name are required."
+}
+```
+
+```json
+{
+  "message": "User already exists with this email."
+}
+```
+
+```json
+{
+  "message": "Unauthorized: No token provided"
+}
+```
+
+```json
+{
+  "message": "Only admins can create projects."
+}
+```
 
 ## Development
 
@@ -225,7 +428,7 @@ Common status codes:
 
 - **User**: User accounts with roles and status
 - **Projects**: Project management
-- **Centers**: Center/location management  
+- **Centers**: Center/location management
 - **Semesters**: Academic semester management
 
 ## Contributing
