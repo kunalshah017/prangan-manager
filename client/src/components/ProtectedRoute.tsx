@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuth } from '@/hooks/useAuth';
 import DoodleBackground from '@/components/DoodleBackground';
+import LoadingScreen from '@/components/LoadingScreen';
 
 interface ProtectedRouteProps {
     children: React.ReactNode;
@@ -9,7 +10,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminOnly = false }) => {
-    const { isAuthenticated, user, isLoading } = useAuthStore();
+    const { isAuthenticated, user, isLoading } = useAuth();
     const location = useLocation();
 
     useEffect(() => {
@@ -20,13 +21,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminOnly = f
     // Show loading state while checking authentication
     if (isLoading) {
         return (
-            <div className="min-h-screen w-full bg-background overflow-hidden relative flex items-center justify-center">
-                <DoodleBackground numElements={10} />
-                <div className="relative z-10 flex flex-col items-center">
-                    <div className="animate-pulse h-10 w-10 rounded-full bg-orange-500 mb-4" />
-                    <p className="text-orange-700 font-medium">Checking authentication...</p>
-                </div>
-            </div>
+            <LoadingScreen message="Checking authentication..." />
         );
     }
 

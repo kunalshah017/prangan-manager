@@ -1,7 +1,13 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import DoodleBackground from '@/components/DoodleBackground'
+import LoadingButterfly from '@/components/LoadingButterfly'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import PublicRoute from '@/components/PublicRoute'
+import { queryClient } from '@/lib/query-client'
+import { initializeAuth } from '@/stores/authStore'
 
 // Layouts
 const Layout = lazy(() => import('./components/Layout'))
@@ -19,53 +25,59 @@ const RegistrationRequests = lazy(() => import('./pages/RegistrationRequests'))
 const PageLoading = () => (
   <div className="min-h-screen w-full bg-background overflow-hidden relative flex items-center justify-center">
     <DoodleBackground numElements={10} />
-    <div className="relative z-10 flex flex-col items-center">
-      <div className="animate-pulse h-10 w-10 rounded-full bg-orange-500 mb-4" />
-      <p className="text-orange-700 font-medium">Loading...</p>
+    <div className="relative z-10">
+      <LoadingButterfly message="Loading..." size="md" />
     </div>
   </div>
 )
 
 function App() {
+  useEffect(() => {
+    initializeAuth();
+  }, []);
+
   return (
-    <BrowserRouter>
-      <Suspense fallback={<PageLoading />}>
-        <Routes>
-          {/* Public routes */}
-          <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <Suspense fallback={<PageLoading />}>
+          <Routes>
+            {/* Public routes - redirect to /projects if authenticated */}
+            <Route path="/" element={<PublicRoute><Home /></PublicRoute>} />
+            <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+            <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
 
-          {/* Protected routes with layout */}
-          <Route
-            path="/projects"
-            element={
-              <ProtectedRoute>
-                <Layout />
-              </ProtectedRoute>
-            }
-          >
-            <Route index element={<Projects />} />
-            <Route path="new" element={<CreateProject />} />
-            <Route path=":id/edit" element={<EditProject />} />
-          </Route>
+            {/* Protected routes with layout */}
+            <Route
+              path="/projects"
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<Projects />} />
+              <Route path="new" element={<CreateProject />} />
+              <Route path=":id/edit" element={<EditProject />} />
+            </Route>
 
-          <Route
-            path="/registration-requests"
-            element={
-              <ProtectedRoute adminOnly>
-                <Layout />
-              </ProtectedRoute>
-            }
-          >
-            <Route index element={<RegistrationRequests />} />
-          </Route>
+            <Route
+              path="/registration-requests"
+              element={
+                <ProtectedRoute adminOnly>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<RegistrationRequests />} />
+            </Route>
 
-          {/* Redirect any unmatched routes to home */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
-    </BrowserRouter>
+            {/* Redirect any unmatched routes to home */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
+      </BrowserRouter>
+      {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
+    </QueryClientProvider>
   )
 }
 

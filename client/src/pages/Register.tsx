@@ -1,29 +1,38 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/lib/button-variants';
 import DoodleBackground from '@/components/DoodleBackground';
-import { useAuthStore } from '@/stores/authStore';
+import LoadingButterfly from '@/components/LoadingButterfly';
+import { useAuth } from '@/hooks/useAuth';
 
 const Register = () => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
     const [dateOfBirth, setDateOfBirth] = useState('');
     const [phone, setPhone] = useState('');
     const [qualification, setQualification] = useState('');
     const [address, setAddress] = useState('');
-    const { register, isLoading, error, clearError } = useAuthStore();
+    const { register, isLoading, registerError, isAuthenticated } = useAuth();
     const navigate = useNavigate();
+
+    // Redirect if already authenticated
+    useEffect(() => {
+        if (isAuthenticated && !isLoading) {
+            navigate('/projects', { replace: true });
+        }
+    }, [isAuthenticated, isLoading, navigate]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        clearError();
 
         try {
             await register({
                 name,
                 email,
+                password,
                 phone,
                 qualification,
                 address,
@@ -37,7 +46,7 @@ const Register = () => {
                 }
             });
         } catch {
-            // Error is handled by the auth store
+            // Error is handled by the useAuth hook
         }
     };
 
@@ -76,9 +85,9 @@ const Register = () => {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5, delay: 0.2 }}
                     >
-                        {error && (
+                        {registerError && (
                             <div className="bg-red-50 p-3 rounded-md border border-red-200 text-red-700 text-sm">
-                                {error}
+                                {registerError}
                             </div>
                         )}
 
@@ -115,6 +124,23 @@ const Register = () => {
                                         disabled={isLoading}
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
+                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="grid gap-2">
+                                    <label htmlFor="password" className="text-sm font-medium">
+                                        Password
+                                    </label>
+                                    <input
+                                        id="password"
+                                        placeholder="••••••••"
+                                        type="password"
+                                        autoComplete="new-password"
+                                        disabled={isLoading}
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
                                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                         required
                                     />
@@ -191,10 +217,7 @@ const Register = () => {
                                     )}
                                 >
                                     {isLoading ? (
-                                        <div className="flex items-center justify-center">
-                                            <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin mr-2" />
-                                            Creating account...
-                                        </div>
+                                        <LoadingButterfly size="sm" message="Creating account..." />
                                     ) : (
                                         "Register"
                                     )}

@@ -4,7 +4,9 @@ import { cn } from '@/lib/utils'
 import { AspectRatio } from '@/components/ui/aspect-ratio'
 import { buttonVariants } from '@/lib/button-variants'
 import DoodleBackground from '@/components/DoodleBackground'
-import { Link } from 'react-router-dom'
+import LoadingButterfly from '@/components/LoadingButterfly'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '@/hooks/useAuth'
 
 // Local images from public folder for the carousel
 const carouselImages = [
@@ -19,6 +21,15 @@ const Home = () => {
     const [imagesLoaded, setImagesLoaded] = useState(false)
     const [isTransitioning, setIsTransitioning] = useState(false)
     const [prevImage, setPrevImage] = useState(0)
+    const { isAuthenticated, isLoading } = useAuth();
+    const navigate = useNavigate();
+
+    // Redirect if already authenticated
+    useEffect(() => {
+        if (isAuthenticated && !isLoading) {
+            navigate('/projects', { replace: true });
+        }
+    }, [isAuthenticated, isLoading, navigate]);
 
     // Preload all images
     useEffect(() => {
@@ -224,10 +235,7 @@ const Home = () => {
             {/* Initial loading placeholder with gradient background */}
             {!imagesLoaded && (
                 <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-orange-100 to-amber-200 z-50">
-                    <div className="flex flex-col items-center">
-                        <div className="animate-pulse h-10 w-10 rounded-full bg-orange-500 mb-4" />
-                        <p className="text-orange-700 font-medium">Loading images...</p>
-                    </div>
+                    <LoadingButterfly message="Loading images..." size="md" />
                 </div>
             )}
         </div>

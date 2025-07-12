@@ -3,19 +3,19 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, LogOut, User, Settings, PanelRightOpen, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuth } from '@/hooks/useAuth';
 
 
 const Layout: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const { user, logout } = useAuthStore();
+    const { user, logout } = useAuth();
     const [userMenuOpen, setUserMenuOpen] = React.useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
     // Handle logout
-    const handleLogout = () => {
-        logout();
+    const handleLogout = async () => {
+        await logout();
         navigate('/login');
     };
 

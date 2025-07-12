@@ -4,22 +4,16 @@ import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/lib/button-variants';
 import { useEffect, useState } from 'react';
 import DoodleBackground from '@/components/DoodleBackground';
-
-// Mock project data - in a real app, this would come from an API call
-const mockProjects = [
-    {
-        id: '1',
-        name: 'Project Chanchalmann',
-        status: 'active',
-        description: 'Started with only one center, 25 volunteers and 40 children in the latter half of 2018, we are now two centers strong, and 100+ dedicated and compassionate volunteers working with us with more than 80 kids learning at us. We are working very actively in Dombivli (west) and are situated in the community to get the best possible results.',
-        lastUpdated: '2 days ago',
-    },
-];
+import LoadingButterfly from '@/components/LoadingButterfly';
+import { useProjects } from '@/hooks/useProjectQueries';
 
 const Projects = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+    // Fetch projects using TanStack Query
+    const { data: projects, isLoading, error, refetch } = useProjects();
 
     useEffect(() => {
         // Check if there's a success message from navigation state
@@ -29,12 +23,50 @@ const Projects = () => {
             setTimeout(() => setSuccessMessage(null), 5000);
             // Clear the navigation state
             navigate(location.pathname, { replace: true });
+            // Refetch projects after a successful operation
+            refetch();
         }
-    }, [location.state, navigate, location.pathname]);
+    }, [location.state, navigate, location.pathname, refetch]);
 
     const handleProjectClick = (projectId: string) => {
-        navigate(`/projects/${projectId}`);
+        navigate(`/projects/${projectId}/edit`);
     };
+
+    // Show loading state
+    if (isLoading) {
+        return (
+            <>
+                <DoodleBackground numElements={12} />
+                <div className="flex flex-col items-center justify-center min-h-[400px] relative z-1">
+                    <LoadingButterfly message="Loading projects..." size="md" />
+                </div>
+            </>
+        );
+    }
+
+    // Show error state
+    if (error) {
+        return (
+            <>
+                <DoodleBackground numElements={12} />
+                <div className="flex flex-col items-center justify-center min-h-[400px] relative z-1">
+                    <div className="h-16 w-16 rounded-full bg-red-100 flex items-center justify-center mb-4">
+                        <span className="text-red-600 text-2xl">⚠️</span>
+                    </div>
+                    <h2 className="text-xl font-semibold text-gray-900 mb-2">Failed to load projects</h2>
+                    <p className="text-gray-600 mb-4">{error.message}</p>
+                    <button
+                        onClick={() => refetch()}
+                        className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
+                    >
+                        Try Again
+                    </button>
+                </div>
+            </>
+        );
+    }
+
+    const projectList = projects || [];
 
     return (
         <>
@@ -66,7 +98,7 @@ const Projects = () => {
                 {/* Project grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {/* Project cards */}
-                    {mockProjects.map((project) => (
+                    {projectList.map((project) => (
                         <div
                             key={project.id}
                             className="flex flex-col overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm transition-all hover:shadow-md cursor-pointer"
@@ -75,7 +107,7 @@ const Projects = () => {
                             {/* Project Banner */}
                             <div className="w-full h-32 overflow-hidden">
                                 <img
-                                    src="/images/default_project_banner.jpg"
+                                    src={project.imageUrl || "/images/default_project_banner.jpg"}
                                     alt={`${project.name} Banner`}
                                     className="w-full h-full object-cover object-center bg-gray-200"
                                 />
@@ -88,11 +120,13 @@ const Projects = () => {
                                         <span
                                             className={cn(
                                                 "inline-flex h-2 w-2 rounded-full mr-2",
-                                                project.status === 'active' ? "bg-green-500" : "bg-gray-300"
+                                                project.status === 'ACTIVE' ? "bg-green-500" :
+                                                    project.status === 'INACTIVE' ? "bg-yellow-500" : "bg-gray-300"
                                             )}
                                         />
                                         <span className="text-xs text-muted-foreground">
-                                            {project.status === 'active' ? 'Active' : 'Completed'}
+                                            {project.status === 'ACTIVE' ? 'Active' :
+                                                project.status === 'INACTIVE' ? 'Inactive' : 'Archived'}
                                         </span>
                                     </div>
                                 </div>
@@ -102,7 +136,7 @@ const Projects = () => {
                                 <div className="mt-4 flex items-center justify-between">
                                     <div className="flex items-center text-xs text-muted-foreground">
                                         <Clock className="mr-1 h-3 w-3" />
-                                        <span>Updated {project.lastUpdated}</span>
+                                        <span>Updated {new Date(project.updatedAt).toLocaleDateString()}</span>
                                     </div>
                                     <div className="flex gap-2">
                                         <Link
@@ -136,13 +170,23 @@ const Projects = () => {
                 </div>
 
                 {/* No projects found message */}
-                {mockProjects.length === 0 && (
+                {projectList.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-10">
                         <GanttChart className="h-12 w-12 text-muted-foreground opacity-50 mb-4" />
                         <h3 className="font-medium text-lg">No projects found</h3>
                         <p className="text-sm text-muted-foreground">
-                            We couldn't find any projects
+                            Get started by creating your first project
                         </p>
+                        <Link
+                            to="/projects/new"
+                            className={cn(
+                                buttonVariants({ size: "default" }),
+                                "mt-4 bg-orange-600 hover:bg-orange-700 text-white"
+                            )}
+                        >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Create Project
+                        </Link>
                     </div>
                 )}
             </div></>

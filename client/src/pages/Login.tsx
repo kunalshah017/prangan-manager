@@ -1,27 +1,34 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/lib/button-variants';
 import DoodleBackground from '@/components/DoodleBackground';
-import { useAuthStore } from '@/stores/authStore';
+import LoadingButterfly from '@/components/LoadingButterfly';
+import { useAuth } from '@/hooks/useAuth';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login, isLoading, error, clearError } = useAuthStore();
+  const { login, isLoading, loginError, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      navigate('/projects', { replace: true });
+    }
+  }, [isAuthenticated, isLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    clearError();
 
     try {
       await login({ email, password });
       // Navigate to projects page on successful login
       navigate('/projects');
     } catch {
-      // Error is handled by the auth store
+      // Error is handled by the useAuth hook
     }
   };
 
@@ -60,9 +67,9 @@ const Login = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-            {error && (
+            {loginError && (
               <div className="bg-red-50 p-3 rounded-md border border-red-200 text-red-700 text-sm">
-                {error}
+                {loginError}
               </div>
             )}
 
@@ -116,10 +123,7 @@ const Login = () => {
                   )}
                 >
                   {isLoading ? (
-                    <div className="flex items-center justify-center">
-                      <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin mr-2" />
-                      Signing in...
-                    </div>
+                    <LoadingButterfly size="sm" message="Signing in..." />
                   ) : (
                     "Sign In"
                   )}

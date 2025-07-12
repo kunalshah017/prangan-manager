@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/lib/button-variants';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import DoodleBackground from '@/components/DoodleBackground';
+import LoadingButterfly from '@/components/LoadingButterfly';
 
 // Mock function to get project by ID - in a real app, this would be an API call
 const getProjectById = (id: string) => {
@@ -133,7 +134,7 @@ const EditProject = () => {
                             className={cn(buttonVariants({ size: 'default' }), 'bg-orange-600 hover:bg-orange-700 text-white min-w-[120px]')}
                         >
                             {isLoading ? (
-                                <span className="flex items-center justify-center"><span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin mr-2" />Updating...</span>
+                                <LoadingButterfly size="sm" message="Updating..." />
                             ) : (
                                 'Update Project'
                             )}
