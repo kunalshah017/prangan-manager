@@ -341,6 +341,7 @@ Authorization: Bearer <jwt_token>
 ```json
 {
   "name": "Center Name",
+  "address": "123 Main Street, City",
   "metadata": {},
   "projectId": "project_id"
 }
@@ -354,6 +355,7 @@ Authorization: Bearer <jwt_token>
   "center": {
     "id": "center_id",
     "name": "Center Name",
+    "address": "123 Main Street, City",
     "metadata": {},
     "projectId": "project_id",
     "createdAt": "2024-01-01T00:00:00.000Z",
@@ -380,6 +382,7 @@ Authorization: Bearer <jwt_token>
     {
       "id": "center_id_1",
       "name": "Main Center",
+      "address": "123 Main Street, City",
       "metadata": {},
       "projectId": "project_id",
       "createdAt": "2024-01-01T00:00:00.000Z",
@@ -411,6 +414,7 @@ Authorization: Bearer <jwt_token>
     {
       "id": "center_id_1",
       "name": "Main Center",
+      "address": "123 Main Street, City",
       "metadata": {},
       "projectId": "project_id",
       "project": {
@@ -445,6 +449,7 @@ Authorization: Bearer <jwt_token>
   "center": {
     "id": "center_id",
     "name": "Center Name",
+    "address": "123 Main Street, City",
     "metadata": {},
     "projectId": "project_id",
     "project": {
@@ -477,6 +482,7 @@ Authorization: Bearer <jwt_token>
 ```json
 {
   "name": "Updated Center Name",
+  "address": "456 New Street, Updated City",
   "metadata": {}
 }
 ```
@@ -489,6 +495,7 @@ Authorization: Bearer <jwt_token>
   "center": {
     "id": "center_id",
     "name": "Updated Center Name",
+    "address": "456 New Street, Updated City",
     "metadata": {},
     "projectId": "project_id",
     "createdAt": "2024-01-01T00:00:00.000Z",
@@ -792,6 +799,7 @@ Common status codes:
 ### Test Admin Account
 
 After running `npm run seed`, you can use these credentials:
+
 - **Email**: admin@test.com
 - **Password**: AdminTest123!
 - **Role**: ADMIN

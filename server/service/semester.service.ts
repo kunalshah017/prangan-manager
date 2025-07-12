@@ -1,12 +1,20 @@
 import { PrismaClient } from "../generated/prisma/index.js";
 import type { semester } from "../types/semester.type.js";
+import { convertToDateTime } from "../utils/dateHelpers.js";
 
 const prisma = new PrismaClient();
 
 export const CreateSemester = async (semesterData: Partial<semester>) => {
   try {
+    // Convert string dates to proper Date objects using utility function
+    const processedData: any = {
+      ...semesterData,
+      startDate: convertToDateTime(semesterData.startDate, false),
+      endDate: convertToDateTime(semesterData.endDate, true),
+    };
+
     const semester = await prisma.semesters.create({
-      data: semesterData as any,
+      data: processedData,
     });
     return semester;
   } catch (error: unknown) {
@@ -40,9 +48,16 @@ export const updateSemester = async (
   semesterData: Partial<semester>
 ) => {
   try {
+    // Convert string dates to proper Date objects using utility function
+    const processedData: any = {
+      ...semesterData,
+      startDate: convertToDateTime(semesterData.startDate, false),
+      endDate: convertToDateTime(semesterData.endDate, true),
+    };
+
     const semester = await prisma.semesters.update({
       where: { id },
-      data: semesterData as any,
+      data: processedData,
     });
     return semester;
   } catch (error: unknown) {

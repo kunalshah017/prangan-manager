@@ -1,5 +1,6 @@
 export interface Center {
-    name: string
-    metaData?: any
-    ProjectId?: string
+  name: string;
+  address?: string;
+  metadata?: any;
+  projectId?: string;
 }

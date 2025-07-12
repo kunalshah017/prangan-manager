@@ -6,11 +6,14 @@
   "scripts": {
     "dev": "tsx watch server.ts",
     "dev:ts-node": "ts-node --esm server.ts",
-    "build": "tsc",
+    "build": "tsc && npx prisma generate",
     "start": "node dist/server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "postinstall": "prisma generate",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "migrate:deploy": "prisma migrate deploy",
+    "migrate:prod": "prisma migrate deploy",
+    "db:seed:prod": "tsx prisma/seed.ts"
   },
   "keywords": [],
   "author": "",
@@ -25,7 +28,8 @@
     "bcryptjs": "^3.0.2",
     "dotenv": "^17.2.0",
     "fastify": "^5.4.0",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "resend": "^4.6.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

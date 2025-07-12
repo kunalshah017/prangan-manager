@@ -7,8 +7,9 @@ const prisma = new PrismaClient();
 
 export const createUser = async (userData: User) => {
   try {
+    const { id, updatedAt, ...userCreateData } = userData as any;
     const user = await prisma.user.create({
-      data: userData,
+      data: userCreateData,
     });
     return user;
   } catch (error: unknown) {
@@ -54,23 +55,27 @@ export const getUserById = async (id: string) => {
   }
 };
 
-export const updateUser = async (id: string, status: UserStatus, role:Role, password:string) => {
+export const updateUser = async (
+  id: string,
+  status: UserStatus,
+  role: Role,
+  password: string
+) => {
   try {
     const user = await prisma.user.update({
       where: { id },
-      data:{
+      data: {
         status: status,
         role: role,
         password: password,
-
-      }
+      },
     });
     return user;
   } catch (error: unknown) {
     console.error("Error updating user:", error);
     return "Failed to update user";
   }
-}
+};
 
 export const getUnverifiedUsers = async () => {
   try {
@@ -94,4 +99,4 @@ export const getUnverifiedUsers = async () => {
     console.error("Error fetching unverified users:", error);
     return "Failed to fetch unverified users";
   }
-}
+};

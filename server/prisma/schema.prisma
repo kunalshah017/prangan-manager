@@ -8,6 +8,42 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Centers {
+  id        String      @id @default(cuid())
+  name      String
+  address   String?
+  metadata  Json?
+  projectId String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  project   Projects    @relation(fields: [projectId], references: [id])
+  semesters Semesters[]
+}
+
+model Projects {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  metadata    Json?
+  projectType String?
+  imageUrl    String?
+  status      ProjectStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  centers     Centers[]
+}
+
+model Semesters {
+  id        String   @id @default(cuid())
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  centerId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  center    Centers  @relation(fields: [centerId], references: [id])
+}
+
 model User {
   id            String     @id @default(cuid())
   email         String     @unique
@@ -23,6 +59,11 @@ model User {
   updatedAt     DateTime   @updatedAt
 }
 
+enum ProjectStatus {
+  ACTIVE
+  INACTIVE
+}
+
 enum Role {
   USER
   ADMIN
@@ -32,44 +73,4 @@ enum UserStatus {
   PENDING
   REJECTED
   APPROVED
-}
-
-model Projects {
-  id          String        @id @default(cuid())
-  name        String
-  description String?
-  metadata    Json?
-  projectType String?
-  imageUrl    String?
-  status      ProjectStatus @default(ACTIVE)
-  centers     Centers[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-}
-
-enum ProjectStatus {
-  ACTIVE
-  INACTIVE
-}
-
-model Centers {
-  id        String      @id @default(cuid())
-  name      String
-  metadata  Json?
-  projectId String
-  project   Projects    @relation(fields: [projectId], references: [id])
-  semesters Semesters[]
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-}
-
-model Semesters {
-  id        String   @id @default(cuid())
-  name      String
-  startDate DateTime
-  endDate   DateTime
-  centerId  String
-  center    Centers  @relation(fields: [centerId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
