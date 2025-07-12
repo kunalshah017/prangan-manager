@@ -44,6 +44,21 @@ export const updateProject = async (
 
 export const deleteProject = async (id: string) => {
   try {
+    // First, delete all semesters related to centers of this project
+    await prisma.semesters.deleteMany({
+      where: {
+        center: {
+          projectId: id
+        }
+      }
+    });
+
+    // Then, delete all centers related to this project
+    await prisma.centers.deleteMany({
+      where: { projectId: id }
+    });
+
+    // Finally, delete the project
     const project = await prisma.projects.delete({
       where: { id },
     });

@@ -311,6 +311,8 @@ Authorization: Bearer <jwt_token>
 
 Delete a project (Admin only).
 
+**Note:** This operation will cascade delete all related centers and semesters associated with the project.
+
 **Headers:**
 
 ```
@@ -517,6 +519,8 @@ Authorization: Bearer <jwt_token>
 #### DELETE /api/v1/centers/:id
 
 Delete a center (Admin only).
+
+**Note:** This operation will cascade delete all related semesters associated with the center.
 
 **Headers:**
 
