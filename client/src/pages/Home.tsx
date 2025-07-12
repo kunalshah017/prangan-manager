@@ -235,7 +235,7 @@ const Home = () => {
             {/* Initial loading placeholder with gradient background */}
             {!imagesLoaded && (
                 <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-orange-100 to-amber-200 z-50">
-                    <LoadingButterfly message="Loading images..." size="md" />
+                    <LoadingButterfly size="md" />
                 </div>
             )}
         </div>

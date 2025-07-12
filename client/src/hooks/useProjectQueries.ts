@@ -3,8 +3,12 @@ import { api } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-client";
 import type {
   ProjectsResponse,
+  ProjectResponse,
   CreateProjectRequest,
+  UpdateProjectRequest,
   CreateProjectResponse,
+  UpdateProjectResponse,
+  MessageResponse,
   Project,
 } from "@/types/api";
 
@@ -24,7 +28,8 @@ export const useProject = (id: string) => {
   return useQuery({
     queryKey: queryKeys.project(id),
     queryFn: async (): Promise<Project> => {
-      return api.get<Project>(`/projects/${id}`);
+      const response = await api.get<ProjectResponse>(`/projects/${id}`);
+      return response.project;
     },
     enabled: !!id, // Only fetch if id is provided
   });
@@ -56,9 +61,13 @@ export const useUpdateProject = () => {
       data,
     }: {
       id: string;
-      data: Partial<CreateProjectRequest>;
+      data: UpdateProjectRequest;
     }): Promise<Project> => {
-      return api.put<Project>(`/projects/${id}`, data);
+      const response = await api.put<UpdateProjectResponse>(
+        `/projects/${id}`,
+        data
+      );
+      return response.project;
     },
     onSuccess: (data, variables) => {
       // Update the specific project in cache
@@ -73,8 +82,8 @@ export const useDeleteProject = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (id: string): Promise<void> => {
-      return api.delete(`/projects/${id}`);
+    mutationFn: async (id: string): Promise<MessageResponse> => {
+      return api.delete<MessageResponse>(`/projects/${id}`);
     },
     onSuccess: (_, id) => {
       // Remove the specific project from cache

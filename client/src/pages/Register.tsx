@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { cn } from '@/lib/utils';
-import { buttonVariants } from '@/lib/button-variants';
 import DoodleBackground from '@/components/DoodleBackground';
-import LoadingButterfly from '@/components/LoadingButterfly';
+import { CustomButton } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 
 const Register = () => {
@@ -208,20 +206,14 @@ const Register = () => {
                                     />
                                 </div>
 
-                                <button
+                                <CustomButton
                                     type="submit"
-                                    disabled={isLoading}
-                                    className={cn(
-                                        buttonVariants({ size: "default" }),
-                                        "font-medium bg-orange-600 hover:bg-orange-700 text-white w-full mt-2"
-                                    )}
+                                    isLoading={isLoading}
+                                    loadingMessage="Creating account..."
+                                    className="bg-orange-600 hover:bg-orange-700 text-white w-full mt-2"
                                 >
-                                    {isLoading ? (
-                                        <LoadingButterfly size="sm" message="Creating account..." />
-                                    ) : (
-                                        "Register"
-                                    )}
-                                </button>
+                                    Register
+                                </CustomButton>
                             </div>
                         </form>
 

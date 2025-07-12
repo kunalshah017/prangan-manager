@@ -1,13 +1,43 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-client";
 import type {
   CreateSemesterRequest,
   CreateSemesterResponse,
+  SemestersResponse,
+  SemesterResponse,
+  UpdateSemesterResponse,
+  MessageResponse,
   Semester,
 } from "@/types/api";
 
-// Semester Mutations (no list endpoint mentioned, so just mutations)
+// Semester Queries
+export const useSemester = (id: string) => {
+  return useQuery({
+    queryKey: queryKeys.semester(id),
+    queryFn: async (): Promise<Semester> => {
+      const response = await api.get<SemesterResponse>(`/semesters/${id}`);
+      return response.semester;
+    },
+    enabled: !!id,
+  });
+};
+
+export const useSemestersByCenter = (centerId: string) => {
+  return useQuery({
+    queryKey: queryKeys.semestersByCenter(centerId),
+    queryFn: async (): Promise<Semester[]> => {
+      const response = await api.get<SemestersResponse>(
+        `/semesters/center/${centerId}`
+      );
+      return response.semesters;
+    },
+    enabled: !!centerId,
+    staleTime: 5 * 60 * 1000, // Semester data stays fresh for 5 minutes
+  });
+};
+
+// Semester Mutations
 export const useCreateSemester = () => {
   const queryClient = useQueryClient();
 
@@ -23,6 +53,10 @@ export const useCreateSemester = () => {
     onSuccess: () => {
       // Invalidate semesters if we had a list endpoint
       queryClient.invalidateQueries({ queryKey: queryKeys.semesters });
+      // Invalidate semesters by center queries since the new semester is linked to a center
+      queryClient.invalidateQueries({
+        queryKey: ["semesters", "center"],
+      });
     },
   });
 };
@@ -38,11 +72,19 @@ export const useUpdateSemester = () => {
       id: string;
       data: Partial<CreateSemesterRequest>;
     }): Promise<Semester> => {
-      return api.put<Semester>(`/semesters/${id}`, data);
+      const response = await api.put<UpdateSemesterResponse>(
+        `/semesters/${id}`,
+        data
+      );
+      return response.semester;
     },
     onSuccess: (data, variables) => {
       queryClient.setQueryData(queryKeys.semester(variables.id), data);
       queryClient.invalidateQueries({ queryKey: queryKeys.semesters });
+      // Also invalidate semesters by center
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.semestersByCenter(data.centerId),
+      });
     },
   });
 };
@@ -51,12 +93,24 @@ export const useDeleteSemester = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (id: string): Promise<void> => {
-      return api.delete(`/semesters/${id}`);
+    mutationFn: async (id: string): Promise<MessageResponse> => {
+      return api.delete<MessageResponse>(`/semesters/${id}`);
     },
     onSuccess: (_, id) => {
+      // Get the semester data before removal to know which center to invalidate
+      const semesterData = queryClient.getQueryData<Semester>(
+        queryKeys.semester(id)
+      );
+
       queryClient.removeQueries({ queryKey: queryKeys.semester(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.semesters });
+
+      // Also invalidate semesters by center if we know the centerId
+      if (semesterData?.centerId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.semestersByCenter(semesterData.centerId),
+        });
+      }
     },
   });
 };

@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/lib/button-variants';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import DoodleBackground from '@/components/DoodleBackground';
-import LoadingButterfly from '@/components/LoadingButterfly';
+import { CustomButton } from '@/components/ui/button';
 import { useCreateProject } from '@/hooks/useProjectQueries';
+import { useAuth } from '@/hooks/useAuth';
 
 const CreateProject = () => {
     const [name, setName] = useState('');
@@ -12,8 +13,16 @@ const CreateProject = () => {
     const [projectType, setProjectType] = useState('');
     const [imageUrl, setImageUrl] = useState('');
     const navigate = useNavigate();
+    const { isAdmin } = useAuth();
 
     const { mutate: createProject, isPending, error } = useCreateProject();
+
+    // Check if user is admin - redirect if not
+    useEffect(() => {
+        if (!isAdmin()) {
+            navigate('/projects');
+        }
+    }, [isAdmin, navigate]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -103,27 +112,21 @@ const CreateProject = () => {
                         />
                     </div>
                     <div className="flex gap-2 justify-end">
-                        <Link
-                            to="/projects"
+                        <button
+                            type="button"
+                            onClick={() => navigate('/projects')}
                             className={cn(buttonVariants({ variant: 'outline' }), 'min-w-[100px]')}
                         >
                             Cancel
-                        </Link>
-                        <button
-                            type="submit"
-                            disabled={isPending}
-                            className={cn(
-                                buttonVariants({ size: 'default' }),
-                                'bg-orange-600 hover:bg-orange-700 text-white min-w-[120px]',
-                                isPending && 'opacity-50 cursor-not-allowed'
-                            )}
-                        >
-                            {isPending ? (
-                                <LoadingButterfly size="sm" message="Creating..." />
-                            ) : (
-                                'Create Project'
-                            )}
                         </button>
+                        <CustomButton
+                            type="submit"
+                            isLoading={isPending}
+                            loadingMessage="Creating..."
+                            className="bg-orange-600 hover:bg-orange-700 text-white min-w-[120px]"
+                        >
+                            Create Project
+                        </CustomButton>
                     </div>
                 </form>
             </div>

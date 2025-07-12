@@ -46,10 +46,14 @@ export const queryKeys = {
   // Centers
   centers: ["centers"] as const,
   center: (id: string) => ["centers", id] as const,
+  centersByProject: (projectId: string) =>
+    ["centers", "project", projectId] as const,
 
   // Semesters
   semesters: ["semesters"] as const,
   semester: (id: string) => ["semesters", id] as const,
+  semestersByCenter: (centerId: string) =>
+    ["semesters", "center", centerId] as const,
 
   // Users and admin
   users: ["users"] as const,

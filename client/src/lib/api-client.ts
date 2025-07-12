@@ -24,13 +24,20 @@ export async function apiRequest<T>(
 ): Promise<T> {
   const token = localStorage.getItem("prangan_auth_token");
 
+  // Only set Content-Type if there's a body to send
+  const headers: HeadersInit = {
+    ...(token && { Authorization: `Bearer ${token}` }),
+    ...(options.headers as Record<string, string>),
+  };
+
+  // Add Content-Type only if we're sending data
+  if (options.body) {
+    (headers as Record<string, string>)["Content-Type"] = "application/json";
+  }
+
   const config: RequestInit = {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token && { Authorization: `Bearer ${token}` }),
-      ...options.headers,
-    },
+    headers,
   };
 
   const url = `${API_BASE_URL}${endpoint}`;

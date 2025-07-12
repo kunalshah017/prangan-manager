@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { cn } from '@/lib/utils';
-import { buttonVariants } from '@/lib/button-variants';
 import DoodleBackground from '@/components/DoodleBackground';
-import LoadingButterfly from '@/components/LoadingButterfly';
+import { CustomButton } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 
 const Login = () => {
@@ -114,20 +112,14 @@ const Login = () => {
                     required
                   />
                 </div>
-                <button
+                <CustomButton
                   type="submit"
-                  disabled={isLoading}
-                  className={cn(
-                    buttonVariants({ size: "default" }),
-                    "font-medium bg-orange-600 hover:bg-orange-700 text-white w-full"
-                  )}
+                  isLoading={isLoading}
+                  loadingMessage="Signing in..."
+                  className="bg-orange-600 hover:bg-orange-700 text-white w-full"
                 >
-                  {isLoading ? (
-                    <LoadingButterfly size="sm" message="Signing in..." />
-                  ) : (
-                    "Sign In"
-                  )}
-                </button>
+                  Sign In
+                </CustomButton>
               </div>
             </form>
 

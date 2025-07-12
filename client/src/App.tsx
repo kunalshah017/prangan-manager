@@ -26,7 +26,7 @@ const PageLoading = () => (
   <div className="min-h-screen w-full bg-background overflow-hidden relative flex items-center justify-center">
     <DoodleBackground numElements={10} />
     <div className="relative z-10">
-      <LoadingButterfly message="Loading..." size="md" />
+      <LoadingButterfly size="md" />
     </div>
   </div>
 )

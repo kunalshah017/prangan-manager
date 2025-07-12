@@ -15,15 +15,16 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
     className = ""
 }) => {
     const containerClasses = fullScreen
-        ? "min-h-screen w-full bg-background overflow-hidden relative flex items-center justify-center"
+        ? "min-h-screen w-full bg-background overflow-hidden relative flex flex-col items-center justify-center"
         : `flex items-center justify-center ${className}`;
 
     return (
         <div className={containerClasses}>
             {fullScreen && <DoodleBackground numElements={10} />}
             <div className="relative z-10">
-                <LoadingButterfly message={message} size={size} />
+                <LoadingButterfly size={size} />
             </div>
+            <div className="mt-4 text-center text-gray-500">{message}</div>
         </div>
     );
 };

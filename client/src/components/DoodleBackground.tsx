@@ -52,7 +52,7 @@ const Doodle = ({ Icon, color, size, initialX, initialY, duration, delay }: Dood
             }}
             initial={{ scale: 0, rotate: -30 }}
             animate={{
-                opacity: [0, 0.8, 0.8, 0],
+                opacity: [0, 0.8, 0.8, 0.8, 0.8, 0],
                 scale: [0, 1.5, 1.5, 0.8],
                 y: [0, -30, 30, 60],
                 x: [0, 15, -15, 0],
@@ -118,7 +118,7 @@ const DoodleBackground: React.FC<DoodleBackgroundProps> = ({ numElements = 10 })
                 initialX: posX, // Grid-based X position
                 initialY: posY, // Grid-based Y position
                 duration: 5 + Math.random() * 7,
-                delay: Math.random() * 3,
+                delay: Math.random() * 1,
             });
         }
 
