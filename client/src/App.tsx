@@ -29,7 +29,7 @@ const RegistrationRequests = lazy(() => import('./pages/RegistrationRequests'))
 
 // Loading fallback component
 const PageLoading = () => (
-  <div className="min-h-screen w-full bg-background overflow-hidden relative flex items-center justify-center">
+  <div className="min-h-[100dvh] w-full bg-background overflow-hidden relative flex items-center justify-center">
     <DoodleBackground numElements={10} />
     <div className="relative z-10">
       <LoadingButterfly size="md" />

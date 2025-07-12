@@ -31,10 +31,10 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen min-w-screen bg-background overflow-hidden relative">
+    <div className="min-h-[100dvh] min-w-screen bg-background overflow-hidden relative">
       <DoodleBackground numElements={10} />
 
-      <div className="container relative z-10 flex min-h-screen min-w-full items-center justify-center px-4 py-16">
+      <div className="container relative z-10 flex min-h-[100dvh] min-w-full items-center justify-center px-4 py-16">
         <div className="mx-auto w-full max-w-md flex flex-col items-center">
           <div className="flex flex-col items-center space-y-4 text-center">
             <Link to="/" className="inline-block mb-2">

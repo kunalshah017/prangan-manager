@@ -81,7 +81,7 @@ const Home = () => {
     }
 
     return (
-        <div className="min-h-screen w-full bg-background overflow-hidden relative">
+        <div className="min-h-[100dvh] w-full bg-background overflow-hidden relative">
             {/* Educational doodle background */}
             <DoodleBackground numElements={10} />
 
@@ -89,7 +89,7 @@ const Home = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 1 }}
-                className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-8 md:flex-row md:items-center md:gap-8 md:py-16 lg:px-8 relative z-10"
+                className="mx-auto flex min-h-[100dvh] max-w-7xl flex-col px-4 py-8 md:flex-row md:items-center md:gap-8 md:py-16 lg:px-8 relative z-10"
             >
                 {/* Content */}
                 <div className="flex flex-1 flex-col items-start justify-center py-8 md:py-0">

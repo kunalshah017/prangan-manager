@@ -49,7 +49,7 @@ const Register = () => {
     };
 
     return (
-        <div className="flex min-h-screen min-w-screen bg-background overflow-hidden relative">
+        <div className="flex min-h-[100dvh] min-w-screen bg-background overflow-hidden relative">
             <DoodleBackground numElements={10} />
 
             <div className="container relative z-10 flex min-h-full min-w-full items-center justify-center px-4">
