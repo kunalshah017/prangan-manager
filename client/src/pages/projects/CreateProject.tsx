@@ -10,7 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 const CreateProject = () => {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
-    const [projectType, setProjectType] = useState('');
+    const [projectType, setProjectType] = useState('Educational Project');
     const [imageUrl, setImageUrl] = useState('');
     const navigate = useNavigate();
     const { isAdmin } = useAuth();
@@ -31,7 +31,7 @@ const CreateProject = () => {
             {
                 name,
                 description,
-                projectType: projectType || undefined,
+                projectType: 'Educational Project',
                 imageUrl: imageUrl || undefined,
             },
             {
@@ -90,24 +90,26 @@ const CreateProject = () => {
                         />
                     </div>
                     <div>
-                        <label htmlFor="projectType" className="block text-sm font-medium mb-1">Project Type (Optional)</label>
-                        <input
+                        <label htmlFor="projectType" className="block text-sm font-medium mb-1">Project Type</label>
+                        <select
                             id="projectType"
-                            type="text"
                             value={projectType}
                             onChange={e => setProjectType(e.target.value)}
-                            className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                            placeholder="e.g., Education, Health, Environment"
-                        />
+                            disabled
+                            className="w-full h-10 rounded-md border border-input bg-gray-50 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-not-allowed opacity-60"
+                        >
+                            <option value="Educational Project">Educational Project</option>
+                        </select>
                     </div>
                     <div>
-                        <label htmlFor="imageUrl" className="block text-sm font-medium mb-1">Project Image URL (Optional)</label>
+                        <label htmlFor="imageUrl" className="block text-sm font-medium mb-1">Project Image URL</label>
                         <input
                             id="imageUrl"
                             type="url"
                             value={imageUrl}
                             onChange={e => setImageUrl(e.target.value)}
-                            className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            disabled
+                            className="w-full h-10 rounded-md border border-input bg-gray-50 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-not-allowed opacity-60"
                             placeholder="https://example.com/image.jpg"
                         />
                     </div>

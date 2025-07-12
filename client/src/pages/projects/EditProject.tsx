@@ -20,7 +20,7 @@ const EditProject = () => {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [status, setStatus] = useState<'ACTIVE' | 'INACTIVE'>('ACTIVE');
-    const [projectType, setProjectType] = useState('');
+    const [projectType, setProjectType] = useState('Educational Project');
     const [imageUrl, setImageUrl] = useState('');
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -42,7 +42,7 @@ const EditProject = () => {
             setName(project.name);
             setDescription(project.description);
             setStatus(project.status || 'ACTIVE');
-            setProjectType(project.projectType || '');
+            setProjectType('Educational Project'); // Always set to Educational Project
             setImageUrl(project.imageUrl || '');
         }
     }, [project]);
@@ -56,7 +56,7 @@ const EditProject = () => {
                 name,
                 description,
                 status,
-                projectType: projectType || undefined,
+                projectType: 'Educational Project',
                 imageUrl: imageUrl || undefined,
             };
 
@@ -191,14 +191,15 @@ const EditProject = () => {
 
                     <div>
                         <label htmlFor="type" className="block text-sm font-medium mb-1">Project Type</label>
-                        <input
+                        <select
                             id="type"
-                            type="text"
                             value={projectType}
                             onChange={e => setProjectType(e.target.value)}
-                            className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                            placeholder="e.g., Education Project"
-                        />
+                            disabled
+                            className="w-full h-10 rounded-md border border-input bg-gray-50 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-not-allowed opacity-60"
+                        >
+                            <option value="Educational Project">Educational Project</option>
+                        </select>
                     </div>
 
                     <div>
@@ -208,7 +209,8 @@ const EditProject = () => {
                             type="url"
                             value={imageUrl}
                             onChange={e => setImageUrl(e.target.value)}
-                            className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            disabled
+                            className="w-full h-10 rounded-md border border-input bg-gray-50 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-not-allowed opacity-60"
                             placeholder="https://example.com/image.jpg"
                         />
                     </div>
