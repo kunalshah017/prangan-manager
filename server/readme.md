@@ -226,6 +226,102 @@ Authorization: Bearer <jwt_token>
 }
 ```
 
+#### GET /api/v1/projects/:id
+
+Get a project by ID.
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Parameters:**
+
+- `id` (string): The ID of the project
+
+**Response (200):**
+
+```json
+{
+  "project": {
+    "id": "project_id",
+    "name": "Project Name",
+    "description": "Project description",
+    "metadata": {},
+    "projectType": "Web",
+    "imageUrl": "https://example.com/image.jpg",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  }
+}
+```
+
+#### PUT /api/v1/projects/:id
+
+Update a project (Admin only).
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Parameters:**
+
+- `id` (string): The ID of the project
+
+**Body:**
+
+```json
+{
+  "name": "Updated Project Name",
+  "description": "Updated description",
+  "projectType": "Mobile",
+  "imageUrl": "https://example.com/new-image.jpg"
+}
+```
+
+**Response (200):**
+
+```json
+{
+  "message": "Project updated successfully",
+  "project": {
+    "id": "project_id",
+    "name": "Updated Project Name",
+    "description": "Updated description",
+    "metadata": {},
+    "projectType": "Mobile",
+    "imageUrl": "https://example.com/new-image.jpg",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-02T00:00:00.000Z"
+  }
+}
+```
+
+#### DELETE /api/v1/projects/:id
+
+Delete a project (Admin only).
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Parameters:**
+
+- `id` (string): The ID of the project
+
+**Response (200):**
+
+```json
+{
+  "message": "Project deleted successfully"
+}
+```
+
 ### Center Routes
 
 _Requires authentication_
@@ -301,6 +397,138 @@ Authorization: Bearer <jwt_token>
 }
 ```
 
+#### GET /api/v1/centers/project/:projectId
+
+Get centers by project ID.
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Parameters:**
+
+- `projectId` (string): The ID of the project
+
+**Response (200):**
+
+```json
+{
+  "centers": [
+    {
+      "id": "center_id_1",
+      "name": "Main Center",
+      "metadata": {},
+      "projectId": "project_id",
+      "project": {
+        "id": "project_id",
+        "name": "Project Name"
+      },
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+#### GET /api/v1/centers/:id
+
+Get a center by ID.
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Parameters:**
+
+- `id` (string): The ID of the center
+
+**Response (200):**
+
+```json
+{
+  "center": {
+    "id": "center_id",
+    "name": "Center Name",
+    "description": "Center description",
+    "location": "Center Location",
+    "projectId": "project_id",
+    "project": {
+      "id": "project_id",
+      "name": "Project Name"
+    },
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  }
+}
+```
+
+#### PUT /api/v1/centers/:id
+
+Update a center (Admin only).
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Parameters:**
+
+- `id` (string): The ID of the center
+
+**Body:**
+
+```json
+{
+  "name": "Updated Center Name",
+  "description": "Updated description",
+  "location": "New Location"
+}
+```
+
+**Response (200):**
+
+```json
+{
+  "message": "Center updated successfully",
+  "center": {
+    "id": "center_id",
+    "name": "Updated Center Name",
+    "description": "Updated description",
+    "location": "New Location",
+    "projectId": "project_id",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-02T00:00:00.000Z"
+  }
+}
+```
+
+#### DELETE /api/v1/centers/:id
+
+Delete a center (Admin only).
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Parameters:**
+
+- `id` (string): The ID of the center
+
+**Response (200):**
+
+```json
+{
+  "message": "Center deleted successfully"
+}
+```
+
 ### Semester Routes
 
 _Requires authentication_
@@ -338,6 +566,139 @@ Authorization: Bearer <jwt_token>
     "createdAt": "2024-01-01T00:00:00.000Z",
     "updatedAt": "2024-01-01T00:00:00.000Z"
   }
+}
+```
+
+#### GET /api/v1/semesters/center/:centerId
+
+Get semesters by center ID.
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Parameters:**
+
+- `centerId` (string): The ID of the center
+
+**Response (200):**
+
+```json
+{
+  "semesters": [
+    {
+      "id": "semester_id_1",
+      "name": "Spring 2024",
+      "startDate": "2024-01-01T00:00:00.000Z",
+      "endDate": "2024-06-30T00:00:00.000Z",
+      "centerId": "center_id",
+      "center": {
+        "id": "center_id",
+        "name": "Center Name"
+      },
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+#### GET /api/v1/semesters/:id
+
+Get a semester by ID.
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Parameters:**
+
+- `id` (string): The ID of the semester
+
+**Response (200):**
+
+```json
+{
+  "semester": {
+    "id": "semester_id",
+    "name": "Semester Name",
+    "startDate": "2024-01-01T00:00:00.000Z",
+    "endDate": "2024-06-30T00:00:00.000Z",
+    "centerId": "center_id",
+    "center": {
+      "id": "center_id",
+      "name": "Center Name"
+    },
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  }
+}
+```
+
+#### PUT /api/v1/semesters/:id
+
+Update a semester (Admin only).
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Parameters:**
+
+- `id` (string): The ID of the semester
+
+**Body:**
+
+```json
+{
+  "name": "Updated Semester Name",
+  "startDate": "2024-02-01T00:00:00.000Z",
+  "endDate": "2024-07-31T00:00:00.000Z"
+}
+```
+
+**Response (200):**
+
+```json
+{
+  "message": "Semester updated successfully",
+  "semester": {
+    "id": "semester_id",
+    "name": "Updated Semester Name",
+    "startDate": "2024-02-01T00:00:00.000Z",
+    "endDate": "2024-07-31T00:00:00.000Z",
+    "centerId": "center_id",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-02T00:00:00.000Z"
+  }
+}
+```
+
+#### DELETE /api/v1/semesters/:id
+
+Delete a semester (Admin only).
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Parameters:**
+
+- `id` (string): The ID of the semester
+
+**Response (200):**
+
+```json
+{
+  "message": "Semester deleted successfully"
 }
 ```
 

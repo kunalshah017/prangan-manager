@@ -4,7 +4,6 @@ import type { Project } from "../types/project.types.js";
 
 const prisma = new PrismaClient();
 
-
 export const CreateProject = async (projectData: Partial<Project>) => {
   try {
     const project = await prisma.projects.create({
@@ -25,4 +24,47 @@ export const getProjects = async () => {
     console.error("Error fetching projects:", error);
     return "Failed to fetch projects";
   }
-}
+};
+
+export const updateProject = async (
+  id: string,
+  projectData: Partial<Project>
+) => {
+  try {
+    const project = await prisma.projects.update({
+      where: { id },
+      data: projectData as any,
+    });
+    return project;
+  } catch (error: unknown) {
+    console.error("Error updating project:", error);
+    return "Failed to update project";
+  }
+};
+
+export const deleteProject = async (id: string) => {
+  try {
+    const project = await prisma.projects.delete({
+      where: { id },
+    });
+    return project;
+  } catch (error: unknown) {
+    console.error("Error deleting project:", error);
+    return "Failed to delete project";
+  }
+};
+
+export const getProjectById = async (id: string) => {
+  try {
+    const project = await prisma.projects.findUnique({
+      where: { id },
+      include: {
+        centers: true,
+      },
+    });
+    return project;
+  } catch (error: unknown) {
+    console.error("Error fetching project by ID:", error);
+    return "Failed to fetch project";
+  }
+};
