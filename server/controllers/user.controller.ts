@@ -143,8 +143,6 @@ export const verifyUser = asyncHandle(
       Email: ${data.email}
       Password: ${generatedPassword}
       
-      Please log in and change your password after your first login.
-      
       Best regards,
       Prangan Manager Team
     `;
