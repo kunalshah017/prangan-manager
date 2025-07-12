@@ -4,6 +4,7 @@ import { ChevronDown, LogOut, User, Settings, PanelRightOpen, X } from 'lucide-r
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
+import BreadcrumbNavigation from '@/components/BreadcrumbNavigation';
 
 
 const Layout: React.FC = () => {
@@ -262,6 +263,9 @@ const Layout: React.FC = () => {
             {/* Main Content */}
             <main className="flex-1 flex justify-center">
                 <div className="w-full max-w-6xl px-2 sm:px-4 md:px-8 py-4 md:py-8">
+                    <div className="w-full overflow-hidden">
+                        <BreadcrumbNavigation />
+                    </div>
                     <Outlet />
                 </div>
             </main>

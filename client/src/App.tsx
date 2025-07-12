@@ -19,6 +19,12 @@ const Register = lazy(() => import('./pages/Register'))
 const Projects = lazy(() => import('./pages/projects/Projects'))
 const CreateProject = lazy(() => import('./pages/projects/CreateProject'))
 const EditProject = lazy(() => import('./pages/projects/EditProject'))
+const Centers = lazy(() => import('./pages/centers/Centers'))
+const CreateCenter = lazy(() => import('./pages/centers/CreateCenter'))
+const EditCenter = lazy(() => import('./pages/centers/EditCenter'))
+const Semesters = lazy(() => import('./pages/semesters/Semesters'))
+const CreateSemester = lazy(() => import('./pages/semesters/CreateSemester'))
+const EditSemester = lazy(() => import('./pages/semesters/EditSemester'))
 const RegistrationRequests = lazy(() => import('./pages/RegistrationRequests'))
 
 // Loading fallback component
@@ -58,6 +64,12 @@ function App() {
               <Route index element={<Projects />} />
               <Route path="new" element={<CreateProject />} />
               <Route path=":id/edit" element={<EditProject />} />
+              <Route path=":projectId/centers" element={<Centers />} />
+              <Route path=":projectId/centers/new" element={<CreateCenter />} />
+              <Route path=":projectId/centers/:id/edit" element={<EditCenter />} />
+              <Route path=":projectId/centers/:centerId/semesters" element={<Semesters />} />
+              <Route path=":projectId/centers/:centerId/semesters/new" element={<CreateSemester />} />
+              <Route path=":projectId/centers/:centerId/semesters/:id/edit" element={<EditSemester />} />
             </Route>
 
             <Route
