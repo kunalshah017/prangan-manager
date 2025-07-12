@@ -15,6 +15,7 @@ Required environment variables:
 - `DATABASE_URL`: PostgreSQL connection string
 - `JWT_SECRET`: Secret key for JWT token generation
 - `PORT`: Server port (default: 4000)
+- `RESEND_API_KEY`: API key for Resend email service
 
 ## Installation
 
@@ -30,6 +31,9 @@ npx prisma generate
 
 # Run database migrations
 npx prisma migrate dev
+
+# Seed the database with test admin
+npm run seed
 ```
 
 ## Running the Server
@@ -64,7 +68,7 @@ All API endpoints are prefixed with `/api/v1`.
 
 #### POST /api/v1/users/register
 
-Register a new user.
+Register a new user (status will be PENDING by default).
 
 **Body:**
 
@@ -75,8 +79,7 @@ Register a new user.
   "password": "password123",
   "phone": "1234567890",
   "qualification": "Bachelor's",
-  "address": "123 Main St",
-  "dob": "1990-01-01"
+  "address": "123 Main St"
 }
 ```
 
@@ -131,9 +134,9 @@ Authorization: Bearer <jwt_token>
     "id": "user_id",
     "email": "user@example.com",
     "name": "John Doe",
-    "role": "USER", // Role: "USER" | "ADMIN"
-    "status": "APPROVED", // UserStatus: "PENDING" | "APPROVED" | "REJECTED"
-    "phone": "+1234567890",
+    "role": "USER",
+    "status": "APPROVED",
+    "phone": "1234567890",
     "qualification": "Bachelor's Degree",
     "address": "123 Main St, City, State",
     "dob": "1990-01-01T00:00:00.000Z",
@@ -181,7 +184,7 @@ Authorization: Bearer <jwt_token>
     "metadata": {},
     "projectType": "Type",
     "imageUrl": "https://example.com/image.jpg",
-    "status": "ACTIVE", // ProjectStatus: "ACTIVE" | "INACTIVE" (default: "ACTIVE")
+    "status": "ACTIVE",
     "createdAt": "2024-01-01T00:00:00.000Z",
     "updatedAt": "2024-01-01T00:00:00.000Z"
   }
@@ -210,20 +213,9 @@ Authorization: Bearer <jwt_token>
       "metadata": {},
       "projectType": "Web",
       "imageUrl": "https://example.com/image1.jpg",
-      "status": "ACTIVE", // ProjectStatus: "ACTIVE" | "INACTIVE"
+      "status": "ACTIVE",
       "createdAt": "2024-01-01T00:00:00.000Z",
       "updatedAt": "2024-01-01T00:00:00.000Z"
-    },
-    {
-      "id": "project_id_2",
-      "name": "Project Two",
-      "description": "Second project description",
-      "metadata": {},
-      "projectType": "Mobile",
-      "imageUrl": "https://example.com/image2.jpg",
-      "status": "ACTIVE", // ProjectStatus: "ACTIVE" | "INACTIVE"
-      "createdAt": "2024-01-02T00:00:00.000Z",
-      "updatedAt": "2024-01-02T00:00:00.000Z"
     }
   ]
 }
@@ -254,7 +246,8 @@ Authorization: Bearer <jwt_token>
     "metadata": {},
     "projectType": "Web",
     "imageUrl": "https://example.com/image.jpg",
-    "status": "ACTIVE", // ProjectStatus: "ACTIVE" | "INACTIVE"
+    "status": "ACTIVE",
+    "centers": [],
     "createdAt": "2024-01-01T00:00:00.000Z",
     "updatedAt": "2024-01-01T00:00:00.000Z"
   }
@@ -281,8 +274,6 @@ Authorization: Bearer <jwt_token>
 {
   "name": "Updated Project Name",
   "description": "Updated description",
-  "status": "ACTIVE", // ProjectStatus: "ACTIVE" | "INACTIVE"
-  "metadata": {},
   "projectType": "Mobile",
   "imageUrl": "https://example.com/new-image.jpg"
 }
@@ -297,10 +288,10 @@ Authorization: Bearer <jwt_token>
     "id": "project_id",
     "name": "Updated Project Name",
     "description": "Updated description",
-    "status": "ACTIVE", // ProjectStatus: "ACTIVE" | "INACTIVE"
     "metadata": {},
     "projectType": "Mobile",
     "imageUrl": "https://example.com/new-image.jpg",
+    "status": "ACTIVE",
     "createdAt": "2024-01-01T00:00:00.000Z",
     "updatedAt": "2024-01-02T00:00:00.000Z"
   }
@@ -337,7 +328,7 @@ _Requires authentication_
 
 #### POST /api/v1/centers/create
 
-Create a new center.
+Create a new center (Admin only).
 
 **Headers:**
 
@@ -350,8 +341,8 @@ Authorization: Bearer <jwt_token>
 ```json
 {
   "name": "Center Name",
-  "description": "Center description",
-  "location": "Center Location"
+  "metadata": {},
+  "projectId": "project_id"
 }
 ```
 
@@ -363,8 +354,8 @@ Authorization: Bearer <jwt_token>
   "center": {
     "id": "center_id",
     "name": "Center Name",
-    "description": "Center description",
-    "location": "Center Location",
+    "metadata": {},
+    "projectId": "project_id",
     "createdAt": "2024-01-01T00:00:00.000Z",
     "updatedAt": "2024-01-01T00:00:00.000Z"
   }
@@ -389,18 +380,10 @@ Authorization: Bearer <jwt_token>
     {
       "id": "center_id_1",
       "name": "Main Center",
-      "description": "Primary training center",
-      "location": "Downtown Location",
+      "metadata": {},
+      "projectId": "project_id",
       "createdAt": "2024-01-01T00:00:00.000Z",
       "updatedAt": "2024-01-01T00:00:00.000Z"
-    },
-    {
-      "id": "center_id_2",
-      "name": "Branch Center",
-      "description": "Secondary training center",
-      "location": "Suburb Location",
-      "createdAt": "2024-01-02T00:00:00.000Z",
-      "updatedAt": "2024-01-02T00:00:00.000Z"
     }
   ]
 }
@@ -462,13 +445,13 @@ Authorization: Bearer <jwt_token>
   "center": {
     "id": "center_id",
     "name": "Center Name",
-    "description": "Center description",
-    "location": "Center Location",
+    "metadata": {},
     "projectId": "project_id",
     "project": {
       "id": "project_id",
       "name": "Project Name"
     },
+    "semesters": [],
     "createdAt": "2024-01-01T00:00:00.000Z",
     "updatedAt": "2024-01-01T00:00:00.000Z"
   }
@@ -494,8 +477,7 @@ Authorization: Bearer <jwt_token>
 ```json
 {
   "name": "Updated Center Name",
-  "description": "Updated description",
-  "location": "New Location"
+  "metadata": {}
 }
 ```
 
@@ -507,8 +489,7 @@ Authorization: Bearer <jwt_token>
   "center": {
     "id": "center_id",
     "name": "Updated Center Name",
-    "description": "Updated description",
-    "location": "New Location",
+    "metadata": {},
     "projectId": "project_id",
     "createdAt": "2024-01-01T00:00:00.000Z",
     "updatedAt": "2024-01-02T00:00:00.000Z"
@@ -546,7 +527,7 @@ _Requires authentication_
 
 #### POST /api/v1/semesters/create
 
-Create a new semester.
+Create a new semester (Admin only).
 
 **Headers:**
 
@@ -559,8 +540,9 @@ Authorization: Bearer <jwt_token>
 ```json
 {
   "name": "Semester Name",
-  "startDate": "2024-01-01",
-  "endDate": "2024-06-30"
+  "startDate": "2024-01-01T00:00:00.000Z",
+  "endDate": "2024-06-30T00:00:00.000Z",
+  "centerId": "center_id"
 }
 ```
 
@@ -574,6 +556,7 @@ Authorization: Bearer <jwt_token>
     "name": "Semester Name",
     "startDate": "2024-01-01T00:00:00.000Z",
     "endDate": "2024-06-30T00:00:00.000Z",
+    "centerId": "center_id",
     "createdAt": "2024-01-01T00:00:00.000Z",
     "updatedAt": "2024-01-01T00:00:00.000Z"
   }
@@ -721,48 +704,25 @@ The API uses JWT (JSON Web Tokens) for authentication. After logging in, include
 Authorization: Bearer <your_jwt_token>
 ```
 
-## Enum Values
-
-### User Roles (Role)
-
-Available values for user roles:
+## User Roles
 
 - **USER**: Default role for registered users
-- **ADMIN**: Can create projects and manage system resources
+- **ADMIN**: Can create, update, and delete projects, centers, and semesters
 
-_Used in:_
+## User Status
 
-- User registration responses (`role` field)
-- User details responses (`role` field)
-- Authentication and authorization checks
-
-### User Status (UserStatus)
-
-Available values for user status:
-
-- **PENDING**: User registration pending approval (default)
+- **PENDING**: User registration pending approval (default for new registrations)
 - **APPROVED**: User approved and can access the system
 - **REJECTED**: User registration rejected
 
-_Used in:_
-
-- User registration responses (`status` field)
-- User details responses (`status` field)
-- Admin user management
-
-### Project Status (ProjectStatus)
-
-Available values for project status:
+## Project Status
 
 - **ACTIVE**: Project is active and available (default)
 - **INACTIVE**: Project is temporarily disabled
 
-_Used in:_
+## Email Integration
 
-- Project creation responses (`status` field)
-- Project update requests (`status` field)
-- Project update responses (`status` field)
-- Project listing responses (`status` field)
+The system uses Resend for email delivery. Make sure to set the `RESEND_API_KEY` environment variable with your Resend API key.
 
 ## Error Responses
 
@@ -825,9 +785,46 @@ Common status codes:
 ### Database Models
 
 - **User**: User accounts with roles and status
-- **Projects**: Project management
-- **Centers**: Center/location management
-- **Semesters**: Academic semester management
+- **Projects**: Project management with status
+- **Centers**: Center/location management linked to projects
+- **Semesters**: Academic semester management linked to centers
+
+### Test Admin Account
+
+After running `npm run seed`, you can use these credentials:
+- **Email**: admin@test.com
+- **Password**: AdminTest123!
+- **Role**: ADMIN
+- **Status**: APPROVED
+
+## Scripts
+
+```bash
+# Development
+npm run dev          # Start development server with watch mode
+npm run dev:ts-node  # Start with ts-node (alternative)
+
+# Production
+npm run build        # Build the project
+npm run start        # Start production server
+
+# Database
+npm run seed         # Seed database with test data
+npx prisma generate  # Generate Prisma client
+npx prisma migrate dev # Run database migrations
+npx prisma studio    # Open Prisma Studio
+```
+
+## Environment Variables
+
+Create a `.env` file based on `.env.example`:
+
+```env
+DATABASE_URL="postgresql://username:password@host:port/database"
+JWT_SECRET="your_jwt_secret_key_here"
+PORT=4000
+RESEND_API_KEY="your_resend_api_key_here"
+```
 
 ## Contributing
 

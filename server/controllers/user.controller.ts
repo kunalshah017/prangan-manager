@@ -4,10 +4,15 @@ import {
   createUser,
   getUserByEmail,
   getUserById,
+  updateUser,
+  getUnverifiedUsers
 } from "../service/user.service.js";
 import type { User } from "../types/user.types.js";
 import { generToken } from "../utils/generateToken.js";
 import bcryptjs from "bcryptjs";
+import { sendEmail } from "../utils/mail.js";
+import { UserStatus } from "../generated/prisma/index.js";
+import { Role } from "../generated/prisma/index.js";
 
 export const registerUser = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
@@ -107,3 +112,83 @@ export const getCurrentUser = asyncHandle(
     );
   }
 );
+export const verifyUser = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const admin = request.user;
+    if (!admin || admin.role !== "ADMIN") {
+      return errorHandle("Unauthorized access.", reply, 403);
+    }
+    const data = request.body as { status: UserStatus; role: Role; userId: string; email: string; name: string };
+    console.log("Verifying user with data:", data);
+    if (!data.userId || !data.status || !data.role || !data.email || !data.name) {
+      return errorHandle("User ID, status, role, email, and name are required.", reply, 400);
+    }
+
+    // Generate password: username + special symbol + 4 digit number
+    const specialSymbols = ['@', '#', '$', '%', '&', '*', '!'];
+    const randomSymbol = specialSymbols[Math.floor(Math.random() * specialSymbols.length)];
+    const randomNumber = Math.floor(1000 + Math.random() * 9000); // 4 digit number
+    const generatedPassword = `${data.name}${randomSymbol}${randomNumber}`;
+
+    // Hash the generated password
+    const hashedPassword = await bcryptjs.hash(generatedPassword, 10);
+
+    // Send email with the generated password
+    const emailSubject = "Account Verification - Your New Password";
+    const emailBody = `
+      Dear ${data.name},
+      
+      Your account has been verified successfully. Here are your login credentials:
+      
+      Email: ${data.email}
+      Password: ${generatedPassword}
+      
+      Please log in and change your password after your first login.
+      
+      Best regards,
+      Prangan Manager Team
+    `;
+
+    try {
+      await sendEmail(data.email, emailSubject, emailBody);
+    } catch (emailError) {
+      console.error("Failed to send email:", emailError);
+      return errorHandle("Failed to send verification email.", reply, 500);
+    }
+
+    // Update user with new status, role, and hashed password
+    const updatedUser = await updateUser(data.userId, data.status, data.role, hashedPassword);
+    if (typeof updatedUser === "string") {
+      return errorHandle("Failed to update user status.", reply, 500);
+    }
+
+    return successHandle(
+      {
+        message: "User status updated successfully and password sent via email"
+      },
+      reply,
+      200
+    );
+  }
+)
+
+export const GetUnverifiedUsers = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const admin = request.user;
+    if (!admin || admin.role !== "ADMIN") {
+      return errorHandle("Unauthorized access.", reply, 403);
+    }
+    const unverifiedUsers = await getUnverifiedUsers();
+    if (typeof unverifiedUsers === "string") {
+      return errorHandle("Failed to fetch unverified users.", reply, 500);
+    }
+    return successHandle(
+      {
+        message: "Unverified users retrieved successfully",
+        users: unverifiedUsers,
+      },
+      reply,
+      200
+    );
+  }
+)
