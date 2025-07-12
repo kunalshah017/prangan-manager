@@ -33,7 +33,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminOnly = f
     // Check admin permission if required
     if (adminOnly && user.role !== 'ADMIN') {
         return (
-            <div className="min-h-screen w-full bg-background overflow-hidden relative flex items-center justify-center">
+            <div className="min-h-[100dvh] w-full bg-background overflow-hidden relative flex items-center justify-center">
                 <DoodleBackground numElements={10} />
                 <div className="relative z-10 flex flex-col items-center text-center max-w-md mx-auto">
                     <div className="h-16 w-16 rounded-full bg-red-100 flex items-center justify-center mb-4">

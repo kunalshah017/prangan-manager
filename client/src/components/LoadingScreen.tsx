@@ -15,7 +15,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
     className = ""
 }) => {
     const containerClasses = fullScreen
-        ? "min-h-screen w-full bg-background overflow-hidden relative flex flex-col items-center justify-center"
+        ? "min-h-[100dvh] w-full bg-background overflow-hidden relative flex flex-col items-center justify-center"
         : `flex items-center justify-center ${className}`;
 
     return (

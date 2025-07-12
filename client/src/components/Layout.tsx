@@ -43,7 +43,7 @@ const Layout: React.FC = () => {
     }, [location]);
 
     return (
-        <div className="min-h-screen flex flex-col bg-background">
+        <div className="min-h-[100dvh] flex flex-col bg-background">
             {/* Top Navigation Bar */}
             <header className="sticky top-0 z-40 w-full px-2 flex justify-center border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                 <div className="container flex h-16 items-center">
