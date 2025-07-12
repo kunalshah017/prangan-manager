@@ -1,4 +1,4 @@
-# Prangan Backend API
+# Prangan Manager Backend API
 
 A Node.js backend service built with Fastify, Prisma, and PostgreSQL for managing projects, centers, semesters, and users.
 
