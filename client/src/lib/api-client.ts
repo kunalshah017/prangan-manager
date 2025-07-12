@@ -1,8 +1,8 @@
 // API Configuration and base client
 const API_BASE_URL =
   process.env.NODE_ENV === "production"
-    ? "https://your-production-api.com/api/v1"
-    : "http://localhost:4000/api/v1";
+    ? import.meta.env.VITE_API_BASE_URL
+    : import.meta.env.VITE_API_BASE_URL || "http://localhost:4000/api/v1";
 
 // Custom error class for API errors
 export class ApiError extends Error {
