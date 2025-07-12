@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/lib/button-variants';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
 import DoodleBackground from '@/components/DoodleBackground';
 import LoadingButterfly from '@/components/LoadingButterfly';
@@ -111,9 +111,6 @@ const EditProject = () => {
                     <p className="text-muted-foreground mb-4">
                         {projectError?.message || "The project you're looking for doesn't exist."}
                     </p>
-                    <Link to="/projects" className={cn(buttonVariants())}>
-                        Back to Projects
-                    </Link>
                 </div>
             </div>
         );

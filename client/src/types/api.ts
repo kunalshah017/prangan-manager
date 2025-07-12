@@ -28,8 +28,7 @@ export interface Project {
 export interface Center {
   id: string;
   name: string;
-  description: string;
-  location: string;
+  address: string;
   projectId?: string;
   project?: {
     id: string;
@@ -124,14 +123,15 @@ export interface UpdateProjectResponse {
 // Center API
 export interface CreateCenterRequest {
   name: string;
-  description: string;
-  location: string;
+  address: string;
+  projectId?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface UpdateCenterRequest {
   name?: string;
-  description?: string;
-  location?: string;
+  address?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface CreateCenterResponse {
