@@ -131,8 +131,8 @@ Authorization: Bearer <jwt_token>
     "id": "user_id",
     "email": "user@example.com",
     "name": "John Doe",
-    "role": "USER",
-    "status": "APPROVED",
+    "role": "USER", // Role: "USER" | "ADMIN"
+    "status": "APPROVED", // UserStatus: "PENDING" | "APPROVED" | "REJECTED"
     "phone": "+1234567890",
     "qualification": "Bachelor's Degree",
     "address": "123 Main St, City, State",
@@ -181,6 +181,7 @@ Authorization: Bearer <jwt_token>
     "metadata": {},
     "projectType": "Type",
     "imageUrl": "https://example.com/image.jpg",
+    "status": "ACTIVE", // ProjectStatus: "ACTIVE" | "INACTIVE" (default: "ACTIVE")
     "createdAt": "2024-01-01T00:00:00.000Z",
     "updatedAt": "2024-01-01T00:00:00.000Z"
   }
@@ -209,6 +210,7 @@ Authorization: Bearer <jwt_token>
       "metadata": {},
       "projectType": "Web",
       "imageUrl": "https://example.com/image1.jpg",
+      "status": "ACTIVE", // ProjectStatus: "ACTIVE" | "INACTIVE"
       "createdAt": "2024-01-01T00:00:00.000Z",
       "updatedAt": "2024-01-01T00:00:00.000Z"
     },
@@ -219,6 +221,7 @@ Authorization: Bearer <jwt_token>
       "metadata": {},
       "projectType": "Mobile",
       "imageUrl": "https://example.com/image2.jpg",
+      "status": "ACTIVE", // ProjectStatus: "ACTIVE" | "INACTIVE"
       "createdAt": "2024-01-02T00:00:00.000Z",
       "updatedAt": "2024-01-02T00:00:00.000Z"
     }
@@ -251,6 +254,7 @@ Authorization: Bearer <jwt_token>
     "metadata": {},
     "projectType": "Web",
     "imageUrl": "https://example.com/image.jpg",
+    "status": "ACTIVE", // ProjectStatus: "ACTIVE" | "INACTIVE"
     "createdAt": "2024-01-01T00:00:00.000Z",
     "updatedAt": "2024-01-01T00:00:00.000Z"
   }
@@ -277,6 +281,8 @@ Authorization: Bearer <jwt_token>
 {
   "name": "Updated Project Name",
   "description": "Updated description",
+  "status": "ACTIVE", // ProjectStatus: "ACTIVE" | "INACTIVE"
+  "metadata": {},
   "projectType": "Mobile",
   "imageUrl": "https://example.com/new-image.jpg"
 }
@@ -291,6 +297,7 @@ Authorization: Bearer <jwt_token>
     "id": "project_id",
     "name": "Updated Project Name",
     "description": "Updated description",
+    "status": "ACTIVE", // ProjectStatus: "ACTIVE" | "INACTIVE"
     "metadata": {},
     "projectType": "Mobile",
     "imageUrl": "https://example.com/new-image.jpg",
@@ -710,22 +717,48 @@ The API uses JWT (JSON Web Tokens) for authentication. After logging in, include
 Authorization: Bearer <your_jwt_token>
 ```
 
-## User Roles
+## Enum Values
+
+### User Roles (Role)
+
+Available values for user roles:
 
 - **USER**: Default role for registered users
 - **ADMIN**: Can create projects and manage system resources
 
-## User Status
+_Used in:_
 
-- **PENDING**: User registration pending approval
+- User registration responses (`role` field)
+- User details responses (`role` field)
+- Authentication and authorization checks
+
+### User Status (UserStatus)
+
+Available values for user status:
+
+- **PENDING**: User registration pending approval (default)
 - **APPROVED**: User approved and can access the system
 - **REJECTED**: User registration rejected
 
-## Project Status
+_Used in:_
 
-- **ACTIVE**: Project is active and available
+- User registration responses (`status` field)
+- User details responses (`status` field)
+- Admin user management
+
+### Project Status (ProjectStatus)
+
+Available values for project status:
+
+- **ACTIVE**: Project is active and available (default)
 - **INACTIVE**: Project is temporarily disabled
-- **ARCHIVED**: Project is archived
+
+_Used in:_
+
+- Project creation responses (`status` field)
+- Project update requests (`status` field)
+- Project update responses (`status` field)
+- Project listing responses (`status` field)
 
 ## Error Responses
 
