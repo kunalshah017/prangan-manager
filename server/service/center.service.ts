@@ -63,7 +63,7 @@ export const deleteCenter = async (id: string) => {
   try {
     // First, delete all semesters related to this center
     await prisma.semesters.deleteMany({
-      where: { centerId: id }
+      where: { centerId: id },
     });
 
     // Then, delete the center
