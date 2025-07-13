@@ -45,18 +45,32 @@ model Semesters {
 }
 
 model User {
-  id            String     @id @default(cuid())
-  email         String     @unique
-  name          String
-  password      String
-  status        UserStatus @default(PENDING)
-  dob           DateTime?
-  phone         String?
-  qualification String?
-  address       String?
-  role          Role       @default(USER)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id               String     @id @default(cuid())
+  email            String     @unique
+  name             String
+  password         String
+  profileImageUrl  String?    // Added new column as optional
+  status           UserStatus @default(PENDING)
+  dob              DateTime?
+  phone            String?
+  qualification    String?
+  address          String?
+  role             Role       @default(USER)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+}
+
+model Students {
+  id                String       @id @default(cuid())
+  profileImageUrl   String?
+  name              String
+  dob               DateTime?
+  phoneNumber       String?
+  whatsappNumber    String?
+  alternateNumber   String?
+  level             Level
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 }
 
 enum ProjectStatus {
@@ -73,4 +87,13 @@ enum UserStatus {
   PENDING
   REJECTED
   APPROVED
+}
+
+enum Level {
+  LEVEL_1
+  LEVEL_2
+  LEVEL_3
+  LEVEL_4
+  PRIMARY_A
+  PRIMARY_B
 }

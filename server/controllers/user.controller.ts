@@ -5,13 +5,19 @@ import {
   getUserByEmail,
   getUserById,
   updateUser,
-  getUnverifiedUsers
+  getUnverifiedUsers,
+  createStudent,
+  getAllStudents,
+  getStudentById,
+  updateStudent,
+  deleteStudent,
+  getStudentsByLevel,
 } from "../service/user.service.js";
 import type { User } from "../types/user.types.js";
 import { generToken } from "../utils/generateToken.js";
 import bcryptjs from "bcryptjs";
 import { sendEmail } from "../utils/mail.js";
-import { UserStatus } from "../generated/prisma/index.js";
+import { UserStatus, Level } from "../generated/prisma/index.js";
 import { Role } from "../generated/prisma/index.js";
 
 export const registerUser = asyncHandle(
@@ -32,16 +38,17 @@ export const registerUser = asyncHandle(
     }
 
     const userData = {
-      name: data.name,
-      email: data.email,
+      name: data.name as string,
+      email: data.email as string,
       password: hashedPassword,
-      role: data.role || "USER",
+      role: (data.role || "USER") as string,
       phone: data.phone || "",
       qualification: data.qualification || "",
       address: data.address || "",
+      profileImageUrl: data.profileImageUrl || null,
     };
 
-    const user = await createUser(userData);
+    const user = await createUser(userData as User);
 
     if (typeof user === "string") {
       return errorHandle(user, reply, 500);
@@ -112,21 +119,39 @@ export const getCurrentUser = asyncHandle(
     );
   }
 );
+
 export const verifyUser = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
     const admin = request.user;
     if (!admin || admin.role !== "ADMIN") {
       return errorHandle("Unauthorized access.", reply, 403);
     }
-    const data = request.body as { status: UserStatus; role: Role; userId: string; email: string; name: string };
+    const data = request.body as {
+      status: UserStatus;
+      role: Role;
+      userId: string;
+      email: string;
+      name: string;
+    };
     console.log("Verifying user with data:", data);
-    if (!data.userId || !data.status || !data.role || !data.email || !data.name) {
-      return errorHandle("User ID, status, role, email, and name are required.", reply, 400);
+    if (
+      !data.userId ||
+      !data.status ||
+      !data.role ||
+      !data.email ||
+      !data.name
+    ) {
+      return errorHandle(
+        "User ID, status, role, email, and name are required.",
+        reply,
+        400
+      );
     }
 
     // Generate password: username + special symbol + 4 digit number
-    const specialSymbols = ['@', '#', '$', '%', '&', '*', '!'];
-    const randomSymbol = specialSymbols[Math.floor(Math.random() * specialSymbols.length)];
+    const specialSymbols = ["@", "#", "$", "%", "&", "*", "!"];
+    const randomSymbol =
+      specialSymbols[Math.floor(Math.random() * specialSymbols.length)];
     const randomNumber = Math.floor(1000 + Math.random() * 9000); // 4 digit number
     const generatedPassword = `${data.name}${randomSymbol}${randomNumber}`;
 
@@ -155,20 +180,25 @@ export const verifyUser = asyncHandle(
     }
 
     // Update user with new status, role, and hashed password
-    const updatedUser = await updateUser(data.userId, data.status, data.role, hashedPassword);
+    const updatedUser = await updateUser(
+      data.userId,
+      data.status,
+      data.role,
+      hashedPassword
+    );
     if (typeof updatedUser === "string") {
       return errorHandle("Failed to update user status.", reply, 500);
     }
 
     return successHandle(
       {
-        message: "User status updated successfully and password sent via email"
+        message: "User status updated successfully and password sent via email",
       },
       reply,
       200
     );
   }
-)
+);
 
 export const GetUnverifiedUsers = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
@@ -189,4 +219,222 @@ export const GetUnverifiedUsers = asyncHandle(
       200
     );
   }
-)
+);
+
+// Student Controllers
+export const addStudent = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+    if (!user || user.role !== "ADMIN") {
+      return errorHandle("Only admins can add students.", reply, 403);
+    }
+
+    const data = request.body as {
+      name: string;
+      dob?: string;
+      phoneNumber?: string;
+      whatsappNumber?: string;
+      alternateNumber?: string;
+      level: Level;
+      profileImageUrl?: string;
+    };
+
+    if (!data.name || !data.level) {
+      return errorHandle("Name and level are required.", reply, 400);
+    }
+
+    const studentData = {
+      name: data.name,
+      dob: data.dob ? new Date(data.dob) : null,
+      phoneNumber: data.phoneNumber || null,
+      whatsappNumber: data.whatsappNumber || null,
+      alternateNumber: data.alternateNumber || null,
+      level: data.level,
+      profileImageUrl: data.profileImageUrl || null,
+    };
+
+    const student = await createStudent(studentData);
+
+    if (typeof student === "string") {
+      return errorHandle(student, reply, 500);
+    }
+
+    return successHandle(
+      {
+        message: "Student added successfully",
+        student: student,
+      },
+      reply,
+      201
+    );
+  }
+);
+
+export const getStudents = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+    if (!user) {
+      return errorHandle("Unauthorized access.", reply, 401);
+    }
+
+    const students = await getAllStudents();
+
+    if (typeof students === "string") {
+      return errorHandle(students, reply, 500);
+    }
+
+    return successHandle(
+      {
+        message: "Students retrieved successfully",
+        students: students,
+      },
+      reply,
+      200
+    );
+  }
+);
+
+export const getStudent = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+    if (!user) {
+      return errorHandle("Unauthorized access.", reply, 401);
+    }
+
+    const { id } = request.params as { id: string };
+
+    if (!id) {
+      return errorHandle("Student ID is required.", reply, 400);
+    }
+
+    const student = await getStudentById(id);
+
+    if (typeof student === "string") {
+      return errorHandle(student, reply, 500);
+    }
+
+    if (!student) {
+      return errorHandle("Student not found.", reply, 404);
+    }
+
+    return successHandle(
+      {
+        message: "Student retrieved successfully",
+        student: student,
+      },
+      reply,
+      200
+    );
+  }
+);
+
+export const updateStudentController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+    if (!user || user.role !== "ADMIN") {
+      return errorHandle("Only admins can update students.", reply, 403);
+    }
+
+    const { id } = request.params as { id: string };
+    const data = request.body as {
+      name?: string;
+      dob?: string;
+      phoneNumber?: string;
+      whatsappNumber?: string;
+      alternateNumber?: string;
+      level?: Level;
+      profileImageUrl?: string;
+    };
+
+    if (!id) {
+      return errorHandle("Student ID is required.", reply, 400);
+    }
+
+    const updateData: any = {};
+    if (data.name) updateData.name = data.name;
+    if (data.dob) updateData.dob = new Date(data.dob);
+    if (data.phoneNumber !== undefined)
+      updateData.phoneNumber = data.phoneNumber;
+    if (data.whatsappNumber !== undefined)
+      updateData.whatsappNumber = data.whatsappNumber;
+    if (data.alternateNumber !== undefined)
+      updateData.alternateNumber = data.alternateNumber;
+    if (data.level) updateData.level = data.level;
+    if (data.profileImageUrl !== undefined)
+      updateData.profileImageUrl = data.profileImageUrl;
+
+    const student = await updateStudent(id, updateData);
+
+    if (typeof student === "string") {
+      return errorHandle(student, reply, 500);
+    }
+
+    return successHandle(
+      {
+        message: "Student updated successfully",
+        student: student,
+      },
+      reply,
+      200
+    );
+  }
+);
+
+export const deleteStudentController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+    if (!user || user.role !== "ADMIN") {
+      return errorHandle("Only admins can delete students.", reply, 403);
+    }
+
+    const { id } = request.params as { id: string };
+
+    if (!id) {
+      return errorHandle("Student ID is required.", reply, 400);
+    }
+
+    const result = await deleteStudent(id);
+
+    if (typeof result === "string") {
+      return errorHandle(result, reply, 500);
+    }
+
+    return successHandle(
+      {
+        message: "Student deleted successfully",
+      },
+      reply,
+      200
+    );
+  }
+);
+
+export const getStudentsByLevelController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+    if (!user) {
+      return errorHandle("Unauthorized access.", reply, 401);
+    }
+
+    const { level } = request.params as { level: Level };
+
+    if (!level) {
+      return errorHandle("Level is required.", reply, 400);
+    }
+
+    const students = await getStudentsByLevel(level);
+
+    if (typeof students === "string") {
+      return errorHandle(students, reply, 500);
+    }
+
+    return successHandle(
+      {
+        message: "Students retrieved successfully",
+        students: students,
+      },
+      reply,
+      200
+    );
+  }
+);
