@@ -34,7 +34,7 @@ const Semesters = () => {
     }, [location.state, navigate, location.pathname, refetch]);
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const handleSemesterClick = (semesterId: string) => {
+    const handleSemesterClick = () => {
         navigate('/students')
     };
 
@@ -115,7 +115,7 @@ const Semesters = () => {
                         <div
                             key={semester.id}
                             className="flex flex-col overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm transition-all hover:shadow-md cursor-pointer"
-                            onClick={() => handleSemesterClick(semester.id)}
+                            onClick={() => handleSemesterClick()}
                         >
                             {/* Semester Header */}
                             <div className="w-full h-32 bg-gradient-to-br from-orange-100 to-orange-200 flex items-center justify-center">
@@ -159,7 +159,7 @@ const Semesters = () => {
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                handleSemesterClick(semester.id);
+                                                handleSemesterClick();
                                             }}
                                             className={cn(
                                                 buttonVariants({ size: 'sm' }),
