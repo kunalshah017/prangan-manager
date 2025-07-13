@@ -25,6 +25,9 @@ const EditCenter = lazy(() => import('./pages/centers/EditCenter'))
 const Semesters = lazy(() => import('./pages/semesters/Semesters'))
 const CreateSemester = lazy(() => import('./pages/semesters/CreateSemester'))
 const EditSemester = lazy(() => import('./pages/semesters/EditSemester'))
+const Students = lazy(() => import('./pages/students/Students'))
+const CreateStudent = lazy(() => import('./pages/students/CreateStudent'))
+const EditStudent = lazy(() => import('./pages/students/EditStudent'))
 const RegistrationRequests = lazy(() => import('./pages/RegistrationRequests'))
 
 // Loading fallback component
@@ -70,6 +73,19 @@ function App() {
               <Route path=":projectId/centers/:centerId/semesters" element={<Semesters />} />
               <Route path=":projectId/centers/:centerId/semesters/new" element={<CreateSemester />} />
               <Route path=":projectId/centers/:centerId/semesters/:id/edit" element={<EditSemester />} />
+            </Route>
+
+            <Route
+              path="/students"
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<Students />} />
+              <Route path="new" element={<CreateStudent />} />
+              <Route path=":id/edit" element={<EditStudent />} />
             </Route>
 
             <Route

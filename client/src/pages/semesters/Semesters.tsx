@@ -33,13 +33,9 @@ const Semesters = () => {
         }
     }, [location.state, navigate, location.pathname, refetch]);
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const handleSemesterClick = (semesterId: string) => {
-        if (isAdmin()) {
-            navigate(`/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/edit`);
-        } else {
-            // For now, do nothing for non-admin users
-            return;
-        }
+        navigate('/students')
     };
 
     // Show loading state
@@ -170,7 +166,7 @@ const Semesters = () => {
                                                 'h-8 px-3 bg-orange-600 hover:bg-orange-700 text-white'
                                             )}
                                         >
-                                            Edit
+                                            Students
                                         </button>
                                     </div>
                                 </div>

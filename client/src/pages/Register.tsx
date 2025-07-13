@@ -3,16 +3,17 @@ import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import DoodleBackground from '@/components/DoodleBackground';
 import { CustomButton } from '@/components/ui/button';
+import ImageUpload from '@/components/ui/image-upload';
 import { useAuth } from '@/hooks/useAuth';
 
 const Register = () => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
     const [dateOfBirth, setDateOfBirth] = useState('');
     const [phone, setPhone] = useState('');
     const [qualification, setQualification] = useState('');
     const [address, setAddress] = useState('');
+    const [profileImageUrl, setProfileImageUrl] = useState('');
     const { register, isLoading, registerError, isAuthenticated } = useAuth();
     const navigate = useNavigate();
 
@@ -30,11 +31,11 @@ const Register = () => {
             await register({
                 name,
                 email,
-                password,
                 phone,
                 qualification,
                 address,
-                dob: dateOfBirth
+                dob: dateOfBirth,
+                profileImageUrl
             });
 
             // Navigate to login with success message
@@ -52,7 +53,7 @@ const Register = () => {
         <div className="flex min-h-[100dvh] min-w-screen bg-background overflow-hidden relative">
             <DoodleBackground numElements={10} />
 
-            <div className="container relative z-10 flex min-h-full min-w-full items-center justify-center px-4">
+            <div className="container relative z-10 flex min-h-full min-w-full items-center justify-center px-4 py-4">
                 <div className="mx-auto w-full max-w-md md:max-w-lg">
                     <div className="flex flex-col items-center space-y-4 text-center">
                         <Link to="/" className="inline-block mb-2">
@@ -109,6 +110,18 @@ const Register = () => {
                                 </div>
 
                                 <div className="grid gap-2">
+                                    <ImageUpload
+                                        label="Profile Image"
+                                        value={profileImageUrl}
+                                        onChange={setProfileImageUrl}
+                                        placeholder="Upload your profile image"
+                                        disabled={isLoading}
+                                        variant="rounded"
+                                        className="w-full"
+                                    />
+                                </div>
+
+                                <div className="grid gap-2">
                                     <label htmlFor="email" className="text-sm font-medium">
                                         Email
                                     </label>
@@ -122,23 +135,6 @@ const Register = () => {
                                         disabled={isLoading}
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
-                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                        required
-                                    />
-                                </div>
-
-                                <div className="grid gap-2">
-                                    <label htmlFor="password" className="text-sm font-medium">
-                                        Password
-                                    </label>
-                                    <input
-                                        id="password"
-                                        placeholder="••••••••"
-                                        type="password"
-                                        autoComplete="new-password"
-                                        disabled={isLoading}
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
                                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                         required
                                     />
