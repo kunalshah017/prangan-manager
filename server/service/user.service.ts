@@ -1,15 +1,15 @@
 import { PrismaClient } from "../generated/prisma/index.js";
-import type { User } from "../types/user.types.js";
-import { UserStatus, Level } from "../generated/prisma/index.js";
-import { Role } from "../generated/prisma/index.js";
+import type { User } from "../generated/prisma/index.js";
+import { UserStatus, Level, Role } from "../generated/prisma/index.js";
 
 const prisma = new PrismaClient();
 
-export const createUser = async (userData: User) => {
+export const createUser = async (
+  userData: Omit<User, "id" | "createdAt" | "updatedAt">
+) => {
   try {
-    const { id, updatedAt, ...userCreateData } = userData as any;
     const user = await prisma.user.create({
-      data: userCreateData,
+      data: userData,
     });
     return user;
   } catch (error: unknown) {
