@@ -1,6 +1,6 @@
 # Prangan Manager Backend API
 
-A Node.js backend service built with Fastify, Prisma, and PostgreSQL for managing projects, centers, semesters, and users.
+A Node.js backend service built with Fastify, Prisma, and PostgreSQL for managing projects, centers, semesters, users, and students.
 
 ## Environment Setup
 
@@ -32,7 +32,7 @@ npx prisma generate
 # Run database migrations
 npx prisma migrate dev
 
-# Seed the database with test admin
+# Seed the database with test data
 npm run seed
 ```
 
@@ -56,7 +56,7 @@ Check if the server is running.
 {
   "status": "OK",
   "timestamp": "2024-01-01T00:00:00.000Z",
-  "service": "Replink Backend"
+  "service": "Prangan Manager Backend"
 }
 ```
 
@@ -79,7 +79,8 @@ Register a new user (status will be PENDING by default).
   "password": "password123",
   "phone": "1234567890",
   "qualification": "Bachelor's",
-  "address": "123 Main St"
+  "address": "123 Main St",
+  "profileImageUrl": "https://example.com/profile.jpg"
 }
 ```
 
@@ -134,6 +135,7 @@ Authorization: Bearer <jwt_token>
     "id": "user_id",
     "email": "user@example.com",
     "name": "John Doe",
+    "profileImageUrl": "https://example.com/profile.jpg",
     "role": "USER",
     "status": "APPROVED",
     "phone": "1234567890",
@@ -143,6 +145,293 @@ Authorization: Bearer <jwt_token>
     "createdAt": "2024-01-01T00:00:00.000Z",
     "updatedAt": "2024-01-01T00:00:00.000Z"
   }
+}
+```
+
+#### POST /api/v1/users/verify
+
+Verify/approve a user registration (Admin only).
+
+_Requires admin authentication_
+
+**Headers:**
+
+```
+Authorization: Bearer <admin_jwt_token>
+```
+
+**Body:**
+
+```json
+{
+  "userId": "user_id",
+  "status": "APPROVED",
+  "role": "USER",
+  "email": "user@example.com",
+  "name": "John Doe"
+}
+```
+
+**Response (200):**
+
+```json
+{
+  "message": "User status updated successfully and password sent via email"
+}
+```
+
+#### GET /api/v1/users/registration-requests
+
+Get all pending user registrations (Admin only).
+
+_Requires admin authentication_
+
+**Headers:**
+
+```
+Authorization: Bearer <admin_jwt_token>
+```
+
+**Response (200):**
+
+```json
+{
+  "message": "Unverified users retrieved successfully",
+  "users": [
+    {
+      "id": "user_id",
+      "email": "pending@example.com",
+      "name": "Jane Doe",
+      "profileImageUrl": "https://example.com/jane.jpg",
+      "role": "USER",
+      "phone": "0987654321",
+      "qualification": "Master's Degree",
+      "address": "456 Oak St, City, State",
+      "dob": "1992-05-15T00:00:00.000Z",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+### Student Routes
+
+_All student routes require authentication_
+
+#### POST /api/v1/users/students
+
+Add a new student (Admin only).
+
+**Headers:**
+
+```
+Authorization: Bearer <admin_jwt_token>
+```
+
+**Body:**
+
+```json
+{
+  "name": "Aarav Mehta",
+  "dob": "2015-03-12",
+  "phoneNumber": "+919876541001",
+  "whatsappNumber": "+919876541001",
+  "alternateNumber": "+912267891001",
+  "level": "LEVEL_2",
+  "profileImageUrl": "https://example.com/student.jpg"
+}
+```
+
+**Response (201):**
+
+```json
+{
+  "message": "Student added successfully",
+  "student": {
+    "id": "student_id",
+    "name": "Aarav Mehta",
+    "dob": "2015-03-12T00:00:00.000Z",
+    "phoneNumber": "+919876541001",
+    "whatsappNumber": "+919876541001",
+    "alternateNumber": "+912267891001",
+    "level": "LEVEL_2",
+    "profileImageUrl": "https://example.com/student.jpg",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  }
+}
+```
+
+#### GET /api/v1/users/students
+
+Get all students.
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Response (200):**
+
+```json
+{
+  "message": "Students retrieved successfully",
+  "students": [
+    {
+      "id": "student_id_1",
+      "name": "Aarav Mehta",
+      "dob": "2015-03-12T00:00:00.000Z",
+      "phoneNumber": "+919876541001",
+      "whatsappNumber": "+919876541001",
+      "alternateNumber": "+912267891001",
+      "level": "LEVEL_2",
+      "profileImageUrl": "https://example.com/student1.jpg",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+#### GET /api/v1/users/students/:id
+
+Get a student by ID.
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Parameters:**
+
+- `id` (string): The ID of the student
+
+**Response (200):**
+
+```json
+{
+  "message": "Student retrieved successfully",
+  "student": {
+    "id": "student_id",
+    "name": "Aarav Mehta",
+    "dob": "2015-03-12T00:00:00.000Z",
+    "phoneNumber": "+919876541001",
+    "whatsappNumber": "+919876541001",
+    "alternateNumber": "+912267891001",
+    "level": "LEVEL_2",
+    "profileImageUrl": "https://example.com/student.jpg",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  }
+}
+```
+
+#### PUT /api/v1/users/students/:id
+
+Update a student (Admin only).
+
+**Headers:**
+
+```
+Authorization: Bearer <admin_jwt_token>
+```
+
+**Parameters:**
+
+- `id` (string): The ID of the student
+
+**Body:**
+
+```json
+{
+  "name": "Aarav Kumar Mehta",
+  "dob": "2015-03-12",
+  "phoneNumber": "+919876541001",
+  "whatsappNumber": "+919876541001",
+  "alternateNumber": "+912267891001",
+  "level": "LEVEL_3",
+  "profileImageUrl": "https://example.com/updated-student.jpg"
+}
+```
+
+**Response (200):**
+
+```json
+{
+  "message": "Student updated successfully",
+  "student": {
+    "id": "student_id",
+    "name": "Aarav Kumar Mehta",
+    "dob": "2015-03-12T00:00:00.000Z",
+    "phoneNumber": "+919876541001",
+    "whatsappNumber": "+919876541001",
+    "alternateNumber": "+912267891001",
+    "level": "LEVEL_3",
+    "profileImageUrl": "https://example.com/updated-student.jpg",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-02T00:00:00.000Z"
+  }
+}
+```
+
+#### DELETE /api/v1/users/students/:id
+
+Delete a student (Admin only).
+
+**Headers:**
+
+```
+Authorization: Bearer <admin_jwt_token>
+```
+
+**Parameters:**
+
+- `id` (string): The ID of the student
+
+**Response (200):**
+
+```json
+{
+  "message": "Student deleted successfully"
+}
+```
+
+#### GET /api/v1/users/students/level/:level
+
+Get students by level.
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Parameters:**
+
+- `level` (string): The level (LEVEL_1, LEVEL_2, LEVEL_3, LEVEL_4, PRIMARY_A, PRIMARY_B)
+
+**Response (200):**
+
+```json
+{
+  "message": "Students retrieved successfully",
+  "students": [
+    {
+      "id": "student_id_1",
+      "name": "Diya Sharma",
+      "dob": "2016-07-25T00:00:00.000Z",
+      "phoneNumber": "+919876541002",
+      "whatsappNumber": "+919876541002",
+      "alternateNumber": "+912267891002",
+      "level": "LEVEL_1",
+      "profileImageUrl": "https://example.com/diya.jpg",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    }
+  ]
 }
 ```
 
@@ -714,7 +1003,7 @@ Authorization: Bearer <your_jwt_token>
 ## User Roles
 
 - **USER**: Default role for registered users
-- **ADMIN**: Can create, update, and delete projects, centers, and semesters
+- **ADMIN**: Can create, update, and delete projects, centers, semesters, and students
 
 ## User Status
 
@@ -726,6 +1015,15 @@ Authorization: Bearer <your_jwt_token>
 
 - **ACTIVE**: Project is active and available (default)
 - **INACTIVE**: Project is temporarily disabled
+
+## Student Levels
+
+- **LEVEL_1**: Level 1 students
+- **LEVEL_2**: Level 2 students
+- **LEVEL_3**: Level 3 students
+- **LEVEL_4**: Level 4 students
+- **PRIMARY_A**: Primary A students
+- **PRIMARY_B**: Primary B students
 
 ## Email Integration
 
@@ -791,7 +1089,8 @@ Common status codes:
 
 ### Database Models
 
-- **User**: User accounts with roles and status
+- **User**: User accounts with roles, status, and profile images
+- **Students**: Student management with levels and contact information
 - **Projects**: Project management with status
 - **Centers**: Center/location management linked to projects
 - **Semesters**: Academic semester management linked to centers
@@ -800,10 +1099,12 @@ Common status codes:
 
 After running `npm run seed`, you can use these credentials:
 
-- **Email**: admin@test.com
-- **Password**: AdminTest123!
+- **Email**: pranganfoundationindia@gmail.com
+- **Password**: Prangan@2025
 - **Role**: ADMIN
 - **Status**: APPROVED
+
+The seed script also creates 10 sample students with Indian names and various levels.
 
 ## Scripts
 
@@ -813,7 +1114,7 @@ npm run dev          # Start development server with watch mode
 npm run dev:ts-node  # Start with ts-node (alternative)
 
 # Production
-npm run build        # Build the project
+npm run build        # Build the project (includes migrations)
 npm run start        # Start production server
 
 # Database
