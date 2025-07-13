@@ -4,6 +4,7 @@ import { buttonVariants } from '@/lib/button-variants';
 import { useNavigate } from 'react-router-dom';
 import DoodleBackground from '@/components/DoodleBackground';
 import { CustomButton } from '@/components/ui/button';
+import ImageUpload from '@/components/ui/image-upload';
 import { useCreateProject } from '@/hooks/useProjectQueries';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -102,15 +103,11 @@ const CreateProject = () => {
                         </select>
                     </div>
                     <div>
-                        <label htmlFor="imageUrl" className="block text-sm font-medium mb-1">Project Image URL</label>
-                        <input
-                            id="imageUrl"
-                            type="url"
+                        <ImageUpload
+                            label="Project Image"
                             value={imageUrl}
-                            onChange={e => setImageUrl(e.target.value)}
-                            disabled
-                            className="w-full h-10 rounded-md border border-input bg-gray-50 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-not-allowed opacity-60"
-                            placeholder="https://example.com/image.jpg"
+                            onChange={setImageUrl}
+                            placeholder="Click to upload project banner image"
                         />
                     </div>
                     <div className="flex gap-2 justify-end">

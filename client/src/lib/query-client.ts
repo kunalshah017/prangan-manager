@@ -60,6 +60,11 @@ export const queryKeys = {
   user: (id: string) => ["users", id] as const,
   pendingUsers: ["users", "pending"] as const,
   registrationRequests: ["users", "registration-requests"] as const,
+
+  // Students
+  students: ["students"] as const,
+  student: (id: string) => ["students", id] as const,
+  studentsByLevel: (level: string) => ["students", "level", level] as const,
 };
 
 export default queryClient;

@@ -7,6 +7,7 @@ import DoodleBackground from '@/components/DoodleBackground';
 import LoadingButterfly from '@/components/LoadingButterfly';
 import { CustomButton } from '@/components/ui/button';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
+import ImageUpload from '@/components/ui/image-upload';
 import { useProject, useUpdateProject, useDeleteProject } from '@/hooks/useProjectQueries';
 import { useAuth } from '@/hooks/useAuth';
 import type { UpdateProjectRequest } from '@/types/api';
@@ -200,15 +201,11 @@ const EditProject = () => {
                     </div>
 
                     <div>
-                        <label htmlFor="imageUrl" className="block text-sm font-medium mb-1">Image URL</label>
-                        <input
-                            id="imageUrl"
-                            type="url"
+                        <ImageUpload
+                            label="Project Image"
                             value={imageUrl}
-                            onChange={e => setImageUrl(e.target.value)}
-                            disabled
-                            className="w-full h-10 rounded-md border border-input bg-gray-50 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-not-allowed opacity-60"
-                            placeholder="https://example.com/image.jpg"
+                            onChange={setImageUrl}
+                            placeholder="Click to upload project banner image"
                         />
                     </div>
 
