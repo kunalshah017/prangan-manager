@@ -15,13 +15,69 @@ const CreateStudent = () => {
         name: '',
         profileImageUrl: '',
         dob: '',
-        phoneNumber: '',
-        whatsappNumber: '',
-        alternateNumber: '',
+        phoneNumber: '+91 ',
+        whatsappNumber: '+91 ',
+        alternateNumber: '+91 ',
         level: 'LEVEL_1'
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
+
+    // Phone number formatting functions
+    const handlePhoneChange = (field: 'phoneNumber' | 'whatsappNumber' | 'alternateNumber', value: string) => {
+        // Always ensure +91 prefix is maintained
+        if (!value.startsWith('+91 ')) {
+            setFormData(prev => ({ ...prev, [field]: '+91 ' }));
+            return;
+        }
+
+        // Extract only the digits after +91
+        const phoneNumber = value.slice(4); // Remove "+91 " prefix
+        const digitsOnly = phoneNumber.replace(/\D/g, ''); // Only keep digits
+
+        // Limit to 10 digits (Indian mobile number length)
+        if (digitsOnly.length <= 10) {
+            // Format as: +91 XXXXX XXXXX (5+5 digits)
+            let formattedNumber = digitsOnly;
+            if (digitsOnly.length > 5) {
+                formattedNumber = digitsOnly.slice(0, 5) + ' ' + digitsOnly.slice(5);
+            }
+            setFormData(prev => ({ ...prev, [field]: '+91 ' + formattedNumber }));
+        }
+
+        // Clear error when user starts typing
+        if (errors[field]) {
+            setErrors(prev => ({ ...prev, [field]: '' }));
+        }
+    };
+
+    const handlePhoneKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        const input = e.target as HTMLInputElement;
+        const cursorPosition = input.selectionStart || 0;
+
+        // Prevent deletion of +91 prefix
+        if ((e.key === 'Backspace' || e.key === 'Delete') && cursorPosition <= 4) {
+            e.preventDefault();
+        }
+
+        // Move cursor after +91 if user tries to place it before
+        if (cursorPosition < 4) {
+            setTimeout(() => {
+                input.setSelectionRange(4, 4);
+            }, 0);
+        }
+    };
+
+    const handlePhoneFocus = (e: React.FocusEvent<HTMLInputElement>, field: 'phoneNumber' | 'whatsappNumber' | 'alternateNumber') => {
+        const input = e.target;
+        const currentValue = formData[field];
+        // Move cursor to end of +91 prefix if phone is empty or cursor is before prefix
+        if (currentValue === '+91 ' || input.selectionStart! < 4) {
+            setTimeout(() => {
+                input.setSelectionRange(4, 4);
+            }, 0);
+        }
+    };
 
     const levelOptions = [
         { value: 'LEVEL_1', label: 'Level 1' },
@@ -43,16 +99,16 @@ const CreateStudent = () => {
             newErrors.level = 'Level is required';
         }
 
-        if (formData.phoneNumber && !/^\+?[\d\s-()]+$/.test(formData.phoneNumber)) {
-            newErrors.phoneNumber = 'Please enter a valid phone number';
+        if (formData.phoneNumber && formData.phoneNumber !== '+91 ' && !/^\+91\s\d{5}\s?\d{0,5}$/.test(formData.phoneNumber)) {
+            newErrors.phoneNumber = 'Please enter a valid Indian phone number';
         }
 
-        if (formData.whatsappNumber && !/^\+?[\d\s-()]+$/.test(formData.whatsappNumber)) {
-            newErrors.whatsappNumber = 'Please enter a valid WhatsApp number';
+        if (formData.whatsappNumber && formData.whatsappNumber !== '+91 ' && !/^\+91\s\d{5}\s?\d{0,5}$/.test(formData.whatsappNumber)) {
+            newErrors.whatsappNumber = 'Please enter a valid Indian WhatsApp number';
         }
 
-        if (formData.alternateNumber && !/^\+?[\d\s-()]+$/.test(formData.alternateNumber)) {
-            newErrors.alternateNumber = 'Please enter a valid alternate number';
+        if (formData.alternateNumber && formData.alternateNumber !== '+91 ' && !/^\+91\s\d{5}\s?\d{0,5}$/.test(formData.alternateNumber)) {
+            newErrors.alternateNumber = 'Please enter a valid Indian alternate number';
         }
 
         setErrors(newErrors);
@@ -67,15 +123,21 @@ const CreateStudent = () => {
         }
 
         try {
-            // Clean the form data - remove empty strings
+            // Clean the form data - remove empty strings and format phone numbers for API
             const cleanedData: CreateStudentRequest = {
                 name: formData.name,
                 level: formData.level,
                 ...(formData.profileImageUrl && { profileImageUrl: formData.profileImageUrl }),
                 ...(formData.dob && { dob: formData.dob }),
-                ...(formData.phoneNumber && { phoneNumber: formData.phoneNumber }),
-                ...(formData.whatsappNumber && { whatsappNumber: formData.whatsappNumber }),
-                ...(formData.alternateNumber && { alternateNumber: formData.alternateNumber }),
+                ...(formData.phoneNumber && formData.phoneNumber !== '+91 ' && { 
+                    phoneNumber: formData.phoneNumber.replace(/\s/g, '') 
+                }),
+                ...(formData.whatsappNumber && formData.whatsappNumber !== '+91 ' && { 
+                    whatsappNumber: formData.whatsappNumber.replace(/\s/g, '') 
+                }),
+                ...(formData.alternateNumber && formData.alternateNumber !== '+91 ' && { 
+                    alternateNumber: formData.alternateNumber.replace(/\s/g, '') 
+                }),
             };
 
             await createStudentMutation.mutateAsync(cleanedData);
@@ -207,11 +269,15 @@ const CreateStudent = () => {
                                     type="tel"
                                     id="phoneNumber"
                                     value={formData.phoneNumber}
-                                    onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
+                                    onChange={(e) => handlePhoneChange('phoneNumber', e.target.value)}
+                                    onKeyDown={handlePhoneKeyDown}
+                                    onFocus={(e) => handlePhoneFocus(e, 'phoneNumber')}
                                     disabled={createStudentMutation.isPending}
                                     className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 ${errors.phoneNumber ? 'border-red-300' : 'border-gray-300'
                                         }`}
-                                    placeholder="+1 (555) 123-4567"
+                                    placeholder="+91 98765 43210"
+                                    minLength={15}
+                                    maxLength={15}
                                 />
                                 {errors.phoneNumber && (
                                     <p className="mt-1 text-sm text-red-600">{errors.phoneNumber}</p>
@@ -226,11 +292,15 @@ const CreateStudent = () => {
                                     type="tel"
                                     id="whatsappNumber"
                                     value={formData.whatsappNumber}
-                                    onChange={(e) => handleInputChange('whatsappNumber', e.target.value)}
+                                    onChange={(e) => handlePhoneChange('whatsappNumber', e.target.value)}
+                                    onKeyDown={handlePhoneKeyDown}
+                                    onFocus={(e) => handlePhoneFocus(e, 'whatsappNumber')}
                                     disabled={createStudentMutation.isPending}
                                     className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 ${errors.whatsappNumber ? 'border-red-300' : 'border-gray-300'
                                         }`}
-                                    placeholder="+1 (555) 123-4567"
+                                    placeholder="+91 98765 43210"
+                                    minLength={15}
+                                    maxLength={15}
                                 />
                                 {errors.whatsappNumber && (
                                     <p className="mt-1 text-sm text-red-600">{errors.whatsappNumber}</p>
@@ -245,11 +315,15 @@ const CreateStudent = () => {
                                     type="tel"
                                     id="alternateNumber"
                                     value={formData.alternateNumber}
-                                    onChange={(e) => handleInputChange('alternateNumber', e.target.value)}
+                                    onChange={(e) => handlePhoneChange('alternateNumber', e.target.value)}
+                                    onKeyDown={handlePhoneKeyDown}
+                                    onFocus={(e) => handlePhoneFocus(e, 'alternateNumber')}
                                     disabled={createStudentMutation.isPending}
                                     className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 ${errors.alternateNumber ? 'border-red-300' : 'border-gray-300'
                                         }`}
-                                    placeholder="+1 (555) 123-4567"
+                                    placeholder="+91 98765 43210"
+                                    minLength={15}
+                                    maxLength={15}
                                 />
                                 {errors.alternateNumber && (
                                     <p className="mt-1 text-sm text-red-600">{errors.alternateNumber}</p>

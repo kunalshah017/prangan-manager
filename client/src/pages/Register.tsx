@@ -10,7 +10,7 @@ const Register = () => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [dateOfBirth, setDateOfBirth] = useState('');
-    const [phone, setPhone] = useState('');
+    const [phone, setPhone] = useState('+91 ');
     const [qualification, setQualification] = useState('');
     const [address, setAddress] = useState('');
     const [profileImageUrl, setProfileImageUrl] = useState('');
@@ -24,14 +24,68 @@ const Register = () => {
         }
     }, [isAuthenticated, isLoading, navigate]);
 
+    const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+
+        // Always ensure +91 prefix is maintained
+        if (!value.startsWith('+91 ')) {
+            setPhone('+91 ');
+            return;
+        }
+
+        // Extract only the digits after +91
+        const phoneNumber = value.slice(4); // Remove "+91 " prefix
+        const digitsOnly = phoneNumber.replace(/\D/g, ''); // Only keep digits
+
+        // Limit to 10 digits (Indian mobile number length)
+        if (digitsOnly.length <= 10) {
+            // Format as: +91 XXXXX XXXXX (5+5 digits)
+            let formattedNumber = digitsOnly;
+            if (digitsOnly.length > 5) {
+                formattedNumber = digitsOnly.slice(0, 5) + ' ' + digitsOnly.slice(5);
+            }
+            setPhone('+91 ' + formattedNumber);
+        }
+    };
+
+    const handlePhoneKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        const input = e.target as HTMLInputElement;
+        const cursorPosition = input.selectionStart || 0;
+
+        // Prevent deletion of +91 prefix
+        if ((e.key === 'Backspace' || e.key === 'Delete') && cursorPosition <= 4) {
+            e.preventDefault();
+        }
+
+        // Move cursor after +91 if user tries to place it before
+        if (cursorPosition < 4) {
+            setTimeout(() => {
+                input.setSelectionRange(4, 4);
+            }, 0);
+        }
+    };
+
+    const handlePhoneFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+        const input = e.target;
+        // Move cursor to end of +91 prefix if phone is empty or cursor is before prefix
+        if (phone === '+91 ' || input.selectionStart! < 4) {
+            setTimeout(() => {
+                input.setSelectionRange(4, 4);
+            }, 0);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Remove spaces from phone number for API
+        const phoneForApi = phone.replace(/\s/g, '');
 
         try {
             await register({
                 name,
                 email,
-                phone,
+                phone: phoneForApi,
                 qualification,
                 address,
                 dob: dateOfBirth,
@@ -161,13 +215,17 @@ const Register = () => {
                                     </label>
                                     <input
                                         id="phone"
-                                        placeholder="+91 9876543210"
+                                        placeholder="+91 98765 43210"
                                         type="tel"
                                         disabled={isLoading}
                                         value={phone}
-                                        onChange={(e) => setPhone(e.target.value)}
+                                        onChange={handlePhoneChange}
+                                        onKeyDown={handlePhoneKeyDown}
+                                        onFocus={handlePhoneFocus}
                                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                         required
+                                        minLength={15} // +91 + space + 5 digits + space + 5 digits
+                                        maxLength={15}
                                     />
                                 </div>
 
