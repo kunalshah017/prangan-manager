@@ -28,13 +28,14 @@
     "dotenv": "^17.2.0",
     "fastify": "^5.4.0",
     "jsonwebtoken": "^9.0.2",
-    "resend": "^4.6.0"
+    "nodemailer": "^7.0.5"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.19",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.0.12",
+    "@types/nodemailer": "^6.4.17",
     "prisma": "^6.11.1",
     "ts-node": "^10.9.2",
     "tsx": "^4.20.3",

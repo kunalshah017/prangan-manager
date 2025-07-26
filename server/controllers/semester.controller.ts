@@ -8,6 +8,7 @@ import {
   deleteSemester,
   getSemesterById,
 } from "../service/semester.service.js";
+import { getUserAccessibleSemesters } from "../service/user.service.js";
 
 export const createSemester = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
@@ -43,13 +44,42 @@ export const createSemester = asyncHandle(
 
 export const getSemestersByCenterId = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
     const { centerId } = request.params as { centerId: string };
+
+    if (!user) {
+      return errorHandle("User not found in request.", reply, 401);
+    }
 
     if (!centerId) {
       return errorHandle("Center ID is required.", reply, 400);
     }
 
-    const semesters = await GetSemestersByCenterId(centerId);
+    // Use role-based access to get semesters by center
+    const semesters = await getUserAccessibleSemesters(
+      user.id,
+      user.role,
+      centerId
+    );
+
+    if (typeof semesters === "string") {
+      return errorHandle(semesters, reply, 500);
+    }
+
+    return successHandle({ semesters }, reply, 200);
+  }
+);
+
+export const listSemesters = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+
+    if (!user) {
+      return errorHandle("User not found in request.", reply, 401);
+    }
+
+    // Use role-based access to get all accessible semesters
+    const semesters = await getUserAccessibleSemesters(user.id, user.role);
 
     if (typeof semesters === "string") {
       return errorHandle(semesters, reply, 500);

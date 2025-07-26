@@ -9,6 +9,7 @@ import {
   deleteCenter,
   getCenterById,
 } from "../service/center.service.js";
+import { getUserAccessibleCenters } from "../service/user.service.js";
 
 export const createCenter = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
@@ -40,7 +41,14 @@ export const createCenter = asyncHandle(
 
 export const listCenters = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
-    const centers = await GetCenters();
+    const user = request.user;
+
+    if (!user) {
+      return errorHandle("User not found in request.", reply, 401);
+    }
+
+    // Use role-based access to get centers
+    const centers = await getUserAccessibleCenters(user.id, user.role);
 
     if (typeof centers === "string") {
       return errorHandle(centers, reply, 500);
@@ -52,13 +60,23 @@ export const listCenters = asyncHandle(
 
 export const getCentersByProjectId = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
     const { projectId } = request.params as { projectId: string };
+
+    if (!user) {
+      return errorHandle("User not found in request.", reply, 401);
+    }
 
     if (!projectId) {
       return errorHandle("Project ID is required.", reply, 400);
     }
 
-    const centers = await GetCentersByProjectId(projectId);
+    // Use role-based access to get centers by project
+    const centers = await getUserAccessibleCenters(
+      user.id,
+      user.role,
+      projectId
+    );
 
     if (typeof centers === "string") {
       return errorHandle(centers, reply, 500);
