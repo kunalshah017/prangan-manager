@@ -1,8 +1,7 @@
 import { Plus, Clock, Calendar, Edit } from 'lucide-react';
-import { Link, useNavigate, useLocation, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/lib/button-variants';
-import { useEffect, useState } from 'react';
 import DoodleBackground from '@/components/DoodleBackground';
 import LoadingButterfly from '@/components/LoadingButterfly';
 import { useSemestersByCenter } from '@/hooks/useSemesterQueries';
@@ -12,28 +11,12 @@ import { useAuth } from '@/hooks/useAuth';
 const Semesters = () => {
     const { projectId, centerId } = useParams<{ projectId: string; centerId: string }>();
     const navigate = useNavigate();
-    const location = useLocation();
-    const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const { isAdmin } = useAuth();
 
     // Fetch semesters for this specific center and related data
     const { data: semesters, isLoading, error, refetch } = useSemestersByCenter(centerId!);
     const { data: center, isLoading: centerLoading } = useCenter(centerId!);
 
-    useEffect(() => {
-        // Check if there's a success message from navigation state
-        if (location.state?.message && location.state?.type === 'success') {
-            setSuccessMessage(location.state.message);
-            // Clear the message after 5 seconds
-            setTimeout(() => setSuccessMessage(null), 5000);
-            // Clear the navigation state
-            navigate(location.pathname, { replace: true });
-            // Refetch semesters after a successful operation
-            refetch();
-        }
-    }, [location.state, navigate, location.pathname, refetch]);
-
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const handleSemesterClick = () => {
         navigate('/students')
     };
@@ -81,12 +64,6 @@ const Semesters = () => {
         <>
             <DoodleBackground numElements={12} />
             <div className="flex flex-col space-y-4 w-full relative z-1">
-                {/* Success Message */}
-                {successMessage && (
-                    <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md animate-fade-in">
-                        {successMessage}
-                    </div>
-                )}
                 {/* Search and filters bar */}
                 <div className="flex gap-3 sm:flex-row sm:items-center sm:gap-4 pb-6 w-full justify-between">
                     <h1 className="text-2xl font-bold tracking-tight">

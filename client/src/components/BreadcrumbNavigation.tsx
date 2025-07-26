@@ -39,32 +39,41 @@ const BreadcrumbNavigation: React.FC = () => {
         const pathSegments = location.pathname.split('/').filter(Boolean);
         const breadcrumbs: BreadcrumbItem[] = [];
 
-        // Always start with Projects
-        breadcrumbs.push({
-            label: 'Projects',
-            href: '/projects'
-        });
-
         // Handle different route patterns
         if (pathSegments.includes('projects')) {
             const projectIndex = pathSegments.indexOf('projects');
 
-            // Handle /projects/new
-            if (pathSegments[projectIndex + 1] === 'new') {
-                breadcrumbs.push({
-                    label: 'New Project',
-                    isCurrentPage: true
-                });
+            // Handle /projects (root projects page)
+            if (pathSegments.length === 1 || (pathSegments.length === 2 && pathSegments[1] === 'new')) {
+                if (pathSegments[projectIndex + 1] === 'new') {
+                    breadcrumbs.push({
+                        label: 'Projects',
+                        href: '/projects'
+                    });
+                    breadcrumbs.push({
+                        label: 'New Project',
+                        isCurrentPage: true
+                    });
+                } else {
+                    breadcrumbs.push({
+                        label: 'Projects',
+                        isCurrentPage: true
+                    });
+                }
             }
             // Handle /projects/:id/edit
             else if (pathSegments[projectIndex + 2] === 'edit') {
                 const projectName = project?.name || 'Project';
                 breadcrumbs.push({
+                    label: 'Projects',
+                    href: '/projects'
+                });
+                breadcrumbs.push({
                     label: projectName,
                     href: `/projects/${params.id}`
                 });
                 breadcrumbs.push({
-                    label: 'Edit',
+                    label: 'Edit Project',
                     isCurrentPage: true
                 });
             }
@@ -74,14 +83,14 @@ const BreadcrumbNavigation: React.FC = () => {
                 const projectName = project?.name || 'Project';
 
                 breadcrumbs.push({
-                    label: projectName,
-                    href: `/projects/${params.projectId}/centers`
+                    label: 'Projects',
+                    href: '/projects'
                 });
 
                 // Handle /projects/:projectId/centers/new
                 if (pathSegments[centerIndex + 1] === 'new') {
                     breadcrumbs.push({
-                        label: 'Centers',
+                        label: projectName,
                         href: `/projects/${params.projectId}/centers`
                     });
                     breadcrumbs.push({
@@ -93,7 +102,7 @@ const BreadcrumbNavigation: React.FC = () => {
                 else if (pathSegments[centerIndex + 2] === 'edit') {
                     const centerName = center?.name || 'Center';
                     breadcrumbs.push({
-                        label: 'Centers',
+                        label: projectName,
                         href: `/projects/${params.projectId}/centers`
                     });
                     breadcrumbs.push({
@@ -101,7 +110,7 @@ const BreadcrumbNavigation: React.FC = () => {
                         href: `/projects/${params.projectId}/centers/${params.id}`
                     });
                     breadcrumbs.push({
-                        label: 'Edit',
+                        label: 'Edit Center',
                         isCurrentPage: true
                     });
                 }
@@ -111,18 +120,14 @@ const BreadcrumbNavigation: React.FC = () => {
                     const centerName = center?.name || 'Center';
 
                     breadcrumbs.push({
-                        label: 'Centers',
+                        label: projectName,
                         href: `/projects/${params.projectId}/centers`
-                    });
-                    breadcrumbs.push({
-                        label: centerName,
-                        href: `/projects/${params.projectId}/centers/${params.centerId}/semesters`
                     });
 
                     // Handle /projects/:projectId/centers/:centerId/semesters/new
                     if (pathSegments[semesterIndex + 1] === 'new') {
                         breadcrumbs.push({
-                            label: 'Semesters',
+                            label: centerName,
                             href: `/projects/${params.projectId}/centers/${params.centerId}/semesters`
                         });
                         breadcrumbs.push({
@@ -134,7 +139,7 @@ const BreadcrumbNavigation: React.FC = () => {
                     else if (pathSegments[semesterIndex + 2] === 'edit') {
                         const semesterName = semester?.name || 'Semester';
                         breadcrumbs.push({
-                            label: 'Semesters',
+                            label: centerName,
                             href: `/projects/${params.projectId}/centers/${params.centerId}/semesters`
                         });
                         breadcrumbs.push({
@@ -142,14 +147,14 @@ const BreadcrumbNavigation: React.FC = () => {
                             href: `/projects/${params.projectId}/centers/${params.centerId}/semesters/${params.id}`
                         });
                         breadcrumbs.push({
-                            label: 'Edit',
+                            label: 'Edit Semester',
                             isCurrentPage: true
                         });
                     }
                     // Handle /projects/:projectId/centers/:centerId/semesters (current page)
                     else {
                         breadcrumbs.push({
-                            label: 'Semesters',
+                            label: centerName,
                             isCurrentPage: true
                         });
                     }
@@ -157,7 +162,7 @@ const BreadcrumbNavigation: React.FC = () => {
                 // Handle /projects/:projectId/centers (current page)
                 else {
                     breadcrumbs.push({
-                        label: 'Centers',
+                        label: projectName,
                         isCurrentPage: true
                     });
                 }
@@ -240,8 +245,8 @@ const BreadcrumbNavigation: React.FC = () => {
         };
     }, [breadcrumbs, location.pathname]);
 
-    // Don't show breadcrumbs if we're just on the projects page
-    if (breadcrumbs.length <= 1) {
+    // Don't show breadcrumbs if we're on the root projects page or there are no breadcrumbs
+    if (breadcrumbs.length === 0 || (breadcrumbs.length === 1 && breadcrumbs[0].label === 'Projects' && breadcrumbs[0].isCurrentPage)) {
         return null;
     }
 
@@ -258,14 +263,14 @@ const BreadcrumbNavigation: React.FC = () => {
                                     title={isCollapsed ? "Show all breadcrumbs" : "Collapse breadcrumbs"}
                                 />
                             ) : breadcrumb.isCurrentPage ? (
-                                <BreadcrumbPage className="max-w-[150px] truncate">
+                                <BreadcrumbPage className="max-w-[90px] md:max-w-[120px] truncate" title={breadcrumb.label}>
                                     {breadcrumb.label}
                                 </BreadcrumbPage>
                             ) : (
                                 <BreadcrumbLink asChild>
                                     <Link
                                         to={breadcrumb.href!}
-                                        className="max-w-[150px] truncate block"
+                                        className="max-w-[90px] md:max-w-[120px] truncate block"
                                         title={breadcrumb.label}
                                     >
                                         {breadcrumb.label}

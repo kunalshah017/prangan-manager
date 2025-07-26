@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/lib/button-variants';
 import { useNavigate, useParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import DoodleBackground from '@/components/DoodleBackground';
 import { CustomButton } from '@/components/ui/button';
 import { useCreateCenter } from '@/hooks/useCenterQueries';
@@ -15,7 +16,7 @@ const CreateCenter = () => {
     const navigate = useNavigate();
     const { isAdmin } = useAuth();
 
-    const { mutate: createCenter, isPending, error } = useCreateCenter();
+    const { mutate: createCenter, isPending } = useCreateCenter();
     const { data: project } = useProject(projectId!);
 
     // Check if user is admin - redirect if not
@@ -37,16 +38,12 @@ const CreateCenter = () => {
             },
             {
                 onSuccess: () => {
-                    // Navigate to centers list with success message
-                    navigate(`/projects/${projectId}/centers`, {
-                        state: {
-                            message: 'Center created successfully!',
-                            type: 'success'
-                        }
-                    });
+                    toast.success('Center created successfully!');
+                    navigate(`/projects/${projectId}/centers`);
                 },
                 onError: (err) => {
                     console.error('Failed to create center:', err);
+                    toast.error(err?.message || 'Failed to create center. Please try again.');
                 }
             }
         );
@@ -62,13 +59,6 @@ const CreateCenter = () => {
                 </p>
 
                 <form onSubmit={handleSubmit} className="space-y-5">
-                    {/* Error message */}
-                    {error && (
-                        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
-                            {error?.message}
-                        </div>
-                    )}
-
                     <div>
                         <label htmlFor="name" className="block text-sm font-medium mb-1">Center Name</label>
                         <input

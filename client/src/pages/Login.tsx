@@ -1,15 +1,47 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
+import toast from 'react-hot-toast';
 import DoodleBackground from '@/components/DoodleBackground';
 import { CustomButton } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 
 const Login = () => {
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login, isLoading, loginError, isAuthenticated } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
+  const { login, isLoading, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  // Check for URL parameters and prefill inputs
+  useEffect(() => {
+    const emailParam = searchParams.get('email');
+    const passwordParam = searchParams.get('password');
+
+    if (emailParam) {
+      setEmail(emailParam);
+    }
+    if (passwordParam) {
+      setPassword(passwordParam);
+      // Show password when prefilled from URL
+      setShowPassword(true);
+    }
+
+    // Clear URL parameters after prefilling for security
+    if (emailParam || passwordParam) {
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.delete('email');
+      newSearchParams.delete('password');
+
+      // Replace the current URL without the sensitive parameters
+      navigate(
+        { search: newSearchParams.toString() },
+        { replace: true }
+      );
+    }
+  }, [searchParams, navigate]);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -23,10 +55,11 @@ const Login = () => {
 
     try {
       await login({ email, password });
+      toast.success('Welcome!');
       // Navigate to projects page on successful login
       navigate('/projects');
-    } catch {
-      // Error is handled by the useAuth hook
+    } catch (error) {
+      toast.error((error as Error)?.message || 'Login failed. Please check your credentials.');
     }
   };
 
@@ -65,12 +98,6 @@ const Login = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-            {loginError && (
-              <div className="bg-red-50 p-3 rounded-md border border-red-200 text-red-700 text-sm">
-                {loginError}
-              </div>
-            )}
-
             <form onSubmit={handleSubmit}>
               <div className="grid gap-4">
                 <div className="grid gap-2">
@@ -96,21 +123,35 @@ const Login = () => {
                     <label htmlFor="password" className="text-sm font-medium">
                       Password
                     </label>
-                    <Link to="/forgot-password" className="text-sm text-orange-600 hover:text-orange-700">
+                    {/* <Link to="/forgot-password" className="text-sm text-orange-600 hover:text-orange-700">
                       Forgot password?
-                    </Link>
+                    </Link> */}
                   </div>
-                  <input
-                    id="password"
-                    placeholder="••••••••"
-                    type="password"
-                    autoComplete="current-password"
-                    disabled={isLoading}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    required
-                  />
+                  <div className="relative">
+                    <input
+                      id="password"
+                      placeholder="••••••••"
+                      type={showPassword ? "text" : "password"}
+                      autoComplete="current-password"
+                      disabled={isLoading}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 flex items-center justify-center w-10 h-10 text-gray-500 hover:text-gray-700 focus:outline-none"
+                      disabled={isLoading}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
                 <CustomButton
                   type="submit"

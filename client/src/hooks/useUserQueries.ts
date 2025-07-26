@@ -1,7 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-client";
-import type { User, UsersResponse, MessageResponse } from "@/types/api";
+import type {
+  User,
+  UsersResponse,
+  MessageResponse,
+  RegistrationRequestsResponse,
+  VerifyUserRequest,
+  VerifyUserResponse,
+} from "@/types/api";
 
 // User Queries
 // Note: These endpoints are not documented in the API but may be needed for admin functionality
@@ -31,22 +38,36 @@ export const useRegistrationRequests = () => {
   return useQuery({
     queryKey: queryKeys.registrationRequests,
     queryFn: async (): Promise<User[]> => {
-      // For now, this returns pending users - can be updated when actual endpoint is available
-      const response = await api.get<UsersResponse>("/users?status=PENDING");
+      const response = await api.get<RegistrationRequestsResponse>(
+        "/users/registration-requests"
+      );
       return response.users;
     },
     staleTime: 30 * 1000,
   });
 };
 
-// User Mutations
-// Note: These endpoints are not documented in the API but may be needed for admin functionality
-export const useApproveUser = () => {
+// User Mutations - Using new verify endpoint
+export const useVerifyUser = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (userId: string): Promise<MessageResponse> => {
-      return api.put<MessageResponse>(`/users/${userId}/approve`);
+    mutationFn: async ({
+      userId,
+      status,
+      role,
+      email,
+      name,
+      roleAssignments,
+    }: VerifyUserRequest): Promise<VerifyUserResponse> => {
+      return api.post<VerifyUserResponse>("/users/verify", {
+        userId,
+        status,
+        role,
+        email,
+        name,
+        roleAssignments,
+      });
     },
     onSuccess: () => {
       // Invalidate user-related queries
@@ -59,19 +80,77 @@ export const useApproveUser = () => {
   });
 };
 
-export const useRejectUser = () => {
-  const queryClient = useQueryClient();
+// Convenience hooks for approve/reject with user object
+export const useApproveUserById = () => {
+  const verifyMutation = useVerifyUser();
 
   return useMutation({
-    mutationFn: async (userId: string): Promise<MessageResponse> => {
-      return api.put<MessageResponse>(`/users/${userId}/reject`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.users });
-      queryClient.invalidateQueries({ queryKey: queryKeys.pendingUsers });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.registrationRequests,
+    mutationFn: async ({
+      user,
+      roleAssignments,
+    }: {
+      user: User;
+      roleAssignments?: VerifyUserRequest["roleAssignments"];
+    }): Promise<VerifyUserResponse> => {
+      return verifyMutation.mutateAsync({
+        userId: user.id,
+        status: "APPROVED",
+        role: user.role || "USER",
+        email: user.email,
+        name: user.name,
+        roleAssignments,
       });
+    },
+  });
+};
+
+export const useRejectUserById = () => {
+  const verifyMutation = useVerifyUser();
+
+  return useMutation({
+    mutationFn: async (user: User): Promise<VerifyUserResponse> => {
+      return verifyMutation.mutateAsync({
+        userId: user.id,
+        status: "REJECTED",
+        role: user.role || "USER",
+        email: user.email,
+        name: user.name,
+      });
+    },
+  });
+};
+
+// Legacy mutations for backward compatibility (will use verify endpoint internally)
+export const useApproveUser = () => {
+  const verifyMutation = useVerifyUser();
+
+  return useMutation({
+    mutationFn: async (user: User): Promise<MessageResponse> => {
+      const result = await verifyMutation.mutateAsync({
+        userId: user.id,
+        status: "APPROVED",
+        role: user.role || "USER",
+        email: user.email,
+        name: user.name,
+      });
+      return result;
+    },
+  });
+};
+
+export const useRejectUser = () => {
+  const verifyMutation = useVerifyUser();
+
+  return useMutation({
+    mutationFn: async (user: User): Promise<MessageResponse> => {
+      const result = await verifyMutation.mutateAsync({
+        userId: user.id,
+        status: "REJECTED",
+        role: user.role || "USER",
+        email: user.email,
+        name: user.name,
+      });
+      return result;
     },
   });
 };

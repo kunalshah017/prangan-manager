@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import DoodleBackground from '@/components/DoodleBackground';
 import { CustomButton } from '@/components/ui/button';
 import ImageUpload from '@/components/ui/image-upload';
@@ -14,7 +15,8 @@ const Register = () => {
     const [qualification, setQualification] = useState('');
     const [address, setAddress] = useState('');
     const [profileImageUrl, setProfileImageUrl] = useState('');
-    const { register, isLoading, registerError, isAuthenticated } = useAuth();
+    const [errors, setErrors] = useState<Record<string, string>>({});
+    const { register, isLoading, isAuthenticated } = useAuth();
     const navigate = useNavigate();
 
     // Redirect if already authenticated
@@ -46,6 +48,11 @@ const Register = () => {
             }
             setPhone('+91 ' + formattedNumber);
         }
+
+        // Clear phone error when user starts typing
+        if (errors.phone) {
+            setErrors(prev => ({ ...prev, phone: '' }));
+        }
     };
 
     const handlePhoneKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -75,8 +82,77 @@ const Register = () => {
         }
     };
 
+    const clearFieldError = (field: string) => {
+        if (errors[field]) {
+            setErrors(prev => ({ ...prev, [field]: '' }));
+        }
+    };
+
+    const validateForm = (): boolean => {
+        const newErrors: Record<string, string> = {};
+
+        // Name validation
+        if (!name.trim()) {
+            newErrors.name = 'Full name is required';
+        } else if (name.trim().length < 2) {
+            newErrors.name = 'Name must be at least 2 characters long';
+        }
+
+        // Profile image validation
+        if (!profileImageUrl) {
+            newErrors.profileImageUrl = 'Profile image is required';
+        }
+
+        // Email validation
+        if (!email.trim()) {
+            newErrors.email = 'Email is required';
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            newErrors.email = 'Please enter a valid email address';
+        }
+
+        // Date of birth validation
+        if (!dateOfBirth) {
+            newErrors.dateOfBirth = 'Date of birth is required';
+        } else {
+            const birthDate = new Date(dateOfBirth);
+            const today = new Date();
+            const age = today.getFullYear() - birthDate.getFullYear();
+            if (age < 18 || age > 100) {
+                newErrors.dateOfBirth = 'Age must be between 18 and 100 years';
+            }
+        }
+
+        // Phone validation
+        if (!phone || phone === '+91 ') {
+            newErrors.phone = 'Phone number is required';
+        } else if (!/^\+91\s\d{5}\s\d{5}$/.test(phone)) {
+            newErrors.phone = 'Please enter a valid 10-digit Indian phone number';
+        }
+
+        // Qualification validation
+        if (!qualification.trim()) {
+            newErrors.qualification = 'Qualification is required';
+        } else if (qualification.trim().length < 3) {
+            newErrors.qualification = 'Qualification must be at least 3 characters long';
+        }
+
+        // Address validation
+        if (!address.trim()) {
+            newErrors.address = 'Address is required';
+        } else if (address.trim().length < 10) {
+            newErrors.address = 'Address must be at least 10 characters long';
+        }
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!validateForm()) {
+            return;
+        }
 
         // Remove spaces from phone number for API
         const phoneForApi = phone.replace(/\s/g, '');
@@ -92,14 +168,11 @@ const Register = () => {
                 profileImageUrl
             });
 
-            // Navigate to login with success message
-            navigate('/login', {
-                state: {
-                    message: 'Registration successful! Your account is pending approval.'
-                }
-            });
-        } catch {
-            // Error is handled by the useAuth hook
+            toast.success('Registration successful! Your account is pending approval.');
+            // Navigate to login
+            navigate('/login');
+        } catch (error) {
+            toast.error((error as Error)?.message || 'Registration failed. Please try again.');
         }
     };
 
@@ -138,17 +211,11 @@ const Register = () => {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5, delay: 0.2 }}
                     >
-                        {registerError && (
-                            <div className="bg-red-50 p-3 rounded-md border border-red-200 text-red-700 text-sm">
-                                {registerError}
-                            </div>
-                        )}
-
                         <form onSubmit={handleSubmit}>
                             <div className="grid gap-4">
                                 <div className="grid gap-2">
                                     <label htmlFor="name" className="text-sm font-medium">
-                                        Full Name
+                                        Full Name *
                                     </label>
                                     <input
                                         id="name"
@@ -157,27 +224,39 @@ const Register = () => {
                                         autoComplete="name"
                                         disabled={isLoading}
                                         value={name}
-                                        onChange={(e) => setName(e.target.value)}
-                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        onChange={(e) => {
+                                            setName(e.target.value);
+                                            clearFieldError('name');
+                                        }}
+                                        className={`flex h-10 w-full rounded-md border ${errors.name ? 'border-red-300' : 'border-input'} bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
                                         required
                                     />
+                                    {errors.name && (
+                                        <p className="text-sm text-red-600">{errors.name}</p>
+                                    )}
                                 </div>
 
                                 <div className="grid gap-2">
                                     <ImageUpload
-                                        label="Profile Image"
+                                        label="Profile Image *"
                                         value={profileImageUrl}
-                                        onChange={setProfileImageUrl}
+                                        onChange={(url) => {
+                                            setProfileImageUrl(url);
+                                            clearFieldError('profileImageUrl');
+                                        }}
                                         placeholder="Upload your profile image"
                                         disabled={isLoading}
                                         variant="rounded"
                                         className="w-full"
                                     />
+                                    {errors.profileImageUrl && (
+                                        <p className="text-sm text-red-600">{errors.profileImageUrl}</p>
+                                    )}
                                 </div>
 
                                 <div className="grid gap-2">
                                     <label htmlFor="email" className="text-sm font-medium">
-                                        Email
+                                        Email *
                                     </label>
                                     <input
                                         id="email"
@@ -188,30 +267,42 @@ const Register = () => {
                                         autoCorrect="off"
                                         disabled={isLoading}
                                         value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        onChange={(e) => {
+                                            setEmail(e.target.value);
+                                            clearFieldError('email');
+                                        }}
+                                        className={`flex h-10 w-full rounded-md border ${errors.email ? 'border-red-300' : 'border-input'} bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
                                         required
                                     />
+                                    {errors.email && (
+                                        <p className="text-sm text-red-600">{errors.email}</p>
+                                    )}
                                 </div>
 
                                 <div className="grid gap-2">
                                     <label htmlFor="dateOfBirth" className="text-sm font-medium">
-                                        Date of Birth
+                                        Date of Birth *
                                     </label>
                                     <input
                                         id="dateOfBirth"
                                         type="date"
                                         disabled={isLoading}
                                         value={dateOfBirth}
-                                        onChange={(e) => setDateOfBirth(e.target.value)}
-                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        onChange={(e) => {
+                                            setDateOfBirth(e.target.value);
+                                            clearFieldError('dateOfBirth');
+                                        }}
+                                        className={`flex h-10 w-full rounded-md border ${errors.dateOfBirth ? 'border-red-300' : 'border-input'} bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
                                         required
                                     />
+                                    {errors.dateOfBirth && (
+                                        <p className="text-sm text-red-600">{errors.dateOfBirth}</p>
+                                    )}
                                 </div>
 
                                 <div className="grid gap-2">
                                     <label htmlFor="phone" className="text-sm font-medium">
-                                        Phone Number
+                                        Phone Number *
                                     </label>
                                     <input
                                         id="phone"
@@ -222,16 +313,19 @@ const Register = () => {
                                         onChange={handlePhoneChange}
                                         onKeyDown={handlePhoneKeyDown}
                                         onFocus={handlePhoneFocus}
-                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        className={`flex h-10 w-full rounded-md border ${errors.phone ? 'border-red-300' : 'border-input'} bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
                                         required
                                         minLength={15} // +91 + space + 5 digits + space + 5 digits
                                         maxLength={15}
                                     />
+                                    {errors.phone && (
+                                        <p className="text-sm text-red-600">{errors.phone}</p>
+                                    )}
                                 </div>
 
                                 <div className="grid gap-2">
                                     <label htmlFor="qualification" className="text-sm font-medium">
-                                        Qualification
+                                        Qualification *
                                     </label>
                                     <input
                                         id="qualification"
@@ -239,25 +333,37 @@ const Register = () => {
                                         type="text"
                                         disabled={isLoading}
                                         value={qualification}
-                                        onChange={(e) => setQualification(e.target.value)}
-                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        onChange={(e) => {
+                                            setQualification(e.target.value);
+                                            clearFieldError('qualification');
+                                        }}
+                                        className={`flex h-10 w-full rounded-md border ${errors.qualification ? 'border-red-300' : 'border-input'} bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
                                         required
                                     />
+                                    {errors.qualification && (
+                                        <p className="text-sm text-red-600">{errors.qualification}</p>
+                                    )}
                                 </div>
 
                                 <div className="grid gap-2">
                                     <label htmlFor="address" className="text-sm font-medium">
-                                        Address
+                                        Address *
                                     </label>
                                     <textarea
                                         id="address"
                                         placeholder="123 Main St, City, Country"
                                         disabled={isLoading}
                                         value={address}
-                                        onChange={(e) => setAddress(e.target.value)}
-                                        className="flex h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        onChange={(e) => {
+                                            setAddress(e.target.value);
+                                            clearFieldError('address');
+                                        }}
+                                        className={`flex h-20 w-full rounded-md border ${errors.address ? 'border-red-300' : 'border-input'} bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
                                         required
                                     />
+                                    {errors.address && (
+                                        <p className="text-sm text-red-600">{errors.address}</p>
+                                    )}
                                 </div>
 
                                 <CustomButton
