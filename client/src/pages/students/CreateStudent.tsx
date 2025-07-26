@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useCreateStudent } from '@/hooks/useStudentQueries';
 import { CustomButton } from '@/components/ui/button';
@@ -9,7 +9,11 @@ import type { CreateStudentRequest } from '@/types/api';
 
 const CreateStudent = () => {
     const navigate = useNavigate();
+    const { projectId, centerId, semesterId } = useParams();
     const createStudentMutation = useCreateStudent();
+
+    // Build the students URL for navigation
+    const studentsUrl = `/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/students`;
 
     const [formData, setFormData] = useState<CreateStudentRequest>({
         name: '',
@@ -18,7 +22,16 @@ const CreateStudent = () => {
         phoneNumber: '+91 ',
         whatsappNumber: '+91 ',
         alternateNumber: '+91 ',
-        level: 'LEVEL_1'
+        fatherName: '',
+        motherName: '',
+        address: '',
+        schoolName: '',
+        fatherOccupation: '',
+        motherOccupation: '',
+        familyIncome: '',
+        enrollment: {
+            level: 'LEVEL_1'
+        }
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -88,6 +101,15 @@ const CreateStudent = () => {
         { value: 'PRIMARY_B', label: 'Primary B' }
     ];
 
+    const familyIncomeOptions = [
+        { value: '', label: 'Select Income Range' },
+        { value: '0-25000', label: '₹0 - ₹25,000' },
+        { value: '25000-50000', label: '₹25,000 - ₹50,000' },
+        { value: '50000-75000', label: '₹50,000 - ₹75,000' },
+        { value: '75000-100000', label: '₹75,000 - ₹1,00,000' },
+        { value: '100000+', label: '₹1,00,000+' }
+    ];
+
     const validateForm = (): boolean => {
         const newErrors: Record<string, string> = {};
 
@@ -99,7 +121,7 @@ const CreateStudent = () => {
             newErrors.profileImageUrl = 'Profile image is required';
         }
 
-        if (!formData.level) {
+        if (!formData.enrollment?.level) {
             newErrors.level = 'Level is required';
         }
 
@@ -130,7 +152,6 @@ const CreateStudent = () => {
             // Clean the form data - remove empty strings and format phone numbers for API
             const cleanedData: CreateStudentRequest = {
                 name: formData.name,
-                level: formData.level,
                 ...(formData.profileImageUrl && { profileImageUrl: formData.profileImageUrl }),
                 ...(formData.dob && { dob: formData.dob }),
                 ...(formData.phoneNumber && formData.phoneNumber !== '+91 ' && {
@@ -142,10 +163,24 @@ const CreateStudent = () => {
                 ...(formData.alternateNumber && formData.alternateNumber !== '+91 ' && {
                     alternateNumber: formData.alternateNumber.replace(/\s/g, '')
                 }),
+                // Family details
+                ...(formData.fatherName && { fatherName: formData.fatherName }),
+                ...(formData.motherName && { motherName: formData.motherName }),
+                ...(formData.address && { address: formData.address }),
+                ...(formData.schoolName && { schoolName: formData.schoolName }),
+                ...(formData.fatherOccupation && { fatherOccupation: formData.fatherOccupation }),
+                ...(formData.motherOccupation && { motherOccupation: formData.motherOccupation }),
+                ...(formData.familyIncome && { familyIncome: formData.familyIncome }),
+                enrollment: {
+                    centerId: centerId!,
+                    semesterId: semesterId!,
+                    projectId: projectId!,
+                    level: formData.enrollment?.level || 'LEVEL_1'
+                }
             };
 
             await createStudentMutation.mutateAsync(cleanedData);
-            navigate('/students');
+            navigate(studentsUrl);
         } catch (error) {
             console.error('Error creating student:', error);
         }
@@ -159,12 +194,26 @@ const CreateStudent = () => {
         }
     };
 
+    const handleLevelChange = (level: string) => {
+        setFormData(prev => ({
+            ...prev,
+            enrollment: {
+                ...prev.enrollment,
+                level: level as "LEVEL_1" | "LEVEL_2" | "LEVEL_3" | "LEVEL_4" | "PRIMARY_A" | "PRIMARY_B"
+            }
+        }));
+        // Clear error when user changes level
+        if (errors.level) {
+            setErrors(prev => ({ ...prev, level: '' }));
+        }
+    };
+
     return (
         <div className="space-y-6">
             {/* Header */}
             <div className="flex items-center space-x-4">
                 <button
-                    onClick={() => navigate('/students')}
+                    onClick={() => navigate(studentsUrl)}
                     className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                     aria-label="Go back to students list"
                 >
@@ -237,8 +286,8 @@ const CreateStudent = () => {
                                 </label>
                                 <select
                                     id="level"
-                                    value={formData.level}
-                                    onChange={(e) => handleInputChange('level', e.target.value as CreateStudentRequest['level'])}
+                                    value={formData.enrollment?.level || 'LEVEL_1'}
+                                    onChange={(e) => handleLevelChange(e.target.value)}
                                     disabled={createStudentMutation.isPending}
                                     className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 ${errors.level ? 'border-red-300' : 'border-gray-300'
                                         }`}
@@ -338,12 +387,134 @@ const CreateStudent = () => {
                             </div>
                         </div>
 
+                        {/* Family Information Section */}
+                        <div>
+                            <h3 className="text-lg font-medium text-gray-900 mb-4">Family Information</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Father's Name */}
+                                <div>
+                                    <label htmlFor="fatherName" className="block text-sm font-medium text-gray-700 mb-2">
+                                        Father's Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="fatherName"
+                                        value={formData.fatherName}
+                                        onChange={(e) => handleInputChange('fatherName', e.target.value)}
+                                        disabled={createStudentMutation.isPending}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                        placeholder="Enter father's full name"
+                                    />
+                                </div>
+
+                                {/* Mother's Name */}
+                                <div>
+                                    <label htmlFor="motherName" className="block text-sm font-medium text-gray-700 mb-2">
+                                        Mother's Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="motherName"
+                                        value={formData.motherName}
+                                        onChange={(e) => handleInputChange('motherName', e.target.value)}
+                                        disabled={createStudentMutation.isPending}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                        placeholder="Enter mother's full name"
+                                    />
+                                </div>
+
+                                {/* Father's Occupation */}
+                                <div>
+                                    <label htmlFor="fatherOccupation" className="block text-sm font-medium text-gray-700 mb-2">
+                                        Father's Occupation
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="fatherOccupation"
+                                        value={formData.fatherOccupation}
+                                        onChange={(e) => handleInputChange('fatherOccupation', e.target.value)}
+                                        disabled={createStudentMutation.isPending}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                        placeholder="Enter father's profession"
+                                    />
+                                </div>
+
+                                {/* Mother's Occupation */}
+                                <div>
+                                    <label htmlFor="motherOccupation" className="block text-sm font-medium text-gray-700 mb-2">
+                                        Mother's Occupation
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="motherOccupation"
+                                        value={formData.motherOccupation}
+                                        onChange={(e) => handleInputChange('motherOccupation', e.target.value)}
+                                        disabled={createStudentMutation.isPending}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                        placeholder="Enter mother's profession"
+                                    />
+                                </div>
+
+                                {/* School Name */}
+                                <div>
+                                    <label htmlFor="schoolName" className="block text-sm font-medium text-gray-700 mb-2">
+                                        School Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="schoolName"
+                                        value={formData.schoolName}
+                                        onChange={(e) => handleInputChange('schoolName', e.target.value)}
+                                        disabled={createStudentMutation.isPending}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                        placeholder="Enter school name"
+                                    />
+                                </div>
+
+                                {/* Family Income */}
+                                <div>
+                                    <label htmlFor="familyIncome" className="block text-sm font-medium text-gray-700 mb-2">
+                                        Family Income Range
+                                    </label>
+                                    <select
+                                        id="familyIncome"
+                                        value={formData.familyIncome}
+                                        onChange={(e) => handleInputChange('familyIncome', e.target.value)}
+                                        disabled={createStudentMutation.isPending}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                    >
+                                        {familyIncomeOptions.map((option) => (
+                                            <option key={option.value} value={option.value}>
+                                                {option.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Address */}
+                                <div className="md:col-span-2">
+                                    <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-2">
+                                        Address
+                                    </label>
+                                    <textarea
+                                        id="address"
+                                        value={formData.address}
+                                        onChange={(e) => handleInputChange('address', e.target.value)}
+                                        disabled={createStudentMutation.isPending}
+                                        rows={3}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                        placeholder="Enter complete residential address"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Submit Button */}
                         <div className="flex space-x-4 pt-6 border-t border-gray-200">
                             <CustomButton
                                 type="button"
                                 variant="outline"
-                                onClick={() => navigate('/students')}
+                                onClick={() => navigate(studentsUrl)}
                                 disabled={createStudentMutation.isPending}
                             >
                                 Cancel

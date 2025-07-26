@@ -10,6 +10,8 @@ import type {
   UpdateStudentRequest,
   UpdateStudentResponse,
   MessageResponse,
+  StudentEnrollmentsResponse,
+  StudentEnrollment,
 } from "@/types/api";
 
 // Student Queries
@@ -46,6 +48,39 @@ export const useStudentsByLevel = (level: string) => {
       return response.students;
     },
     enabled: !!level,
+    staleTime: 2 * 60 * 1000,
+  });
+};
+
+export const useStudentsBySemester = (semesterId: string) => {
+  return useQuery({
+    queryKey: ["students", "semester", semesterId],
+    queryFn: async (): Promise<Student[]> => {
+      const response = await api.get<StudentEnrollmentsResponse>(
+        `/users/students/semester/${semesterId}`
+      );
+      // Extract students from enrollments and add level information
+      return response.enrollments.map((enrollment) => ({
+        ...enrollment.student!,
+        level: enrollment.level, // Add level from enrollment
+      }));
+    },
+    enabled: !!semesterId,
+    staleTime: 2 * 60 * 1000,
+  });
+};
+
+// New hook for getting student enrollments by semester
+export const useStudentEnrollmentsBySemester = (semesterId: string) => {
+  return useQuery({
+    queryKey: ["enrollments", "semester", semesterId],
+    queryFn: async (): Promise<StudentEnrollment[]> => {
+      const response = await api.get<StudentEnrollmentsResponse>(
+        `/users/students/semester/${semesterId}`
+      );
+      return response.enrollments;
+    },
+    enabled: !!semesterId,
     staleTime: 2 * 60 * 1000,
   });
 };

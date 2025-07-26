@@ -17,8 +17,8 @@ const Semesters = () => {
     const { data: semesters, isLoading, error, refetch } = useSemestersByCenter(centerId!);
     const { data: center, isLoading: centerLoading } = useCenter(centerId!);
 
-    const handleSemesterClick = () => {
-        navigate('/students')
+    const handleSemesterClick = (semesterId: string) => {
+        navigate(`/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard`);
     };
 
     // Show loading state
@@ -92,7 +92,7 @@ const Semesters = () => {
                         <div
                             key={semester.id}
                             className="flex flex-col overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm transition-all hover:shadow-md cursor-pointer"
-                            onClick={() => handleSemesterClick()}
+                            onClick={() => handleSemesterClick(semester.id)}
                         >
                             {/* Semester Header */}
                             <div className="w-full h-32 bg-gradient-to-br from-orange-100 to-orange-200 flex items-center justify-center">
@@ -136,14 +136,14 @@ const Semesters = () => {
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                handleSemesterClick();
+                                                handleSemesterClick(semester.id);
                                             }}
                                             className={cn(
                                                 buttonVariants({ size: 'sm' }),
                                                 'h-8 px-3 bg-orange-600 hover:bg-orange-700 text-white'
                                             )}
                                         >
-                                            Students
+                                            Dashboard
                                         </button>
                                     </div>
                                 </div>

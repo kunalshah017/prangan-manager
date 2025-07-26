@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { Plus, Edit, Trash2, User, Calendar, Phone, GraduationCap } from 'lucide-react';
-import { useStudents, useDeleteStudent } from '@/hooks/useStudentQueries';
+import { useStudentsBySemester, useDeleteStudent } from '@/hooks/useStudentQueries';
 import { useAuth } from '@/hooks/useAuth';
 import LoadingButterfly from '@/components/LoadingButterfly';
 import { CustomButton } from '@/components/ui/button';
@@ -11,11 +11,15 @@ import type { Student } from '@/types/api';
 
 const Students = () => {
     const { user } = useAuth();
-    const { data: students, isLoading, error } = useStudents();
+    const { projectId, centerId, semesterId } = useParams();
+    const { data: students, isLoading, error } = useStudentsBySemester(semesterId!);
     const deleteStudentMutation = useDeleteStudent();
     const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
 
     const isAdmin = user?.role === 'ADMIN';
+
+    // Build the base URL for student routes
+    const baseStudentUrl = `/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/students`;
 
     const handleDeleteStudent = async () => {
         if (!studentToDelete) return;
@@ -73,7 +77,7 @@ const Students = () => {
                     <p className="text-gray-600">Manage student information and records</p>
                 </div>
                 {isAdmin && (
-                    <Link to="new">
+                    <Link to={`${baseStudentUrl}/new`}>
                         <CustomButton className="bg-orange-600 hover:bg-orange-700 text-white">
                             <Plus className="w-4 h-4 mr-2" />
                             Add Student
@@ -116,7 +120,7 @@ const Students = () => {
                                         <div className="flex items-center mt-1">
                                             <GraduationCap className="w-4 h-4 text-gray-400 mr-1" />
                                             <span className="text-sm text-gray-600">
-                                                {getLevelDisplay(student.level)}
+                                                {student.level ? getLevelDisplay(student.level) : 'No Level Assigned'}
                                             </span>
                                         </div>
                                     </div>
@@ -136,13 +140,35 @@ const Students = () => {
                                             <span>{student.phoneNumber}</span>
                                         </div>
                                     )}
+                                    {student.schoolName && (
+                                        <div className="flex items-center text-sm text-gray-600">
+                                            <GraduationCap className="w-4 h-4 mr-2" />
+                                            <span>School: {student.schoolName}</span>
+                                        </div>
+                                    )}
+                                    {(student.fatherName || student.motherName) && (
+                                        <div className="text-sm text-gray-600">
+                                            <div className="flex items-center">
+                                                <User className="w-4 h-4 mr-2" />
+                                                <span>Family:</span>
+                                            </div>
+                                            <div className="ml-6 space-y-1">
+                                                {student.fatherName && (
+                                                    <div>Father: {student.fatherName}</div>
+                                                )}
+                                                {student.motherName && (
+                                                    <div>Mother: {student.motherName}</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Actions */}
                                 {isAdmin && (
                                     <div className="flex space-x-2 pt-4 border-t border-gray-100">
                                         <Link
-                                            to={`${student.id}/edit`}
+                                            to={`${baseStudentUrl}/${student.id}/edit`}
                                             className="flex-1"
                                         >
                                             <CustomButton
@@ -173,7 +199,7 @@ const Students = () => {
                     <h3 className="text-lg font-medium text-gray-900 mb-2">No students found</h3>
                     <p className="text-gray-600 mb-4">Get started by adding your first student.</p>
                     {isAdmin && (
-                        <Link to="new">
+                        <Link to={`${baseStudentUrl}/new`}>
                             <CustomButton className="bg-orange-600 hover:bg-orange-700 text-white">
                                 <Plus className="w-4 h-4 mr-2" />
                                 Add Student

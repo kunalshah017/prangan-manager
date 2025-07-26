@@ -1,4 +1,6 @@
 // API Configuration and base client
+import type { StudentsBySemesterResponse } from "@/types/api";
+
 const API_BASE_URL =
   process.env.NODE_ENV === "production"
     ? import.meta.env.VITE_API_BASE_URL
@@ -135,6 +137,20 @@ export const api = {
 
   delete: <T>(endpoint: string) =>
     apiRequest<T>(endpoint, { method: "DELETE" }),
+
+  // Student API methods
+  students: {
+    getBySemester: (semesterId: string) =>
+      apiRequest<StudentsBySemesterResponse>(
+        `/users/students/semester/${semesterId}`
+      ),
+  },
+
+  // Base URL for direct fetch usage
+  baseURL: API_BASE_URL,
+
+  // Token getter for direct fetch usage
+  getToken: () => localStorage.getItem("prangan_auth_token"),
 };
 
 export default api;

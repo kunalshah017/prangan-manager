@@ -10,9 +10,12 @@ import type { UpdateStudentRequest } from '@/types/api';
 
 const EditStudent = () => {
     const navigate = useNavigate();
-    const { id } = useParams<{ id: string }>();
+    const { id, projectId, centerId, semesterId } = useParams<{ id: string; projectId: string; centerId: string; semesterId: string }>();
     const { data: student, isLoading, error } = useStudent(id!);
     const updateStudentMutation = useUpdateStudent();
+
+    // Build the students URL for navigation
+    const studentsUrl = `/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/students`;
 
     const [formData, setFormData] = useState<UpdateStudentRequest>({
         name: '',
@@ -21,7 +24,16 @@ const EditStudent = () => {
         phoneNumber: '+91 ',
         whatsappNumber: '+91 ',
         alternateNumber: '+91 ',
-        level: 'LEVEL_1'
+        fatherName: '',
+        motherName: '',
+        address: '',
+        schoolName: '',
+        fatherOccupation: '',
+        motherOccupation: '',
+        familyIncome: '',
+        enrollment: {
+            level: 'LEVEL_1'
+        }
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -33,11 +45,11 @@ const EditStudent = () => {
             setFormData(prev => ({ ...prev, [field]: '+91 ' }));
             return;
         }
-        
+
         // Extract only the digits after +91
         const phoneNumber = value.slice(4); // Remove "+91 " prefix
         const digitsOnly = phoneNumber.replace(/\D/g, ''); // Only keep digits
-        
+
         // Limit to 10 digits (Indian mobile number length)
         if (digitsOnly.length <= 10) {
             // Format as: +91 XXXXX XXXXX (5+5 digits)
@@ -47,7 +59,7 @@ const EditStudent = () => {
             }
             setFormData(prev => ({ ...prev, [field]: '+91 ' + formattedNumber }));
         }
-        
+
         // Clear error when user starts typing
         if (errors[field]) {
             setErrors(prev => ({ ...prev, [field]: '' }));
@@ -57,12 +69,12 @@ const EditStudent = () => {
     const handlePhoneKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         const input = e.target as HTMLInputElement;
         const cursorPosition = input.selectionStart || 0;
-        
+
         // Prevent deletion of +91 prefix
         if ((e.key === 'Backspace' || e.key === 'Delete') && cursorPosition <= 4) {
             e.preventDefault();
         }
-        
+
         // Move cursor after +91 if user tries to place it before
         if (cursorPosition < 4) {
             setTimeout(() => {
@@ -91,6 +103,15 @@ const EditStudent = () => {
         { value: 'PRIMARY_B', label: 'Primary B' }
     ];
 
+    const familyIncomeOptions = [
+        { value: '', label: 'Select Income Range' },
+        { value: '0-25000', label: '₹0 - ₹25,000' },
+        { value: '25000-50000', label: '₹25,000 - ₹50,000' },
+        { value: '50000-75000', label: '₹50,000 - ₹75,000' },
+        { value: '75000-100000', label: '₹75,000 - ₹1,00,000' },
+        { value: '100000+', label: '₹1,00,000+' }
+    ];
+
     // Populate form when student data loads
     useEffect(() => {
         if (student) {
@@ -101,7 +122,16 @@ const EditStudent = () => {
                 phoneNumber: student.phoneNumber || '+91 ',
                 whatsappNumber: student.whatsappNumber || '+91 ',
                 alternateNumber: student.alternateNumber || '+91 ',
-                level: student.level
+                fatherName: student.fatherName || '',
+                motherName: student.motherName || '',
+                address: student.address || '',
+                schoolName: student.schoolName || '',
+                fatherOccupation: student.fatherOccupation || '',
+                motherOccupation: student.motherOccupation || '',
+                familyIncome: student.familyIncome || '',
+                enrollment: {
+                    level: student.level || 'LEVEL_1'
+                }
             });
         }
     }, [student]);
@@ -113,7 +143,7 @@ const EditStudent = () => {
             newErrors.name = 'Student name is required';
         }
 
-        if (!formData.level) {
+        if (!formData.enrollment?.level) {
             newErrors.level = 'Level is required';
         }
 
@@ -145,22 +175,38 @@ const EditStudent = () => {
             const cleanedData: UpdateStudentRequest & { id: string } = {
                 id,
                 ...(formData.name && { name: formData.name }),
-                ...(formData.level && { level: formData.level }),
                 ...(formData.profileImageUrl !== undefined && { profileImageUrl: formData.profileImageUrl }),
                 ...(formData.dob && { dob: formData.dob }),
-                ...(formData.phoneNumber && formData.phoneNumber !== '+91 ' && { 
-                    phoneNumber: formData.phoneNumber.replace(/\s/g, '') 
+                ...(formData.phoneNumber && formData.phoneNumber !== '+91 ' && {
+                    phoneNumber: formData.phoneNumber.replace(/\s/g, '')
                 }),
-                ...(formData.whatsappNumber && formData.whatsappNumber !== '+91 ' && { 
-                    whatsappNumber: formData.whatsappNumber.replace(/\s/g, '') 
+                ...(formData.whatsappNumber && formData.whatsappNumber !== '+91 ' && {
+                    whatsappNumber: formData.whatsappNumber.replace(/\s/g, '')
                 }),
-                ...(formData.alternateNumber && formData.alternateNumber !== '+91 ' && { 
-                    alternateNumber: formData.alternateNumber.replace(/\s/g, '') 
+                ...(formData.alternateNumber && formData.alternateNumber !== '+91 ' && {
+                    alternateNumber: formData.alternateNumber.replace(/\s/g, '')
                 }),
+                // Family details
+                ...(formData.fatherName !== undefined && { fatherName: formData.fatherName }),
+                ...(formData.motherName !== undefined && { motherName: formData.motherName }),
+                ...(formData.address !== undefined && { address: formData.address }),
+                ...(formData.schoolName !== undefined && { schoolName: formData.schoolName }),
+                ...(formData.fatherOccupation !== undefined && { fatherOccupation: formData.fatherOccupation }),
+                ...(formData.motherOccupation !== undefined && { motherOccupation: formData.motherOccupation }),
+                ...(formData.familyIncome !== undefined && { familyIncome: formData.familyIncome }),
+                // Include enrollment data if level is being updated
+                ...(formData.enrollment && {
+                    enrollment: {
+                        centerId: centerId!,
+                        semesterId: semesterId!,
+                        projectId: projectId!,
+                        level: formData.enrollment.level
+                    }
+                })
             };
 
             await updateStudentMutation.mutateAsync(cleanedData);
-            navigate('/students');
+            navigate(studentsUrl);
         } catch (error) {
             console.error('Error updating student:', error);
         }
@@ -171,6 +217,20 @@ const EditStudent = () => {
         // Clear error when user starts typing
         if (errors[field]) {
             setErrors(prev => ({ ...prev, [field]: '' }));
+        }
+    };
+
+    const handleLevelChange = (level: string) => {
+        setFormData(prev => ({
+            ...prev,
+            enrollment: {
+                ...prev.enrollment,
+                level: level as "LEVEL_1" | "LEVEL_2" | "LEVEL_3" | "LEVEL_4" | "PRIMARY_A" | "PRIMARY_B"
+            }
+        }));
+        // Clear error when user changes level
+        if (errors.level) {
+            setErrors(prev => ({ ...prev, level: '' }));
         }
     };
 
@@ -195,7 +255,7 @@ const EditStudent = () => {
             {/* Header */}
             <div className="flex items-center space-x-4">
                 <button
-                    onClick={() => navigate('/students')}
+                    onClick={() => navigate(studentsUrl)}
                     className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                     aria-label="Go back to students list"
                 >
@@ -265,8 +325,8 @@ const EditStudent = () => {
                                 </label>
                                 <select
                                     id="level"
-                                    value={formData.level || ''}
-                                    onChange={(e) => handleInputChange('level', e.target.value as UpdateStudentRequest['level'])}
+                                    value={formData.enrollment?.level || 'LEVEL_1'}
+                                    onChange={(e) => handleLevelChange(e.target.value)}
                                     disabled={updateStudentMutation.isPending}
                                     className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 ${errors.level ? 'border-red-300' : 'border-gray-300'
                                         }`}
@@ -366,12 +426,134 @@ const EditStudent = () => {
                             </div>
                         </div>
 
+                        {/* Family Information Section */}
+                        <div>
+                            <h3 className="text-lg font-medium text-gray-900 mb-4">Family Information</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Father's Name */}
+                                <div>
+                                    <label htmlFor="fatherName" className="block text-sm font-medium text-gray-700 mb-2">
+                                        Father's Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="fatherName"
+                                        value={formData.fatherName || ''}
+                                        onChange={(e) => handleInputChange('fatherName', e.target.value)}
+                                        disabled={updateStudentMutation.isPending}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                        placeholder="Enter father's full name"
+                                    />
+                                </div>
+
+                                {/* Mother's Name */}
+                                <div>
+                                    <label htmlFor="motherName" className="block text-sm font-medium text-gray-700 mb-2">
+                                        Mother's Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="motherName"
+                                        value={formData.motherName || ''}
+                                        onChange={(e) => handleInputChange('motherName', e.target.value)}
+                                        disabled={updateStudentMutation.isPending}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                        placeholder="Enter mother's full name"
+                                    />
+                                </div>
+
+                                {/* Father's Occupation */}
+                                <div>
+                                    <label htmlFor="fatherOccupation" className="block text-sm font-medium text-gray-700 mb-2">
+                                        Father's Occupation
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="fatherOccupation"
+                                        value={formData.fatherOccupation || ''}
+                                        onChange={(e) => handleInputChange('fatherOccupation', e.target.value)}
+                                        disabled={updateStudentMutation.isPending}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                        placeholder="Enter father's profession"
+                                    />
+                                </div>
+
+                                {/* Mother's Occupation */}
+                                <div>
+                                    <label htmlFor="motherOccupation" className="block text-sm font-medium text-gray-700 mb-2">
+                                        Mother's Occupation
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="motherOccupation"
+                                        value={formData.motherOccupation || ''}
+                                        onChange={(e) => handleInputChange('motherOccupation', e.target.value)}
+                                        disabled={updateStudentMutation.isPending}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                        placeholder="Enter mother's profession"
+                                    />
+                                </div>
+
+                                {/* School Name */}
+                                <div>
+                                    <label htmlFor="schoolName" className="block text-sm font-medium text-gray-700 mb-2">
+                                        School Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="schoolName"
+                                        value={formData.schoolName || ''}
+                                        onChange={(e) => handleInputChange('schoolName', e.target.value)}
+                                        disabled={updateStudentMutation.isPending}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                        placeholder="Enter school name"
+                                    />
+                                </div>
+
+                                {/* Family Income */}
+                                <div>
+                                    <label htmlFor="familyIncome" className="block text-sm font-medium text-gray-700 mb-2">
+                                        Family Income Range
+                                    </label>
+                                    <select
+                                        id="familyIncome"
+                                        value={formData.familyIncome || ''}
+                                        onChange={(e) => handleInputChange('familyIncome', e.target.value)}
+                                        disabled={updateStudentMutation.isPending}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                    >
+                                        {familyIncomeOptions.map((option) => (
+                                            <option key={option.value} value={option.value}>
+                                                {option.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Address */}
+                                <div className="md:col-span-2">
+                                    <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-2">
+                                        Address
+                                    </label>
+                                    <textarea
+                                        id="address"
+                                        value={formData.address || ''}
+                                        onChange={(e) => handleInputChange('address', e.target.value)}
+                                        disabled={updateStudentMutation.isPending}
+                                        rows={3}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                        placeholder="Enter complete residential address"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Submit Button */}
                         <div className="flex space-x-4 pt-6 border-t border-gray-200">
                             <CustomButton
                                 type="button"
                                 variant="outline"
-                                onClick={() => navigate('/students')}
+                                onClick={() => navigate(studentsUrl)}
                                 disabled={updateStudentMutation.isPending}
                             >
                                 Cancel

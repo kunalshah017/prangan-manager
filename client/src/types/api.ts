@@ -62,6 +62,31 @@ export interface Student {
   phoneNumber?: string;
   whatsappNumber?: string;
   alternateNumber?: string;
+  fatherName?: string;
+  motherName?: string;
+  address?: string;
+  schoolName?: string;
+  fatherOccupation?: string;
+  motherOccupation?: string;
+  familyIncome?: string;
+  createdAt: string;
+  updatedAt: string;
+  // Level is now available through enrollments
+  level?:
+    | "LEVEL_1"
+    | "LEVEL_2"
+    | "LEVEL_3"
+    | "LEVEL_4"
+    | "PRIMARY_A"
+    | "PRIMARY_B";
+}
+
+export interface StudentEnrollment {
+  id: string;
+  studentId: string;
+  centerId: string;
+  semesterId: string;
+  projectId: string;
   level:
     | "LEVEL_1"
     | "LEVEL_2"
@@ -69,8 +94,28 @@ export interface Student {
     | "LEVEL_4"
     | "PRIMARY_A"
     | "PRIMARY_B";
+  isActive: boolean;
+  enrolledAt: string;
+  promotedAt?: string;
   createdAt: string;
   updatedAt: string;
+  student?: Student;
+  center?: {
+    id: string;
+    name: string;
+    address?: string;
+  };
+  project?: {
+    id: string;
+    name: string;
+    projectType?: string;
+  };
+  semester?: {
+    id: string;
+    name: string;
+    startDate: string;
+    endDate: string;
+  };
 }
 
 // Generic API Response Types
@@ -211,6 +256,19 @@ export type VerifyUserRequest = {
 export type VerifyUserResponse = MessageResponse;
 
 // Student API Types
+export interface StudentEnrollmentData {
+  centerId?: string;
+  semesterId?: string;
+  projectId?: string;
+  level?:
+    | "LEVEL_1"
+    | "LEVEL_2"
+    | "LEVEL_3"
+    | "LEVEL_4"
+    | "PRIMARY_A"
+    | "PRIMARY_B";
+}
+
 export type CreateStudentRequest = CreateRequest<
   Student,
   | "name"
@@ -219,8 +277,17 @@ export type CreateStudentRequest = CreateRequest<
   | "phoneNumber"
   | "whatsappNumber"
   | "alternateNumber"
-  | "level"
->;
+  | "fatherName"
+  | "motherName"
+  | "address"
+  | "schoolName"
+  | "fatherOccupation"
+  | "motherOccupation"
+  | "familyIncome"
+> & {
+  enrollment?: StudentEnrollmentData;
+};
+
 export type UpdateStudentRequest = UpdateRequest<
   Student,
   | "name"
@@ -229,12 +296,272 @@ export type UpdateStudentRequest = UpdateRequest<
   | "phoneNumber"
   | "whatsappNumber"
   | "alternateNumber"
-  | "level"
->;
-export type CreateStudentResponse = EntityResponse<Student, "student">;
+  | "fatherName"
+  | "motherName"
+  | "address"
+  | "schoolName"
+  | "fatherOccupation"
+  | "motherOccupation"
+  | "familyIncome"
+> & {
+  enrollment?: StudentEnrollmentData;
+};
+
+export interface CreateStudentResponse
+  extends EntityResponse<Student, "student"> {
+  enrollment?: StudentEnrollment;
+}
+
 export type StudentsResponse = EntityListResponse<Student, "students">;
 export type StudentResponse = EntityResponse<Student, "student">;
-export type UpdateStudentResponse = EntityResponse<Student, "student">;
+
+export interface UpdateStudentResponse
+  extends EntityResponse<Student, "student"> {
+  enrollment?: StudentEnrollment;
+}
+
+// Student Enrollment API Types
+export type StudentEnrollmentsResponse = {
+  message: string;
+  enrollments: StudentEnrollment[];
+};
+
+// Attendance API Types
+export interface AttendanceUser {
+  id: string;
+  name: string;
+  email: string;
+  profileImageUrl?: string;
+  roleAssignments: {
+    id: string;
+    subRole: "CENTER_MANAGER" | "EDUCATOR";
+    level?:
+      | "LEVEL_1"
+      | "LEVEL_2"
+      | "LEVEL_3"
+      | "LEVEL_4"
+      | "PRIMARY_A"
+      | "PRIMARY_B";
+    committedDays?: "SATURDAY" | "SUNDAY" | "BOTH";
+    isActive: boolean;
+  }[];
+}
+
+export interface AttendanceRecord {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  date: string;
+  status: "PRESENT" | "ABSENT" | "NOT_AVAILABLE" | "HOLIDAY";
+  roleAssignmentId: string;
+  projectId: string;
+  projectName: string;
+  centerId: string;
+  centerName: string;
+  semesterId: string;
+  semesterName: string;
+  notes?: string;
+  holidayReason?: string;
+  markedBy?: string;
+  markedByName?: string;
+  markedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+    profileImageUrl?: string;
+  };
+  roleAssignment?: {
+    id: string;
+    subRole: "CENTER_MANAGER" | "EDUCATOR";
+    level?:
+      | "LEVEL_1"
+      | "LEVEL_2"
+      | "LEVEL_3"
+      | "LEVEL_4"
+      | "PRIMARY_A"
+      | "PRIMARY_B";
+    committedDays?: "SATURDAY" | "SUNDAY" | "BOTH";
+  };
+}
+
+// Student Attendance Types
+export interface StudentAttendanceRecord {
+  id: string;
+  studentId: string;
+  date: string;
+  status: "PRESENT" | "ABSENT" | "HOLIDAY";
+  enrollmentId: string;
+  projectId: string;
+  projectName: string;
+  centerId: string;
+  centerName: string;
+  semesterId: string;
+  semesterName: string;
+  notes?: string;
+  holidayReason?: string;
+  markedBy?: string;
+  markedByName?: string;
+  markedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  student?: {
+    id: string;
+    name: string;
+    profileImageUrl?: string;
+  };
+  enrollment?: {
+    id: string;
+    level:
+      | "LEVEL_1"
+      | "LEVEL_2"
+      | "LEVEL_3"
+      | "LEVEL_4"
+      | "PRIMARY_A"
+      | "PRIMARY_B";
+  };
+  project?: {
+    id: string;
+    name: string;
+  };
+  center?: {
+    id: string;
+    name: string;
+    address?: string;
+  };
+  semester?: {
+    id: string;
+    name: string;
+    startDate: string;
+    endDate: string;
+  };
+  markedByUser?: {
+    id: string;
+    name: string;
+  };
+}
+
+export interface ActiveUsersResponse {
+  message: string;
+  data: {
+    users: AttendanceUser[];
+    totalUsers: number;
+  };
+}
+
+export interface MarkAttendanceRequest {
+  userId: string;
+  date: string;
+  status: "PRESENT" | "ABSENT" | "NOT_AVAILABLE" | "HOLIDAY";
+  roleAssignmentId: string;
+  projectId: string;
+  centerId: string;
+  semesterId: string;
+  notes?: string;
+  holidayReason?: string;
+}
+
+export interface BulkMarkAttendanceRequest {
+  date: string;
+  attendances: {
+    userId: string;
+    status: "PRESENT" | "ABSENT" | "NOT_AVAILABLE" | "HOLIDAY";
+    roleAssignmentId: string;
+    notes?: string;
+    holidayReason?: string;
+  }[];
+  projectId: string;
+  centerId: string;
+  semesterId: string;
+}
+
+// Student Attendance Request Types
+export interface MarkStudentAttendanceRequest {
+  studentId: string;
+  enrollmentId: string;
+  date: string;
+  status: "PRESENT" | "ABSENT" | "HOLIDAY";
+  projectId: string;
+  centerId: string;
+  semesterId: string;
+  notes?: string;
+  holidayReason?: string;
+}
+
+export interface BulkMarkStudentAttendanceRequest {
+  date: string;
+  status: "PRESENT" | "ABSENT" | "HOLIDAY";
+  projectId: string;
+  centerId: string;
+  semesterId: string;
+  studentAttendances: {
+    studentId: string;
+    enrollmentId: string;
+    status: "PRESENT" | "ABSENT" | "HOLIDAY";
+    notes?: string;
+  }[];
+  holidayReason?: string;
+}
+
+export interface MarkAttendanceResponse {
+  message: string;
+  attendance: AttendanceRecord;
+}
+
+export interface BulkMarkAttendanceResponse {
+  message: string;
+  errors: string[];
+}
+
+// Student Attendance Response Types
+export interface MarkStudentAttendanceResponse {
+  message: string;
+  attendance: StudentAttendanceRecord;
+}
+
+export interface BulkMarkStudentAttendanceResponse {
+  message: string;
+  attendances: StudentAttendanceRecord[];
+  processed: number;
+  total: number;
+}
+
+export interface StudentAttendanceRecordsResponse {
+  message: string;
+  attendance: StudentAttendanceRecord[];
+}
+
+// Students by semester response
+export interface StudentsBySemesterResponse {
+  message: string;
+  enrollments: (StudentEnrollment & {
+    student: Student;
+    center: {
+      id: string;
+      name: string;
+      address: string;
+    };
+    project: {
+      id: string;
+      name: string;
+      projectType?: string;
+    };
+  })[];
+}
+
+export interface AttendanceRecordsResponse {
+  message: string;
+  data: {
+    attendances: AttendanceRecord[];
+    totalCount: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
 
 // Generic Response Types
 export interface MessageResponse extends ApiResponse<null> {
