@@ -12,20 +12,36 @@ import {
   updateStudent,
   deleteStudent,
   getStudentsByLevel,
+  getStudentsByProject,
+  getStudentsByCenter,
+  getStudentsBySemester,
+  enrollStudent,
+  promoteStudent,
+  getStudentHistory,
+  createUserRoleAssignment,
+  getUserRoleAssignments,
+  updateUserRoleAssignment,
+  deleteUserRoleAssignment,
+  getAllUsersWithAssignments,
+  bulkUpdateUserAssignments,
+  getUserAccessibleStudents,
 } from "../service/user.service.js";
-import type {
-  UserRegistrationRequest,
-  UserUpdateRequest,
-} from "../types/user.types.js";
+import { getProjectById } from "../service/project.service.js";
+import { getCenterById } from "../service/center.service.js";
+import { getSemesterById } from "../service/semester.service.js";
+import type { UserRegistrationRequest } from "../types/user.types.js";
 import { generToken } from "../utils/generateToken.js";
 import bcryptjs from "bcryptjs";
 import { sendEmail } from "../utils/mail.js";
-import { UserStatus, Level, Role } from "../generated/prisma/index.js";
+import { UserStatus, Level, Role, PrismaClient, SubRole, CommittedDays } from "../generated/prisma/index.js";
 import {
   convertToDateTime,
   isValidDateFormat,
   isValidISOFormat,
 } from "../utils/dateHelpers.js";
+
+// Initialize Prisma Client for transaction handling
+const prisma = new PrismaClient();
 
 export const registerUser = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
@@ -199,6 +215,14 @@ export const verifyUser = asyncHandle(
       userId: string;
       email: string;
       name: string;
+      roleAssignments?: Array<{
+        subRole: string;
+        projectId?: string;
+        centerId?: string;
+        semesterId?: string;
+        level?: string;
+        committedDays?: string;
+      }>;
     };
 
     console.log("Verifying user with data:", data);
@@ -236,46 +260,329 @@ export const verifyUser = asyncHandle(
     // Hash the generated password
     const hashedPassword = await bcryptjs.hash(generatedPassword, 10);
 
-    // Send email with the generated password
-    const emailSubject = "Account Verification - Your New Password";
-    const emailBody = `
-      Dear ${data.name},
-      
-      Your account has been verified successfully. Here are your login credentials:
-      
-      Email: ${data.email}
-      Password: ${generatedPassword}
-      Status: ${data.status}
-      Role: ${data.role}
-      
-      Please login and change your password after your first login.
-      
-      Best regards,
-      Prangan Manager Team
-    `;
+    // ============================================
+    // STEP 1: PERFORM ALL DATABASE OPERATIONS IN A SINGLE TRANSACTION
+    // ============================================
+    console.log("🔄 Starting database transaction...");
+
+    let updatedUser: any;
+    let createdAssignments: any = null;
 
     try {
-      await sendEmail(data.email, emailSubject, emailBody);
-    } catch (emailError) {
-      console.error("Failed to send email:", emailError);
-      return errorHandle("Failed to send verification email.", reply, 500);
+      // Wrap all database operations in a single transaction
+      const transactionResult = await prisma.$transaction(async (tx) => {
+        // Update user with new status, role, and hashed password
+        const userUpdate = await tx.user.update({
+          where: { id: data.userId },
+          data: {
+            status: data.status,
+            role: data.role,
+            password: hashedPassword,
+          },
+        });
+
+        console.log("✅ User updated successfully in transaction");
+
+        // If user role is USER and roleAssignments are provided, create them
+        let assignmentsResult = null;
+        if (data.role === Role.USER && data.roleAssignments && data.roleAssignments.length > 0) {
+          // Validate role assignments before processing
+          for (const assignment of data.roleAssignments) {
+            // Validate required fields
+            if (!assignment.subRole) {
+              throw new Error("SubRole is required for each role assignment.");
+            }
+
+            // Validate business rules
+            if (assignment.level && assignment.subRole !== "EDUCATOR") {
+              throw new Error("Level can only be assigned to EDUCATOR sub-role.");
+            }
+
+            if (assignment.committedDays && !["CENTER_MANAGER", "EDUCATOR"].includes(assignment.subRole)) {
+              throw new Error("CommittedDays can only be assigned to CENTER_MANAGER or EDUCATOR sub-roles.");
+            }
+          }
+
+          // Remove exact duplicates from role assignments
+          const uniqueAssignments = [];
+          const seenKeys = new Set();
+          for (const assignment of data.roleAssignments) {
+            const key = `${assignment.subRole}-${assignment.projectId || 'null'}-${assignment.centerId || 'null'}-${assignment.semesterId || 'null'}`;
+            if (!seenKeys.has(key)) {
+              seenKeys.add(key);
+              uniqueAssignments.push(assignment);
+            } else {
+              console.warn(`Duplicate assignment detected and skipped: ${key}`);
+            }
+          }
+
+          // Deactivate all current assignments for this user
+          await tx.userRoleAssignments.updateMany({
+            where: { userId: data.userId, isActive: true },
+            data: { isActive: false }
+          });
+
+          // Create new assignments
+          const createdAssignmentsList = [];
+          for (const assignment of uniqueAssignments) {
+            const created = await tx.userRoleAssignments.create({
+              data: {
+                userId: data.userId,
+                subRole: assignment.subRole as SubRole,
+                projectId: assignment.projectId || null,
+                centerId: assignment.centerId || null,
+                semesterId: assignment.semesterId || null,
+                level: assignment.level ? assignment.level as Level : null,
+                committedDays: assignment.committedDays ? assignment.committedDays as CommittedDays : null,
+              },
+              include: {
+                project: { select: { id: true, name: true } },
+                center: { select: { id: true, name: true } },
+                semester: { select: { id: true, name: true } },
+              }
+            });
+            createdAssignmentsList.push(created);
+          }
+
+          assignmentsResult = createdAssignmentsList;
+          console.log("✅ Role assignments created successfully in transaction");
+        }
+
+        return { userUpdate, assignmentsResult };
+      });
+
+      updatedUser = transactionResult.userUpdate;
+      createdAssignments = transactionResult.assignmentsResult;
+      
+      console.log("🎉 All database operations completed successfully in transaction");
+
+    } catch (transactionError) {
+      console.error("❌ Database transaction failed:", transactionError);
+      return errorHandle(
+        `Database operation failed: ${transactionError instanceof Error ? transactionError.message : 'Unknown error'}`,
+        reply,
+        500
+      );
     }
 
-    // Update user with new status, role, and hashed password
-    const updatedUser = await updateUser(
-      data.userId,
-      data.status,
-      data.role,
-      hashedPassword
-    );
+    // ============================================
+    // STEP 2: PREPARE EMAIL CONTENT WITH ROLE DETAILS
+    // ============================================
+    console.log("📧 Preparing email content...");
 
-    if (typeof updatedUser === "string") {
-      return errorHandle("Failed to update user status.", reply, 500);
+    // Fetch role assignment details for email if assignments were created
+    let roleAssignmentDetails = "";
+    if (data.role === Role.USER && data.roleAssignments && data.roleAssignments.length > 0) {
+      try {
+        const assignmentDetailsPromises = data.roleAssignments.map(async (assignment) => {
+          // Map sub-role to user-friendly names
+          const roleNames: { [key: string]: string } = {
+            TRAINING_DEVELOPMENT: "Training & Development",
+            RECRUITMENT: "Recruitment",
+            GROWTH_DEVELOPMENT: "Growth & Development", 
+            CURRICULUM_MENTOR: "Curriculum Mentor",
+            TECH: "Technology",
+            CENTER_MANAGER: "Center Manager",
+            EDUCATOR: "Educator"
+          };
+
+          const roleName = roleNames[assignment.subRole] || assignment.subRole.replace(/_/g, ' ');
+          
+          let details = `
+            <div class="role-assignment">
+              <h4>🎯 ${roleName}</h4>
+          `;
+
+          // Fetch project details if projectId is provided
+          if (assignment.projectId) {
+            const project = await getProjectById(assignment.projectId);
+            if (project && typeof project !== "string") {
+              details += `<p><strong>📋 Project:</strong> ${project.name}</p>`;
+            }
+          }
+
+          // Fetch center details if centerId is provided
+          if (assignment.centerId) {
+            const center = await getCenterById(assignment.centerId);
+            if (center && typeof center !== "string") {
+              details += `<p><strong>🏢 Center:</strong> ${center.name}</p>`;
+            }
+          }
+
+          // Fetch semester details if semesterId is provided
+          if (assignment.semesterId) {
+            const semester = await getSemesterById(assignment.semesterId);
+            if (semester && typeof semester !== "string") {
+              const startDate = new Date(semester.startDate).toLocaleDateString();
+              const endDate = new Date(semester.endDate).toLocaleDateString();
+              details += `<p><strong>📅 Semester:</strong> ${semester.name} (${startDate} - ${endDate})</p>`;
+            }
+          }
+
+          // Add level for EDUCATOR role
+          if (assignment.level && assignment.subRole === "EDUCATOR") {
+            const levelNames: { [key: string]: string } = {
+              LEVEL_1: "Level 1",
+              LEVEL_2: "Level 2", 
+              LEVEL_3: "Level 3",
+              LEVEL_4: "Level 4",
+              PRIMARY_A: "Primary A",
+              PRIMARY_B: "Primary B"
+            };
+            const levelName = levelNames[assignment.level] || assignment.level.replace(/_/g, ' ');
+            details += `<p><strong>📚 Teaching Level:</strong> ${levelName}</p>`;
+          }
+
+          // Add committed days for CENTER_MANAGER and EDUCATOR roles
+          if (assignment.committedDays && ["CENTER_MANAGER", "EDUCATOR"].includes(assignment.subRole)) {
+            const daysText = assignment.committedDays === "BOTH" ? "Saturday & Sunday" : 
+                           assignment.committedDays === "SATURDAY" ? "Saturday" : "Sunday";
+            details += `<p><strong>📅 Committed Days:</strong> ${daysText}</p>`;
+          }
+
+          details += `</div>`;
+          return details;
+        });
+
+        const assignmentDetailsArray = await Promise.all(assignmentDetailsPromises);
+        
+        const assignmentCount = data.roleAssignments.length;
+        const introText = assignmentCount === 1 
+          ? "You have been assigned the following position:" 
+          : `You have been assigned the following ${assignmentCount} positions:`;
+          
+        roleAssignmentDetails = `
+          <div class="credentials">
+            <h3>👥 Your Role Assignments</h3>
+            <p>${introText}</p>
+            ${assignmentDetailsArray.join('')}
+            <p style="margin-top: 15px; font-style: italic; color: #666;">
+              ${assignmentCount === 1 ? 'This position comes' : 'These positions come'} with specific responsibilities and access levels within the Prangan Foundation system.
+            </p>
+          </div>
+        `;
+      } catch (error) {
+        console.error("Error fetching role assignment details for email:", error);
+        // Continue without role details if there's an error
+      }
+    }
+
+    // Enhanced email template with orange theme and Prangan logo
+    const emailSubject = "🎉 Account Verification - Welcome to Prangan Foundation";
+    const emailBody = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Account Verification</title>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; background-color: #f4f4f4; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header { text-align: center; border-bottom: 3px solid #ff8c00; padding-bottom: 20px; margin-bottom: 30px; }
+        .logo { max-width: 200px; height: auto; margin-bottom: 15px; }
+        .header h1 { color: #ff8c00; margin: 0; }
+        .credentials { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff8c00; }
+        .credential-item { margin: 10px 0; }
+        .credential-label { font-weight: bold; color: #555; }
+        .credential-value { font-family: 'Courier New', monospace; background: #e9ecef; padding: 5px 10px; border-radius: 4px; display: inline-block; margin-left: 10px; }
+        .warning { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #666; }
+        .status-badge { display: inline-block; padding: 5px 15px; border-radius: 20px; color: white; font-weight: bold; text-transform: uppercase; }
+        .status-approved { background-color: #ff8c00; }
+        .status-user { background-color: #ff8c00; }
+        .status-admin { background-color: #e55100; }
+        .login-button { display: inline-block; background-color: #ff8c00; color: white; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: bold; margin: 20px 0; text-align: center; transition: background-color 0.3s; }
+        .login-button:hover { background-color: #e67e00; }
+        .button-container { text-align: center; margin: 25px 0; }
+        .accent-text { color: #ff8c00; font-weight: bold; }
+        .role-assignment { background: #fff8e6; border: 1px solid #ff8c00; border-radius: 8px; padding: 15px; margin: 10px 0; }
+        .role-assignment h4 { color: #ff8c00; margin: 0 0 10px 0; font-size: 16px; }
+        .role-assignment p { margin: 5px 0; color: #333; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <img src="https://prangan-manager.vercel.app/images/logo/prangan-logo-light-mode.png" alt="Prangan Foundation Logo" class="logo" />
+          <h1>🌟 Welcome to Prangan</h1>
+          <p>Your account has been successfully verified!</p>
+        </div>
+        
+        <p>Dear <strong class="accent-text">${data.name}</strong>,</p>
+        
+        <p>Congratulations! Your account has been <span class="accent-text">verified and activated</span>. You can now access the Prangan Manager system with your new credentials.</p>
+        
+        <div class="credentials">
+          <h3>📋 Your Login Credentials</h3>
+          <div class="credential-item">
+            <span class="credential-label">📧 Email:</span>
+            <span class="credential-value">${data.email}</span>
+          </div>
+          <div class="credential-item">
+            <span class="credential-label">🔐 Password:</span>
+            <span class="credential-value">${generatedPassword}</span>
+          </div>
+          <div class="credential-item">
+            <span class="credential-label">📊 Status:</span>
+            <span class="status-badge status-approved">${data.status}</span>
+          </div>
+        </div>
+        
+        ${roleAssignmentDetails}
+        
+        <div class="button-container">
+          <a href="https://manager.pranganfoundation.org/login" class="login-button">🚀 Login to Prangan Manager</a>
+        </div>
+        
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff8c00;">
+          <h3 style="color: #ff8c00; margin: 0 0 10px 0;">📋 Quick Login Instructions</h3>
+          <p style="margin: 5px 0;">1. Click the button above to open the login page</p>
+          <p style="margin: 5px 0;">2. Use your email: <strong>${data.email}</strong></p>
+          <p style="margin: 5px 0;">3. Use your password: <strong>${generatedPassword}</strong></p>
+        </div>
+
+        <div class="footer">
+          <img src="https://prangan-manager.vercel.app/images/logo/prangan-logo-light-mode.png" alt="Prangan Foundation" style="max-width: 120px; height: auto; margin-bottom: 15px;" />
+          <p><strong>Prangan Foundation Team</strong></p>
+          <p>📧 Email: <a href="mailto:info@pranganfoundation.org" style="color: #ff8c00;">info@pranganfoundation.org</a> | 📞 Phone: <a href="tel:+917718071289" style="color: #ff8c00;">+91-7718071289</a></p>
+          <p style="color: #ff8c00; font-style: italic;"><em>Inspire | Impart | Impact</em></p>
+          <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
+          <p style="font-size: 12px; color: #999;">
+            This is an automated email. Please do not reply to this message.<br>
+            If you received this email by mistake, please ignore it.
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+    `;
+
+    // ============================================
+    // STEP 3: SEND EMAIL ONLY AFTER ALL DB OPERATIONS SUCCEED
+    // ============================================
+    try {
+      console.log(`📧 Sending verification email to: ${data.email}`);
+      const emailResult = await sendEmail(data.email, emailSubject, emailBody);
+      console.log("✅ Email sent successfully:", emailResult.messageId);
+    } catch (emailError) {
+      console.error("❌ Failed to send email:", emailError);
+      // Note: We don't return an error here since the user was successfully created
+      // Just log the email failure - the main operation succeeded
+      console.log("⚠️ User verification completed successfully, but email notification failed");
     }
 
     return successHandle(
       {
-        message: "User status updated successfully and password sent via email",
+        message: "User verification completed successfully and notification email sent",
+        user: {
+          id: updatedUser.id,
+          email: updatedUser.email,
+          name: updatedUser.name,
+          status: updatedUser.status,
+          role: updatedUser.role,
+        },
+        roleAssignments: createdAssignments,
       },
       reply,
       200
@@ -320,17 +627,29 @@ export const addStudent = asyncHandle(
       phoneNumber?: string;
       whatsappNumber?: string;
       alternateNumber?: string;
-      level: Level;
       profileImageUrl?: string;
+      enrollment?: {
+        centerId: string;
+        semesterId: string;
+        projectId: string;
+        level: Level;
+      };
     };
 
-    if (!data.name || !data.level) {
-      return errorHandle("Name and level are required.", reply, 400);
+    if (!data.name) {
+      return errorHandle("Name is required.", reply, 400);
     }
 
-    // Validate level enum
-    if (!Object.values(Level).includes(data.level)) {
-      return errorHandle("Invalid level provided.", reply, 400);
+    // Validate enrollment data if provided
+    if (data.enrollment) {
+      if (!data.enrollment.centerId || !data.enrollment.semesterId || !data.enrollment.projectId || !data.enrollment.level) {
+        return errorHandle("All enrollment fields (centerId, semesterId, projectId, level) are required when enrollment is provided.", reply, 400);
+      }
+
+      // Validate level enum
+      if (!Object.values(Level).includes(data.enrollment.level)) {
+        return errorHandle("Invalid level provided in enrollment.", reply, 400);
+      }
     }
 
     // Validate DOB if provided
@@ -379,7 +698,6 @@ export const addStudent = asyncHandle(
       phoneNumber: data.phoneNumber || null,
       whatsappNumber: data.whatsappNumber || null,
       alternateNumber: data.alternateNumber || null,
-      level: data.level,
       profileImageUrl: data.profileImageUrl || null,
     };
 
@@ -389,10 +707,31 @@ export const addStudent = asyncHandle(
       return errorHandle(student, reply, 500);
     }
 
+    // If enrollment data is provided, enroll the student
+    let enrollment = null;
+    if (data.enrollment) {
+      enrollment = await enrollStudent({
+        studentId: student.id,
+        centerId: data.enrollment.centerId,
+        semesterId: data.enrollment.semesterId,
+        projectId: data.enrollment.projectId,
+        level: data.enrollment.level,
+      });
+
+      if (typeof enrollment === "string") {
+        return errorHandle(`Student created but enrollment failed: ${enrollment}`, reply, 500);
+      }
+    }
+
+    const responseMessage = data.enrollment 
+      ? "Student added and enrolled successfully"
+      : "Student added successfully. Use enrollment endpoints to assign level and center.";
+
     return successHandle(
       {
-        message: "Student added successfully",
+        message: responseMessage,
         student: student,
+        enrollment: enrollment,
       },
       reply,
       201
@@ -407,7 +746,8 @@ export const getStudents = asyncHandle(
       return errorHandle("Unauthorized access.", reply, 401);
     }
 
-    const students = await getAllStudents();
+    // Use role-based access to get students
+    const students = await getUserAccessibleStudents(user.id, user.role);
 
     if (typeof students === "string") {
       return errorHandle(students, reply, 500);
@@ -472,12 +812,22 @@ export const updateStudentController = asyncHandle(
       phoneNumber?: string;
       whatsappNumber?: string;
       alternateNumber?: string;
-      level?: Level;
       profileImageUrl?: string;
+      enrollment?: {
+        centerId?: string;
+        semesterId?: string;
+        projectId?: string;
+        level?: Level;
+      };
     };
 
     if (!id) {
       return errorHandle("Student ID is required.", reply, 400);
+    }
+
+    // Validate enrollment level if provided
+    if (data.enrollment?.level && !Object.values(Level).includes(data.enrollment.level)) {
+      return errorHandle("Invalid level provided in enrollment.", reply, 400);
     }
 
     const updateData: any = {};
@@ -536,13 +886,6 @@ export const updateStudentController = asyncHandle(
     if (data.alternateNumber !== undefined)
       updateData.alternateNumber = data.alternateNumber;
 
-    if (data.level) {
-      if (!Object.values(Level).includes(data.level)) {
-        return errorHandle("Invalid level provided.", reply, 400);
-      }
-      updateData.level = data.level;
-    }
-
     if (data.profileImageUrl !== undefined)
       updateData.profileImageUrl = data.profileImageUrl;
 
@@ -552,10 +895,30 @@ export const updateStudentController = asyncHandle(
       return errorHandle(student, reply, 500);
     }
 
+    // Handle enrollment updates if provided
+    let enrollmentResult = null;
+    if (data.enrollment) {
+      // If level is provided, promote the student
+      if (data.enrollment.level) {
+        enrollmentResult = await promoteStudent(
+          id, 
+          data.enrollment.level, 
+          data.enrollment.centerId
+        );
+      }
+      // If other enrollment fields are provided without level, we could add logic to update current enrollment
+      // For now, we'll focus on level promotion as the main use case
+    }
+
+    const responseMessage = data.enrollment?.level 
+      ? "Student updated and promoted successfully"
+      : "Student updated successfully. Use enrollment endpoints to update level assignments.";
+
     return successHandle(
       {
-        message: "Student updated successfully",
+        message: responseMessage,
         student: student,
+        enrollment: enrollmentResult,
       },
       reply,
       200
@@ -610,7 +973,8 @@ export const getStudentsByLevelController = asyncHandle(
       return errorHandle("Invalid level provided.", reply, 400);
     }
 
-    const students = await getStudentsByLevel(level);
+    // Use role-based access to get students by level
+    const students = await getUserAccessibleStudents(user.id, user.role, { level });
 
     if (typeof students === "string") {
       return errorHandle(students, reply, 500);
@@ -620,6 +984,407 @@ export const getStudentsByLevelController = asyncHandle(
       {
         message: "Students retrieved successfully",
         students: students,
+      },
+      reply,
+      200
+    );
+  }
+);
+
+// New controllers for project, center, semester filtering
+export const getStudentsByProjectController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+    if (!user) {
+      return errorHandle("Unauthorized access.", reply, 401);
+    }
+
+    const { projectId } = request.params as { projectId: string };
+
+    if (!projectId) {
+      return errorHandle("Project ID is required.", reply, 400);
+    }
+
+    // Use role-based access to get students by project
+    const enrollments = await getUserAccessibleStudents(user.id, user.role, { projectId });
+
+    if (typeof enrollments === "string") {
+      return errorHandle(enrollments, reply, 500);
+    }
+
+    return successHandle(
+      {
+        message: "Students by project retrieved successfully",
+        enrollments: enrollments,
+      },
+      reply,
+      200
+    );
+  }
+);
+
+export const getStudentsByCenterController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+    if (!user) {
+      return errorHandle("Unauthorized access.", reply, 401);
+    }
+
+    const { centerId } = request.params as { centerId: string };
+
+    if (!centerId) {
+      return errorHandle("Center ID is required.", reply, 400);
+    }
+
+    // Use role-based access to get students by center
+    const enrollments = await getUserAccessibleStudents(user.id, user.role, { centerId });
+
+    if (typeof enrollments === "string") {
+      return errorHandle(enrollments, reply, 500);
+    }
+
+    return successHandle(
+      {
+        message: "Students by center retrieved successfully",
+        enrollments: enrollments,
+      },
+      reply,
+      200
+    );
+  }
+);
+
+export const getStudentsBySemesterController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+    if (!user) {
+      return errorHandle("Unauthorized access.", reply, 401);
+    }
+
+    const { semesterId } = request.params as { semesterId: string };
+
+    if (!semesterId) {
+      return errorHandle("Semester ID is required.", reply, 400);
+    }
+
+    // Use role-based access to get students by semester
+    const enrollments = await getUserAccessibleStudents(user.id, user.role, { semesterId });
+
+    if (typeof enrollments === "string") {
+      return errorHandle(enrollments, reply, 500);
+    }
+
+    return successHandle(
+      {
+        message: "Students by semester retrieved successfully",
+        enrollments: enrollments,
+      },
+      reply,
+      200
+    );
+  }
+);
+
+export const enrollStudentController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+    if (!user || user.role !== Role.ADMIN) {
+      return errorHandle("Only admins can enroll students.", reply, 403);
+    }
+
+    const data = request.body as {
+      studentId: string;
+      centerId: string;
+      semesterId: string;
+      projectId: string;
+      level: Level;
+    };
+
+    if (!data.studentId || !data.centerId || !data.semesterId || !data.projectId || !data.level) {
+      return errorHandle("All enrollment fields are required.", reply, 400);
+    }
+
+    // Validate level enum
+    if (!Object.values(Level).includes(data.level)) {
+      return errorHandle("Invalid level provided.", reply, 400);
+    }
+
+    const enrollment = await enrollStudent(data);
+
+    if (typeof enrollment === "string") {
+      return errorHandle(enrollment, reply, 500);
+    }
+
+    return successHandle(
+      {
+        message: "Student enrolled successfully",
+        enrollment: enrollment,
+      },
+      reply,
+      201
+    );
+  }
+);
+
+export const promoteStudentController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+    if (!user || user.role !== Role.ADMIN) {
+      return errorHandle("Only admins can promote students.", reply, 403);
+    }
+
+    const { studentId } = request.params as { studentId: string };
+    const data = request.body as {
+      newLevel: Level;
+      newCenterId?: string;
+    };
+
+    if (!studentId) {
+      return errorHandle("Student ID is required.", reply, 400);
+    }
+
+    if (!data.newLevel) {
+      return errorHandle("New level is required.", reply, 400);
+    }
+
+    // Validate level enum
+    if (!Object.values(Level).includes(data.newLevel)) {
+      return errorHandle("Invalid level provided.", reply, 400);
+    }
+
+    const promotion = await promoteStudent(studentId, data.newLevel, data.newCenterId);
+
+    if (typeof promotion === "string") {
+      return errorHandle(promotion, reply, 500);
+    }
+
+    return successHandle(
+      {
+        message: "Student promoted successfully",
+        enrollment: promotion,
+      },
+      reply,
+      200
+    );
+  }
+);
+
+export const getStudentHistoryController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+    if (!user) {
+      return errorHandle("Unauthorized access.", reply, 401);
+    }
+
+    const { studentId } = request.params as { studentId: string };
+
+    if (!studentId) {
+      return errorHandle("Student ID is required.", reply, 400);
+    }
+
+    const history = await getStudentHistory(studentId);
+
+    if (typeof history === "string") {
+      return errorHandle(history, reply, 500);
+    }
+
+    return successHandle(
+      {
+        message: "Student history retrieved successfully",
+        history: history,
+      },
+      reply,
+      200
+    );
+  }
+);
+
+// User Management Controllers
+export const getAllUsersController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const admin = request.user;
+    if (!admin || admin.role !== Role.ADMIN) {
+      return errorHandle("Only admins can access user management.", reply, 403);
+    }
+
+    const users = await getAllUsersWithAssignments();
+
+    if (typeof users === "string") {
+      return errorHandle(users, reply, 500);
+    }
+
+    return successHandle(
+      {
+        message: "Users retrieved successfully",
+        users: users,
+      },
+      reply,
+      200
+    );
+  }
+);
+
+export const getUserAssignmentsController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const admin = request.user;
+    if (!admin || admin.role !== Role.ADMIN) {
+      return errorHandle("Only admins can access user assignments.", reply, 403);
+    }
+
+    const { userId } = request.params as { userId: string };
+
+    if (!userId) {
+      return errorHandle("User ID is required.", reply, 400);
+    }
+
+    const assignments = await getUserRoleAssignments(userId);
+
+    if (typeof assignments === "string") {
+      return errorHandle(assignments, reply, 500);
+    }
+
+    return successHandle(
+      {
+        message: "User assignments retrieved successfully",
+        assignments: assignments,
+      },
+      reply,
+      200
+    );
+  }
+);
+
+export const updateUserManagementController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const admin = request.user;
+    if (!admin || admin.role !== Role.ADMIN) {
+      return errorHandle("Only admins can update user management.", reply, 403);
+    }
+
+    const { userId } = request.params as { userId: string };
+    const data = request.body as {
+      roleAssignments: Array<{
+        subRole: string;
+        projectId?: string;
+        centerId?: string;
+        semesterId?: string;
+        level?: string;
+        committedDays?: string;
+      }>;
+    };
+
+    if (!userId) {
+      return errorHandle("User ID is required.", reply, 400);
+    }
+
+    if (!data.roleAssignments || !Array.isArray(data.roleAssignments)) {
+      return errorHandle("Role assignments array is required.", reply, 400);
+    }
+
+    // Validate each assignment
+    for (const assignment of data.roleAssignments) {
+      if (!assignment.subRole) {
+        return errorHandle("Sub-role is required for each assignment.", reply, 400);
+      }
+
+      // Validate that level and committedDays are only set for appropriate roles
+      if (assignment.level && assignment.subRole !== 'EDUCATOR') {
+        return errorHandle("Level can only be set for EDUCATOR sub-role.", reply, 400);
+      }
+
+      if (assignment.committedDays && 
+          !['CENTER_MANAGER', 'EDUCATOR'].includes(assignment.subRole)) {
+        return errorHandle("CommittedDays can only be set for CENTER_MANAGER and EDUCATOR sub-roles.", reply, 400);
+      }
+    }
+
+    const updatedAssignments = await bulkUpdateUserAssignments(userId, data.roleAssignments);
+
+    if (typeof updatedAssignments === "string") {
+      return errorHandle(updatedAssignments, reply, 500);
+    }
+
+    return successHandle(
+      {
+        message: "User assignments updated successfully",
+        assignments: updatedAssignments,
+      },
+      reply,
+      200
+    );
+  }
+);
+
+export const createUserAssignmentController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const admin = request.user;
+    if (!admin || admin.role !== Role.ADMIN) {
+      return errorHandle("Only admins can create user assignments.", reply, 403);
+    }
+
+    const data = request.body as {
+      userId: string;
+      subRole: string;
+      projectId?: string;
+      centerId?: string;
+      semesterId?: string;
+      level?: string;
+      committedDays?: string;
+    };
+
+    if (!data.userId || !data.subRole) {
+      return errorHandle("User ID and sub-role are required.", reply, 400);
+    }
+
+    // Validate business rules
+    if (data.level && data.subRole !== 'EDUCATOR') {
+      return errorHandle("Level can only be set for EDUCATOR sub-role.", reply, 400);
+    }
+
+    if (data.committedDays && 
+        !['CENTER_MANAGER', 'EDUCATOR'].includes(data.subRole)) {
+      return errorHandle("CommittedDays can only be set for CENTER_MANAGER and EDUCATOR sub-roles.", reply, 400);
+    }
+
+    const assignment = await createUserRoleAssignment(data);
+
+    if (typeof assignment === "string") {
+      return errorHandle(assignment, reply, 500);
+    }
+
+    return successHandle(
+      {
+        message: "User assignment created successfully",
+        assignment: assignment,
+      },
+      reply,
+      201
+    );
+  }
+);
+
+export const deleteUserAssignmentController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const admin = request.user;
+    if (!admin || admin.role !== Role.ADMIN) {
+      return errorHandle("Only admins can delete user assignments.", reply, 403);
+    }
+
+    const { assignmentId } = request.params as { assignmentId: string };
+
+    if (!assignmentId) {
+      return errorHandle("Assignment ID is required.", reply, 400);
+    }
+
+    const result = await deleteUserRoleAssignment(assignmentId);
+
+    if (typeof result === "string") {
+      return errorHandle(result, reply, 500);
+    }
+
+    return successHandle(
+      {
+        message: "User assignment deleted successfully",
       },
       reply,
       200

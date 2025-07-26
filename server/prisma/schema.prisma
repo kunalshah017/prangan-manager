@@ -18,6 +18,8 @@ model Centers {
   updatedAt DateTime    @updatedAt
   project   Projects    @relation(fields: [projectId], references: [id])
   semesters Semesters[]
+  enrollments StudentEnrollments[]
+  userRoleAssignments UserRoleAssignments[]
 }
 
 model Projects {
@@ -31,6 +33,8 @@ model Projects {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   centers     Centers[]
+  enrollments StudentEnrollments[]
+  userRoleAssignments UserRoleAssignments[]
 }
 
 model Semesters {
@@ -42,6 +46,8 @@ model Semesters {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   center    Centers  @relation(fields: [centerId], references: [id])
+  enrollments StudentEnrollments[]
+  userRoleAssignments UserRoleAssignments[]
 }
 
 model User {
@@ -58,6 +64,31 @@ model User {
   role             Role       @default(USER)
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
+  roleAssignments  UserRoleAssignments[]
+}
+
+model UserRoleAssignments {
+  id            String        @id @default(cuid())
+  userId        String
+  subRole       SubRole
+  projectId     String?       // Optional - user can be assigned to specific projects
+  centerId      String?       // Optional - user can be assigned to specific centers
+  semesterId    String?       // Optional - user can be assigned to specific semesters
+  level         Level?        // Only for Educator sub-role, null for others
+  committedDays CommittedDays? // Only for CENTER_MANAGER & EDUCATOR sub-roles, null for others
+  isActive      Boolean       @default(true)
+  assignedAt    DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project     Projects? @relation(fields: [projectId], references: [id])
+  center      Centers?  @relation(fields: [centerId], references: [id])
+  semester    Semesters? @relation(fields: [semesterId], references: [id])
+  
+  // Index for efficient user queries and prevent exact duplicates
+  @@index([userId, isActive])
+  @@index([userId, subRole, projectId, centerId, semesterId, isActive]) // For checking duplicates
 }
 
 model Students {
@@ -68,9 +99,30 @@ model Students {
   phoneNumber       String?
   whatsappNumber    String?
   alternateNumber   String?
-  level             Level
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
+  enrollments       StudentEnrollments[]
+}
+
+model StudentEnrollments {
+  id          String    @id @default(cuid())
+  studentId   String
+  centerId    String
+  semesterId  String
+  projectId   String    // Direct relation to project
+  level       Level     // Level at the time of enrollment
+  enrolledAt  DateTime  @default(now())
+  promotedAt  DateTime? // When promoted to next level
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  student     Students  @relation(fields: [studentId], references: [id])
+  center      Centers   @relation(fields: [centerId], references: [id])
+  semester    Semesters @relation(fields: [semesterId], references: [id])
+  project     Projects  @relation(fields: [projectId], references: [id])
+  
+  @@unique([studentId, semesterId]) // A student can only be enrolled once per semester
 }
 
 enum ProjectStatus {
@@ -96,4 +148,20 @@ enum Level {
   LEVEL_4
   PRIMARY_A
   PRIMARY_B
+}
+
+enum SubRole {
+  TRAINING_DEVELOPMENT    // Training & Development
+  RECRUITMENT            // Recruitment
+  GROWTH_DEVELOPMENT     // Growth & Development
+  CURRICULUM_MENTOR      // Curriculum Mentor
+  TECH                   // Tech
+  CENTER_MANAGER         // Center Manager
+  EDUCATOR              // Educator
+}
+
+enum CommittedDays {
+  SATURDAY              // Saturday only
+  SUNDAY               // Sunday only
+  BOTH                 // Both Saturday and Sunday
 }

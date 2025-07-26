@@ -8,6 +8,7 @@ import {
   deleteProject,
   getProjectById,
 } from "../service/project.service.js";
+import { getUserAccessibleProjects } from "../service/user.service.js";
 
 export const createProject = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
@@ -43,7 +44,14 @@ export const createProject = asyncHandle(
 
 export const listProjects = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
-    const projects = await getProjects();
+    const user = request.user;
+
+    if (!user) {
+      return errorHandle("User not found in request.", reply, 401);
+    }
+
+    // Use role-based access to get projects
+    const projects = await getUserAccessibleProjects(user.id, user.role);
 
     if (typeof projects === "string") {
       return errorHandle(projects, reply, 500);

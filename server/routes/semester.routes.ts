@@ -5,6 +5,7 @@ import {
   getSemesterByIdController,
   updateSemesterController,
   deleteSemesterController,
+  listSemesters,
 } from "../controllers/semester.controller.js";
 import { authChecker } from "../utils/authChecker.js";
 
@@ -14,6 +15,7 @@ export const semesterRoutes = async (fastify: FastifyInstance) => {
     { preHandler: authChecker },
     createSemester
   );
+  fastify.get("/semesters", { preHandler: authChecker }, listSemesters);
   fastify.get(
     "/semesters/:id",
     { preHandler: authChecker },
