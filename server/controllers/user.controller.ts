@@ -822,6 +822,13 @@ export const addStudent = asyncHandle(
       whatsappNumber?: string;
       alternateNumber?: string;
       profileImageUrl?: string;
+      fatherName?: string;
+      motherName?: string;
+      address?: string;
+      schoolName?: string;
+      fatherOccupation?: string;
+      motherOccupation?: string;
+      familyIncome?: string;
       enrollment?: {
         centerId: string;
         semesterId: string;
@@ -902,6 +909,13 @@ export const addStudent = asyncHandle(
       whatsappNumber: data.whatsappNumber || null,
       alternateNumber: data.alternateNumber || null,
       profileImageUrl: data.profileImageUrl || null,
+      fatherName: data.fatherName || null,
+      motherName: data.motherName || null,
+      address: data.address || null,
+      schoolName: data.schoolName || null,
+      fatherOccupation: data.fatherOccupation || null,
+      motherOccupation: data.motherOccupation || null,
+      familyIncome: data.familyIncome || null,
     };
 
     const student = await createStudent(studentData);
@@ -1020,6 +1034,13 @@ export const updateStudentController = asyncHandle(
       whatsappNumber?: string;
       alternateNumber?: string;
       profileImageUrl?: string;
+      fatherName?: string;
+      motherName?: string;
+      address?: string;
+      schoolName?: string;
+      fatherOccupation?: string;
+      motherOccupation?: string;
+      familyIncome?: string;
       enrollment?: {
         centerId?: string;
         semesterId?: string;
@@ -1098,6 +1119,18 @@ export const updateStudentController = asyncHandle(
 
     if (data.profileImageUrl !== undefined)
       updateData.profileImageUrl = data.profileImageUrl;
+
+    // Update family details
+    if (data.fatherName !== undefined) updateData.fatherName = data.fatherName;
+    if (data.motherName !== undefined) updateData.motherName = data.motherName;
+    if (data.address !== undefined) updateData.address = data.address;
+    if (data.schoolName !== undefined) updateData.schoolName = data.schoolName;
+    if (data.fatherOccupation !== undefined)
+      updateData.fatherOccupation = data.fatherOccupation;
+    if (data.motherOccupation !== undefined)
+      updateData.motherOccupation = data.motherOccupation;
+    if (data.familyIncome !== undefined)
+      updateData.familyIncome = data.familyIncome;
 
     const student = await updateStudent(id, updateData);
 
