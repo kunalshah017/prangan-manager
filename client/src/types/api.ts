@@ -1,4 +1,4 @@
-// API Types
+// Base Entity Types
 export interface User {
   id: string;
   name: string;
@@ -54,147 +54,10 @@ export interface Semester {
   updatedAt: string;
 }
 
-// Auth API
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-export interface LoginResponse {
-  message: string;
-  token: string;
-}
-
-export interface RegisterRequest {
-  email: string;
-  name: string;
-  phone?: string;
-  qualification?: string;
-  address?: string;
-  dob?: string;
-  profileImageUrl?: string;
-}
-
-export interface RegisterResponse {
-  message: string;
-}
-
-// User Details API
-export interface UserDetailsResponse {
-  message: string;
-  user: User;
-}
-
-// Project API
-export interface CreateProjectRequest {
-  name: string;
-  description: string;
-  metadata?: Record<string, unknown>;
-  projectType?: string;
-  imageUrl?: string;
-}
-
-export interface UpdateProjectRequest {
-  name?: string;
-  description?: string;
-  status?: "ACTIVE" | "INACTIVE";
-  metadata?: Record<string, unknown>;
-  projectType?: string;
-  imageUrl?: string;
-}
-
-export interface CreateProjectResponse {
-  message: string;
-  project: Project;
-}
-
-export interface ProjectsResponse {
-  projects: Project[];
-}
-
-export interface ProjectResponse {
-  project: Project;
-}
-
-export interface UpdateProjectResponse {
-  message: string;
-  project: Project;
-}
-
-// Center API
-export interface CreateCenterRequest {
-  name: string;
-  address: string;
-  projectId?: string;
-  metadata?: Record<string, unknown>;
-}
-
-export interface UpdateCenterRequest {
-  name?: string;
-  address?: string;
-  metadata?: Record<string, unknown>;
-}
-
-export interface CreateCenterResponse {
-  message: string;
-  center: Center;
-}
-
-export interface CentersResponse {
-  centers: Center[];
-}
-
-export interface CenterResponse {
-  center: Center;
-}
-
-export interface UpdateCenterResponse {
-  message: string;
-  center: Center;
-}
-
-// Semester API
-export interface CreateSemesterRequest {
-  name: string;
-  startDate: string;
-  endDate: string;
-  centerId?: string; // Made optional since README doesn't show it in request
-}
-
-export interface UpdateSemesterRequest {
-  name?: string;
-  startDate?: string;
-  endDate?: string;
-}
-
-export interface CreateSemesterResponse {
-  message: string;
-  semester: Semester;
-}
-
-export interface SemestersResponse {
-  semesters: Semester[];
-}
-
-export interface SemesterResponse {
-  semester: Semester;
-}
-
-export interface UpdateSemesterResponse {
-  message: string;
-  semester: Semester;
-}
-
-// User Management API
-export interface UsersResponse {
-  users: User[];
-}
-
-// Student types and API
 export interface Student {
   id: string;
-  profileImageUrl?: string;
   name: string;
+  profileImageUrl?: string;
   dob?: string;
   phoneNumber?: string;
   whatsappNumber?: string;
@@ -210,29 +73,121 @@ export interface Student {
   updatedAt: string;
 }
 
-export interface CreateStudentRequest {
-  name: string;
-  profileImageUrl?: string;
-  dob?: string;
-  phoneNumber?: string;
-  whatsappNumber?: string;
-  alternateNumber?: string;
-  level:
-    | "LEVEL_1"
-    | "LEVEL_2"
-    | "LEVEL_3"
-    | "LEVEL_4"
-    | "PRIMARY_A"
-    | "PRIMARY_B";
+// Generic API Response Types
+export interface ApiResponse<T = unknown> {
+  message: string;
+  data?: T;
 }
 
-export interface UpdateStudentRequest {
-  name?: string;
-  profileImageUrl?: string;
-  dob?: string;
-  phoneNumber?: string;
-  whatsappNumber?: string;
-  alternateNumber?: string;
+export interface ListResponse<T> {
+  [key: string]: T[];
+}
+
+export interface SingleResponse<T> {
+  [key: string]: T;
+}
+
+// Generic helper types for CRUD operations
+export type CreateRequest<T, K extends keyof T = keyof T> = Pick<T, K>;
+export type UpdateRequest<T, K extends keyof T = keyof T> = Partial<Pick<T, K>>;
+
+// Generic response types
+export type EntityResponse<T, K extends string> = ApiResponse<T> & Record<K, T>;
+export type EntityListResponse<T, K extends string> = ListResponse<T> &
+  Record<K, T[]>;
+
+// Message response type
+export interface MessageResponse extends ApiResponse<null> {
+  message: string;
+}
+
+// Auth API Types
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface LoginResponse extends ApiResponse<{ token: string }> {
+  token: string;
+}
+
+export type RegisterRequest = Pick<
+  User,
+  | "email"
+  | "name"
+  | "phone"
+  | "qualification"
+  | "address"
+  | "dob"
+  | "profileImageUrl"
+>;
+
+export type RegisterResponse = ApiResponse<null>;
+
+export interface UserDetailsResponse extends ApiResponse<User> {
+  user: User;
+}
+
+// Project API Types
+export type CreateProjectRequest = CreateRequest<
+  Project,
+  "name" | "description" | "metadata" | "projectType" | "imageUrl"
+>;
+export type UpdateProjectRequest = UpdateRequest<
+  Project,
+  "name" | "description" | "status" | "metadata" | "projectType" | "imageUrl"
+>;
+export type CreateProjectResponse = EntityResponse<Project, "project">;
+export type ProjectsResponse = EntityListResponse<Project, "projects">;
+export type ProjectResponse = EntityResponse<Project, "project">;
+export type UpdateProjectResponse = EntityResponse<Project, "project">;
+
+// Center API Types
+export type CreateCenterRequest = CreateRequest<
+  Center,
+  "name" | "address" | "projectId" | "metadata"
+>;
+export type UpdateCenterRequest = UpdateRequest<
+  Center,
+  "name" | "address" | "metadata"
+>;
+export type CreateCenterResponse = EntityResponse<Center, "center">;
+export type CentersResponse = EntityListResponse<Center, "centers">;
+export type CenterResponse = EntityResponse<Center, "center">;
+export type UpdateCenterResponse = EntityResponse<Center, "center">;
+
+// Semester API Types
+export type CreateSemesterRequest = CreateRequest<
+  Semester,
+  "name" | "startDate" | "endDate"
+> & {
+  centerId?: string; // Made optional since README doesn't show it in request
+};
+export type UpdateSemesterRequest = UpdateRequest<
+  Semester,
+  "name" | "startDate" | "endDate"
+>;
+export type CreateSemesterResponse = EntityResponse<Semester, "semester">;
+export type SemestersResponse = EntityListResponse<Semester, "semesters">;
+export type SemesterResponse = EntityResponse<Semester, "semester">;
+export type UpdateSemesterResponse = EntityResponse<Semester, "semester">;
+
+// User Management API Types
+export type UsersResponse = EntityListResponse<User, "users">;
+
+// Role Assignment Types
+export interface RoleAssignment {
+  subRole:
+    | "TRAINING_DEVELOPMENT"
+    | "RECRUITMENT"
+    | "GROWTH_DEVELOPMENT"
+    | "CURRICULUM_MENTOR"
+    | "TECH"
+    | "CENTER_MANAGER"
+    | "EDUCATOR";
+  projectId?: string;
+  centerId?: string;
+  semesterId?: string;
   level?:
     | "LEVEL_1"
     | "LEVEL_2"
@@ -240,34 +195,54 @@ export interface UpdateStudentRequest {
     | "LEVEL_4"
     | "PRIMARY_A"
     | "PRIMARY_B";
+  committedDays?: "SATURDAY" | "SUNDAY" | "BOTH";
 }
 
-export interface CreateStudentResponse {
+// Registration Requests API Types
+export type RegistrationRequestsResponse = EntityListResponse<User, "users">;
+export type VerifyUserRequest = {
+  userId: string;
+  status: "APPROVED" | "REJECTED" | "PENDING";
+  role: "USER" | "ADMIN";
+  email: string;
+  name: string;
+  roleAssignments?: RoleAssignment[];
+};
+export type VerifyUserResponse = MessageResponse;
+
+// Student API Types
+export type CreateStudentRequest = CreateRequest<
+  Student,
+  | "name"
+  | "profileImageUrl"
+  | "dob"
+  | "phoneNumber"
+  | "whatsappNumber"
+  | "alternateNumber"
+  | "level"
+>;
+export type UpdateStudentRequest = UpdateRequest<
+  Student,
+  | "name"
+  | "profileImageUrl"
+  | "dob"
+  | "phoneNumber"
+  | "whatsappNumber"
+  | "alternateNumber"
+  | "level"
+>;
+export type CreateStudentResponse = EntityResponse<Student, "student">;
+export type StudentsResponse = EntityListResponse<Student, "students">;
+export type StudentResponse = EntityResponse<Student, "student">;
+export type UpdateStudentResponse = EntityResponse<Student, "student">;
+
+// Generic Response Types
+export interface MessageResponse extends ApiResponse<null> {
   message: string;
-  student: Student;
 }
 
-export interface StudentsResponse {
-  message: string;
-  students: Student[];
-}
-
-export interface StudentResponse {
-  message: string;
-  student: Student;
-}
-
-export interface UpdateStudentResponse {
-  message: string;
-  student: Student;
-}
-
-// API Error Response
 export interface ApiError {
   message: string;
-}
-
-// Generic message response
-export interface MessageResponse {
-  message: string;
+  status?: number;
+  details?: unknown;
 }

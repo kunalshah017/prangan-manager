@@ -95,6 +95,10 @@ const CreateStudent = () => {
             newErrors.name = 'Student name is required';
         }
 
+        if (!formData.profileImageUrl) {
+            newErrors.profileImageUrl = 'Profile image is required';
+        }
+
         if (!formData.level) {
             newErrors.level = 'Level is required';
         }
@@ -129,14 +133,14 @@ const CreateStudent = () => {
                 level: formData.level,
                 ...(formData.profileImageUrl && { profileImageUrl: formData.profileImageUrl }),
                 ...(formData.dob && { dob: formData.dob }),
-                ...(formData.phoneNumber && formData.phoneNumber !== '+91 ' && { 
-                    phoneNumber: formData.phoneNumber.replace(/\s/g, '') 
+                ...(formData.phoneNumber && formData.phoneNumber !== '+91 ' && {
+                    phoneNumber: formData.phoneNumber.replace(/\s/g, '')
                 }),
-                ...(formData.whatsappNumber && formData.whatsappNumber !== '+91 ' && { 
-                    whatsappNumber: formData.whatsappNumber.replace(/\s/g, '') 
+                ...(formData.whatsappNumber && formData.whatsappNumber !== '+91 ' && {
+                    whatsappNumber: formData.whatsappNumber.replace(/\s/g, '')
                 }),
-                ...(formData.alternateNumber && formData.alternateNumber !== '+91 ' && { 
-                    alternateNumber: formData.alternateNumber.replace(/\s/g, '') 
+                ...(formData.alternateNumber && formData.alternateNumber !== '+91 ' && {
+                    alternateNumber: formData.alternateNumber.replace(/\s/g, '')
                 }),
             };
 
@@ -194,13 +198,16 @@ const CreateStudent = () => {
                         {/* Profile Image */}
                         <div>
                             <ImageUpload
-                                label="Profile Image"
+                                label="Profile Image *"
                                 value={formData.profileImageUrl}
                                 onChange={(url) => handleInputChange('profileImageUrl', url)}
                                 placeholder="Upload student's profile image"
                                 disabled={createStudentMutation.isPending}
                                 variant="rounded"
                             />
+                            {errors.profileImageUrl && (
+                                <p className="mt-1 text-sm text-red-600">{errors.profileImageUrl}</p>
+                            )}
                         </div>
 
                         {/* Basic Information */}

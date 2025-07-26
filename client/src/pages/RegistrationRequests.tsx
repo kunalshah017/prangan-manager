@@ -1,73 +1,25 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, Check, X, Shield, ShieldCheck } from 'lucide-react';
+import { ChevronDown, ChevronRight, X, Shield, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/lib/button-variants';
+import toast from 'react-hot-toast';
 import DoodleBackground from '@/components/DoodleBackground';
-
-// Mock registration requests data - in a real app, this would come from an API
-const mockRegistrationRequests: RegistrationRequest[] = [
-    {
-        id: '1',
-        name: 'John Doe',
-        email: 'john.doe@example.com',
-        dateOfBirth: '1995-03-15',
-        phone: '+91 9876543210',
-        qualification: 'Bachelor\'s Degree in Education',
-        address: '123 Main Street, Mumbai, Maharashtra, India - 400001',
-        submittedAt: '2025-01-10T10:30:00Z',
-        status: 'pending'
-    },
-    {
-        id: '2',
-        name: 'Jane Smith',
-        email: 'jane.smith@example.com',
-        dateOfBirth: '1992-07-22',
-        phone: '+91 9123456789',
-        qualification: 'Master\'s in Child Psychology',
-        address: '456 Oak Avenue, Pune, Maharashtra, India - 411001',
-        submittedAt: '2025-01-09T14:15:00Z',
-        status: 'pending'
-    },
-    {
-        id: '3',
-        name: 'Raj Patel',
-        email: 'raj.patel@example.com',
-        dateOfBirth: '1988-11-08',
-        phone: '+91 9987654321',
-        qualification: 'Diploma in Elementary Education',
-        address: '789 Garden Road, Ahmedabad, Gujarat, India - 380001',
-        submittedAt: '2025-01-08T09:45:00Z',
-        status: 'approved'
-    },
-    {
-        id: '4',
-        name: 'Priya Sharma',
-        email: 'priya.sharma@example.com',
-        dateOfBirth: '1990-05-30',
-        phone: '+91 9876512340',
-        qualification: 'Bachelor\'s in Social Work',
-        address: '321 Lake View, Bangalore, Karnataka, India - 560001',
-        submittedAt: '2025-01-07T16:20:00Z',
-        status: 'rejected'
-    }
-];
-
-interface RegistrationRequest {
-    id: string;
-    name: string;
-    email: string;
-    dateOfBirth: string;
-    phone: string;
-    qualification: string;
-    address: string;
-    submittedAt: string;
-    status: 'pending' | 'approved' | 'rejected';
-}
+import LoadingButterfly from '@/components/LoadingButterfly';
+import UserApprovalModal from '@/components/ui/user-approval-modal';
+import { useRegistrationRequests, useVerifyUser } from '@/hooks/useUserQueries';
+import type { User, RoleAssignment } from '@/types/api';
 
 const RegistrationRequests = () => {
-    const [requests, setRequests] = useState<RegistrationRequest[]>(mockRegistrationRequests);
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-    const [adminToggles, setAdminToggles] = useState<Set<string>>(new Set());
+    const [selectedUser, setSelectedUser] = useState<User | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    // API hooks
+    const { data: requests = [], isLoading, error } = useRegistrationRequests();
+    const verifyUser = useVerifyUser();
+
+    // Check if any operation is pending
+    const isOperationPending = verifyUser.isPending;
 
     const toggleRowExpansion = (id: string) => {
         const newExpanded = new Set(expandedRows);
@@ -79,26 +31,58 @@ const RegistrationRequests = () => {
         setExpandedRows(newExpanded);
     };
 
-    const handleApprove = (id: string) => {
-        setRequests(requests.map(req =>
-            req.id === id ? { ...req, status: 'approved' as const } : req
-        ));
+    const openApprovalModal = (user: User) => {
+        setSelectedUser(user);
+        setIsModalOpen(true);
     };
 
-    const handleReject = (id: string) => {
-        setRequests(requests.map(req =>
-            req.id === id ? { ...req, status: 'rejected' as const } : req
-        ));
+    const closeApprovalModal = () => {
+        setSelectedUser(null);
+        setIsModalOpen(false);
     };
 
-    const toggleAdmin = (id: string) => {
-        const newAdminToggles = new Set(adminToggles);
-        if (newAdminToggles.has(id)) {
-            newAdminToggles.delete(id);
-        } else {
-            newAdminToggles.add(id);
+    const handleApprove = async (user: User, roleAssignments?: RoleAssignment[]) => {
+        try {
+            await verifyUser.mutateAsync({
+                userId: user.id,
+                status: 'APPROVED',
+                role: roleAssignments ? 'USER' : 'ADMIN',
+                email: user.email,
+                name: user.name,
+                roleAssignments,
+            });
+            toast.success(`${user.name} has been approved successfully!`);
+        } catch (error) {
+            console.error('Failed to approve user:', error);
+            toast.error('Failed to approve user. Please try again.');
+            throw error;
         }
-        setAdminToggles(newAdminToggles);
+    };
+
+    const handleReject = async (user: User) => {
+        try {
+            await verifyUser.mutateAsync({
+                userId: user.id,
+                status: 'REJECTED',
+                role: user.role || 'USER',
+                email: user.email,
+                name: user.name,
+            });
+            toast.success(`${user.name}'s request has been rejected.`);
+        } catch (error) {
+            console.error('Failed to reject user:', error);
+            toast.error('Failed to reject user. Please try again.');
+            throw error;
+        }
+    };
+
+    const quickReject = async (user: User) => {
+        try {
+            await handleReject(user);
+        } catch (error) {
+            // Error already handled in handleReject
+            console.error('Quick reject failed:', error);
+        }
     };
 
     const formatDate = (dateString: string) => {
@@ -111,7 +95,25 @@ const RegistrationRequests = () => {
         });
     };
 
-    const pendingRequests = requests.filter(req => req.status === 'pending');
+    // Since the endpoint specifically returns unverified/pending users, no need to filter
+    const pendingRequests = requests;
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center min-h-[400px]">
+                <LoadingButterfly size="lg" />
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+                <div className="text-red-600 text-lg font-medium mb-2">Failed to load registration requests</div>
+                <div className="text-gray-600">Please try refreshing the page</div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col space-y-6 w-full relative">
@@ -149,7 +151,7 @@ const RegistrationRequests = () => {
                                             <div className="font-medium text-gray-900">{request.name}</div>
                                             <div className="text-sm text-gray-500">{request.email}</div>
                                             <div className="text-xs text-gray-400 mt-1">
-                                                {formatDate(request.submittedAt)}
+                                                {formatDate(request.createdAt)}
                                             </div>
                                         </div>
                                         <div className="ml-4">
@@ -166,62 +168,49 @@ const RegistrationRequests = () => {
                                             <div className="grid grid-cols-1 gap-3 text-sm">
                                                 <div>
                                                     <span className="font-medium text-gray-700">Phone:</span>
-                                                    <span className="ml-2 text-gray-900">{request.phone}</span>
+                                                    <span className="ml-2 text-gray-900">{request.phone || 'Not provided'}</span>
                                                 </div>
                                                 <div>
                                                     <span className="font-medium text-gray-700">Date of Birth:</span>
                                                     <span className="ml-2 text-gray-900">
-                                                        {new Date(request.dateOfBirth).toLocaleDateString('en-IN')}
+                                                        {request.dob ? new Date(request.dob).toLocaleDateString('en-IN') : 'Not provided'}
                                                     </span>
                                                 </div>
                                                 <div>
                                                     <span className="font-medium text-gray-700">Qualification:</span>
-                                                    <span className="ml-2 text-gray-900">{request.qualification}</span>
+                                                    <span className="ml-2 text-gray-900">{request.qualification || 'Not provided'}</span>
                                                 </div>
                                                 <div>
                                                     <span className="font-medium text-gray-700">Address:</span>
-                                                    <span className="ml-2 text-gray-900">{request.address}</span>
+                                                    <span className="ml-2 text-gray-900">{request.address || 'Not provided'}</span>
                                                 </div>
                                             </div>
 
                                             <div className="flex flex-col gap-3 pt-3">
                                                 <div className="flex gap-2">
                                                     <button
-                                                        onClick={() => handleApprove(request.id)}
+                                                        onClick={() => openApprovalModal(request)}
+                                                        disabled={isOperationPending}
                                                         className={cn(
                                                             buttonVariants({ size: 'sm' }),
-                                                            'bg-green-600 hover:bg-green-700 text-white flex-1 h-9'
+                                                            'bg-orange-600 hover:bg-orange-700 text-white flex-1 h-9 disabled:opacity-50'
                                                         )}
                                                     >
-                                                        <Check className="h-3 w-3 mr-2" />
-                                                        Approve
+                                                        <Settings className="h-3 w-3 mr-2" />
+                                                        {isOperationPending ? 'Loading...' : 'Configure & Approve'}
                                                     </button>
                                                     <button
-                                                        onClick={() => handleReject(request.id)}
+                                                        onClick={() => quickReject(request)}
+                                                        disabled={isOperationPending}
                                                         className={cn(
                                                             buttonVariants({ variant: 'outline', size: 'sm' }),
-                                                            'text-red-600 border-red-200 hover:bg-red-50 flex-1 h-9'
+                                                            'text-red-600 border-red-200 hover:bg-red-50 h-9 px-3 disabled:opacity-50'
                                                         )}
                                                     >
-                                                        <X className="h-3 w-3 mr-2" />
-                                                        Reject
+                                                        <X className="h-3 w-3 mr-1" />
+                                                        {isOperationPending ? 'Loading...' : 'Reject'}
                                                     </button>
                                                 </div>
-                                                <button
-                                                    onClick={() => toggleAdmin(request.id)}
-                                                    className={cn(
-                                                        'flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors w-full',
-                                                        adminToggles.has(request.id)
-                                                            ? 'bg-orange-100 text-orange-800 border border-orange-200'
-                                                            : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
-                                                    )}
-                                                >
-                                                    {adminToggles.has(request.id) ? (
-                                                        <><ShieldCheck className="h-4 w-4" />Admin</>
-                                                    ) : (
-                                                        <><Shield className="h-4 w-4" />User</>
-                                                    )}
-                                                </button>
                                             </div>
                                         </div>
                                     )}
@@ -239,13 +228,13 @@ const RegistrationRequests = () => {
                                                 Applicant
                                             </th>
                                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Contact Info
+                                            </th>
+                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 Submitted
                                             </th>
                                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 Actions
-                                            </th>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Admin
                                             </th>
                                             <th className="w-8"></th>
                                         </tr>
@@ -264,48 +253,39 @@ const RegistrationRequests = () => {
                                                         </div>
                                                     </td>
                                                     <td className="px-4 py-4 text-sm text-gray-500">
-                                                        {formatDate(request.submittedAt)}
+                                                        <div>
+                                                            <div>{request.phone || 'No phone'}</div>
+                                                            <div className="text-xs text-gray-400">{request.qualification || 'No qualification'}</div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-4 text-sm text-gray-500">
+                                                        {formatDate(request.createdAt)}
                                                     </td>
                                                     <td className="px-4 py-4">
                                                         <div className="flex gap-2" onClick={e => e.stopPropagation()}>
                                                             <button
-                                                                onClick={() => handleApprove(request.id)}
+                                                                onClick={() => openApprovalModal(request)}
+                                                                disabled={isOperationPending}
                                                                 className={cn(
                                                                     buttonVariants({ size: 'sm' }),
-                                                                    'bg-green-600 hover:bg-green-700 text-white h-8 px-3'
+                                                                    'bg-orange-600 hover:bg-orange-700 text-white h-8 px-3 disabled:opacity-50'
                                                                 )}
                                                             >
-                                                                <Check className="h-3 w-3 mr-1" />
-                                                                Approve
+                                                                <Settings className="h-3 w-3 mr-1" />
+                                                                {isOperationPending ? 'Loading...' : 'Configure'}
                                                             </button>
                                                             <button
-                                                                onClick={() => handleReject(request.id)}
+                                                                onClick={() => quickReject(request)}
+                                                                disabled={isOperationPending}
                                                                 className={cn(
                                                                     buttonVariants({ variant: 'outline', size: 'sm' }),
-                                                                    'text-red-600 border-red-200 hover:bg-red-50 h-8 px-3'
+                                                                    'text-red-600 border-red-200 hover:bg-red-50 h-8 px-3 disabled:opacity-50'
                                                                 )}
                                                             >
                                                                 <X className="h-3 w-3 mr-1" />
-                                                                Reject
+                                                                {isOperationPending ? 'Loading...' : 'Reject'}
                                                             </button>
                                                         </div>
-                                                    </td>
-                                                    <td className="px-4 py-4" onClick={e => e.stopPropagation()}>
-                                                        <button
-                                                            onClick={() => toggleAdmin(request.id)}
-                                                            className={cn(
-                                                                'flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium transition-colors',
-                                                                adminToggles.has(request.id)
-                                                                    ? 'bg-orange-100 text-orange-800 border border-orange-200'
-                                                                    : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
-                                                            )}
-                                                        >
-                                                            {adminToggles.has(request.id) ? (
-                                                                <><ShieldCheck className="h-3 w-3" /> Admin</>
-                                                            ) : (
-                                                                <><Shield className="h-3 w-3" /> User</>
-                                                            )}
-                                                        </button>
                                                     </td>
                                                     <td className="px-4 py-4">
                                                         {expandedRows.has(request.id) ? (
@@ -321,21 +301,21 @@ const RegistrationRequests = () => {
                                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                                                                 <div>
                                                                     <span className="font-medium text-gray-700">Phone:</span>
-                                                                    <span className="ml-2 text-gray-900">{request.phone}</span>
+                                                                    <span className="ml-2 text-gray-900">{request.phone || 'Not provided'}</span>
                                                                 </div>
                                                                 <div>
                                                                     <span className="font-medium text-gray-700">Date of Birth:</span>
                                                                     <span className="ml-2 text-gray-900">
-                                                                        {new Date(request.dateOfBirth).toLocaleDateString('en-IN')}
+                                                                        {request.dob ? new Date(request.dob).toLocaleDateString('en-IN') : 'Not provided'}
                                                                     </span>
                                                                 </div>
                                                                 <div>
                                                                     <span className="font-medium text-gray-700">Qualification:</span>
-                                                                    <span className="ml-2 text-gray-900">{request.qualification}</span>
+                                                                    <span className="ml-2 text-gray-900">{request.qualification || 'Not provided'}</span>
                                                                 </div>
                                                                 <div className="md:col-span-2">
                                                                     <span className="font-medium text-gray-700">Address:</span>
-                                                                    <span className="ml-2 text-gray-900">{request.address}</span>
+                                                                    <span className="ml-2 text-gray-900">{request.address || 'Not provided'}</span>
                                                                 </div>
                                                             </div>
                                                         </td>
@@ -358,6 +338,17 @@ const RegistrationRequests = () => {
                     </div>
                 )}
             </div>
+
+            {/* User Approval Modal */}
+            {selectedUser && (
+                <UserApprovalModal
+                    user={selectedUser}
+                    isOpen={isModalOpen}
+                    onClose={closeApprovalModal}
+                    onApprove={handleApprove}
+                    onReject={handleReject}
+                />
+            )}
         </div>
     );
 };

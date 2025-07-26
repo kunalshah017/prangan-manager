@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/lib/button-variants';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import DoodleBackground from '@/components/DoodleBackground';
 import LoadingButterfly from '@/components/LoadingButterfly';
 import { CustomButton } from '@/components/ui/button';
@@ -54,15 +55,11 @@ const EditCenter = () => {
             };
 
             await updateCenterMutation.mutateAsync({ id, data: updateData });
-
-            navigate(`/projects/${projectId}/centers`, {
-                state: {
-                    message: 'Center updated successfully!',
-                    type: 'success'
-                }
-            });
+            toast.success('Center updated successfully!');
+            navigate(`/projects/${projectId}/centers`);
         } catch (error) {
             console.error('Failed to update center:', error);
+            toast.error('Failed to update center. Please try again.');
         }
     };
 
@@ -71,14 +68,11 @@ const EditCenter = () => {
 
         try {
             await deleteCenterMutation.mutateAsync(id);
-            navigate(`/projects/${projectId}/centers`, {
-                state: {
-                    message: 'Center deleted successfully!',
-                    type: 'success'
-                }
-            });
+            toast.success('Center deleted successfully!');
+            navigate(`/projects/${projectId}/centers`);
         } catch (error) {
             console.error('Failed to delete center:', error);
+            toast.error('Failed to delete center. Please try again.');
         }
     };
 

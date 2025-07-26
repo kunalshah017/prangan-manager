@@ -51,20 +51,55 @@ export async function apiRequest<T>(
       localStorage.removeItem("prangan_auth_token");
       localStorage.removeItem("prangan_user");
       window.location.href = "/login";
-      throw new ApiError("Unauthorized", 401);
+
+      // Try to get the API error message
+      let errorMessage = "Unauthorized";
+      try {
+        const errorData = await response.json();
+        if (typeof errorData.message === "string") {
+          errorMessage = errorData.message;
+        }
+      } catch {
+        // Keep default message if parsing fails
+      }
+
+      throw new ApiError(errorMessage, 401);
     }
 
     if (response.status === 403) {
-      throw new ApiError("Access forbidden - insufficient permissions", 403);
+      // Try to get the API error message
+      let errorMessage = "Access forbidden - insufficient permissions";
+      try {
+        const errorData = await response.json();
+        if (typeof errorData.message === "string") {
+          errorMessage = errorData.message;
+        }
+      } catch {
+        // Keep default message if parsing fails
+      }
+
+      throw new ApiError(errorMessage, 403);
     }
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new ApiError(
-        errorData.message || `HTTP ${response.status}: ${response.statusText}`,
-        response.status,
-        errorData
-      );
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      let errorData: Record<string, unknown> = {};
+
+      try {
+        errorData = await response.json();
+        // Use the API's error message if available, otherwise use our default
+        if (typeof errorData.message === "string") {
+          errorMessage = errorData.message;
+        } else if (typeof errorData.error === "string") {
+          errorMessage = errorData.error;
+        } else if (typeof errorData.details === "string") {
+          errorMessage = errorData.details;
+        }
+      } catch {
+        // If JSON parsing fails, keep the default HTTP error message
+      }
+
+      throw new ApiError(errorMessage, response.status, errorData);
     }
 
     // Return the JSON data

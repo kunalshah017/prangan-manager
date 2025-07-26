@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/lib/button-variants';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import DoodleBackground from '@/components/DoodleBackground';
 import LoadingButterfly from '@/components/LoadingButterfly';
 import { CustomButton } from '@/components/ui/button';
@@ -62,15 +63,11 @@ const EditProject = () => {
             };
 
             await updateProjectMutation.mutateAsync({ id, data: updateData });
-
-            navigate('/projects', {
-                state: {
-                    message: 'Project updated successfully!',
-                    type: 'success'
-                }
-            });
+            toast.success('Project updated successfully!');
+            navigate('/projects');
         } catch (error) {
             console.error('Failed to update project:', error);
+            toast.error('Failed to update project. Please try again.');
         }
     };
 
@@ -79,14 +76,11 @@ const EditProject = () => {
 
         try {
             await deleteProjectMutation.mutateAsync(id);
-            navigate('/projects', {
-                state: {
-                    message: 'Project deleted successfully!',
-                    type: 'success'
-                }
-            });
+            toast.success('Project deleted successfully!');
+            navigate('/projects');
         } catch (error) {
             console.error('Failed to delete project:', error);
+            toast.error('Failed to delete project. Please try again.');
         }
     };
 

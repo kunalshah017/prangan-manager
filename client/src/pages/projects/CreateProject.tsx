@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/lib/button-variants';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import DoodleBackground from '@/components/DoodleBackground';
 import { CustomButton } from '@/components/ui/button';
 import ImageUpload from '@/components/ui/image-upload';
@@ -16,7 +17,7 @@ const CreateProject = () => {
     const navigate = useNavigate();
     const { isAdmin } = useAuth();
 
-    const { mutate: createProject, isPending, error } = useCreateProject();
+    const { mutate: createProject, isPending } = useCreateProject();
 
     // Check if user is admin - redirect if not
     useEffect(() => {
@@ -37,16 +38,12 @@ const CreateProject = () => {
             },
             {
                 onSuccess: () => {
-                    // Navigate to projects list with success message
-                    navigate('/projects', {
-                        state: {
-                            message: 'Project created successfully!',
-                            type: 'success'
-                        }
-                    });
+                    toast.success('Project created successfully!');
+                    navigate('/projects');
                 },
                 onError: (err) => {
                     console.error('Failed to create project:', err);
+                    toast.error(err?.message || 'Failed to create project. Please try again.');
                 }
             }
         );
@@ -60,13 +57,6 @@ const CreateProject = () => {
                 <p className="text-muted-foreground mb-6 text-sm">Fill in the details to create a new project for your organization.</p>
 
                 <form onSubmit={handleSubmit} className="space-y-5">
-                    {/* Error message */}
-                    {error && (
-                        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
-                            {error?.message}
-                        </div>
-                    )}
-
                     <div>
                         <label htmlFor="name" className="block text-sm font-medium mb-1">Project Name</label>
                         <input

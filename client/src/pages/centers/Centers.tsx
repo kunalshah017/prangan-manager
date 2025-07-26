@@ -1,8 +1,7 @@
 import { Plus, Clock, MapPin, Edit, School } from 'lucide-react';
-import { Link, useNavigate, useLocation, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/lib/button-variants';
-import { useEffect, useState } from 'react';
 import DoodleBackground from '@/components/DoodleBackground';
 import LoadingButterfly from '@/components/LoadingButterfly';
 import { useCentersByProject } from '@/hooks/useCenterQueries';
@@ -12,26 +11,11 @@ import { useAuth } from '@/hooks/useAuth';
 const Centers = () => {
     const { projectId } = useParams<{ projectId: string }>();
     const navigate = useNavigate();
-    const location = useLocation();
-    const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const { isAdmin } = useAuth();
 
     // Fetch centers for this specific project and project details
     const { data: centers, isLoading, error, refetch } = useCentersByProject(projectId!);
     const { data: project, isLoading: projectLoading } = useProject(projectId!);
-
-    useEffect(() => {
-        // Check if there's a success message from navigation state
-        if (location.state?.message && location.state?.type === 'success') {
-            setSuccessMessage(location.state.message);
-            // Clear the message after 5 seconds
-            setTimeout(() => setSuccessMessage(null), 5000);
-            // Clear the navigation state
-            navigate(location.pathname, { replace: true });
-            // Refetch centers after a successful operation
-            refetch();
-        }
-    }, [location.state, navigate, location.pathname, refetch]);
 
     const handleCenterClick = (centerId: string) => {
         // Navigate to semesters for this center
@@ -81,12 +65,6 @@ const Centers = () => {
         <>
             <DoodleBackground numElements={12} />
             <div className="flex flex-col space-y-4 w-full relative z-1">
-                {/* Success Message */}
-                {successMessage && (
-                    <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md animate-fade-in">
-                        {successMessage}
-                    </div>
-                )}
                 {/* Search and filters bar */}
                 <div className="flex gap-3 sm:flex-row sm:items-center sm:gap-4 pb-6 w-full justify-between">
                     <h1 className="text-2xl font-bold tracking-tight">
