@@ -179,6 +179,7 @@ Authorization: Bearer <admin_jwt_token>
   "role": "USER",
   "email": "user@example.com",
   "name": "John Doe",
+  "rejectionReason": "Inadequate qualifications",
   "roleAssignments": [
     {
       "subRole": "EDUCATOR",
@@ -201,24 +202,29 @@ Authorization: Bearer <admin_jwt_token>
 **Field Requirements:**
 
 **Required Fields:**
+
 - `userId` (string): ID of the user to verify
 - `status` (string): APPROVED, REJECTED, or PENDING
 - `role` (string): USER or ADMIN
 - `email` (string): User's email address
 - `name` (string): User's full name
+- `rejectionReason` (string): Reason for rejection (if applicable)
 
 **Optional Fields:**
+
 - `roleAssignments` (array): Only applies to USER role. For ADMIN role, omit this field.
 
 **Role Assignment Fields:**
+
 - `subRole` (string, required): One of: TRAINING_DEVELOPMENT, RECRUITMENT, GROWTH_DEVELOPMENT, CURRICULUM_MENTOR, TECH, CENTER_MANAGER, EDUCATOR
 - `projectId` (string, optional): Project assignment
-- `centerId` (string, optional): Center assignment  
+- `centerId` (string, optional): Center assignment
 - `semesterId` (string, optional): Semester assignment
 - `level` (string, optional): Only for EDUCATOR sub-role (LEVEL_1, LEVEL_2, LEVEL_3, LEVEL_4, PRIMARY_A, PRIMARY_B)
 - `committedDays` (string, optional): Only for CENTER_MANAGER and EDUCATOR sub-roles (SATURDAY, SUNDAY, BOTH)
 
 **Validation Rules:**
+
 - If `semesterId` is provided, `centerId` must belong to that semester
 - If `centerId` is provided with `projectId`, center must belong to that project
 - If `semesterId` is provided with `projectId`, semester's center must belong to that project
@@ -301,7 +307,7 @@ Authorization: Bearer <admin_jwt_token>
   "profileImageUrl": "https://example.com/student.jpg",
   "enrollment": {
     "centerId": "center_id",
-    "semesterId": "semester_id", 
+    "semesterId": "semester_id",
     "projectId": "project_id",
     "level": "LEVEL_2"
   }
@@ -1005,9 +1011,11 @@ Authorization: Bearer <admin_jwt_token>
 **Field Requirements:**
 
 **Required Fields:**
+
 - `roleAssignments` (array): Array of role assignment objects
 
 **Role Assignment Fields:**
+
 - `subRole` (string, required): One of: TRAINING_DEVELOPMENT, RECRUITMENT, GROWTH_DEVELOPMENT, CURRICULUM_MENTOR, TECH, CENTER_MANAGER, EDUCATOR
 - `projectId` (string, optional): Project assignment
 - `centerId` (string, optional): Center assignment
@@ -1016,6 +1024,7 @@ Authorization: Bearer <admin_jwt_token>
 - `committedDays` (string, optional): Only for CENTER_MANAGER and EDUCATOR sub-roles (SATURDAY, SUNDAY, BOTH)
 
 **Validation Rules:**
+
 - If `semesterId` is provided, `centerId` must belong to that semester
 - If `centerId` is provided with `projectId`, center must belong to that project
 - If `semesterId` is provided with `projectId`, semester's center must belong to that project
@@ -1077,10 +1086,12 @@ Authorization: Bearer <admin_jwt_token>
 **Field Requirements:**
 
 **Required Fields:**
+
 - `userId` (string): ID of the user to assign
 - `subRole` (string): One of: TRAINING_DEVELOPMENT, RECRUITMENT, GROWTH_DEVELOPMENT, CURRICULUM_MENTOR, TECH, CENTER_MANAGER, EDUCATOR
 
 **Optional Fields:**
+
 - `projectId` (string): Project assignment
 - `centerId` (string): Center assignment
 - `semesterId` (string): Semester assignment
@@ -1088,6 +1099,7 @@ Authorization: Bearer <admin_jwt_token>
 - `committedDays` (string): Only for CENTER_MANAGER and EDUCATOR sub-roles (SATURDAY, SUNDAY, BOTH)
 
 **Validation Rules:**
+
 - If `semesterId` is provided, `centerId` must belong to that semester
 - If `centerId` is provided with `projectId`, center must belong to that project
 - If `semesterId` is provided with `projectId`, semester's center must belong to that project

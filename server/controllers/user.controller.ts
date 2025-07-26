@@ -33,12 +33,20 @@ import type { UserRegistrationRequest } from "../types/user.types.js";
 import { generToken } from "../utils/generateToken.js";
 import bcryptjs from "bcryptjs";
 import { sendEmail } from "../utils/mail.js";
-import { UserStatus, Level, Role, PrismaClient, SubRole, CommittedDays } from "../generated/prisma/index.js";
+import {
+  UserStatus,
+  Level,
+  Role,
+  PrismaClient,
+  SubRole,
+  CommittedDays,
+} from "../generated/prisma/index.js";
 import {
   convertToDateTime,
   isValidDateFormat,
   isValidISOFormat,
 } from "../utils/dateHelpers.js";
+import { EMAIL_TEMPLATES } from "../constants/email_templates.js";
 
 // Initialize Prisma Client for transaction handling
 const prisma = new PrismaClient();
@@ -215,6 +223,7 @@ export const verifyUser = asyncHandle(
       userId: string;
       email: string;
       name: string;
+      rejectionReason?: string; // Added for rejection cases
       roleAssignments?: Array<{
         subRole: string;
         projectId?: string;
@@ -255,15 +264,76 @@ export const verifyUser = asyncHandle(
     const randomSymbol =
       specialSymbols[Math.floor(Math.random() * specialSymbols.length)];
     const randomNumber = Math.floor(1000 + Math.random() * 9000); // 4 digit number
-    const generatedPassword = `${data.name.replace(/\s+/g, "")}${randomSymbol}${randomNumber}`;
+    const generatedPassword = `${data.name.replace(
+      /\s+/g,
+      ""
+    )}${randomSymbol}${randomNumber}`;
 
     // Hash the generated password
     const hashedPassword = await bcryptjs.hash(generatedPassword, 10);
 
     // ============================================
-    // STEP 1: PERFORM ALL DATABASE OPERATIONS IN A SINGLE TRANSACTION
+    // STEP 1: HANDLE REJECTION CASE FIRST
     // ============================================
-    console.log("🔄 Starting database transaction...");
+    if (data.status === "REJECTED") {
+      console.log("🚫 Processing user rejection...");
+
+      // Send rejection email first, then delete user
+      try {
+        // Always send a rejection email. Provide a default reason if one isn't given.
+        const rejectionReason =
+          data.rejectionReason ||
+          "No specific reason was provided. Please contact an administrator for more details.";
+
+        console.log(`📧 Sending rejection email to: ${data.email}`);
+
+        const emailResult = await sendEmail(
+          data.email,
+          "Registration Update - Prangan Foundation",
+          EMAIL_TEMPLATES.VERIFICATION_REJECTED.getTemplate({
+            name: data.name,
+            email: data.email,
+            rejectionReason: rejectionReason,
+          })
+        );
+
+        console.log(
+          "✅ Rejection email sent successfully:",
+          emailResult.messageId
+        );
+
+        // Delete the user from database
+        await prisma.user.delete({
+          where: { id: data.userId },
+        });
+
+        console.log("✅ User deleted successfully after rejection");
+
+        return successHandle(
+          {
+            message:
+              "User rejected and removed from system. Rejection email sent.",
+            action: "rejected_and_deleted",
+          },
+          reply,
+          200
+        );
+      } catch (error) {
+        console.error("❌ Error handling user rejection:", error);
+        return errorHandle(
+          `Failed to process user rejection: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`,
+          reply,
+          500
+        );
+      }
+    }
+
+    // ============================================
+    // STEP 2: PERFORM DATABASE OPERATIONS FOR APPROVED USERS
+    // ============================================
+    console.log("🔄 Starting database transaction for approved user...");
 
     let updatedUser: any;
     let createdAssignments: any = null;
@@ -285,7 +355,11 @@ export const verifyUser = asyncHandle(
 
         // If user role is USER and roleAssignments are provided, create them
         let assignmentsResult = null;
-        if (data.role === Role.USER && data.roleAssignments && data.roleAssignments.length > 0) {
+        if (
+          data.role === Role.USER &&
+          data.roleAssignments &&
+          data.roleAssignments.length > 0
+        ) {
           // Validate role assignments before processing
           for (const assignment of data.roleAssignments) {
             // Validate required fields
@@ -295,11 +369,18 @@ export const verifyUser = asyncHandle(
 
             // Validate business rules
             if (assignment.level && assignment.subRole !== "EDUCATOR") {
-              throw new Error("Level can only be assigned to EDUCATOR sub-role.");
+              throw new Error(
+                "Level can only be assigned to EDUCATOR sub-role."
+              );
             }
 
-            if (assignment.committedDays && !["CENTER_MANAGER", "EDUCATOR"].includes(assignment.subRole)) {
-              throw new Error("CommittedDays can only be assigned to CENTER_MANAGER or EDUCATOR sub-roles.");
+            if (
+              assignment.committedDays &&
+              !["CENTER_MANAGER", "EDUCATOR"].includes(assignment.subRole)
+            ) {
+              throw new Error(
+                "CommittedDays can only be assigned to CENTER_MANAGER or EDUCATOR sub-roles."
+              );
             }
           }
 
@@ -307,7 +388,11 @@ export const verifyUser = asyncHandle(
           const uniqueAssignments = [];
           const seenKeys = new Set();
           for (const assignment of data.roleAssignments) {
-            const key = `${assignment.subRole}-${assignment.projectId || 'null'}-${assignment.centerId || 'null'}-${assignment.semesterId || 'null'}`;
+            const key = `${assignment.subRole}-${
+              assignment.projectId || "null"
+            }-${assignment.centerId || "null"}-${
+              assignment.semesterId || "null"
+            }`;
             if (!seenKeys.has(key)) {
               seenKeys.add(key);
               uniqueAssignments.push(assignment);
@@ -319,7 +404,7 @@ export const verifyUser = asyncHandle(
           // Deactivate all current assignments for this user
           await tx.userRoleAssignments.updateMany({
             where: { userId: data.userId, isActive: true },
-            data: { isActive: false }
+            data: { isActive: false },
           });
 
           // Create new assignments
@@ -332,20 +417,24 @@ export const verifyUser = asyncHandle(
                 projectId: assignment.projectId || null,
                 centerId: assignment.centerId || null,
                 semesterId: assignment.semesterId || null,
-                level: assignment.level ? assignment.level as Level : null,
-                committedDays: assignment.committedDays ? assignment.committedDays as CommittedDays : null,
+                level: assignment.level ? (assignment.level as Level) : null,
+                committedDays: assignment.committedDays
+                  ? (assignment.committedDays as CommittedDays)
+                  : null,
               },
               include: {
                 project: { select: { id: true, name: true } },
                 center: { select: { id: true, name: true } },
                 semester: { select: { id: true, name: true } },
-              }
+              },
             });
             createdAssignmentsList.push(created);
           }
 
           assignmentsResult = createdAssignmentsList;
-          console.log("✅ Role assignments created successfully in transaction");
+          console.log(
+            "✅ Role assignments created successfully in transaction"
+          );
         }
 
         return { userUpdate, assignmentsResult };
@@ -353,13 +442,18 @@ export const verifyUser = asyncHandle(
 
       updatedUser = transactionResult.userUpdate;
       createdAssignments = transactionResult.assignmentsResult;
-      
-      console.log("🎉 All database operations completed successfully in transaction");
 
+      console.log(
+        "🎉 All database operations completed successfully in transaction"
+      );
     } catch (transactionError) {
       console.error("❌ Database transaction failed:", transactionError);
       return errorHandle(
-        `Database operation failed: ${transactionError instanceof Error ? transactionError.message : 'Unknown error'}`,
+        `Database operation failed: ${
+          transactionError instanceof Error
+            ? transactionError.message
+            : "Unknown error"
+        }`,
         reply,
         500
       );
@@ -372,209 +466,309 @@ export const verifyUser = asyncHandle(
 
     // Fetch role assignment details for email if assignments were created
     let roleAssignmentDetails = "";
-    if (data.role === Role.USER && data.roleAssignments && data.roleAssignments.length > 0) {
+    if (
+      data.role === Role.USER &&
+      data.roleAssignments &&
+      data.roleAssignments.length > 0
+    ) {
       try {
-        const assignmentDetailsPromises = data.roleAssignments.map(async (assignment) => {
-          // Map sub-role to user-friendly names
-          const roleNames: { [key: string]: string } = {
-            TRAINING_DEVELOPMENT: "Training & Development",
-            RECRUITMENT: "Recruitment",
-            GROWTH_DEVELOPMENT: "Growth & Development", 
-            CURRICULUM_MENTOR: "Curriculum Mentor",
-            TECH: "Technology",
-            CENTER_MANAGER: "Center Manager",
-            EDUCATOR: "Educator"
-          };
+        const assignmentDetailsPromises = data.roleAssignments.map(
+          async (assignment) => {
+            // Map sub-role to user-friendly names
+            const roleNames: { [key: string]: string } = {
+              TRAINING_DEVELOPMENT: "Training & Development",
+              RECRUITMENT: "Recruitment",
+              GROWTH_DEVELOPMENT: "Growth & Development",
+              CURRICULUM_MENTOR: "Curriculum Mentor",
+              TECH: "Technology",
+              CENTER_MANAGER: "Center Manager",
+              EDUCATOR: "Educator",
+            };
 
-          const roleName = roleNames[assignment.subRole] || assignment.subRole.replace(/_/g, ' ');
-          
-          let details = `
+            const roleName =
+              roleNames[assignment.subRole] ||
+              assignment.subRole.replace(/_/g, " ");
+
+            let details = `
             <div class="role-assignment">
               <h4>🎯 ${roleName}</h4>
           `;
 
-          // Fetch project details if projectId is provided
-          if (assignment.projectId) {
-            const project = await getProjectById(assignment.projectId);
-            if (project && typeof project !== "string") {
-              details += `<p><strong>📋 Project:</strong> ${project.name}</p>`;
+            // Fetch project details if projectId is provided
+            if (assignment.projectId) {
+              const project = await getProjectById(assignment.projectId);
+              if (project && typeof project !== "string") {
+                details += `<p><strong>📋 Project:</strong> ${project.name}</p>`;
+              }
             }
-          }
 
-          // Fetch center details if centerId is provided
-          if (assignment.centerId) {
-            const center = await getCenterById(assignment.centerId);
-            if (center && typeof center !== "string") {
-              details += `<p><strong>🏢 Center:</strong> ${center.name}</p>`;
+            // Fetch center details if centerId is provided
+            if (assignment.centerId) {
+              const center = await getCenterById(assignment.centerId);
+              if (center && typeof center !== "string") {
+                details += `<p><strong>🏢 Center:</strong> ${center.name}</p>`;
+              }
             }
-          }
 
-          // Fetch semester details if semesterId is provided
-          if (assignment.semesterId) {
-            const semester = await getSemesterById(assignment.semesterId);
-            if (semester && typeof semester !== "string") {
-              const startDate = new Date(semester.startDate).toLocaleDateString();
-              const endDate = new Date(semester.endDate).toLocaleDateString();
-              details += `<p><strong>📅 Semester:</strong> ${semester.name} (${startDate} - ${endDate})</p>`;
+            // Fetch semester details if semesterId is provided
+            if (assignment.semesterId) {
+              const semester = await getSemesterById(assignment.semesterId);
+              if (semester && typeof semester !== "string") {
+                const startDate = new Date(
+                  semester.startDate
+                ).toLocaleDateString();
+                const endDate = new Date(semester.endDate).toLocaleDateString();
+                details += `<p><strong>📅 Semester:</strong> ${semester.name} (${startDate} - ${endDate})</p>`;
+              }
             }
+
+            // Add level for EDUCATOR role
+            if (assignment.level && assignment.subRole === "EDUCATOR") {
+              const levelNames: { [key: string]: string } = {
+                LEVEL_1: "Level 1",
+                LEVEL_2: "Level 2",
+                LEVEL_3: "Level 3",
+                LEVEL_4: "Level 4",
+                PRIMARY_A: "Primary A",
+                PRIMARY_B: "Primary B",
+              };
+              const levelName =
+                levelNames[assignment.level] ||
+                assignment.level.replace(/_/g, " ");
+              details += `<p><strong>📚 Teaching Level:</strong> ${levelName}</p>`;
+            }
+
+            // Add committed days for CENTER_MANAGER and EDUCATOR roles
+            if (
+              assignment.committedDays &&
+              ["CENTER_MANAGER", "EDUCATOR"].includes(assignment.subRole)
+            ) {
+              const daysText =
+                assignment.committedDays === "BOTH"
+                  ? "Saturday & Sunday"
+                  : assignment.committedDays === "SATURDAY"
+                  ? "Saturday"
+                  : "Sunday";
+              details += `<p><strong>📅 Committed Days:</strong> ${daysText}</p>`;
+            }
+
+            details += `</div>`;
+            return details;
           }
+        );
 
-          // Add level for EDUCATOR role
-          if (assignment.level && assignment.subRole === "EDUCATOR") {
-            const levelNames: { [key: string]: string } = {
-              LEVEL_1: "Level 1",
-              LEVEL_2: "Level 2", 
-              LEVEL_3: "Level 3",
-              LEVEL_4: "Level 4",
-              PRIMARY_A: "Primary A",
-              PRIMARY_B: "Primary B"
-            };
-            const levelName = levelNames[assignment.level] || assignment.level.replace(/_/g, ' ');
-            details += `<p><strong>📚 Teaching Level:</strong> ${levelName}</p>`;
-          }
+        const assignmentDetailsArray = await Promise.all(
+          assignmentDetailsPromises
+        );
 
-          // Add committed days for CENTER_MANAGER and EDUCATOR roles
-          if (assignment.committedDays && ["CENTER_MANAGER", "EDUCATOR"].includes(assignment.subRole)) {
-            const daysText = assignment.committedDays === "BOTH" ? "Saturday & Sunday" : 
-                           assignment.committedDays === "SATURDAY" ? "Saturday" : "Sunday";
-            details += `<p><strong>📅 Committed Days:</strong> ${daysText}</p>`;
-          }
-
-          details += `</div>`;
-          return details;
-        });
-
-        const assignmentDetailsArray = await Promise.all(assignmentDetailsPromises);
-        
         const assignmentCount = data.roleAssignments.length;
-        const introText = assignmentCount === 1 
-          ? "You have been assigned the following position:" 
-          : `You have been assigned the following ${assignmentCount} positions:`;
-          
+        const introText =
+          assignmentCount === 1
+            ? "You have been assigned the following position:"
+            : `You have been assigned the following ${assignmentCount} positions:`;
+
         roleAssignmentDetails = `
           <div class="credentials">
             <h3>👥 Your Role Assignments</h3>
             <p>${introText}</p>
-            ${assignmentDetailsArray.join('')}
+            ${assignmentDetailsArray.join("")}
             <p style="margin-top: 15px; font-style: italic; color: #666;">
-              ${assignmentCount === 1 ? 'This position comes' : 'These positions come'} with specific responsibilities and access levels within the Prangan Foundation system.
+              ${
+                assignmentCount === 1
+                  ? "This position comes"
+                  : "These positions come"
+              } with specific responsibilities and access levels within the Prangan Foundation system.
             </p>
           </div>
         `;
       } catch (error) {
-        console.error("Error fetching role assignment details for email:", error);
+        console.error(
+          "Error fetching role assignment details for email:",
+          error
+        );
         // Continue without role details if there's an error
       }
     }
 
-    // Enhanced email template with orange theme and Prangan logo
-    const emailSubject = "🎉 Account Verification - Welcome to Prangan Foundation";
-    const emailBody = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Account Verification</title>
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; background-color: #f4f4f4; }
-        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .header { text-align: center; border-bottom: 3px solid #ff8c00; padding-bottom: 20px; margin-bottom: 30px; }
-        .logo { max-width: 200px; height: auto; margin-bottom: 15px; }
-        .header h1 { color: #ff8c00; margin: 0; }
-        .credentials { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff8c00; }
-        .credential-item { margin: 10px 0; }
-        .credential-label { font-weight: bold; color: #555; }
-        .credential-value { font-family: 'Courier New', monospace; background: #e9ecef; padding: 5px 10px; border-radius: 4px; display: inline-block; margin-left: 10px; }
-        .warning { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0; }
-        .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #666; }
-        .status-badge { display: inline-block; padding: 5px 15px; border-radius: 20px; color: white; font-weight: bold; text-transform: uppercase; }
-        .status-approved { background-color: #ff8c00; }
-        .status-user { background-color: #ff8c00; }
-        .status-admin { background-color: #e55100; }
-        .login-button { display: inline-block; background-color: #ff8c00; color: white; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: bold; margin: 20px 0; text-align: center; transition: background-color 0.3s; }
-        .login-button:hover { background-color: #e67e00; }
-        .button-container { text-align: center; margin: 25px 0; }
-        .accent-text { color: #ff8c00; font-weight: bold; }
-        .role-assignment { background: #fff8e6; border: 1px solid #ff8c00; border-radius: 8px; padding: 15px; margin: 10px 0; }
-        .role-assignment h4 { color: #ff8c00; margin: 0 0 10px 0; font-size: 16px; }
-        .role-assignment p { margin: 5px 0; color: #333; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <img src="https://prangan-manager.vercel.app/images/logo/prangan-logo-light-mode.png" alt="Prangan Foundation Logo" class="logo" />
-          <h1>🌟 Welcome to Prangan</h1>
-          <p>Your account has been successfully verified!</p>
-        </div>
-        
-        <p>Dear <strong class="accent-text">${data.name}</strong>,</p>
-        
-        <p>Congratulations! Your account has been <span class="accent-text">verified and activated</span>. You can now access the Prangan Manager system with your new credentials.</p>
-        
-        <div class="credentials">
-          <h3>📋 Your Login Credentials</h3>
-          <div class="credential-item">
-            <span class="credential-label">📧 Email:</span>
-            <span class="credential-value">${data.email}</span>
-          </div>
-          <div class="credential-item">
-            <span class="credential-label">🔐 Password:</span>
-            <span class="credential-value">${generatedPassword}</span>
-          </div>
-          <div class="credential-item">
-            <span class="credential-label">📊 Status:</span>
-            <span class="status-badge status-approved">${data.status}</span>
-          </div>
-        </div>
-        
-        ${roleAssignmentDetails}
-        
-        <div class="button-container">
-          <a href="https://manager.pranganfoundation.org/login" class="login-button">🚀 Login to Prangan Manager</a>
-        </div>
-        
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff8c00;">
-          <h3 style="color: #ff8c00; margin: 0 0 10px 0;">📋 Quick Login Instructions</h3>
-          <p style="margin: 5px 0;">1. Click the button above to open the login page</p>
-          <p style="margin: 5px 0;">2. Use your email: <strong>${data.email}</strong></p>
-          <p style="margin: 5px 0;">3. Use your password: <strong>${generatedPassword}</strong></p>
-        </div>
-
-        <div class="footer">
-          <img src="https://prangan-manager.vercel.app/images/logo/prangan-logo-light-mode.png" alt="Prangan Foundation" style="max-width: 120px; height: auto; margin-bottom: 15px;" />
-          <p><strong>Prangan Foundation Team</strong></p>
-          <p>📧 Email: <a href="mailto:info@pranganfoundation.org" style="color: #ff8c00;">info@pranganfoundation.org</a> | 📞 Phone: <a href="tel:+917718071289" style="color: #ff8c00;">+91-7718071289</a></p>
-          <p style="color: #ff8c00; font-style: italic;"><em>Inspire | Impart | Impact</em></p>
-          <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
-          <p style="font-size: 12px; color: #999;">
-            This is an automated email. Please do not reply to this message.<br>
-            If you received this email by mistake, please ignore it.
-          </p>
-        </div>
-      </div>
-    </body>
-    </html>
-    `;
-
     // ============================================
-    // STEP 3: SEND EMAIL ONLY AFTER ALL DB OPERATIONS SUCCEED
+    // STEP 3: SEND EMAIL NOTIFICATION BASED ON STATUS
     // ============================================
     try {
-      console.log(`📧 Sending verification email to: ${data.email}`);
-      const emailResult = await sendEmail(data.email, emailSubject, emailBody);
-      console.log("✅ Email sent successfully:", emailResult.messageId);
+      if (data.status === "APPROVED") {
+        console.log(`📧 Sending verification success email to: ${data.email}`);
+
+        // Prepare role assignment details for email if available
+        let roleAssignmentDetails = "";
+        if (
+          data.role === Role.USER &&
+          data.roleAssignments &&
+          data.roleAssignments.length > 0
+        ) {
+          try {
+            const assignmentDetailsPromises = data.roleAssignments.map(
+              async (assignment) => {
+                // Map sub-role to user-friendly names
+                const roleNames: { [key: string]: string } = {
+                  TRAINING_DEVELOPMENT: "Training & Development",
+                  RECRUITMENT: "Recruitment",
+                  GROWTH_DEVELOPMENT: "Growth & Development",
+                  CURRICULUM_MENTOR: "Curriculum Mentor",
+                  TECH: "Technology",
+                  CENTER_MANAGER: "Center Manager",
+                  EDUCATOR: "Educator",
+                };
+
+                const roleName =
+                  roleNames[assignment.subRole] ||
+                  assignment.subRole.replace(/_/g, " ");
+
+                let details = `
+                <div class="role-assignment">
+                  <h4>🎯 ${roleName}</h4>
+              `;
+
+                // Fetch project details if projectId is provided
+                if (assignment.projectId) {
+                  const project = await getProjectById(assignment.projectId);
+                  if (
+                    project &&
+                    typeof project === "object" &&
+                    "name" in project
+                  ) {
+                    details += `<p><strong>📂 Project:</strong> ${project.name}</p>`;
+                  }
+                }
+
+                // Fetch center details if centerId is provided
+                if (assignment.centerId) {
+                  const center = await getCenterById(assignment.centerId);
+                  if (
+                    center &&
+                    typeof center === "object" &&
+                    "name" in center
+                  ) {
+                    details += `<p><strong>🏢 Center:</strong> ${center.name}</p>`;
+                  }
+                }
+
+                // Fetch semester details if semesterId is provided
+                if (assignment.semesterId) {
+                  const semester = await getSemesterById(assignment.semesterId);
+                  if (
+                    semester &&
+                    typeof semester === "object" &&
+                    "name" in semester
+                  ) {
+                    details += `<p><strong>📅 Semester:</strong> ${semester.name}</p>`;
+                  }
+                }
+
+                // Add level if provided
+                if (assignment.level) {
+                  const levelNames: { [key: string]: string } = {
+                    LEVEL_1: "Level 1",
+                    LEVEL_2: "Level 2",
+                    LEVEL_3: "Level 3",
+                    LEVEL_4: "Level 4",
+                    PRIMARY_A: "Primary A",
+                    PRIMARY_B: "Primary B",
+                  };
+                  details += `<p><strong>📊 Level:</strong> ${
+                    levelNames[assignment.level] || assignment.level
+                  }</p>`;
+                }
+
+                // Add committed days if provided
+                if (assignment.committedDays) {
+                  const daysNames: { [key: string]: string } = {
+                    WEEKDAYS: "Weekdays",
+                    WEEKENDS: "Weekends",
+                    DAILY: "Daily",
+                    FLEXIBLE: "Flexible",
+                  };
+                  details += `<p><strong>🗓️ Committed Days:</strong> ${
+                    daysNames[assignment.committedDays] ||
+                    assignment.committedDays
+                  }</p>`;
+                }
+
+                details += `</div>`;
+                return details;
+              }
+            );
+
+            const assignmentDetailsArray = await Promise.all(
+              assignmentDetailsPromises
+            );
+
+            const assignmentCount = data.roleAssignments.length;
+            const introText =
+              assignmentCount === 1
+                ? "You have been assigned the following position:"
+                : `You have been assigned the following ${assignmentCount} positions:`;
+
+            roleAssignmentDetails = `
+              <div class="credentials">
+                <h3>👥 Your Role Assignments</h3>
+                <p>${introText}</p>
+                ${assignmentDetailsArray.join("")}
+                <p style="margin-top: 15px; font-style: italic; color: #666;">
+                  ${
+                    assignmentCount === 1
+                      ? "This position comes"
+                      : "These positions come"
+                  } with specific responsibilities and access levels within the Prangan Foundation system.
+                </p>
+              </div>
+            `;
+          } catch (error) {
+            console.error(
+              "Error fetching role assignment details for email:",
+              error
+            );
+            // Continue without role details if there's an error
+          }
+        }
+
+        try {
+          const emailResult = await sendEmail(
+            data.email,
+            "🎉 Account Verification - Welcome to Prangan Foundation",
+            EMAIL_TEMPLATES.VERIFICATION_SUCCESS.getTemplate({
+              name: data.name,
+              email: data.email,
+              generatedPassword: generatedPassword,
+              status: data.status,
+              roleAssignmentDetails: roleAssignmentDetails,
+            })
+          );
+
+          console.log(
+            "✅ Verification email sent successfully:",
+            emailResult.messageId
+          );
+        } catch (emailError) {
+          console.error("❌ Failed to send email:", emailError);
+          // Note: We don't return an error here since the user was successfully created
+          // Just log the email failure - the main operation succeeded
+          console.log(
+            "⚠️ User verification completed successfully, but email notification failed"
+          );
+        }
+      }
     } catch (emailError) {
       console.error("❌ Failed to send email:", emailError);
       // Note: We don't return an error here since the user was successfully created
       // Just log the email failure - the main operation succeeded
-      console.log("⚠️ User verification completed successfully, but email notification failed");
+      console.log(
+        "⚠️ User verification completed successfully, but email notification failed"
+      );
     }
 
     return successHandle(
       {
-        message: "User verification completed successfully and notification email sent",
+        message:
+          "User verification completed successfully and notification email sent",
         user: {
           id: updatedUser.id,
           email: updatedUser.email,
@@ -642,8 +836,17 @@ export const addStudent = asyncHandle(
 
     // Validate enrollment data if provided
     if (data.enrollment) {
-      if (!data.enrollment.centerId || !data.enrollment.semesterId || !data.enrollment.projectId || !data.enrollment.level) {
-        return errorHandle("All enrollment fields (centerId, semesterId, projectId, level) are required when enrollment is provided.", reply, 400);
+      if (
+        !data.enrollment.centerId ||
+        !data.enrollment.semesterId ||
+        !data.enrollment.projectId ||
+        !data.enrollment.level
+      ) {
+        return errorHandle(
+          "All enrollment fields (centerId, semesterId, projectId, level) are required when enrollment is provided.",
+          reply,
+          400
+        );
       }
 
       // Validate level enum
@@ -719,11 +922,15 @@ export const addStudent = asyncHandle(
       });
 
       if (typeof enrollment === "string") {
-        return errorHandle(`Student created but enrollment failed: ${enrollment}`, reply, 500);
+        return errorHandle(
+          `Student created but enrollment failed: ${enrollment}`,
+          reply,
+          500
+        );
       }
     }
 
-    const responseMessage = data.enrollment 
+    const responseMessage = data.enrollment
       ? "Student added and enrolled successfully"
       : "Student added successfully. Use enrollment endpoints to assign level and center.";
 
@@ -826,7 +1033,10 @@ export const updateStudentController = asyncHandle(
     }
 
     // Validate enrollment level if provided
-    if (data.enrollment?.level && !Object.values(Level).includes(data.enrollment.level)) {
+    if (
+      data.enrollment?.level &&
+      !Object.values(Level).includes(data.enrollment.level)
+    ) {
       return errorHandle("Invalid level provided in enrollment.", reply, 400);
     }
 
@@ -901,8 +1111,8 @@ export const updateStudentController = asyncHandle(
       // If level is provided, promote the student
       if (data.enrollment.level) {
         enrollmentResult = await promoteStudent(
-          id, 
-          data.enrollment.level, 
+          id,
+          data.enrollment.level,
           data.enrollment.centerId
         );
       }
@@ -910,7 +1120,7 @@ export const updateStudentController = asyncHandle(
       // For now, we'll focus on level promotion as the main use case
     }
 
-    const responseMessage = data.enrollment?.level 
+    const responseMessage = data.enrollment?.level
       ? "Student updated and promoted successfully"
       : "Student updated successfully. Use enrollment endpoints to update level assignments.";
 
@@ -974,7 +1184,9 @@ export const getStudentsByLevelController = asyncHandle(
     }
 
     // Use role-based access to get students by level
-    const students = await getUserAccessibleStudents(user.id, user.role, { level });
+    const students = await getUserAccessibleStudents(user.id, user.role, {
+      level,
+    });
 
     if (typeof students === "string") {
       return errorHandle(students, reply, 500);
@@ -1006,7 +1218,9 @@ export const getStudentsByProjectController = asyncHandle(
     }
 
     // Use role-based access to get students by project
-    const enrollments = await getUserAccessibleStudents(user.id, user.role, { projectId });
+    const enrollments = await getUserAccessibleStudents(user.id, user.role, {
+      projectId,
+    });
 
     if (typeof enrollments === "string") {
       return errorHandle(enrollments, reply, 500);
@@ -1037,7 +1251,9 @@ export const getStudentsByCenterController = asyncHandle(
     }
 
     // Use role-based access to get students by center
-    const enrollments = await getUserAccessibleStudents(user.id, user.role, { centerId });
+    const enrollments = await getUserAccessibleStudents(user.id, user.role, {
+      centerId,
+    });
 
     if (typeof enrollments === "string") {
       return errorHandle(enrollments, reply, 500);
@@ -1068,7 +1284,9 @@ export const getStudentsBySemesterController = asyncHandle(
     }
 
     // Use role-based access to get students by semester
-    const enrollments = await getUserAccessibleStudents(user.id, user.role, { semesterId });
+    const enrollments = await getUserAccessibleStudents(user.id, user.role, {
+      semesterId,
+    });
 
     if (typeof enrollments === "string") {
       return errorHandle(enrollments, reply, 500);
@@ -1100,7 +1318,13 @@ export const enrollStudentController = asyncHandle(
       level: Level;
     };
 
-    if (!data.studentId || !data.centerId || !data.semesterId || !data.projectId || !data.level) {
+    if (
+      !data.studentId ||
+      !data.centerId ||
+      !data.semesterId ||
+      !data.projectId ||
+      !data.level
+    ) {
       return errorHandle("All enrollment fields are required.", reply, 400);
     }
 
@@ -1152,7 +1376,11 @@ export const promoteStudentController = asyncHandle(
       return errorHandle("Invalid level provided.", reply, 400);
     }
 
-    const promotion = await promoteStudent(studentId, data.newLevel, data.newCenterId);
+    const promotion = await promoteStudent(
+      studentId,
+      data.newLevel,
+      data.newCenterId
+    );
 
     if (typeof promotion === "string") {
       return errorHandle(promotion, reply, 500);
@@ -1228,7 +1456,11 @@ export const getUserAssignmentsController = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
     const admin = request.user;
     if (!admin || admin.role !== Role.ADMIN) {
-      return errorHandle("Only admins can access user assignments.", reply, 403);
+      return errorHandle(
+        "Only admins can access user assignments.",
+        reply,
+        403
+      );
     }
 
     const { userId } = request.params as { userId: string };
@@ -1284,21 +1516,38 @@ export const updateUserManagementController = asyncHandle(
     // Validate each assignment
     for (const assignment of data.roleAssignments) {
       if (!assignment.subRole) {
-        return errorHandle("Sub-role is required for each assignment.", reply, 400);
+        return errorHandle(
+          "Sub-role is required for each assignment.",
+          reply,
+          400
+        );
       }
 
       // Validate that level and committedDays are only set for appropriate roles
-      if (assignment.level && assignment.subRole !== 'EDUCATOR') {
-        return errorHandle("Level can only be set for EDUCATOR sub-role.", reply, 400);
+      if (assignment.level && assignment.subRole !== "EDUCATOR") {
+        return errorHandle(
+          "Level can only be set for EDUCATOR sub-role.",
+          reply,
+          400
+        );
       }
 
-      if (assignment.committedDays && 
-          !['CENTER_MANAGER', 'EDUCATOR'].includes(assignment.subRole)) {
-        return errorHandle("CommittedDays can only be set for CENTER_MANAGER and EDUCATOR sub-roles.", reply, 400);
+      if (
+        assignment.committedDays &&
+        !["CENTER_MANAGER", "EDUCATOR"].includes(assignment.subRole)
+      ) {
+        return errorHandle(
+          "CommittedDays can only be set for CENTER_MANAGER and EDUCATOR sub-roles.",
+          reply,
+          400
+        );
       }
     }
 
-    const updatedAssignments = await bulkUpdateUserAssignments(userId, data.roleAssignments);
+    const updatedAssignments = await bulkUpdateUserAssignments(
+      userId,
+      data.roleAssignments
+    );
 
     if (typeof updatedAssignments === "string") {
       return errorHandle(updatedAssignments, reply, 500);
@@ -1319,7 +1568,11 @@ export const createUserAssignmentController = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
     const admin = request.user;
     if (!admin || admin.role !== Role.ADMIN) {
-      return errorHandle("Only admins can create user assignments.", reply, 403);
+      return errorHandle(
+        "Only admins can create user assignments.",
+        reply,
+        403
+      );
     }
 
     const data = request.body as {
@@ -1337,13 +1590,23 @@ export const createUserAssignmentController = asyncHandle(
     }
 
     // Validate business rules
-    if (data.level && data.subRole !== 'EDUCATOR') {
-      return errorHandle("Level can only be set for EDUCATOR sub-role.", reply, 400);
+    if (data.level && data.subRole !== "EDUCATOR") {
+      return errorHandle(
+        "Level can only be set for EDUCATOR sub-role.",
+        reply,
+        400
+      );
     }
 
-    if (data.committedDays && 
-        !['CENTER_MANAGER', 'EDUCATOR'].includes(data.subRole)) {
-      return errorHandle("CommittedDays can only be set for CENTER_MANAGER and EDUCATOR sub-roles.", reply, 400);
+    if (
+      data.committedDays &&
+      !["CENTER_MANAGER", "EDUCATOR"].includes(data.subRole)
+    ) {
+      return errorHandle(
+        "CommittedDays can only be set for CENTER_MANAGER and EDUCATOR sub-roles.",
+        reply,
+        400
+      );
     }
 
     const assignment = await createUserRoleAssignment(data);
@@ -1367,7 +1630,11 @@ export const deleteUserAssignmentController = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
     const admin = request.user;
     if (!admin || admin.role !== Role.ADMIN) {
-      return errorHandle("Only admins can delete user assignments.", reply, 403);
+      return errorHandle(
+        "Only admins can delete user assignments.",
+        reply,
+        403
+      );
     }
 
     const { assignmentId } = request.params as { assignmentId: string };

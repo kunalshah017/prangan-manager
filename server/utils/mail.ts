@@ -16,7 +16,11 @@ const createTransporter = () => {
   });
 };
 
-export const sendEmail = async (to: string, subject: string, html: string) => {
+export const sendEmail = async (
+  to: string | string[],
+  subject: string,
+  html: string
+) => {
   try {
     // Validate required environment variables
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
@@ -62,7 +66,7 @@ export const sendEmail = async (to: string, subject: string, html: string) => {
 
 // Additional utility function for sending plain text emails
 export const sendTextEmail = async (
-  to: string,
+  to: string | string[],
   subject: string,
   text: string
 ) => {
