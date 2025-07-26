@@ -82,33 +82,52 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
         return result;
     }, [semestersForCenter, allCenters]);
 
-    // Duplicate validation logic
+    // Duplicate validation and mandatory field validation logic
     const validateRoleAssignments = useMemo(() => {
         const errors: string[] = [];
         const duplicates: number[] = [];
 
-        // Check for exact duplicates
+        // Check mandatory fields and duplicates
         for (let i = 0; i < roleAssignments.length; i++) {
+            const assignment = roleAssignments[i];
+            const roleLabel = SUB_ROLES.find(r => r.value === assignment.subRole)?.label || assignment.subRole;
+
+            // Check mandatory fields
+            if (!assignment.subRole) {
+                errors.push(`Role assignment ${i + 1}: Sub-role is required`);
+            }
+
+            if (!assignment.projectId) {
+                errors.push(`Role assignment ${i + 1} (${roleLabel}): Project is required`);
+            }
+
+            if (!assignment.centerId) {
+                errors.push(`Role assignment ${i + 1} (${roleLabel}): Center is required`);
+            }
+
+            if (!assignment.semesterId) {
+                errors.push(`Role assignment ${i + 1} (${roleLabel}): Semester is required`);
+            }
+
+            // Check for exact duplicates
             for (let j = i + 1; j < roleAssignments.length; j++) {
-                const assignment1 = roleAssignments[i];
                 const assignment2 = roleAssignments[j];
 
                 // Check if all fields match (considering undefined as empty string)
                 const isDuplicate =
-                    assignment1.subRole === assignment2.subRole &&
-                    (assignment1.projectId || '') === (assignment2.projectId || '') &&
-                    (assignment1.centerId || '') === (assignment2.centerId || '') &&
-                    (assignment1.semesterId || '') === (assignment2.semesterId || '') &&
-                    (assignment1.level || '') === (assignment2.level || '') &&
-                    (assignment1.committedDays || '') === (assignment2.committedDays || '');
+                    assignment.subRole === assignment2.subRole &&
+                    (assignment.projectId || '') === (assignment2.projectId || '') &&
+                    (assignment.centerId || '') === (assignment2.centerId || '') &&
+                    (assignment.semesterId || '') === (assignment2.semesterId || '') &&
+                    (assignment.level || '') === (assignment2.level || '') &&
+                    (assignment.committedDays || '') === (assignment2.committedDays || '');
 
                 if (isDuplicate) {
                     if (!duplicates.includes(i)) duplicates.push(i);
                     if (!duplicates.includes(j)) duplicates.push(j);
 
-                    const roleLabel = SUB_ROLES.find(r => r.value === assignment1.subRole)?.label || assignment1.subRole;
-                    const projectLabel = projects.find(p => p.id === assignment1.projectId)?.name || 'No project';
-                    const centerLabel = allCenters.find(c => c.id === assignment1.centerId)?.name || 'No center';
+                    const projectLabel = projects.find(p => p.id === assignment.projectId)?.name || 'No project';
+                    const centerLabel = allCenters.find(c => c.id === assignment.centerId)?.name || 'No center';
 
                     errors.push(`Duplicate role assignment found: ${roleLabel} in ${projectLabel} - ${centerLabel}`);
                 }

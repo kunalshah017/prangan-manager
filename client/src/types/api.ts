@@ -252,6 +252,7 @@ export type VerifyUserRequest = {
   email: string;
   name: string;
   roleAssignments?: RoleAssignment[];
+  rejectionReason?: string;
 };
 export type VerifyUserResponse = MessageResponse;
 

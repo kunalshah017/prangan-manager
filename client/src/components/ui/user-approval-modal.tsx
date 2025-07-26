@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { X, User, UserCheck, Shield } from 'lucide-react';
+import { X, UserCheck, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/lib/button-variants';
 import RoleAssignmentForm from './role-assignment-form';
+import RejectionReasonModal from './rejection-reason-modal';
 import { CustomButton } from './custom-button';
 import type { User as UserType, RoleAssignment } from '@/types/api';
 
@@ -11,7 +12,7 @@ interface UserApprovalModalProps {
     isOpen: boolean;
     onClose: () => void;
     onApprove: (user: UserType, roleAssignments?: RoleAssignment[]) => Promise<void>;
-    onReject: (user: UserType) => Promise<void>;
+    onReject: (user: UserType, rejectionReason: string) => Promise<void>;
 }
 
 const UserApprovalModal: React.FC<UserApprovalModalProps> = ({
@@ -26,6 +27,7 @@ const UserApprovalModal: React.FC<UserApprovalModalProps> = ({
     const [isApproving, setIsApproving] = useState(false);
     const [isRejecting, setIsRejecting] = useState(false);
     const [isValidRoles, setIsValidRoles] = useState(true);
+    const [showRejectionModal, setShowRejectionModal] = useState(false);
 
     if (!isOpen) return null;
 
@@ -50,9 +52,13 @@ const UserApprovalModal: React.FC<UserApprovalModalProps> = ({
     };
 
     const handleReject = async () => {
+        setShowRejectionModal(true);
+    };
+
+    const handleConfirmReject = async (rejectionReason: string) => {
         setIsRejecting(true);
         try {
-            await onReject(user);
+            await onReject(user, rejectionReason);
             onClose();
         } catch (error) {
             console.error('Failed to reject user:', error);
@@ -79,9 +85,6 @@ const UserApprovalModal: React.FC<UserApprovalModalProps> = ({
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
-                            <User className="w-5 h-5 text-orange-600" />
-                        </div>
                         <div>
                             <h2 className="text-xl font-semibold text-gray-900">Review Registration</h2>
                             <p className="text-sm text-gray-600">Approve or reject this user registration</p>
@@ -102,37 +105,52 @@ const UserApprovalModal: React.FC<UserApprovalModalProps> = ({
                     {/* User Information */}
                     <div className="mb-6">
                         <h3 className="text-lg font-medium text-gray-900 mb-4">User Information</h3>
-                        <div className="bg-gray-50 rounded-lg p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="text-sm font-medium text-gray-600">Name</label>
-                                <p className="text-gray-900">{user.name}</p>
-                            </div>
-                            <div>
-                                <label className="text-sm font-medium text-gray-600">Email</label>
-                                <p className="text-gray-900">{user.email}</p>
-                            </div>
-                            <div>
-                                <label className="text-sm font-medium text-gray-600">Phone</label>
-                                <p className="text-gray-900">{user.phone || 'Not provided'}</p>
-                            </div>
-                            <div>
-                                <label className="text-sm font-medium text-gray-600">Qualification</label>
-                                <p className="text-gray-900">{user.qualification || 'Not provided'}</p>
-                            </div>
-                            <div>
-                                <label className="text-sm font-medium text-gray-600">Date of Birth</label>
-                                <p className="text-gray-900">{user.dob ? formatDate(user.dob) : 'Not provided'}</p>
-                            </div>
-                            <div>
-                                <label className="text-sm font-medium text-gray-600">Registration Date</label>
-                                <p className="text-gray-900">{formatDate(user.createdAt)}</p>
-                            </div>
-                            {user.address && (
-                                <div className="md:col-span-2">
-                                    <label className="text-sm font-medium text-gray-600">Address</label>
-                                    <p className="text-gray-900">{user.address}</p>
+                        <div className="bg-gray-50 rounded-lg p-4">
+                            {/* Profile Image Section */}
+                            {user.profileImageUrl && (
+                                <div className="mb-4 flex justify-center">
+                                    <div className="w-24 h-24 bg-gray-200 rounded-full overflow-hidden">
+                                        <img
+                                            src={user.profileImageUrl}
+                                            alt={user.name}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    </div>
                                 </div>
                             )}
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-sm font-medium text-gray-600">Name</label>
+                                    <p className="text-gray-900">{user.name}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-gray-600">Email</label>
+                                    <p className="text-gray-900">{user.email}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-gray-600">Phone</label>
+                                    <p className="text-gray-900">{user.phone || 'Not provided'}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-gray-600">Qualification</label>
+                                    <p className="text-gray-900">{user.qualification || 'Not provided'}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-gray-600">Date of Birth</label>
+                                    <p className="text-gray-900">{user.dob ? formatDate(user.dob) : 'Not provided'}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-gray-600">Registration Date</label>
+                                    <p className="text-gray-900">{formatDate(user.createdAt)}</p>
+                                </div>
+                                {user.address && (
+                                    <div className="md:col-span-2">
+                                        <label className="text-sm font-medium text-gray-600">Address</label>
+                                        <p className="text-gray-900">{user.address}</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
 
@@ -221,8 +239,6 @@ const UserApprovalModal: React.FC<UserApprovalModalProps> = ({
                     <CustomButton
                         onClick={handleReject}
                         variant="destructive"
-                        isLoading={isRejecting}
-                        loadingMessage="Rejecting..."
                         disabled={isApproving || isRejecting}
                     >
                         Reject
@@ -240,6 +256,15 @@ const UserApprovalModal: React.FC<UserApprovalModalProps> = ({
                         Approve as {selectedRole === 'ADMIN' ? 'Administrator' : 'User'}
                     </CustomButton>
                 </div>
+
+                {/* Rejection Reason Modal */}
+                <RejectionReasonModal
+                    isOpen={showRejectionModal}
+                    onClose={() => setShowRejectionModal(false)}
+                    onConfirm={handleConfirmReject}
+                    userEmail={user.email}
+                    isRejecting={isRejecting}
+                />
             </div>
         </div>
     );

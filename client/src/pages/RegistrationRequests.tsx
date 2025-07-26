@@ -59,7 +59,7 @@ const RegistrationRequests = () => {
         }
     };
 
-    const handleReject = async (user: User) => {
+    const handleReject = async (user: User, rejectionReason: string) => {
         try {
             await verifyUser.mutateAsync({
                 userId: user.id,
@@ -67,6 +67,7 @@ const RegistrationRequests = () => {
                 role: user.role || 'USER',
                 email: user.email,
                 name: user.name,
+                rejectionReason,
             });
             toast.success(`${user.name}'s request has been rejected.`);
         } catch (error) {
@@ -77,8 +78,9 @@ const RegistrationRequests = () => {
     };
 
     const quickReject = async (user: User) => {
+        const defaultReason = "Application does not meet the minimum requirements.";
         try {
-            await handleReject(user);
+            await handleReject(user, defaultReason);
         } catch (error) {
             // Error already handled in handleReject
             console.error('Quick reject failed:', error);
@@ -147,14 +149,43 @@ const RegistrationRequests = () => {
                                         className="flex items-center justify-between cursor-pointer"
                                         onClick={() => toggleRowExpansion(request.id)}
                                     >
-                                        <div className="flex-1">
-                                            <div className="font-medium text-gray-900">{request.name}</div>
-                                            <div className="text-sm text-gray-500">{request.email}</div>
-                                            <div className="text-xs text-gray-400 mt-1">
-                                                {formatDate(request.createdAt)}
+                                        <div className="flex items-center gap-3 flex-1">
+                                            {/* Profile Image */}
+                                            <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
+                                                {request.profileImageUrl ? (
+                                                    <img
+                                                        src={request.profileImageUrl}
+                                                        alt={request.name}
+                                                        className="w-full h-full object-cover"
+                                                        onError={(e) => {
+                                                            const target = e.target as HTMLImageElement;
+                                                            target.style.display = 'none';
+                                                            const fallback = target.nextElementSibling as HTMLElement;
+                                                            if (fallback) {
+                                                                fallback.style.display = 'flex';
+                                                            }
+                                                        }}
+                                                    />
+                                                ) : null}
+                                                <div className={cn(
+                                                    "w-full h-full bg-orange-100 flex items-center justify-center",
+                                                    request.profileImageUrl ? "hidden" : "flex"
+                                                )}>
+                                                    <span className="text-orange-600 font-medium text-lg">
+                                                        {request.name.charAt(0).toUpperCase()}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex-1 min-w-0">
+                                                <div className="font-medium text-gray-900 truncate">{request.name}</div>
+                                                <div className="text-sm text-gray-500 truncate">{request.email}</div>
+                                                <div className="text-xs text-gray-400 mt-1">
+                                                    {formatDate(request.createdAt)}
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="ml-4">
+                                        <div className="ml-4 flex-shrink-0">
                                             {expandedRows.has(request.id) ? (
                                                 <ChevronDown className="h-5 w-5 text-gray-400" />
                                             ) : (
@@ -247,9 +278,38 @@ const RegistrationRequests = () => {
                                                     onClick={() => toggleRowExpansion(request.id)}
                                                 >
                                                     <td className="px-4 py-4">
-                                                        <div>
-                                                            <div className="font-medium text-gray-900">{request.name}</div>
-                                                            <div className="text-sm text-gray-500">{request.email}</div>
+                                                        <div className="flex items-center gap-3">
+                                                            {/* Profile Image */}
+                                                            <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
+                                                                {request.profileImageUrl ? (
+                                                                    <img
+                                                                        src={request.profileImageUrl}
+                                                                        alt={request.name}
+                                                                        className="w-full h-full object-cover"
+                                                                        onError={(e) => {
+                                                                            const target = e.target as HTMLImageElement;
+                                                                            target.style.display = 'none';
+                                                                            const fallback = target.nextElementSibling as HTMLElement;
+                                                                            if (fallback) {
+                                                                                fallback.style.display = 'flex';
+                                                                            }
+                                                                        }}
+                                                                    />
+                                                                ) : null}
+                                                                <div className={cn(
+                                                                    "w-full h-full bg-orange-100 flex items-center justify-center text-sm",
+                                                                    request.profileImageUrl ? "hidden" : "flex"
+                                                                )}>
+                                                                    <span className="text-orange-600 font-medium">
+                                                                        {request.name.charAt(0).toUpperCase()}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="min-w-0 flex-1">
+                                                                <div className="font-medium text-gray-900 truncate">{request.name}</div>
+                                                                <div className="text-sm text-gray-500 truncate">{request.email}</div>
+                                                            </div>
                                                         </div>
                                                     </td>
                                                     <td className="px-4 py-4 text-sm text-gray-500">
