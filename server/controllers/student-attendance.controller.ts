@@ -68,16 +68,24 @@ export const markBulkStudentAttendance = async (
       });
     }
 
-    const attendances = await StudentAttendanceService.markBulkAttendance(
+    const result = await StudentAttendanceService.markBulkAttendance(
       bulkData,
       userId
     );
 
-    return reply.status(200).send({
-      message: "Bulk student attendance marked successfully",
-      attendances,
-      processed: attendances.length,
-      total: bulkData.studentAttendances.length,
+    const hasErrors = result.errors.length > 0;
+    const status = hasErrors ? 207 : 200; // 207 Multi-Status for partial success
+
+    return reply.status(status).send({
+      message: hasErrors 
+        ? `Bulk attendance partially completed. ${result.processedCount} successful, ${result.errors.length} failed.`
+        : "Bulk student attendance marked successfully",
+      processedCount: result.processedCount,
+      totalCount: bulkData.studentAttendances.length,
+      successCount: result.processedCount,
+      errorCount: result.errors.length,
+      attendances: result.attendances,
+      errors: result.errors,
     });
   } catch (error: any) {
     console.error("Error marking bulk student attendance:", error);

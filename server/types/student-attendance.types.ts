@@ -95,3 +95,35 @@ export interface BulkStudentAttendanceInput {
   semesterId: string;
   holidayReason?: string;
 }
+
+export interface BulkStudentAttendanceResponse {
+  processedCount: number;
+  errors: Array<{
+    studentId: string;
+    error: string;
+  }>;
+  attendances: Array<{
+    id: string;
+    studentId: string;
+    date: Date;
+    status: "PRESENT" | "ABSENT" | "HOLIDAY";
+    student: {
+      id: string;
+      name: string;
+    };
+  }>;
+}
+
+export interface StudentAttendanceData {
+  studentId: string;
+  date: Date;
+  status: "PRESENT" | "ABSENT" | "HOLIDAY";
+  enrollmentId: string;
+  projectId: string;
+  centerId: string;
+  semesterId: string;
+  notes?: string;
+  holidayReason?: string | null;
+  markedBy: string;
+  markedAt: Date;
+}

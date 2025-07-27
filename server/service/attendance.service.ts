@@ -33,12 +33,13 @@ export const getActiveUsersForAttendance = async (
 
   // Determine which committed days are relevant for this date
   const relevantCommittedDays: CommittedDays[] = [];
-  if (dayOfWeek === 6) {
-    // Saturday
-    relevantCommittedDays.push(CommittedDays.SATURDAY, CommittedDays.BOTH);
-  } else if (dayOfWeek === 0) {
-    // Sunday
-    relevantCommittedDays.push(CommittedDays.SUNDAY, CommittedDays.BOTH);
+  if (dayOfWeek === 6 || dayOfWeek === 0) {
+    // For any weekend day (Saturday or Sunday), include all weekend committed days
+    relevantCommittedDays.push(
+      CommittedDays.SATURDAY, 
+      CommittedDays.SUNDAY, 
+      CommittedDays.BOTH
+    );
   }
 
   // If it's not a weekend day, return empty result
