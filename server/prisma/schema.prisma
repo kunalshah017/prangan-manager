@@ -20,6 +20,8 @@ model Centers {
   semesters Semesters[]
   enrollments StudentEnrollments[]
   userRoleAssignments UserRoleAssignments[]
+  attendance UserAttendance[]
+  studentAttendance StudentAttendance[]
 }
 
 model Projects {
@@ -35,6 +37,8 @@ model Projects {
   centers     Centers[]
   enrollments StudentEnrollments[]
   userRoleAssignments UserRoleAssignments[]
+  attendance  UserAttendance[]
+  studentAttendance StudentAttendance[]
 }
 
 model Semesters {
@@ -48,6 +52,8 @@ model Semesters {
   center    Centers  @relation(fields: [centerId], references: [id])
   enrollments StudentEnrollments[]
   userRoleAssignments UserRoleAssignments[]
+  attendance UserAttendance[]
+  studentAttendance StudentAttendance[]
 }
 
 model User {
@@ -65,6 +71,9 @@ model User {
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
   roleAssignments  UserRoleAssignments[]
+  attendance       UserAttendance[]
+  markedAttendance UserAttendance[] @relation("AttendanceMarkedBy")
+  markedStudentAttendance StudentAttendance[] @relation("StudentAttendanceMarkedBy")
 }
 
 model UserRoleAssignments {
@@ -85,6 +94,7 @@ model UserRoleAssignments {
   project     Projects? @relation(fields: [projectId], references: [id])
   center      Centers?  @relation(fields: [centerId], references: [id])
   semester    Semesters? @relation(fields: [semesterId], references: [id])
+  attendance  UserAttendance[]
   
   // Index for efficient user queries and prevent exact duplicates
   @@index([userId, isActive])
@@ -99,9 +109,17 @@ model Students {
   phoneNumber       String?
   whatsappNumber    String?
   alternateNumber   String?
+  fatherName        String?      // Father's full name
+  motherName        String?      // Mother's full name
+  address           String?      // Complete residential address
+  schoolName        String?      // Name of the school student is attending
+  fatherOccupation  String?      // Father's occupation/job
+  motherOccupation  String?      // Mother's occupation/job
+  familyIncome      String?      // Family income bracket (e.g., "0-25000", "25000-50000", etc.)
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   enrollments       StudentEnrollments[]
+  attendance        StudentAttendance[]
 }
 
 model StudentEnrollments {
@@ -121,8 +139,73 @@ model StudentEnrollments {
   center      Centers   @relation(fields: [centerId], references: [id])
   semester    Semesters @relation(fields: [semesterId], references: [id])
   project     Projects  @relation(fields: [projectId], references: [id])
+  attendance  StudentAttendance[]
   
   @@unique([studentId, semesterId]) // A student can only be enrolled once per semester
+}
+
+model StudentAttendance {
+  id                    String                    @id @default(cuid())
+  studentId             String
+  date                  DateTime                  @db.Date // Only date part, no time
+  status                StudentAttendanceStatus   @default(ABSENT)
+  enrollmentId          String                    // Required reference to the specific enrollment
+  projectId             String                    // Direct relation to project
+  centerId              String                    // Required - for center-specific attendance
+  semesterId            String                    // Required - for semester-specific attendance
+  notes                 String?                   // Optional notes for the attendance
+  holidayReason         String?                   // Reason for holiday (only when status is HOLIDAY)
+  markedBy              String?                   // UserId of who marked the attendance
+  markedAt              DateTime?                 // When the attendance was marked
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  
+  student               Students                  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  enrollment            StudentEnrollments        @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  project               Projects                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  center                Centers                   @relation(fields: [centerId], references: [id], onDelete: Cascade)
+  semester              Semesters                 @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  markedByUser          User?                     @relation("StudentAttendanceMarkedBy", fields: [markedBy], references: [id])
+  
+  // Ensure one attendance record per student per date per context (project/center/semester)
+  @@unique([studentId, date, projectId, centerId, semesterId])
+  @@index([studentId, date])
+  @@index([projectId, date])
+  @@index([centerId, date])
+  @@index([semesterId, date])
+  @@index([enrollmentId, date])
+}
+
+model UserAttendance {
+  id                    String           @id @default(cuid())
+  userId                String
+  date                  DateTime         @db.Date // Only date part, no time
+  status                AttendanceStatus @default(ABSENT)
+  roleAssignmentId      String           // Required reference to the specific role assignment
+  projectId             String           // Direct relation to project
+  centerId              String           // Required - for center-specific attendance
+  semesterId            String           // Required - for semester-specific attendance
+  notes                 String?          // Optional notes for the attendance
+  holidayReason         String?          // Reason for holiday (only when status is HOLIDAY)
+  markedBy              String?          // UserId of who marked the attendance
+  markedAt              DateTime?        // When the attendance was marked
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  user                  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleAssignment        UserRoleAssignments @relation(fields: [roleAssignmentId], references: [id], onDelete: Cascade)
+  project               Projects         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  center                Centers          @relation(fields: [centerId], references: [id], onDelete: Cascade)
+  semester              Semesters        @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  markedByUser          User?            @relation("AttendanceMarkedBy", fields: [markedBy], references: [id])
+  
+  // Ensure one attendance record per user per date per context (project/center/semester)
+  @@unique([userId, date, projectId, centerId, semesterId])
+  @@index([userId, date])
+  @@index([projectId, date])
+  @@index([centerId, date])
+  @@index([semesterId, date])
+  @@index([roleAssignmentId, date])
 }
 
 enum ProjectStatus {
@@ -164,4 +247,17 @@ enum CommittedDays {
   SATURDAY              // Saturday only
   SUNDAY               // Sunday only
   BOTH                 // Both Saturday and Sunday
+}
+
+enum AttendanceStatus {
+  PRESENT              // User was present
+  ABSENT               // User was absent
+  NOT_AVAILABLE        // User was not available
+  HOLIDAY              // It was a holiday
+}
+
+enum StudentAttendanceStatus {
+  PRESENT              // Student was present
+  ABSENT               // Student was absent
+  HOLIDAY              // It was a holiday
 }

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import BreadcrumbNavigation from '@/components/BreadcrumbNavigation';
+import { ProfilePicture } from '@/components/ui';
 
 
 const Layout: React.FC = () => {
@@ -98,11 +99,12 @@ const Layout: React.FC = () => {
                                 onClick={() => setUserMenuOpen(!userMenuOpen)}
                                 className="flex items-center space-x-1 rounded-full bg-background p-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
                             >
-                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-700">
-                                    <span className="text-sm font-medium">
-                                        {user?.name?.charAt(0).toUpperCase() || 'U'}
-                                    </span>
-                                </div>
+                                <ProfilePicture
+                                    imageUrl={user?.profileImageUrl}
+                                    name={user?.name || 'User'}
+                                    size="md"
+                                    colorScheme="orange"
+                                />
                                 <span className="hidden md:inline-flex text-sm font-medium">
                                     {user?.name || 'User'}
                                 </span>
@@ -216,11 +218,12 @@ const Layout: React.FC = () => {
                             {/* Mobile User Section */}
                             <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-background">
                                 <div className="flex items-center space-x-3 mb-3">
-                                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-700">
-                                        <span className="text-sm font-medium">
-                                            {user?.name?.charAt(0).toUpperCase() || 'U'}
-                                        </span>
-                                    </div>
+                                    <ProfilePicture
+                                        imageUrl={user?.profileImageUrl}
+                                        name={user?.name || 'User'}
+                                        size="md"
+                                        colorScheme="orange"
+                                    />
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
                                         <p className="text-xs text-muted-foreground truncate">{user?.email || ''}</p>

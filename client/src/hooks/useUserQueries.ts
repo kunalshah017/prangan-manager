@@ -59,6 +59,7 @@ export const useVerifyUser = () => {
       email,
       name,
       roleAssignments,
+      rejectionReason,
     }: VerifyUserRequest): Promise<VerifyUserResponse> => {
       return api.post<VerifyUserResponse>("/users/verify", {
         userId,
@@ -67,6 +68,7 @@ export const useVerifyUser = () => {
         email,
         name,
         roleAssignments,
+        rejectionReason,
       });
     },
     onSuccess: () => {
@@ -108,13 +110,20 @@ export const useRejectUserById = () => {
   const verifyMutation = useVerifyUser();
 
   return useMutation({
-    mutationFn: async (user: User): Promise<VerifyUserResponse> => {
+    mutationFn: async ({
+      user,
+      rejectionReason,
+    }: {
+      user: User;
+      rejectionReason: string;
+    }): Promise<VerifyUserResponse> => {
       return verifyMutation.mutateAsync({
         userId: user.id,
         status: "REJECTED",
         role: user.role || "USER",
         email: user.email,
         name: user.name,
+        rejectionReason,
       });
     },
   });
@@ -142,13 +151,20 @@ export const useRejectUser = () => {
   const verifyMutation = useVerifyUser();
 
   return useMutation({
-    mutationFn: async (user: User): Promise<MessageResponse> => {
+    mutationFn: async ({
+      user,
+      rejectionReason,
+    }: {
+      user: User;
+      rejectionReason: string;
+    }): Promise<MessageResponse> => {
       const result = await verifyMutation.mutateAsync({
         userId: user.id,
         status: "REJECTED",
         role: user.role || "USER",
         email: user.email,
         name: user.name,
+        rejectionReason,
       });
       return result;
     },

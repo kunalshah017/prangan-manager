@@ -6,6 +6,8 @@ import { userRoutes } from "./routes/user.route.js";
 import { projectRoutes } from "./routes/project.routes.js";
 import { centerRoutes } from "./routes/center.routes.js";
 import { semesterRoutes } from "./routes/semester.routes.js";
+import attendanceRoutes from "./routes/attendance.routes.js";
+import studentAttendanceRoutes from "./routes/student-attendance.routes.js";
 
 // Load environment variables from .env file
 dotenv.config();
@@ -34,6 +36,10 @@ fastify.register(userRoutes, { prefix: "/api/v1" });
 fastify.register(projectRoutes, { prefix: "/api/v1" });
 fastify.register(centerRoutes, { prefix: "/api/v1" });
 fastify.register(semesterRoutes, { prefix: "/api/v1" });
+fastify.register(attendanceRoutes, { prefix: "/api/v1/attendance" });
+fastify.register(studentAttendanceRoutes, {
+  prefix: "/api/v1/student-attendance",
+});
 
 // Start the server for local development only
 if (process.env.NODE_ENV !== "production") {

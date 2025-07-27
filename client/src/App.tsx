@@ -26,9 +26,14 @@ const EditCenter = lazy(() => import('./pages/centers/EditCenter'))
 const Semesters = lazy(() => import('./pages/semesters/Semesters'))
 const CreateSemester = lazy(() => import('./pages/semesters/CreateSemester'))
 const EditSemester = lazy(() => import('./pages/semesters/EditSemester'))
+const Dashboard = lazy(() => import('./pages/semesters/Dashboard'))
 const Students = lazy(() => import('./pages/students/Students'))
 const CreateStudent = lazy(() => import('./pages/students/CreateStudent'))
 const EditStudent = lazy(() => import('./pages/students/EditStudent'))
+const ViewAttendance = lazy(() => import('./pages/attendance/ViewAttendance').then(module => ({ default: module.ViewAttendance })))
+const MarkAttendance = lazy(() => import('./pages/attendance/MarkAttendance').then(module => ({ default: module.MarkAttendance })))
+const ViewStudentAttendance = lazy(() => import('./pages/student-attendance/ViewStudentAttendance').then(module => ({ default: module.ViewStudentAttendance })))
+const MarkStudentAttendance = lazy(() => import('./pages/student-attendance/MarkStudentAttendance').then(module => ({ default: module.MarkStudentAttendance })))
 const RegistrationRequests = lazy(() => import('./pages/RegistrationRequests'))
 
 // Loading fallback component
@@ -74,19 +79,14 @@ function App() {
               <Route path=":projectId/centers/:centerId/semesters" element={<Semesters />} />
               <Route path=":projectId/centers/:centerId/semesters/new" element={<CreateSemester />} />
               <Route path=":projectId/centers/:centerId/semesters/:id/edit" element={<EditSemester />} />
-            </Route>
-
-            <Route
-              path="/students"
-              element={
-                <ProtectedRoute>
-                  <Layout />
-                </ProtectedRoute>
-              }
-            >
-              <Route index element={<Students />} />
-              <Route path="new" element={<CreateStudent />} />
-              <Route path=":id/edit" element={<EditStudent />} />
+              <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard" element={<Dashboard />} />
+              <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/students" element={<Students />} />
+              <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/students/new" element={<CreateStudent />} />
+              <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/students/:id/edit" element={<EditStudent />} />
+              <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/attendance/view" element={<ViewAttendance />} />
+              <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/attendance/mark" element={<MarkAttendance />} />
+              <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/student-attendance/view" element={<ViewStudentAttendance />} />
+              <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/student-attendance/mark" element={<MarkStudentAttendance />} />
             </Route>
 
             <Route

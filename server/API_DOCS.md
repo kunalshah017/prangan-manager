@@ -179,6 +179,7 @@ Authorization: Bearer <admin_jwt_token>
   "role": "USER",
   "email": "user@example.com",
   "name": "John Doe",
+  "rejectionReason": "Inadequate qualifications",
   "roleAssignments": [
     {
       "subRole": "EDUCATOR",
@@ -201,24 +202,29 @@ Authorization: Bearer <admin_jwt_token>
 **Field Requirements:**
 
 **Required Fields:**
+
 - `userId` (string): ID of the user to verify
 - `status` (string): APPROVED, REJECTED, or PENDING
 - `role` (string): USER or ADMIN
 - `email` (string): User's email address
 - `name` (string): User's full name
+- `rejectionReason` (string): Reason for rejection (if applicable)
 
 **Optional Fields:**
+
 - `roleAssignments` (array): Only applies to USER role. For ADMIN role, omit this field.
 
 **Role Assignment Fields:**
+
 - `subRole` (string, required): One of: TRAINING_DEVELOPMENT, RECRUITMENT, GROWTH_DEVELOPMENT, CURRICULUM_MENTOR, TECH, CENTER_MANAGER, EDUCATOR
 - `projectId` (string, optional): Project assignment
-- `centerId` (string, optional): Center assignment  
+- `centerId` (string, optional): Center assignment
 - `semesterId` (string, optional): Semester assignment
 - `level` (string, optional): Only for EDUCATOR sub-role (LEVEL_1, LEVEL_2, LEVEL_3, LEVEL_4, PRIMARY_A, PRIMARY_B)
 - `committedDays` (string, optional): Only for CENTER_MANAGER and EDUCATOR sub-roles (SATURDAY, SUNDAY, BOTH)
 
 **Validation Rules:**
+
 - If `semesterId` is provided, `centerId` must belong to that semester
 - If `centerId` is provided with `projectId`, center must belong to that project
 - If `semesterId` is provided with `projectId`, semester's center must belong to that project
@@ -289,6 +295,34 @@ Add a new student (Admin only). **Note:** You can optionally include enrollment 
 Authorization: Bearer <admin_jwt_token>
 ```
 
+**Student Fields:**
+
+**Required Fields:**
+
+- `name` (string): Student's full name
+
+**Optional Basic Fields:**
+
+- `dob` (string): Date of birth in YYYY-MM-DD format
+- `phoneNumber` (string): Student's phone number
+- `whatsappNumber` (string): WhatsApp number for communication
+- `alternateNumber` (string): Alternative contact number
+- `profileImageUrl` (string): URL to student's profile image
+
+**Optional Family Details:**
+
+- `fatherName` (string): Father's full name
+- `motherName` (string): Mother's full name
+- `address` (string): Complete residential address
+- `schoolName` (string): Name of the school student is attending
+- `fatherOccupation` (string): Father's occupation/profession
+- `motherOccupation` (string): Mother's occupation/profession
+- `familyIncome` (string): Family income bracket (e.g., "0-25000", "25000-50000", "50000-75000", "75000-100000", "100000+")
+
+**Optional Enrollment:**
+
+- `enrollment` (object): Enrollment details to assign student to center and level
+
 **Body:**
 
 ```json
@@ -299,9 +333,16 @@ Authorization: Bearer <admin_jwt_token>
   "whatsappNumber": "+919876541001",
   "alternateNumber": "+912267891001",
   "profileImageUrl": "https://example.com/student.jpg",
+  "fatherName": "Rajesh Mehta",
+  "motherName": "Priya Mehta",
+  "address": "123 Main Street, Andheri West, Mumbai, Maharashtra 400058",
+  "schoolName": "St. Xavier's High School",
+  "fatherOccupation": "Software Engineer",
+  "motherOccupation": "Teacher",
+  "familyIncome": "50000-75000",
   "enrollment": {
     "centerId": "center_id",
-    "semesterId": "semester_id", 
+    "semesterId": "semester_id",
     "projectId": "project_id",
     "level": "LEVEL_2"
   }
@@ -323,6 +364,13 @@ Authorization: Bearer <admin_jwt_token>
     "whatsappNumber": "+919876541001",
     "alternateNumber": "+912267891001",
     "profileImageUrl": "https://example.com/student.jpg",
+    "fatherName": "Rajesh Mehta",
+    "motherName": "Priya Mehta",
+    "address": "123 Main Street, Andheri West, Mumbai, Maharashtra 400058",
+    "schoolName": "St. Xavier's High School",
+    "fatherOccupation": "Software Engineer",
+    "motherOccupation": "Teacher",
+    "familyIncome": "50000-75000",
     "createdAt": "2024-01-01T00:00:00.000Z",
     "updatedAt": "2024-01-01T00:00:00.000Z"
   },
@@ -370,8 +418,14 @@ Authorization: Bearer <jwt_token>
       "phoneNumber": "+919876541001",
       "whatsappNumber": "+919876541001",
       "alternateNumber": "+912267891001",
-      "level": "LEVEL_2",
       "profileImageUrl": "https://example.com/student1.jpg",
+      "fatherName": "Rajesh Mehta",
+      "motherName": "Priya Mehta",
+      "address": "123 Main Street, Andheri West, Mumbai, Maharashtra 400058",
+      "schoolName": "St. Xavier's High School",
+      "fatherOccupation": "Software Engineer",
+      "motherOccupation": "Teacher",
+      "familyIncome": "50000-75000",
       "createdAt": "2024-01-01T00:00:00.000Z",
       "updatedAt": "2024-01-01T00:00:00.000Z"
     }
@@ -437,6 +491,13 @@ Authorization: Bearer <admin_jwt_token>
   "whatsappNumber": "+919876541001",
   "alternateNumber": "+912267891001",
   "profileImageUrl": "https://example.com/updated-student.jpg",
+  "fatherName": "Rajesh Kumar Mehta",
+  "motherName": "Priya Devi Mehta",
+  "address": "456 New Address, Bandra East, Mumbai, Maharashtra 400051",
+  "schoolName": "Don Bosco High School",
+  "fatherOccupation": "Senior Software Engineer",
+  "motherOccupation": "Principal",
+  "familyIncome": "75000-100000",
   "enrollment": {
     "level": "LEVEL_3",
     "centerId": "new_center_id"
@@ -459,6 +520,13 @@ Authorization: Bearer <admin_jwt_token>
     "whatsappNumber": "+919876541001",
     "alternateNumber": "+912267891001",
     "profileImageUrl": "https://example.com/updated-student.jpg",
+    "fatherName": "Rajesh Kumar Mehta",
+    "motherName": "Priya Devi Mehta",
+    "address": "456 New Address, Bandra East, Mumbai, Maharashtra 400051",
+    "schoolName": "Don Bosco High School",
+    "fatherOccupation": "Senior Software Engineer",
+    "motherOccupation": "Principal",
+    "familyIncome": "75000-100000",
     "createdAt": "2024-01-01T00:00:00.000Z",
     "updatedAt": "2024-01-02T00:00:00.000Z"
   },
@@ -1005,9 +1073,11 @@ Authorization: Bearer <admin_jwt_token>
 **Field Requirements:**
 
 **Required Fields:**
+
 - `roleAssignments` (array): Array of role assignment objects
 
 **Role Assignment Fields:**
+
 - `subRole` (string, required): One of: TRAINING_DEVELOPMENT, RECRUITMENT, GROWTH_DEVELOPMENT, CURRICULUM_MENTOR, TECH, CENTER_MANAGER, EDUCATOR
 - `projectId` (string, optional): Project assignment
 - `centerId` (string, optional): Center assignment
@@ -1016,6 +1086,7 @@ Authorization: Bearer <admin_jwt_token>
 - `committedDays` (string, optional): Only for CENTER_MANAGER and EDUCATOR sub-roles (SATURDAY, SUNDAY, BOTH)
 
 **Validation Rules:**
+
 - If `semesterId` is provided, `centerId` must belong to that semester
 - If `centerId` is provided with `projectId`, center must belong to that project
 - If `semesterId` is provided with `projectId`, semester's center must belong to that project
@@ -1077,10 +1148,12 @@ Authorization: Bearer <admin_jwt_token>
 **Field Requirements:**
 
 **Required Fields:**
+
 - `userId` (string): ID of the user to assign
 - `subRole` (string): One of: TRAINING_DEVELOPMENT, RECRUITMENT, GROWTH_DEVELOPMENT, CURRICULUM_MENTOR, TECH, CENTER_MANAGER, EDUCATOR
 
 **Optional Fields:**
+
 - `projectId` (string): Project assignment
 - `centerId` (string): Center assignment
 - `semesterId` (string): Semester assignment
@@ -1088,6 +1161,7 @@ Authorization: Bearer <admin_jwt_token>
 - `committedDays` (string): Only for CENTER_MANAGER and EDUCATOR sub-roles (SATURDAY, SUNDAY, BOTH)
 
 **Validation Rules:**
+
 - If `semesterId` is provided, `centerId` must belong to that semester
 - If `centerId` is provided with `projectId`, center must belong to that project
 - If `semesterId` is provided with `projectId`, semester's center must belong to that project
@@ -1143,6 +1217,465 @@ Authorization: Bearer <admin_jwt_token>
   "message": "User assignment deleted successfully"
 }
 ```
+
+### Student Attendance Routes
+
+_All student attendance routes require authentication_
+
+#### POST /api/v1/student-attendance/mark
+
+Mark attendance for a student (Admin only).
+
+**Headers:**
+
+```
+Authorization: Bearer <admin_jwt_token>
+```
+
+**Body:**
+
+```json
+{
+  "studentId": "student_id",
+  "enrollmentId": "enrollment_id",
+  "date": "2024-01-15",
+  "status": "PRESENT",
+  "notes": "Present and participating well",
+  "holidayReason": null
+}
+```
+
+**Response (201):**
+
+```json
+{
+  "message": "Attendance marked successfully",
+  "attendance": {
+    "id": "attendance_id",
+    "studentId": "student_id",
+    "date": "2024-01-15T00:00:00.000Z",
+    "status": "PRESENT",
+    "enrollmentId": "enrollment_id",
+    "projectId": "project_id",
+    "centerId": "center_id",
+    "semesterId": "semester_id",
+    "notes": "Present and participating well",
+    "holidayReason": null,
+    "markedBy": "admin_user_id",
+    "markedAt": "2024-01-15T10:30:00.000Z",
+    "student": {
+      "id": "student_id",
+      "name": "John Doe",
+      "profileImageUrl": "https://example.com/student.jpg"
+    },
+    "enrollment": {
+      "id": "enrollment_id",
+      "level": "LEVEL_2"
+    },
+    "project": {
+      "id": "project_id",
+      "name": "Project Alpha"
+    },
+    "center": {
+      "id": "center_id",
+      "name": "Main Center",
+      "address": "123 Main St"
+    },
+    "semester": {
+      "id": "semester_id",
+      "name": "Spring 2024",
+      "startDate": "2024-01-01T00:00:00.000Z",
+      "endDate": "2024-06-30T00:00:00.000Z"
+    },
+    "markedByUser": {
+      "id": "admin_user_id",
+      "name": "Admin User"
+    }
+  }
+}
+```
+
+#### POST /api/v1/student-attendance/bulk
+
+Mark attendance for multiple students at once (Admin only).
+
+**Headers:**
+
+```
+Authorization: Bearer <admin_jwt_token>
+```
+
+**Body:**
+
+```json
+{
+  "date": "2024-01-15",
+  "status": "PRESENT",
+  "projectId": "project_id",
+  "centerId": "center_id",
+  "semesterId": "semester_id",
+  "studentAttendances": [
+    {
+      "studentId": "student_id_1",
+      "enrollmentId": "enrollment_id_1",
+      "status": "PRESENT"
+    },
+    {
+      "studentId": "student_id_2",
+      "enrollmentId": "enrollment_id_2",
+      "status": "ABSENT",
+      "notes": "Sick leave"
+    },
+    {
+      "studentId": "student_id_3",
+      "enrollmentId": "enrollment_id_3",
+      "status": "HOLIDAY"
+    }
+  ],
+  "holidayReason": "National Holiday"
+}
+```
+
+**Response (200):**
+
+```json
+{
+  "message": "Bulk student attendance marked successfully",
+  "attendances": [
+    {
+      "id": "attendance_id_1",
+      "studentId": "student_id_1",
+      "date": "2024-01-15T00:00:00.000Z",
+      "status": "PRESENT",
+      "enrollmentId": "enrollment_id_1",
+      "projectId": "project_id",
+      "centerId": "center_id",
+      "semesterId": "semester_id",
+      "markedBy": "admin_user_id",
+      "markedAt": "2024-01-15T10:30:00.000Z",
+      "student": {
+        "id": "student_id_1",
+        "name": "John Doe"
+      }
+    },
+    {
+      "id": "attendance_id_2",
+      "studentId": "student_id_2",
+      "date": "2024-01-15T00:00:00.000Z",
+      "status": "ABSENT",
+      "notes": "Sick leave"
+    },
+    {
+      "id": "attendance_id_3",
+      "studentId": "student_id_3",
+      "date": "2024-01-15T00:00:00.000Z",
+      "status": "HOLIDAY"
+    }
+  ],
+  "processed": 3,
+  "total": 3
+}
+```
+
+#### GET /api/v1/student-attendance
+
+Get student attendance records with optional filters.
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Query Parameters:**
+
+- `studentId` (string, optional): Filter by specific student
+- `projectId` (string, optional): Filter by project
+- `centerId` (string, optional): Filter by center
+- `semesterId` (string, optional): Filter by semester
+- `date` (string, optional): Filter by specific date (YYYY-MM-DD)
+- `dateFrom` (string, optional): Filter from date (YYYY-MM-DD)
+- `dateTo` (string, optional): Filter to date (YYYY-MM-DD)
+- `status` (string, optional): Filter by attendance status (PRESENT, ABSENT, HOLIDAY)
+
+**Response (200):**
+
+```json
+{
+  "message": "Attendance records retrieved successfully",
+  "attendance": [
+    {
+      "id": "attendance_id",
+      "studentId": "student_id",
+      "date": "2024-01-15T00:00:00.000Z",
+      "status": "PRESENT",
+      "enrollmentId": "enrollment_id",
+      "projectId": "project_id",
+      "centerId": "center_id",
+      "semesterId": "semester_id",
+      "notes": "Present and participating well",
+      "holidayReason": null,
+      "markedBy": "admin_user_id",
+      "markedAt": "2024-01-15T10:30:00.000Z",
+      "student": {
+        "id": "student_id",
+        "name": "John Doe",
+        "profileImageUrl": "https://example.com/student.jpg"
+      },
+      "enrollment": {
+        "id": "enrollment_id",
+        "level": "LEVEL_2"
+      },
+      "project": {
+        "id": "project_id",
+        "name": "Project Alpha"
+      },
+      "center": {
+        "id": "center_id",
+        "name": "Main Center",
+        "address": "123 Main St"
+      },
+      "semester": {
+        "id": "semester_id",
+        "name": "Spring 2024",
+        "startDate": "2024-01-01T00:00:00.000Z",
+        "endDate": "2024-06-30T00:00:00.000Z"
+      },
+      "markedByUser": {
+        "id": "admin_user_id",
+        "name": "Admin User"
+      }
+    }
+  ]
+}
+```
+
+#### GET /api/v1/student-attendance/student/:studentId
+
+Get attendance records for a specific student.
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Path Parameters:**
+
+- `studentId` (string): The ID of the student
+
+**Query Parameters:**
+
+- `semesterId` (string, optional): Filter by semester
+- `centerId` (string, optional): Filter by center
+- `dateFrom` (string, optional): Filter from date (YYYY-MM-DD)
+- `dateTo` (string, optional): Filter to date (YYYY-MM-DD)
+
+**Response (200):**
+
+```json
+{
+  "message": "Student attendance records retrieved successfully",
+  "attendance": [
+    {
+      "id": "attendance_id",
+      "studentId": "student_id",
+      "date": "2024-01-15T00:00:00.000Z",
+      "status": "PRESENT",
+      "notes": "Present and participating well"
+    }
+  ]
+}
+```
+
+#### GET /api/v1/student-attendance/stats/:studentId
+
+Get attendance statistics for a specific student.
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Path Parameters:**
+
+- `studentId` (string): The ID of the student
+
+**Query Parameters:**
+
+- `semesterId` (string, optional): Filter by semester
+- `centerId` (string, optional): Filter by center
+- `dateFrom` (string, optional): Filter from date (YYYY-MM-DD)
+- `dateTo` (string, optional): Filter to date (YYYY-MM-DD)
+
+**Response (200):**
+
+```json
+{
+  "message": "Student attendance statistics retrieved successfully",
+  "stats": {
+    "totalDays": 20,
+    "presentDays": 18,
+    "absentDays": 2,
+    "holidayDays": 3,
+    "attendancePercentage": 90.0
+  }
+}
+```
+
+#### GET /api/v1/student-attendance/date/:date
+
+Get attendance records for a specific date across all centers/projects.
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Path Parameters:**
+
+- `date` (string): The date in YYYY-MM-DD format
+
+**Query Parameters:**
+
+- `centerId` (string, optional): Filter by center
+- `semesterId` (string, optional): Filter by semester
+- `projectId` (string, optional): Filter by project
+
+**Response (200):**
+
+```json
+{
+  "message": "Daily attendance records retrieved successfully",
+  "attendance": [
+    {
+      "id": "attendance_id",
+      "studentId": "student_id",
+      "date": "2024-01-15T00:00:00.000Z",
+      "status": "PRESENT",
+      "student": {
+        "id": "student_id",
+        "name": "John Doe"
+      },
+      "center": {
+        "id": "center_id",
+        "name": "Main Center"
+      }
+    }
+  ]
+}
+```
+
+#### GET /api/v1/student-attendance/missing
+
+Get students who don't have attendance records for a specific date.
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Query Parameters:**
+
+- `date` (string, required): The date in YYYY-MM-DD format
+- `centerId` (string, required): Filter by center
+- `semesterId` (string, required): Filter by semester
+- `projectId` (string, optional): Filter by project
+
+**Response (200):**
+
+```json
+{
+  "message": "Students without attendance retrieved successfully",
+  "students": [
+    {
+      "enrollmentId": "enrollment_id",
+      "student": {
+        "id": "student_id",
+        "name": "Jane Smith",
+        "profileImageUrl": "https://example.com/student.jpg"
+      },
+      "level": "LEVEL_3",
+      "studentId": "student_id",
+      "projectId": "project_id",
+      "centerId": "center_id",
+      "semesterId": "semester_id"
+    }
+  ]
+}
+```
+
+#### PUT /api/v1/student-attendance/:id
+
+Update an existing attendance record (Admin only).
+
+**Headers:**
+
+```
+Authorization: Bearer <admin_jwt_token>
+```
+
+**Path Parameters:**
+
+- `id` (string): The ID of the attendance record to update
+
+**Body:**
+
+```json
+{
+  "status": "ABSENT",
+  "notes": "Updated: Student was sick",
+  "holidayReason": null
+}
+```
+
+**Response (200):**
+
+```json
+{
+  "message": "Attendance updated successfully",
+  "attendance": {
+    "id": "attendance_id",
+    "studentId": "student_id",
+    "date": "2024-01-15T00:00:00.000Z",
+    "status": "ABSENT",
+    "notes": "Updated: Student was sick",
+    "markedBy": "admin_user_id",
+    "markedAt": "2024-01-15T15:30:00.000Z"
+  }
+}
+```
+
+#### DELETE /api/v1/student-attendance/:id
+
+Delete an attendance record (Admin only).
+
+**Headers:**
+
+```
+Authorization: Bearer <admin_jwt_token>
+```
+
+**Path Parameters:**
+
+- `id` (string): The ID of the attendance record to delete
+
+**Response (200):**
+
+```json
+{
+  "message": "Attendance record deleted successfully"
+}
+```
+
+#### Student Attendance Status Values
+
+- `PRESENT`: Student was present for the session
+- `ABSENT`: Student was absent from the session
+- `HOLIDAY`: It was a holiday (no classes scheduled)
 
 ### Project Routes
 
@@ -1700,6 +2233,322 @@ Authorization: Bearer <jwt_token>
   "message": "Semester deleted successfully"
 }
 ```
+
+### Attendance Routes
+
+_All attendance routes require authentication_
+
+#### GET /api/v1/attendance/active-users
+
+Get active educators and center managers for a specific date, project, center, and semester for attendance marking.
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Query Parameters:**
+
+- `date` (string, required): Date in YYYY-MM-DD format (must be Saturday or Sunday)
+- `projectId` (string, required): The ID of the project
+- `centerId` (string, required): The ID of the center
+- `semesterId` (string, required): The ID of the semester
+
+**Response (200):**
+
+```json
+{
+  "message": "Active users retrieved successfully",
+  "data": {
+    "users": [
+      {
+        "id": "user_id",
+        "name": "John Doe",
+        "email": "john@example.com",
+        "profileImageUrl": "https://example.com/profile.jpg",
+        "roleAssignments": [
+          {
+            "id": "assignment_id",
+            "subRole": "EDUCATOR",
+            "level": "LEVEL_1",
+            "committedDays": "SATURDAY",
+            "projectId": "project_id",
+            "centerId": "center_id",
+            "semesterId": "semester_id"
+          }
+        ]
+      }
+    ],
+    "totalUsers": 1
+  }
+}
+```
+
+#### POST /api/v1/attendance/mark
+
+Mark attendance for a single user.
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Body:**
+
+```json
+{
+  "userId": "user_id",
+  "date": "2024-07-27",
+  "status": "PRESENT",
+  "roleAssignmentId": "assignment_id",
+  "projectId": "project_id",
+  "centerId": "center_id",
+  "semesterId": "semester_id",
+  "notes": "On time",
+  "holidayReason": "National Holiday"
+}
+```
+
+**Field Requirements:**
+
+**Required Fields:**
+
+- `userId` (string): ID of the user
+- `date` (string): Date in YYYY-MM-DD format
+- `status` (string): PRESENT, ABSENT, NOT_AVAILABLE, or HOLIDAY
+- `projectId` (string): ID of the project
+- `centerId` (string): ID of the center
+- `semesterId` (string): ID of the semester
+- `roleAssignmentId` (string): ID of the specific role assignment
+
+**Optional Fields:**
+
+- `notes` (string): Additional notes
+- `holidayReason` (string): Required when status is HOLIDAY
+
+**Response (200):**
+
+```json
+{
+  "message": "Attendance marked successfully",
+  "attendance": {
+    "id": "attendance_id",
+    "userId": "user_id",
+    "date": "2024-07-27",
+    "status": "PRESENT",
+    "projectId": "project_id",
+    "centerId": "center_id",
+    "semesterId": "semester_id",
+    "notes": "On time",
+    "markedBy": "marker_user_id",
+    "markedAt": "2024-07-27T10:00:00.000Z"
+  }
+}
+```
+
+#### POST /api/v1/attendance/bulk-mark
+
+Mark attendance for multiple users in bulk.
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Body:**
+
+```json
+{
+  "date": "2024-07-27",
+  "projectId": "project_id",
+  "centerId": "center_id",
+  "semesterId": "semester_id",
+  "attendances": [
+    {
+      "userId": "user_id_1",
+      "status": "PRESENT",
+      "roleAssignmentId": "assignment_id_1",
+      "notes": "On time"
+    },
+    {
+      "userId": "user_id_2",
+      "status": "HOLIDAY",
+      "roleAssignmentId": "assignment_id_2",
+      "holidayReason": "National Holiday"
+    }
+  ]
+}
+```
+
+**Response (200):**
+
+```json
+{
+  "message": "Bulk attendance marking completed. Processed 2/2 records.",
+  "processedCount": 2,
+  "errors": []
+}
+```
+
+#### GET /api/v1/attendance/records
+
+Get attendance records with filtering and pagination.
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Query Parameters:**
+
+- `startDate` (string, optional): Start date in YYYY-MM-DD format
+- `endDate` (string, optional): End date in YYYY-MM-DD format
+- `userId` (string, optional): Filter by user ID
+- `projectId` (string, optional): Filter by project ID
+- `centerId` (string, optional): Filter by center ID
+- `semesterId` (string, optional): Filter by semester ID
+- `status` (string, optional): Filter by attendance status
+- `page` (number, optional): Page number for pagination (default: 1)
+- `limit` (number, optional): Records per page (default: 50)
+
+**Response (200):**
+
+```json
+{
+  "message": "Attendance records retrieved successfully",
+  "data": {
+    "attendances": [
+      {
+        "id": "attendance_id",
+        "userId": "user_id",
+        "userName": "John Doe",
+        "userEmail": "john@example.com",
+        "date": "2024-07-27",
+        "status": "PRESENT",
+        "projectId": "project_id",
+        "projectName": "Project Alpha",
+        "centerId": "center_id",
+        "centerName": "Center A",
+        "semesterId": "semester_id",
+        "semesterName": "Summer 2024",
+        "notes": "On time",
+        "markedBy": "marker_user_id",
+        "markedByName": "Admin User",
+        "markedAt": "2024-07-27T10:00:00.000Z",
+        "roleAssignment": {
+          "id": "assignment_id",
+          "subRole": "EDUCATOR",
+          "level": "LEVEL_1",
+          "committedDays": "SATURDAY"
+        }
+      }
+    ],
+    "totalCount": 100,
+    "page": 1,
+    "limit": 50,
+    "totalPages": 2
+  }
+}
+```
+
+#### GET /api/v1/attendance/summary
+
+Get attendance summary/report for users within a date range.
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Query Parameters:**
+
+- `startDate` (string, required): Start date in YYYY-MM-DD format
+- `endDate` (string, required): End date in YYYY-MM-DD format
+- `projectId` (string, optional): Filter by project ID
+- `centerId` (string, optional): Filter by center ID
+- `semesterId` (string, optional): Filter by semester ID
+- `userIds` (string, optional): Comma-separated user IDs to filter by
+
+**Response (200):**
+
+```json
+{
+  "message": "Attendance summary retrieved successfully",
+  "data": {
+    "summary": [
+      {
+        "userId": "user_id",
+        "userName": "John Doe",
+        "userEmail": "john@example.com",
+        "totalDays": 8,
+        "presentDays": 6,
+        "absentDays": 1,
+        "notAvailableDays": 0,
+        "holidayDays": 1,
+        "attendancePercentage": 86
+      }
+    ],
+    "periodInfo": {
+      "startDate": "2024-07-01",
+      "endDate": "2024-07-31",
+      "totalDays": 31,
+      "weekendDays": 8
+    }
+  }
+}
+```
+
+#### POST /api/v1/attendance/auto-mark
+
+Auto-mark attendance for all eligible users on a specific date (Admin only). This creates NOT_AVAILABLE records for users who haven't been marked present.
+
+**Headers:**
+
+```
+Authorization: Bearer <admin_jwt_token>
+```
+
+**Body:**
+
+```json
+{
+  "date": "2024-07-27",
+  "projectId": "project_id",
+  "centerId": "center_id",
+  "semesterId": "semester_id"
+}
+```
+
+**Response (200):**
+
+```json
+{
+  "message": "Auto-marked attendance for 5 user assignments",
+  "processedCount": 5
+}
+```
+
+## Attendance Logic
+
+The attendance system follows these rules:
+
+1. **Weekend Only**: Attendance is only tracked for Saturday and Sunday based on users' `committedDays`
+2. **Committed Days Matching**: Only users with matching committed days for the requested date are eligible
+3. **Status Logic**:
+
+   - **PRESENT**: User explicitly marked as present (client sends entry)
+   - **ABSENT**: User was expected but didn't show up on their committed day
+   - **NOT_AVAILABLE**: User was not available on a day they weren't committed to, or auto-marked
+   - **HOLIDAY**: Marked as holiday with a reason (applies to all users)
+
+4. **Auto-marking**: Admins can auto-mark all eligible users as NOT_AVAILABLE, which can later be updated to PRESENT when users check in
+
+5. **Hierarchy**: Attendance can be tracked at project, center, and semester levels for flexible reporting
 
 ## Authentication
 

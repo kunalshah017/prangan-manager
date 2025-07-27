@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import DoodleBackground from '@/components/DoodleBackground';
 import LoadingButterfly from '@/components/LoadingButterfly';
 import UserApprovalModal from '@/components/ui/user-approval-modal';
+import { ProfilePicture } from '@/components/ui';
 import { useRegistrationRequests, useVerifyUser } from '@/hooks/useUserQueries';
 import type { User, RoleAssignment } from '@/types/api';
 
@@ -59,7 +60,7 @@ const RegistrationRequests = () => {
         }
     };
 
-    const handleReject = async (user: User) => {
+    const handleReject = async (user: User, rejectionReason: string) => {
         try {
             await verifyUser.mutateAsync({
                 userId: user.id,
@@ -67,6 +68,7 @@ const RegistrationRequests = () => {
                 role: user.role || 'USER',
                 email: user.email,
                 name: user.name,
+                rejectionReason,
             });
             toast.success(`${user.name}'s request has been rejected.`);
         } catch (error) {
@@ -77,8 +79,9 @@ const RegistrationRequests = () => {
     };
 
     const quickReject = async (user: User) => {
+        const defaultReason = "Application does not meet the minimum requirements.";
         try {
-            await handleReject(user);
+            await handleReject(user, defaultReason);
         } catch (error) {
             // Error already handled in handleReject
             console.error('Quick reject failed:', error);
@@ -147,14 +150,24 @@ const RegistrationRequests = () => {
                                         className="flex items-center justify-between cursor-pointer"
                                         onClick={() => toggleRowExpansion(request.id)}
                                     >
-                                        <div className="flex-1">
-                                            <div className="font-medium text-gray-900">{request.name}</div>
-                                            <div className="text-sm text-gray-500">{request.email}</div>
-                                            <div className="text-xs text-gray-400 mt-1">
-                                                {formatDate(request.createdAt)}
+                                        <div className="flex items-center gap-3 flex-1">
+                                            {/* Profile Image */}
+                                            <ProfilePicture
+                                                imageUrl={request.profileImageUrl}
+                                                name={request.name}
+                                                size="xl"
+                                                colorScheme="orange"
+                                            />
+
+                                            <div className="flex-1 min-w-0">
+                                                <div className="font-medium text-gray-900 truncate">{request.name}</div>
+                                                <div className="text-sm text-gray-500 truncate">{request.email}</div>
+                                                <div className="text-xs text-gray-400 mt-1">
+                                                    {formatDate(request.createdAt)}
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="ml-4">
+                                        <div className="ml-4 flex-shrink-0">
                                             {expandedRows.has(request.id) ? (
                                                 <ChevronDown className="h-5 w-5 text-gray-400" />
                                             ) : (
@@ -247,9 +260,19 @@ const RegistrationRequests = () => {
                                                     onClick={() => toggleRowExpansion(request.id)}
                                                 >
                                                     <td className="px-4 py-4">
-                                                        <div>
-                                                            <div className="font-medium text-gray-900">{request.name}</div>
-                                                            <div className="text-sm text-gray-500">{request.email}</div>
+                                                        <div className="flex items-center gap-3">
+                                                            {/* Profile Image */}
+                                                            <ProfilePicture
+                                                                imageUrl={request.profileImageUrl}
+                                                                name={request.name}
+                                                                size="lg"
+                                                                colorScheme="orange"
+                                                            />
+
+                                                            <div className="min-w-0 flex-1">
+                                                                <div className="font-medium text-gray-900 truncate">{request.name}</div>
+                                                                <div className="text-sm text-gray-500 truncate">{request.email}</div>
+                                                            </div>
                                                         </div>
                                                     </td>
                                                     <td className="px-4 py-4 text-sm text-gray-500">

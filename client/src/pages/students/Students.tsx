@@ -1,21 +1,26 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
-import { Plus, Edit, Trash2, User, Calendar, Phone, GraduationCap } from 'lucide-react';
-import { useStudents, useDeleteStudent } from '@/hooks/useStudentQueries';
+import { Link, useParams } from 'react-router-dom';
+import { Plus, Edit, Trash2, User, Calendar, Phone, GraduationCap, MessageCircle } from 'lucide-react';
+import { useStudentsBySemester, useDeleteStudent } from '@/hooks/useStudentQueries';
 import { useAuth } from '@/hooks/useAuth';
 import LoadingButterfly from '@/components/LoadingButterfly';
 import { CustomButton } from '@/components/ui/button';
 import ConfirmationModal from '@/components/ui/confirmation-modal';
+import { ProfilePicture } from '@/components/ui';
 import type { Student } from '@/types/api';
 
 const Students = () => {
     const { user } = useAuth();
-    const { data: students, isLoading, error } = useStudents();
+    const { projectId, centerId, semesterId } = useParams();
+    const { data: students, isLoading, error } = useStudentsBySemester(semesterId!);
     const deleteStudentMutation = useDeleteStudent();
     const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
 
     const isAdmin = user?.role === 'ADMIN';
+
+    // Build the base URL for student routes
+    const baseStudentUrl = `/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/students`;
 
     const handleDeleteStudent = async () => {
         if (!studentToDelete) return;
@@ -48,6 +53,18 @@ const Students = () => {
         return levelMap[level] || level;
     };
 
+    const handlePhoneCall = (phoneNumber: string) => {
+        window.open(`tel:${phoneNumber}`, '_self');
+    };
+
+    const handleWhatsApp = (phoneNumber: string) => {
+        // Format phone number for WhatsApp (remove spaces, dashes, etc.)
+        const cleanNumber = phoneNumber.replace(/[^\d+]/g, '');
+        // Add country code if not present (assuming India +91)
+        const formattedNumber = cleanNumber.startsWith('+') ? cleanNumber : `+91${cleanNumber}`;
+        window.open(`https://wa.me/${formattedNumber.replace('+', '')}`, '_blank');
+    };
+
     if (isLoading) {
         return (
             <div className="flex justify-center items-center min-h-[400px]">
@@ -73,7 +90,7 @@ const Students = () => {
                     <p className="text-gray-600">Manage student information and records</p>
                 </div>
                 {isAdmin && (
-                    <Link to="new">
+                    <Link to={`${baseStudentUrl}/new`}>
                         <CustomButton className="bg-orange-600 hover:bg-orange-700 text-white">
                             <Plus className="w-4 h-4 mr-2" />
                             Add Student
@@ -96,19 +113,13 @@ const Students = () => {
                             <div className="p-6">
                                 {/* Profile Image and Name */}
                                 <div className="flex items-start space-x-4 mb-4">
-                                    <div className="flex-shrink-0">
-                                        {student.profileImageUrl ? (
-                                            <img
-                                                src={student.profileImageUrl}
-                                                alt={student.name}
-                                                className="w-16 h-16 rounded-full object-cover border-2 border-orange-100"
-                                            />
-                                        ) : (
-                                            <div className="w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center">
-                                                <User className="w-8 h-8 text-orange-600" />
-                                            </div>
-                                        )}
-                                    </div>
+                                    <ProfilePicture
+                                        imageUrl={student.profileImageUrl}
+                                        name={student.name}
+                                        size="w-16 h-16"
+                                        colorScheme="orange"
+                                        className="border-2 border-orange-100"
+                                    />
                                     <div className="flex-1 min-w-0">
                                         <h3 className="text-lg font-medium text-gray-900 truncate">
                                             {student.name}
@@ -116,7 +127,7 @@ const Students = () => {
                                         <div className="flex items-center mt-1">
                                             <GraduationCap className="w-4 h-4 text-gray-400 mr-1" />
                                             <span className="text-sm text-gray-600">
-                                                {getLevelDisplay(student.level)}
+                                                {student.level ? getLevelDisplay(student.level) : 'No Level Assigned'}
                                             </span>
                                         </div>
                                     </div>
@@ -130,10 +141,103 @@ const Students = () => {
                                             <span>Born: {formatDate(student.dob)}</span>
                                         </div>
                                     )}
-                                    {student.phoneNumber && (
+                                    {/* Phone Numbers */}
+                                    {(student.phoneNumber || student.whatsappNumber || student.alternateNumber) && (
+                                        <div className="space-y-2">
+                                            {student.phoneNumber && (
+                                            <div className="flex items-center justify-between text-sm text-gray-600">
+                                                <div className="flex items-center">
+                                                    <Phone className="w-4 h-4 mr-2" />
+                                                    <span>Phone: {student.phoneNumber}</span>
+                                                </div>
+                                                <div className="flex space-x-1">
+                                                    <button
+                                                        onClick={() => student.phoneNumber && handlePhoneCall(student.phoneNumber)}
+                                                        className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                                                        title="Call this number"
+                                                    >
+                                                        <Phone className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => student.phoneNumber && handleWhatsApp(student.phoneNumber)}
+                                                        className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                                                        title="WhatsApp this number"
+                                                    >
+                                                        <MessageCircle className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {student.whatsappNumber && (
+                                            <div className="flex items-center justify-between text-sm text-gray-600">
+                                                <div className="flex items-center">
+                                                    <MessageCircle className="w-4 h-4 mr-2" />
+                                                    <span>WhatsApp: {student.whatsappNumber}</span>
+                                                </div>
+                                                <div className="flex space-x-1">
+                                                    <button
+                                                        onClick={() => student.whatsappNumber && handlePhoneCall(student.whatsappNumber)}
+                                                        className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                                                        title="Call this number"
+                                                    >
+                                                        <Phone className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => student.whatsappNumber && handleWhatsApp(student.whatsappNumber)}
+                                                        className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                                                        title="WhatsApp this number"
+                                                    >
+                                                        <MessageCircle className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {student.alternateNumber && (
+                                            <div className="flex items-center justify-between text-sm text-gray-600">
+                                                <div className="flex items-center">
+                                                    <Phone className="w-4 h-4 mr-2" />
+                                                    <span>Alt: {student.alternateNumber}</span>
+                                                </div>
+                                                <div className="flex space-x-1">
+                                                    <button
+                                                        onClick={() => student.alternateNumber && handlePhoneCall(student.alternateNumber)}
+                                                        className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                                                        title="Call this number"
+                                                    >
+                                                        <Phone className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => student.alternateNumber && handleWhatsApp(student.alternateNumber)}
+                                                        className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                                                        title="WhatsApp this number"
+                                                    >
+                                                        <MessageCircle className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        </div>
+                                    )}
+                                    {student.schoolName && (
                                         <div className="flex items-center text-sm text-gray-600">
-                                            <Phone className="w-4 h-4 mr-2" />
-                                            <span>{student.phoneNumber}</span>
+                                            <GraduationCap className="w-4 h-4 mr-2" />
+                                            <span>School: {student.schoolName}</span>
+                                        </div>
+                                    )}
+                                    {(student.fatherName || student.motherName) && (
+                                        <div className="text-sm text-gray-600">
+                                            <div className="flex items-center">
+                                                <User className="w-4 h-4 mr-2" />
+                                                <span>Family:</span>
+                                            </div>
+                                            <div className="ml-6 space-y-1">
+                                                {student.fatherName && (
+                                                    <div>Father: {student.fatherName}</div>
+                                                )}
+                                                {student.motherName && (
+                                                    <div>Mother: {student.motherName}</div>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -142,7 +246,7 @@ const Students = () => {
                                 {isAdmin && (
                                     <div className="flex space-x-2 pt-4 border-t border-gray-100">
                                         <Link
-                                            to={`${student.id}/edit`}
+                                            to={`${baseStudentUrl}/${student.id}/edit`}
                                             className="flex-1"
                                         >
                                             <CustomButton
@@ -173,7 +277,7 @@ const Students = () => {
                     <h3 className="text-lg font-medium text-gray-900 mb-2">No students found</h3>
                     <p className="text-gray-600 mb-4">Get started by adding your first student.</p>
                     {isAdmin && (
-                        <Link to="new">
+                        <Link to={`${baseStudentUrl}/new`}>
                             <CustomButton className="bg-orange-600 hover:bg-orange-700 text-white">
                                 <Plus className="w-4 h-4 mr-2" />
                                 Add Student
