@@ -6,6 +6,8 @@ import toast from "react-hot-toast";
 import { useActiveUsers, useBulkMarkAttendance, useAttendanceRecords } from "@/hooks/useAttendanceQueries";
 import LoadingButterfly from "@/components/LoadingButterfly";
 import { CustomButton } from "@/components/ui/custom-button";
+import { ProfilePicture } from "@/components/ui";
+import type { AttendanceUser } from "@/types/api";
 
 type AttendanceStatus = "PRESENT" | "ABSENT" | "NOT_AVAILABLE" | "HOLIDAY";
 
@@ -49,6 +51,41 @@ export const MarkAttendance = () => {
         return dayOfWeek === 0 || dayOfWeek === 6;
     };
 
+    // Helper function to determine default status based on committed days
+    const getDefaultStatus = (user: AttendanceUser): AttendanceStatus => {
+        if (isHoliday) return "HOLIDAY";
+
+        const roleAssignment = user.roleAssignments?.[0];
+        if (!roleAssignment) return "ABSENT";
+
+        const selectedDateObj = new Date(selectedDate);
+        const dayOfWeek = selectedDateObj.getDay(); // 0 = Sunday, 6 = Saturday
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        const isSaturday = dayOfWeek === 6;
+        const isSunday = dayOfWeek === 0;
+
+        if (!isWeekend) {
+            // Attendance should only be marked on weekends
+            return "NOT_AVAILABLE";
+        }
+
+        const committedDays = roleAssignment.committedDays;
+
+        if (committedDays === "BOTH") {
+            // User committed to both days, default to ABSENT
+            return "ABSENT";
+        } else if (committedDays === "SATURDAY" && isSaturday) {
+            // User committed to Saturday and it's Saturday, default to ABSENT
+            return "ABSENT";
+        } else if (committedDays === "SUNDAY" && isSunday) {
+            // User committed to Sunday and it's Sunday, default to ABSENT
+            return "ABSENT";
+        } else {
+            // User not committed to this day, mark as NOT_AVAILABLE
+            return "NOT_AVAILABLE";
+        }
+    };
+
     // Initialize attendance entries when users load
     useEffect(() => {
         if (activeUsers) {
@@ -56,7 +93,7 @@ export const MarkAttendance = () => {
             activeUsers.forEach((user) => {
                 initialEntries[user.id] = {
                     userId: user.id,
-                    status: isHoliday ? "HOLIDAY" : "ABSENT", // Default to ABSENT instead of PRESENT
+                    status: getDefaultStatus(user),
                 };
             });
 
@@ -91,7 +128,7 @@ export const MarkAttendance = () => {
 
             setAttendanceEntries(initialEntries);
         }
-    }, [activeUsers, isHoliday, existingAttendance]);
+    }, [activeUsers, isHoliday, existingAttendance, selectedDate]);
 
     // Update all users when holiday status changes (only for new entries, not existing data)
     useEffect(() => {
@@ -102,14 +139,14 @@ export const MarkAttendance = () => {
                     if (updated[user.id]) {
                         updated[user.id] = {
                             ...updated[user.id],
-                            status: isHoliday ? "HOLIDAY" : "ABSENT", // Default to ABSENT instead of PRESENT
+                            status: getDefaultStatus(user),
                         };
                     }
                 });
                 return updated;
             });
         }
-    }, [isHoliday, activeUsers, existingAttendance?.attendances?.length]);
+    }, [isHoliday, activeUsers, existingAttendance?.attendances?.length, selectedDate]);
 
     const toggleAttendanceStatus = (userId: string, isPresent: boolean) => {
         if (isHoliday) return; // Prevent changing from holiday when holiday mode is on
@@ -282,73 +319,62 @@ export const MarkAttendance = () => {
                 className="max-w-6xl mx-auto"
             >
                 {/* Header */}
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                <div className="mb-4">
+                    <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
                         Mark Attendance
                     </h1>
-                    <p className="text-gray-600">
-                        Mark attendance for educators and center managers (weekends only)
+                    <p className="text-sm text-gray-600">
+                        Mark attendance for educators and center managers
                     </p>
-                    <p className="text-sm text-gray-500 mt-1">
-                        Check the box for present staff. Absent status is automatically determined based on committed days.
+                    <p className="text-xs text-gray-500 mt-1">
+                        Check the box for present staff. Weekends only.
                     </p>
                 </div>
 
                 {/* Important Notes */}
-                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
                     <div className="flex items-start">
-                        <InfoIcon className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
-                        <div className="ml-3">
-                            <h3 className="text-sm font-semibold text-orange-800 mb-2">
-                                Important Instructions
+                        <InfoIcon className="w-4 h-4 text-orange-600 mt-0.5 flex-shrink-0" />
+                        <div className="ml-2">
+                            <h3 className="text-xs font-semibold text-orange-800 mb-1">
+                                Quick Instructions
                             </h3>
-                            <ul className="text-sm text-orange-700 space-y-1">
-                                <li className="flex items-start">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-orange-600 mt-2 mr-2 flex-shrink-0"></span>
-                                    <span><strong>Only mark people who are present today</strong> - Simply check the box for staff who showed up</span>
-                                </li>
-                                <li className="flex items-start">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-orange-600 mt-2 mr-2 flex-shrink-0"></span>
-                                    <span><strong>Save your attendance after marking</strong> - Don't forget to click "Save Attendance" when done</span>
-                                </li>
-                                <li className="flex items-start">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-orange-600 mt-2 mr-2 flex-shrink-0"></span>
-                                    <span>Use the <strong>holiday option</strong> to mark special non-working days for everyone</span>
-                                </li>
+                            <ul className="text-xs text-orange-700 space-y-0.5">
+                                <li>• <strong>Check</strong> for present staff</li>
+                                <li>• <strong>Save</strong> when done</li>
+                                <li>• Use <strong>holiday</strong> for special days</li>
                             </ul>
                         </div>
                     </div>
                 </div>
 
                 {/* Date Filter and Controls */}
-                <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-end">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                <CalendarIcon className="w-4 h-4 inline mr-1" />
-                                Date (Weekends Only)
-                            </label>
-                            <input
-                                type="date"
-                                value={selectedDate}
-                                onChange={(e) => setSelectedDate(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                                title="Select date to mark attendance"
-                            />
-                            {!isWeekendDate(selectedDate) && (
-                                <p className="mt-1 text-xs text-amber-600 flex items-center">
-                                    <AlertTriangleIcon className="w-3 h-3 mr-1" />
-                                    Attendance is typically marked on weekends (Saturday/Sunday)
-                                </p>
-                            )}
-                        </div>
+                <div className="bg-white rounded-lg shadow-sm border p-3 mb-4">
+                    <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                    <CalendarIcon className="w-3 h-3 inline mr-1" />
+                                    Date
+                                </label>
+                                <input
+                                    type="date"
+                                    value={selectedDate}
+                                    onChange={(e) => setSelectedDate(e.target.value)}
+                                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                />
+                                {!isWeekendDate(selectedDate) && (
+                                    <p className="mt-1 text-xs text-amber-600 flex items-center">
+                                        <AlertTriangleIcon className="w-3 h-3 mr-1" />
+                                        Weekend only
+                                    </p>
+                                )}
+                            </div>
 
-                        {/* Global Holiday Control */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Mark Holiday for All
-                            </label>
-                            <div className="space-y-2">
+                            <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                    Holiday
+                                </label>
                                 <label className="flex items-center">
                                     <input
                                         type="checkbox"
@@ -356,7 +382,7 @@ export const MarkAttendance = () => {
                                         onChange={(e) => setIsHoliday(e.target.checked)}
                                         className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
                                     />
-                                    <span className="ml-2 text-sm text-gray-700">Mark as Holiday</span>
+                                    <span className="ml-2 text-xs text-gray-700">Mark as Holiday</span>
                                 </label>
                                 {isHoliday && (
                                     <input
@@ -364,24 +390,22 @@ export const MarkAttendance = () => {
                                         value={holidayReason}
                                         onChange={(e) => setHolidayReason(e.target.value)}
                                         placeholder="Holiday reason..."
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+                                        className="w-full mt-1 px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500"
                                     />
                                 )}
                             </div>
                         </div>
 
-                        <div>
-                            <CustomButton
-                                onClick={handleSubmitAttendance}
-                                isLoading={bulkMarkAttendanceMutation.isPending}
-                                loadingMessage="Saving attendance..."
-                                className="w-full"
-                                disabled={!activeUsers || activeUsers.length === 0}
-                            >
-                                <SaveIcon className="w-4 h-4 mr-2" />
-                                Save Attendance
-                            </CustomButton>
-                        </div>
+                        <CustomButton
+                            onClick={handleSubmitAttendance}
+                            isLoading={bulkMarkAttendanceMutation.isPending}
+                            loadingMessage="Saving..."
+                            className="w-full h-10"
+                            disabled={!activeUsers || activeUsers.length === 0}
+                        >
+                            <SaveIcon className="w-4 h-4 mr-2" />
+                            Save Attendance
+                        </CustomButton>
                     </div>
                 </div>
 
@@ -414,93 +438,79 @@ export const MarkAttendance = () => {
                                         animate={{ opacity: 1 }}
                                         className="p-4 md:p-6"
                                     >
-                                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between space-y-4 lg:space-y-0 lg:space-x-6">
-                                            {/* User Info */}
-                                            <div className="flex items-center space-x-4 flex-1">
-                                                <div className="flex-shrink-0 h-10 w-10 md:h-12 md:w-12">
-                                                    {user.profileImageUrl ? (
-                                                        <img
-                                                            src={user.profileImageUrl}
-                                                            alt={user.name}
-                                                            className="h-10 w-10 md:h-12 md:w-12 rounded-full object-cover"
-                                                        />
-                                                    ) : (
-                                                        <div className="h-10 w-10 md:h-12 md:w-12 rounded-full bg-orange-100 flex items-center justify-center">
-                                                            <UserIcon className="w-5 h-5 md:w-6 md:h-6 text-orange-600" />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="min-w-0 flex-1">
-                                                    <div className="text-base md:text-lg font-medium text-gray-900 truncate">
+                                        <div className="space-y-3">
+                                            {/* User Info - Full Width */}
+                                            <div className="flex items-center space-x-3">
+                                                <ProfilePicture
+                                                    imageUrl={user.profileImageUrl}
+                                                    name={user.name}
+                                                    size="md"
+                                                    colorScheme="orange"
+                                                />
+                                                <div className="flex-1">
+                                                    <div className="text-sm font-medium text-gray-900">
                                                         {user.name}
                                                     </div>
-                                                    <div className="text-sm text-gray-500 truncate">
-                                                        {user.email}
-                                                    </div>
-                                                    <div className="text-sm text-gray-500 capitalize">
+                                                    <div className="text-xs text-gray-500">
                                                         {user.roleAssignments[0]?.subRole?.replace('_', ' ')}
-                                                        {user.roleAssignments[0]?.level && ` • Level: ${user.roleAssignments[0].level}`}
+                                                        {user.roleAssignments[0]?.level && ` • ${user.roleAssignments[0].level}`}
+                                                    </div>
+                                                    <div className="text-xs text-gray-400">
+                                                        Days: {user.roleAssignments[0]?.committedDays?.replace('_', ' ') || 'Not specified'}
                                                     </div>
                                                 </div>
                                             </div>
 
                                             {/* Attendance Controls */}
-                                            <div className="flex-shrink-0 w-full lg:w-80 space-y-4">
-                                                {/* Present/Absent Checkbox */}
-                                                <div>
-                                                    <label className="flex items-center space-x-3">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center space-x-3">
+                                                    <div className="flex items-center space-x-2">
                                                         <input
                                                             type="checkbox"
                                                             checked={entry?.status === "PRESENT" || entry?.status === "HOLIDAY"}
                                                             onChange={(e) => toggleAttendanceStatus(user.id, e.target.checked)}
                                                             disabled={isHoliday}
-                                                            className="w-5 h-5 rounded border-gray-300 text-orange-600 focus:ring-orange-500 disabled:opacity-50"
+                                                            className="w-4 h-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500 disabled:opacity-50"
                                                         />
-                                                        <div className="flex-1">
-                                                            <span className="text-sm font-medium text-gray-900">
-                                                                {isHoliday ? "Holiday" : "Present"}
-                                                            </span>
-                                                            <div className="text-xs text-gray-500">
-                                                                {isHoliday
-                                                                    ? "Marked as holiday for all Educators/Managers"
-                                                                    : entry?.status === "PRESENT"
-                                                                        ? "Educator/Manager is present"
-                                                                        : entry?.status === "ABSENT"
-                                                                            ? "Absent from committed day"
-                                                                            : "Not available for this day"
-                                                                }
-                                                            </div>
-                                                        </div>
-                                                        {/* Status Badge */}
-                                                        <div className="flex items-center">
-                                                            {getStatusIcon(entry?.status || "ABSENT")}
-                                                            <span className={`ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getStatusBadgeClass(entry?.status || "ABSENT")}`}>
-                                                                {entry?.status?.replace('_', ' ').toLowerCase() || 'absent'}
-                                                            </span>
-                                                        </div>
-                                                    </label>
+                                                        <span className="text-xs font-medium text-gray-900">
+                                                            {isHoliday ? "Holiday" : "Present"}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Status Badge */}
+                                                    <div className="flex items-center space-x-1">
+                                                        {getStatusIcon(entry?.status || "ABSENT")}
+                                                        <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full border ${getStatusBadgeClass(entry?.status || "ABSENT")}`}>
+                                                            {entry?.status?.replace('_', ' ').toLowerCase() || 'absent'}
+                                                        </span>
+                                                    </div>
                                                 </div>
 
-                                                {/* Committed Days Info */}
-                                                <div className="text-xs text-gray-500 bg-gray-50 rounded-md p-2">
-                                                    <span className="font-medium">Committed Days:</span>{" "}
-                                                    {user.roleAssignments[0]?.committedDays?.replace('_', ' ') || 'Not specified'}
-                                                </div>
-
-                                                {/* Notes */}
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                        Notes (Optional)
-                                                    </label>
-                                                    <textarea
-                                                        value={entry?.notes || ''}
-                                                        onChange={(e) => updateAttendanceNotes(user.id, e.target.value)}
-                                                        placeholder="Add any notes..."
-                                                        rows={2}
-                                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none text-sm"
-                                                    />
-                                                </div>
+                                                {/* Notes Toggle */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const notesSection = document.getElementById(`notes-${user.id}`);
+                                                        if (notesSection) {
+                                                            notesSection.style.display = notesSection.style.display === 'none' ? 'block' : 'none';
+                                                        }
+                                                    }}
+                                                    className="text-xs text-orange-600 hover:text-orange-800 font-medium"
+                                                >
+                                                    Notes
+                                                </button>
                                             </div>
+                                        </div>
+
+                                        {/* Collapsible Notes Section */}
+                                        <div id={`notes-${user.id}`} style={{ display: 'none' }} className="mt-3 pt-3 border-t border-gray-100">
+                                            <textarea
+                                                value={entry?.notes || ''}
+                                                onChange={(e) => updateAttendanceNotes(user.id, e.target.value)}
+                                                placeholder="Add notes..."
+                                                rows={2}
+                                                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500 resize-none"
+                                            />
                                         </div>
                                     </motion.div>
                                 );

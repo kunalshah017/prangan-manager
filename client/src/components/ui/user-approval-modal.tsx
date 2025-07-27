@@ -5,6 +5,7 @@ import { buttonVariants } from '@/lib/button-variants';
 import RoleAssignmentForm from './role-assignment-form';
 import RejectionReasonModal from './rejection-reason-modal';
 import { CustomButton } from './custom-button';
+import { ProfilePicture } from './profile-picture';
 import type { User as UserType, RoleAssignment } from '@/types/api';
 
 interface UserApprovalModalProps {
@@ -107,17 +108,14 @@ const UserApprovalModal: React.FC<UserApprovalModalProps> = ({
                         <h3 className="text-lg font-medium text-gray-900 mb-4">User Information</h3>
                         <div className="bg-gray-50 rounded-lg p-4">
                             {/* Profile Image Section */}
-                            {user.profileImageUrl && (
-                                <div className="mb-4 flex justify-center">
-                                    <div className="w-24 h-24 bg-gray-200 rounded-full overflow-hidden">
-                                        <img
-                                            src={user.profileImageUrl}
-                                            alt={user.name}
-                                            className="w-full h-full object-cover"
-                                        />
-                                    </div>
-                                </div>
-                            )}
+                            <div className="mb-4 flex justify-center">
+                                <ProfilePicture
+                                    imageUrl={user.profileImageUrl}
+                                    name={user.name}
+                                    size="w-24 h-24"
+                                    colorScheme="orange"
+                                />
+                            </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>

@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import DoodleBackground from '@/components/DoodleBackground';
 import LoadingButterfly from '@/components/LoadingButterfly';
 import UserApprovalModal from '@/components/ui/user-approval-modal';
+import { ProfilePicture } from '@/components/ui';
 import { useRegistrationRequests, useVerifyUser } from '@/hooks/useUserQueries';
 import type { User, RoleAssignment } from '@/types/api';
 
@@ -151,31 +152,12 @@ const RegistrationRequests = () => {
                                     >
                                         <div className="flex items-center gap-3 flex-1">
                                             {/* Profile Image */}
-                                            <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
-                                                {request.profileImageUrl ? (
-                                                    <img
-                                                        src={request.profileImageUrl}
-                                                        alt={request.name}
-                                                        className="w-full h-full object-cover"
-                                                        onError={(e) => {
-                                                            const target = e.target as HTMLImageElement;
-                                                            target.style.display = 'none';
-                                                            const fallback = target.nextElementSibling as HTMLElement;
-                                                            if (fallback) {
-                                                                fallback.style.display = 'flex';
-                                                            }
-                                                        }}
-                                                    />
-                                                ) : null}
-                                                <div className={cn(
-                                                    "w-full h-full bg-orange-100 flex items-center justify-center",
-                                                    request.profileImageUrl ? "hidden" : "flex"
-                                                )}>
-                                                    <span className="text-orange-600 font-medium text-lg">
-                                                        {request.name.charAt(0).toUpperCase()}
-                                                    </span>
-                                                </div>
-                                            </div>
+                                            <ProfilePicture
+                                                imageUrl={request.profileImageUrl}
+                                                name={request.name}
+                                                size="xl"
+                                                colorScheme="orange"
+                                            />
 
                                             <div className="flex-1 min-w-0">
                                                 <div className="font-medium text-gray-900 truncate">{request.name}</div>
@@ -280,31 +262,12 @@ const RegistrationRequests = () => {
                                                     <td className="px-4 py-4">
                                                         <div className="flex items-center gap-3">
                                                             {/* Profile Image */}
-                                                            <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
-                                                                {request.profileImageUrl ? (
-                                                                    <img
-                                                                        src={request.profileImageUrl}
-                                                                        alt={request.name}
-                                                                        className="w-full h-full object-cover"
-                                                                        onError={(e) => {
-                                                                            const target = e.target as HTMLImageElement;
-                                                                            target.style.display = 'none';
-                                                                            const fallback = target.nextElementSibling as HTMLElement;
-                                                                            if (fallback) {
-                                                                                fallback.style.display = 'flex';
-                                                                            }
-                                                                        }}
-                                                                    />
-                                                                ) : null}
-                                                                <div className={cn(
-                                                                    "w-full h-full bg-orange-100 flex items-center justify-center text-sm",
-                                                                    request.profileImageUrl ? "hidden" : "flex"
-                                                                )}>
-                                                                    <span className="text-orange-600 font-medium">
-                                                                        {request.name.charAt(0).toUpperCase()}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
+                                                            <ProfilePicture
+                                                                imageUrl={request.profileImageUrl}
+                                                                name={request.name}
+                                                                size="lg"
+                                                                colorScheme="orange"
+                                                            />
 
                                                             <div className="min-w-0 flex-1">
                                                                 <div className="font-medium text-gray-900 truncate">{request.name}</div>

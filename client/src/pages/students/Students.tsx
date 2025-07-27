@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useParams } from 'react-router-dom';
-import { Plus, Edit, Trash2, User, Calendar, Phone, GraduationCap } from 'lucide-react';
+import { Plus, Edit, Trash2, User, Calendar, Phone, GraduationCap, MessageCircle } from 'lucide-react';
 import { useStudentsBySemester, useDeleteStudent } from '@/hooks/useStudentQueries';
 import { useAuth } from '@/hooks/useAuth';
 import LoadingButterfly from '@/components/LoadingButterfly';
 import { CustomButton } from '@/components/ui/button';
 import ConfirmationModal from '@/components/ui/confirmation-modal';
+import { ProfilePicture } from '@/components/ui';
 import type { Student } from '@/types/api';
 
 const Students = () => {
@@ -50,6 +51,18 @@ const Students = () => {
             'PRIMARY_B': 'Primary B'
         };
         return levelMap[level] || level;
+    };
+
+    const handlePhoneCall = (phoneNumber: string) => {
+        window.open(`tel:${phoneNumber}`, '_self');
+    };
+
+    const handleWhatsApp = (phoneNumber: string) => {
+        // Format phone number for WhatsApp (remove spaces, dashes, etc.)
+        const cleanNumber = phoneNumber.replace(/[^\d+]/g, '');
+        // Add country code if not present (assuming India +91)
+        const formattedNumber = cleanNumber.startsWith('+') ? cleanNumber : `+91${cleanNumber}`;
+        window.open(`https://wa.me/${formattedNumber.replace('+', '')}`, '_blank');
     };
 
     if (isLoading) {
@@ -100,19 +113,13 @@ const Students = () => {
                             <div className="p-6">
                                 {/* Profile Image and Name */}
                                 <div className="flex items-start space-x-4 mb-4">
-                                    <div className="flex-shrink-0">
-                                        {student.profileImageUrl ? (
-                                            <img
-                                                src={student.profileImageUrl}
-                                                alt={student.name}
-                                                className="w-16 h-16 rounded-full object-cover border-2 border-orange-100"
-                                            />
-                                        ) : (
-                                            <div className="w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center">
-                                                <User className="w-8 h-8 text-orange-600" />
-                                            </div>
-                                        )}
-                                    </div>
+                                    <ProfilePicture
+                                        imageUrl={student.profileImageUrl}
+                                        name={student.name}
+                                        size="w-16 h-16"
+                                        colorScheme="orange"
+                                        className="border-2 border-orange-100"
+                                    />
                                     <div className="flex-1 min-w-0">
                                         <h3 className="text-lg font-medium text-gray-900 truncate">
                                             {student.name}
@@ -134,10 +141,81 @@ const Students = () => {
                                             <span>Born: {formatDate(student.dob)}</span>
                                         </div>
                                     )}
-                                    {student.phoneNumber && (
-                                        <div className="flex items-center text-sm text-gray-600">
-                                            <Phone className="w-4 h-4 mr-2" />
-                                            <span>{student.phoneNumber}</span>
+                                    {/* Phone Numbers */}
+                                    {(student.phoneNumber || student.whatsappNumber || student.alternateNumber) && (
+                                        <div className="space-y-2">
+                                            {student.phoneNumber && (
+                                            <div className="flex items-center justify-between text-sm text-gray-600">
+                                                <div className="flex items-center">
+                                                    <Phone className="w-4 h-4 mr-2" />
+                                                    <span>Phone: {student.phoneNumber}</span>
+                                                </div>
+                                                <div className="flex space-x-1">
+                                                    <button
+                                                        onClick={() => student.phoneNumber && handlePhoneCall(student.phoneNumber)}
+                                                        className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                                                        title="Call this number"
+                                                    >
+                                                        <Phone className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => student.phoneNumber && handleWhatsApp(student.phoneNumber)}
+                                                        className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                                                        title="WhatsApp this number"
+                                                    >
+                                                        <MessageCircle className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {student.whatsappNumber && (
+                                            <div className="flex items-center justify-between text-sm text-gray-600">
+                                                <div className="flex items-center">
+                                                    <MessageCircle className="w-4 h-4 mr-2" />
+                                                    <span>WhatsApp: {student.whatsappNumber}</span>
+                                                </div>
+                                                <div className="flex space-x-1">
+                                                    <button
+                                                        onClick={() => student.whatsappNumber && handlePhoneCall(student.whatsappNumber)}
+                                                        className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                                                        title="Call this number"
+                                                    >
+                                                        <Phone className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => student.whatsappNumber && handleWhatsApp(student.whatsappNumber)}
+                                                        className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                                                        title="WhatsApp this number"
+                                                    >
+                                                        <MessageCircle className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {student.alternateNumber && (
+                                            <div className="flex items-center justify-between text-sm text-gray-600">
+                                                <div className="flex items-center">
+                                                    <Phone className="w-4 h-4 mr-2" />
+                                                    <span>Alt: {student.alternateNumber}</span>
+                                                </div>
+                                                <div className="flex space-x-1">
+                                                    <button
+                                                        onClick={() => student.alternateNumber && handlePhoneCall(student.alternateNumber)}
+                                                        className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                                                        title="Call this number"
+                                                    >
+                                                        <Phone className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => student.alternateNumber && handleWhatsApp(student.alternateNumber)}
+                                                        className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                                                        title="WhatsApp this number"
+                                                    >
+                                                        <MessageCircle className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
                                         </div>
                                     )}
                                     {student.schoolName && (

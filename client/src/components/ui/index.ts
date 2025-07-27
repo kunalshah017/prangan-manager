@@ -6,3 +6,4 @@ export { Button } from "./button";
 export { default as ImageUpload } from "./image-upload";
 export { default as RoleAssignmentForm } from "./role-assignment-form";
 export { default as UserApprovalModal } from "./user-approval-modal";
+export { ProfilePicture } from "./profile-picture";
