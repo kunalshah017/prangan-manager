@@ -7,6 +7,7 @@ import DoodleBackground from '@/components/DoodleBackground'
 import LoadingButterfly from '@/components/LoadingButterfly'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import PublicRoute from '@/components/PublicRoute'
+import PWAInstallPrompt from '@/components/PWAInstallPrompt'
 import { queryClient } from '@/lib/query-client'
 import { initializeAuth } from '@/stores/authStore'
 
@@ -142,6 +143,9 @@ function App() {
           },
         }}
       />
+
+      {/* PWA Install Prompt */}
+      <PWAInstallPrompt />
 
       {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
