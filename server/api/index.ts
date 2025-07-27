@@ -6,6 +6,8 @@ import { userRoutes } from "../routes/user.route.js";
 import { projectRoutes } from "../routes/project.routes.js";
 import { centerRoutes } from "../routes/center.routes.js";
 import { semesterRoutes } from "../routes/semester.routes.js";
+import attendanceRoutes from "../routes/attendance.routes.js";
+import studentAttendanceRoutes from "../routes/student-attendance.routes.js";
 
 // Load environment variables
 dotenv.config();
@@ -43,6 +45,10 @@ async function createFastifyInstance(): Promise<FastifyInstance> {
   await fastify.register(projectRoutes, { prefix: "/api/v1" });
   await fastify.register(centerRoutes, { prefix: "/api/v1" });
   await fastify.register(semesterRoutes, { prefix: "/api/v1" });
+  await fastify.register(attendanceRoutes, { prefix: "/api/v1/attendance" });
+  await fastify.register(studentAttendanceRoutes, {
+    prefix: "/api/v1/student-attendance",
+  });
 
   await fastify.ready();
   fastifyInstance = fastify;
