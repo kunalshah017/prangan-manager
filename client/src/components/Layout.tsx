@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import BreadcrumbNavigation from '@/components/BreadcrumbNavigation';
+import PWAInstallButton from '@/components/PWAInstallButton';
 import { ProfilePicture } from '@/components/ui';
 
 
@@ -92,8 +93,9 @@ const Layout: React.FC = () => {
                         </Link>
                     </nav>
 
-                    {/* User Menu */}
-                    <div className="ml-auto flex items-center space-x-4" ref={userMenuRef}>
+                    {/* PWA Install Button & User Menu */}
+                    <div className="ml-auto flex items-center space-x-2" ref={userMenuRef}>
+                        <PWAInstallButton />
                         <div className="relative">
                             <button
                                 onClick={() => setUserMenuOpen(!userMenuOpen)}
@@ -228,6 +230,9 @@ const Layout: React.FC = () => {
                                         <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
                                         <p className="text-xs text-muted-foreground truncate">{user?.email || ''}</p>
                                     </div>
+                                </div>
+                                <div className="mb-3">
+                                    <PWAInstallButton />
                                 </div>
                                 <div className="space-y-1">
                                     <Link
