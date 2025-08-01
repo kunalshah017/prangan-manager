@@ -36,6 +36,7 @@ const MarkAttendance = lazy(() => import('./pages/attendance/MarkAttendance').th
 const ViewStudentAttendance = lazy(() => import('./pages/student-attendance/ViewStudentAttendance').then(module => ({ default: module.ViewStudentAttendance })))
 const MarkStudentAttendance = lazy(() => import('./pages/student-attendance/MarkStudentAttendance').then(module => ({ default: module.MarkStudentAttendance })))
 const RegistrationRequests = lazy(() => import('./pages/RegistrationRequests'))
+const Profile = lazy(() => import('./pages/Profile'))
 
 // Loading fallback component
 const PageLoading = () => (
@@ -81,19 +82,73 @@ function App() {
               <Route path=":projectId/centers/:centerId/semesters/new" element={<CreateSemester />} />
               <Route path=":projectId/centers/:centerId/semesters/:id/edit" element={<EditSemester />} />
               <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard" element={<Dashboard />} />
-              <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/students" element={<Students />} />
-              <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/students/new" element={<CreateStudent />} />
-              <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/students/:id/edit" element={<EditStudent />} />
-              <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/attendance/view" element={<ViewAttendance />} />
-              <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/attendance/mark" element={<MarkAttendance />} />
-              <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/student-attendance/view" element={<ViewStudentAttendance />} />
-              <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/student-attendance/mark" element={<MarkStudentAttendance />} />
+              <Route
+                path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/students"
+                element={
+                  <ProtectedRoute allowAll={true}>
+                    <Students />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/students/new"
+                element={
+                  <ProtectedRoute allowedSubRoles={['CENTER_MANAGER']}>
+                    <CreateStudent />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/students/:id/edit"
+                element={
+                  <ProtectedRoute allowedSubRoles={['CENTER_MANAGER']}>
+                    <EditStudent />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/attendance/view" element={
+                <ProtectedRoute allowedSubRoles={['CENTER_MANAGER']}>
+                  <ViewAttendance />
+                </ProtectedRoute>
+              } />
+              <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/attendance/mark" element={
+                <ProtectedRoute allowedSubRoles={['CENTER_MANAGER']}>
+                  <MarkAttendance />
+                </ProtectedRoute>
+              } />
+              <Route
+                path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/student-attendance/view"
+                element={
+                  <ProtectedRoute allowedSubRoles={['EDUCATOR', 'CENTER_MANAGER']}>
+                    <ViewStudentAttendance />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/student-attendance/mark"
+                element={
+                  <ProtectedRoute allowedSubRoles={['EDUCATOR', 'CENTER_MANAGER']}>
+                    <MarkStudentAttendance />
+                  </ProtectedRoute>
+                }
+              />
+            </Route>
+
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<Profile />} />
             </Route>
 
             <Route
               path="/registration-requests"
               element={
-                <ProtectedRoute adminOnly>
+                <ProtectedRoute requireAdmin>
                   <Layout />
                 </ProtectedRoute>
               }

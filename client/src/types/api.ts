@@ -12,6 +12,29 @@ export interface User {
   profileImageUrl?: string;
   createdAt: string;
   updatedAt: string;
+  roleAssignments?: {
+    id: string;
+    subRole:
+      | "TRAINING_DEVELOPMENT"
+      | "RECRUITMENT"
+      | "GROWTH_DEVELOPMENT"
+      | "CURRICULUM_MENTOR"
+      | "TECH"
+      | "CENTER_MANAGER"
+      | "EDUCATOR";
+    projectId?: string;
+    centerId?: string;
+    semesterId?: string;
+    level?:
+      | "LEVEL_1"
+      | "LEVEL_2"
+      | "LEVEL_3"
+      | "LEVEL_4"
+      | "PRIMARY_A"
+      | "PRIMARY_B";
+    committedDays?: "SATURDAY" | "SUNDAY" | "BOTH";
+    isActive: boolean;
+  }[];
 }
 
 export interface Project {

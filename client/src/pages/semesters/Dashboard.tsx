@@ -7,7 +7,7 @@ import { useSemester } from '@/hooks/useSemesterQueries';
 import { useCenter } from '@/hooks/useCenterQueries';
 import { useStudentsBySemester } from '@/hooks/useStudentQueries';
 import type { Student } from '@/types/api';
-import { useAuth } from '@/hooks/useAuth';
+import ProtectedComponent from '@/components/ProtectedComponent';
 
 const Dashboard = () => {
     const { projectId, centerId, semesterId } = useParams<{
@@ -15,7 +15,6 @@ const Dashboard = () => {
         centerId: string;
         semesterId: string;
     }>();
-    const { isAdmin } = useAuth();
     const navigate = useNavigate();
 
     // Fetch semester, center, and students data
@@ -190,63 +189,67 @@ const Dashboard = () => {
                             <Users className="h-5 w-5" />
                             <span className="text-xs font-medium">Manage Students</span>
                         </button>
-                        
-                        <button
-                            onClick={handleAddStudent}
-                            className="flex flex-col items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white rounded-lg p-4 h-20 transition-colors"
-                        >
-                            <UserPlus className="h-5 w-5" />
-                            <span className="text-xs font-medium">Add Student</span>
-                        </button>
+
+                        <ProtectedComponent allowedSubRoles={['CENTER_MANAGER']}>
+                            <button
+                                onClick={handleAddStudent}
+                                className="flex flex-col items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white rounded-lg p-4 h-20 transition-colors"
+                            >
+                                <UserPlus className="h-5 w-5" />
+                                <span className="text-xs font-medium">Add Student</span>
+                            </button>
+                        </ProtectedComponent>
                     </div>
                 </div>
 
-                {/* Staff Attendance */}
-                <div className="space-y-3">
-                    <h2 className="text-sm font-medium text-gray-700 px-1">Educators / Center Manager Attendance</h2>
-                    <div className="grid grid-cols-2 gap-3">
-                        <button
-                            onClick={handleMarkAttendance}
-                            className="flex flex-col items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg p-4 h-20 transition-colors"
-                        >
-                            <CalendarCheck className="h-5 w-5" />
-                            <span className="text-xs font-medium">Mark Attendance</span>
-                        </button>
-                        
-                        <button
-                            onClick={handleViewAttendance}
-                            className="flex flex-col items-center justify-center gap-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg p-4 h-20 transition-colors"
-                        >
-                            <ClipboardList className="h-5 w-5" />
-                            <span className="text-xs font-medium">View Attendance</span>
-                        </button>
+                {/* Educator / Center Manager Attendance */}
+                <ProtectedComponent allowedSubRoles={['CENTER_MANAGER']}>
+                    <div className="space-y-3">
+                        <h2 className="text-sm font-medium text-gray-700 px-1">Educators / Center Manager Attendance</h2>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                onClick={handleMarkAttendance}
+                                className="flex flex-col items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg p-4 h-20 transition-colors"
+                            >
+                                <CalendarCheck className="h-5 w-5" />
+                                <span className="text-xs font-medium">Mark Attendance</span>
+                            </button>
+
+                            <button
+                                onClick={handleViewAttendance}
+                                className="flex flex-col items-center justify-center gap-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg p-4 h-20 transition-colors"
+                            >
+                                <ClipboardList className="h-5 w-5" />
+                                <span className="text-xs font-medium">View Attendance</span>
+                            </button>
+                        </div>
                     </div>
-                </div>
+                </ProtectedComponent>
 
                 {/* Student Attendance */}
-                <div className="space-y-3">
-                    <h2 className="text-sm font-medium text-gray-700 px-1">Student Attendance</h2>
-                    <div className="grid grid-cols-2 gap-3">
-                        <button
-                            onClick={handleMarkStudentAttendance}
-                            className="flex flex-col items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg p-4 h-20 transition-colors"
-                        >
-                            <CalendarCheck className="h-5 w-5" />
-                            <span className="text-xs font-medium">Mark Student Attendance</span>
-                        </button>
-                        
-                        <button
-                            onClick={handleViewStudentAttendance}
-                            className="flex flex-col items-center justify-center gap-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg p-4 h-20 transition-colors"
-                        >
-                            <ClipboardList className="h-5 w-5" />
-                            <span className="text-xs font-medium">View Student Attendance</span>
-                        </button>
-                    </div>
-                </div>
+                <ProtectedComponent requireAdmin>
+                    <div className="space-y-3">
+                        <h2 className="text-sm font-medium text-gray-700 px-1">Student Attendance</h2>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                onClick={handleMarkStudentAttendance}
+                                className="flex flex-col items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg p-4 h-20 transition-colors"
+                            >
+                                <CalendarCheck className="h-5 w-5" />
+                                <span className="text-xs font-medium">Mark Student Attendance</span>
+                            </button>
 
-                {/* Admin Functions */}
-                {isAdmin() && (
+                            <button
+                                onClick={handleViewStudentAttendance}
+                                className="flex flex-col items-center justify-center gap-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg p-4 h-20 transition-colors"
+                            >
+                                <ClipboardList className="h-5 w-5" />
+                                <span className="text-xs font-medium">View Student Attendance</span>
+                            </button>
+                        </div>
+                    </div>
+                </ProtectedComponent>                {/* Admin Functions */}
+                <ProtectedComponent requireAdmin>
                     <div className="space-y-3">
                         <h2 className="text-sm font-medium text-gray-700 px-1">Admin Functions</h2>
                         <div className="grid grid-cols-1 gap-3">
@@ -259,7 +262,7 @@ const Dashboard = () => {
                             </button>
                         </div>
                     </div>
-                )}
+                </ProtectedComponent>
 
                 {/* Students by Level */}
                 {Object.keys(studentsByLevel).length > 0 && (
@@ -283,24 +286,38 @@ const Dashboard = () => {
                 )}
 
                 {/* Empty State */}
-                {totalStudents === 0 && (
-                    <div className="mx-4 sm:mx-0">
-                        <div className="bg-white/90 backdrop-blur-sm rounded-lg border p-6 text-center">
-                            <Users className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                            <h3 className="text-sm font-medium text-gray-900 mb-2">No Students Yet</h3>
-                            <p className="text-xs text-gray-600 mb-4">
-                                Get started by adding your first student.
-                            </p>
-                            <button
-                                onClick={handleAddStudent}
-                                className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                            >
-                                <UserPlus className="h-4 w-4 inline mr-1" />
-                                Add First Student
-                            </button>
+                <ProtectedComponent allowedSubRoles={['EDUCATOR', 'CENTER_MANAGER']} fallback={
+                    totalStudents === 0 ? (
+                        <div className="mx-4 sm:mx-0">
+                            <div className="bg-white/90 backdrop-blur-sm rounded-lg border p-6 text-center">
+                                <Users className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                                <h3 className="text-sm font-medium text-gray-900 mb-2">No Students Yet</h3>
+                                <p className="text-xs text-gray-600">
+                                    Contact an administrator to add students.
+                                </p>
+                            </div>
                         </div>
-                    </div>
-                )}
+                    ) : null
+                }>
+                    {totalStudents === 0 && (
+                        <div className="mx-4 sm:mx-0">
+                            <div className="bg-white/90 backdrop-blur-sm rounded-lg border p-6 text-center">
+                                <Users className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                                <h3 className="text-sm font-medium text-gray-900 mb-2">No Students Yet</h3>
+                                <p className="text-xs text-gray-600 mb-4">
+                                    Get started by adding your first student.
+                                </p>
+                                <button
+                                    onClick={handleAddStudent}
+                                    className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                                >
+                                    <UserPlus className="h-4 w-4 inline mr-1" />
+                                    Add First Student
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </ProtectedComponent>
             </div>
         </>
     );

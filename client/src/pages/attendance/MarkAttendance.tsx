@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { CalendarIcon, UserIcon, CheckIcon, XIcon, SaveIcon, AlertTriangleIcon, InfoIcon } from "lucide-react";
 import toast from "react-hot-toast";
 import { useActiveUsers, useBulkMarkAttendance, useAttendanceRecords } from "@/hooks/useAttendanceQueries";
+import { useAuth } from "@/hooks/useAuth";
 import LoadingButterfly from "@/components/LoadingButterfly";
 import { CustomButton } from "@/components/ui/custom-button";
 import { ProfilePicture } from "@/components/ui";
@@ -19,12 +20,40 @@ interface AttendanceEntry {
 
 export const MarkAttendance = () => {
     const { projectId, centerId, semesterId } = useParams();
-    const [selectedDate, setSelectedDate] = useState<string>(
-        new Date().toISOString().split('T')[0]
-    );
+    const { user } = useAuth();
+
+    // Check if the current user is an Educator or Center Manager
+    const isEducatorOrCenterManager = user?.roleAssignments?.some(
+        assignment =>
+            assignment.isActive &&
+            (assignment.subRole === "EDUCATOR" || assignment.subRole === "CENTER_MANAGER")
+    ) || false;
+
+    // Function to find the nearest weekend date (Saturday or Sunday)
+    const getNearestWeekend = () => {
+        const today = new Date('2025-08-04');
+        const dayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
+
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+            // Already a weekend, return today
+            return today.toISOString().split('T')[0];
+        }
+
+        // Calculate days until Saturday
+        const daysUntilSaturday = 6 - dayOfWeek;
+
+        // Choose the next weekend (Saturday or Sunday)
+        const nearestWeekendDate = new Date(today);
+        nearestWeekendDate.setDate(today.getDate() + daysUntilSaturday);
+
+        return nearestWeekendDate.toISOString().split('T')[0];
+    };
+
+    const [selectedDate, setSelectedDate] = useState<string>(getNearestWeekend());
     const [attendanceEntries, setAttendanceEntries] = useState<Record<string, AttendanceEntry>>({});
     const [isHoliday, setIsHoliday] = useState<boolean>(false);
     const [holidayReason, setHolidayReason] = useState<string>("");
+    const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
 
     const { data: activeUsers, isLoading, error } = useActiveUsers(
         selectedDate,
@@ -51,49 +80,49 @@ export const MarkAttendance = () => {
         return dayOfWeek === 0 || dayOfWeek === 6;
     };
 
-    // Helper function to determine default status based on committed days
-    const getDefaultStatus = (user: AttendanceUser): AttendanceStatus => {
-        if (isHoliday) return "HOLIDAY";
-
-        const roleAssignment = user.roleAssignments?.[0];
-        if (!roleAssignment) return "ABSENT";
-
-        const selectedDateObj = new Date(selectedDate);
-        const dayOfWeek = selectedDateObj.getDay(); // 0 = Sunday, 6 = Saturday
-        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-        const isSaturday = dayOfWeek === 6;
-        const isSunday = dayOfWeek === 0;
-
-        if (!isWeekend) {
-            // Attendance should only be marked on weekends
-            return "NOT_AVAILABLE";
-        }
-
-        const committedDays = roleAssignment.committedDays;
-
-        if (committedDays === "BOTH") {
-            // User committed to both days, default to ABSENT
-            return "ABSENT";
-        } else if (committedDays === "SATURDAY" && isSaturday) {
-            // User committed to Saturday and it's Saturday, default to ABSENT
-            return "ABSENT";
-        } else if (committedDays === "SUNDAY" && isSunday) {
-            // User committed to Sunday and it's Sunday, default to ABSENT
-            return "ABSENT";
-        } else {
-            // User not committed to this day, mark as NOT_AVAILABLE
-            return "NOT_AVAILABLE";
-        }
-    };
-
     // Initialize attendance entries when users load
     useEffect(() => {
         if (activeUsers) {
+            const getInitialStatus = (user: AttendanceUser): AttendanceStatus => {
+                const roleAssignment = user.roleAssignments?.[0];
+                if (!roleAssignment) return "ABSENT";
+
+                const selectedDateObj = new Date(selectedDate);
+                const dayOfWeek = selectedDateObj.getDay(); // 0 = Sunday, 6 = Saturday
+                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                const isSaturday = dayOfWeek === 6;
+                const isSunday = dayOfWeek === 0;
+
+                if (!isWeekend) {
+                    // Attendance should only be marked on weekends
+                    return "NOT_AVAILABLE";
+                }
+
+                const committedDays = roleAssignment.committedDays;
+
+                if (committedDays === "BOTH") {
+                    // User committed to both days, default to ABSENT
+                    return "ABSENT";
+                } else if (committedDays === "SATURDAY" && isSaturday) {
+                    // User committed to Saturday and it's Saturday, default to ABSENT
+                    return "ABSENT";
+                } else if (committedDays === "SUNDAY" && isSunday) {
+                    // User committed to Sunday and it's Sunday, default to ABSENT
+                    return "ABSENT";
+                } else {
+                    // User not committed to this day, mark as NOT_AVAILABLE
+                    return "NOT_AVAILABLE";
+                }
+            };
+
             const initialEntries: Record<string, AttendanceEntry> = {};
+            let hasExistingHoliday = false;
+            let existingHolidayReason = "";
+
             activeUsers.forEach((user) => {
                 initialEntries[user.id] = {
                     userId: user.id,
-                    status: getDefaultStatus(user),
+                    status: getInitialStatus(user),
                 };
             });
 
@@ -115,42 +144,93 @@ export const MarkAttendance = () => {
                     }
                 });
 
-                // If there are existing holiday records, set global holiday state
+                // Check for existing holiday records
                 const hasHolidayRecord = existingAttendance.attendances.some(record => record.status === "HOLIDAY");
                 if (hasHolidayRecord) {
-                    setIsHoliday(true);
+                    hasExistingHoliday = true;
                     const holidayRecord = existingAttendance.attendances.find(record => record.status === "HOLIDAY");
                     if (holidayRecord?.holidayReason) {
-                        setHolidayReason(holidayRecord.holidayReason);
+                        existingHolidayReason = holidayRecord.holidayReason;
                     }
                 }
             }
 
             setAttendanceEntries(initialEntries);
-        }
-    }, [activeUsers, isHoliday, existingAttendance, selectedDate]);
 
-    // Update all users when holiday status changes (only for new entries, not existing data)
-    useEffect(() => {
-        if (activeUsers && !existingAttendance?.attendances?.length) {
+            // Set holiday state only if we found existing holiday records
+            if (hasExistingHoliday && !isHoliday) {
+                setIsHoliday(true);
+                setHolidayReason(existingHolidayReason);
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeUsers, existingAttendance, selectedDate]);
+
+    // Handle holiday toggle
+    const handleHolidayToggle = (checked: boolean) => {
+        setIsHoliday(checked);
+
+        if (!checked) {
+            setHolidayReason("");
+        }
+
+        // Update attendance entries based on holiday state
+        if (activeUsers && attendanceEntries) {
             setAttendanceEntries(prev => {
                 const updated = { ...prev };
+
                 activeUsers.forEach((user) => {
-                    if (updated[user.id]) {
+                    const entry = updated[user.id];
+                    if (!entry) return;
+
+                    if (checked) {
+                        // Set all to HOLIDAY
                         updated[user.id] = {
-                            ...updated[user.id],
-                            status: getDefaultStatus(user),
+                            ...entry,
+                            status: "HOLIDAY",
                         };
+                    } else if (entry.status === "HOLIDAY") {
+                        // Reset HOLIDAY entries to default status
+                        const roleAssignment = user.roleAssignments?.[0];
+                        if (roleAssignment) {
+                            const selectedDateObj = new Date(selectedDate);
+                            const dayOfWeek = selectedDateObj.getDay(); // 0 = Sunday, 6 = Saturday
+                            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                            const isSaturday = dayOfWeek === 6;
+                            const isSunday = dayOfWeek === 0;
+
+                            let defaultStatus: AttendanceStatus = "ABSENT";
+
+                            if (!isWeekend) {
+                                defaultStatus = "NOT_AVAILABLE";
+                            } else {
+                                const committedDays = roleAssignment.committedDays;
+
+                                if (committedDays === "BOTH") {
+                                    defaultStatus = "ABSENT";
+                                } else if (committedDays === "SATURDAY" && isSaturday) {
+                                    defaultStatus = "ABSENT";
+                                } else if (committedDays === "SUNDAY" && isSunday) {
+                                    defaultStatus = "ABSENT";
+                                } else {
+                                    defaultStatus = "NOT_AVAILABLE";
+                                }
+                            }
+
+                            updated[user.id] = {
+                                ...entry,
+                                status: defaultStatus,
+                            };
+                        }
                     }
                 });
+
                 return updated;
             });
         }
-    }, [isHoliday, activeUsers, existingAttendance?.attendances?.length, selectedDate]);
+    };
 
     const toggleAttendanceStatus = (userId: string, isPresent: boolean) => {
-        if (isHoliday) return; // Prevent changing from holiday when holiday mode is on
-
         const user = activeUsers?.find(u => u.id === userId);
         const roleAssignment = user?.roleAssignments?.[0];
 
@@ -158,7 +238,11 @@ export const MarkAttendance = () => {
 
         let status: AttendanceStatus;
 
-        if (isPresent) {
+        // If holiday mode is on and user is trying to check (mark present), 
+        // keep it as HOLIDAY. If unchecking, allow it to change status.
+        if (isHoliday && isPresent) {
+            status = "HOLIDAY";
+        } else if (isPresent) {
             status = "PRESENT";
         } else {
             // Determine if user should be marked as ABSENT or NOT_AVAILABLE
@@ -327,7 +411,7 @@ export const MarkAttendance = () => {
                         Mark attendance for educators and center managers
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
-                        Check the box for present staff. Weekends only.
+                        Check the box for present Educators / Center Managers. Weekends only.
                     </p>
                 </div>
 
@@ -351,18 +435,32 @@ export const MarkAttendance = () => {
                 {/* Date Filter and Controls */}
                 <div className="bg-white rounded-lg shadow-sm border p-3 mb-4">
                     <div className="space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 gap-3">
                             <div>
                                 <label className="block text-xs font-medium text-gray-700 mb-1">
                                     <CalendarIcon className="w-3 h-3 inline mr-1" />
                                     Date
                                 </label>
-                                <input
-                                    type="date"
-                                    value={selectedDate}
-                                    onChange={(e) => setSelectedDate(e.target.value)}
-                                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500"
-                                />
+                                {isEducatorOrCenterManager ? (
+                                    // Display date as read-only for Educators and Center Managers
+                                    <div className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-md bg-gray-50 text-gray-700">
+                                        {new Date(selectedDate).toLocaleDateString('en-US', {
+                                            weekday: 'long',
+                                            year: 'numeric',
+                                            month: 'long',
+                                            day: 'numeric'
+                                        })}
+                                    </div>
+                                ) : (
+                                    // Allow date selection for other roles
+                                    <input
+                                        aria-label="Select date"
+                                        type="date"
+                                        value={selectedDate}
+                                        onChange={(e) => setSelectedDate(e.target.value)}
+                                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                    />
+                                )}
                                 {!isWeekendDate(selectedDate) && (
                                     <p className="mt-1 text-xs text-amber-600 flex items-center">
                                         <AlertTriangleIcon className="w-3 h-3 mr-1" />
@@ -379,7 +477,7 @@ export const MarkAttendance = () => {
                                     <input
                                         type="checkbox"
                                         checked={isHoliday}
-                                        onChange={(e) => setIsHoliday(e.target.checked)}
+                                        onChange={(e) => handleHolidayToggle(e.target.checked)}
                                         className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
                                     />
                                     <span className="ml-2 text-xs text-gray-700">Mark as Holiday</span>
@@ -469,8 +567,7 @@ export const MarkAttendance = () => {
                                                             type="checkbox"
                                                             checked={entry?.status === "PRESENT" || entry?.status === "HOLIDAY"}
                                                             onChange={(e) => toggleAttendanceStatus(user.id, e.target.checked)}
-                                                            disabled={isHoliday}
-                                                            className="w-4 h-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500 disabled:opacity-50"
+                                                            className="w-4 h-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
                                                         />
                                                         <span className="text-xs font-medium text-gray-900">
                                                             {isHoliday ? "Holiday" : "Present"}
@@ -490,10 +587,10 @@ export const MarkAttendance = () => {
                                                 <button
                                                     type="button"
                                                     onClick={() => {
-                                                        const notesSection = document.getElementById(`notes-${user.id}`);
-                                                        if (notesSection) {
-                                                            notesSection.style.display = notesSection.style.display === 'none' ? 'block' : 'none';
-                                                        }
+                                                        setExpandedNotes(prev => ({
+                                                            ...prev,
+                                                            [user.id]: !prev[user.id]
+                                                        }));
                                                     }}
                                                     className="text-xs text-orange-600 hover:text-orange-800 font-medium"
                                                 >
@@ -503,15 +600,17 @@ export const MarkAttendance = () => {
                                         </div>
 
                                         {/* Collapsible Notes Section */}
-                                        <div id={`notes-${user.id}`} style={{ display: 'none' }} className="mt-3 pt-3 border-t border-gray-100">
-                                            <textarea
-                                                value={entry?.notes || ''}
-                                                onChange={(e) => updateAttendanceNotes(user.id, e.target.value)}
-                                                placeholder="Add notes..."
-                                                rows={2}
-                                                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500 resize-none"
-                                            />
-                                        </div>
+                                        {expandedNotes[user.id] && (
+                                            <div className="mt-3 pt-3 border-t border-gray-100">
+                                                <textarea
+                                                    value={entry?.notes || ''}
+                                                    onChange={(e) => updateAttendanceNotes(user.id, e.target.value)}
+                                                    placeholder="Add notes..."
+                                                    rows={2}
+                                                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500 resize-none"
+                                                />
+                                            </div>
+                                        )}
                                     </motion.div>
                                 );
                             })}

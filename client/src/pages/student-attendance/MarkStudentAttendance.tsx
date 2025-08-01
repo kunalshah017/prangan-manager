@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { CalendarIcon, UserIcon, CheckIcon, XIcon, SaveIcon } from "lucide-react";
+import { CalendarIcon, UserIcon, CheckIcon, XIcon, SaveIcon, AlertTriangleIcon } from "lucide-react";
 import toast from "react-hot-toast";
 import { useStudentsBySemester, useBulkMarkStudentAttendance, useStudentAttendanceRecords } from "@/hooks/useStudentAttendanceQueries";
+import { useAuth } from "@/hooks/useAuth";
 import LoadingButterfly from "@/components/LoadingButterfly";
 import { CustomButton } from "@/components/ui/custom-button";
 import { ProfilePicture } from "@/components/ui";
@@ -24,12 +25,47 @@ interface StudentWithEnrollment extends Student {
 
 export const MarkStudentAttendance = () => {
     const { projectId, centerId, semesterId } = useParams();
-    const [selectedDate, setSelectedDate] = useState<string>(
-        new Date().toISOString().split('T')[0]
-    );
+    const { user } = useAuth();
+
+    // Check if the current user is an Educator or Center Manager
+    const isEducatorOrCenterManager = user?.roleAssignments?.some(
+        assignment =>
+            assignment.isActive &&
+            (assignment.subRole === "EDUCATOR" || assignment.subRole === "CENTER_MANAGER")
+    ) || false;
+
+    // Function to find the nearest weekend date (Saturday or Sunday)
+    const getNearestWeekend = () => {
+        const today = new Date();
+        const dayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
+
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+            // Already a weekend, return today
+            return today.toISOString().split('T')[0];
+        }
+
+        // Calculate days until Saturday
+        const daysUntilSaturday = 6 - dayOfWeek;
+
+        // Choose the next weekend (Saturday or Sunday)
+        const nearestWeekendDate = new Date(today);
+        nearestWeekendDate.setDate(today.getDate() + daysUntilSaturday);
+
+        return nearestWeekendDate.toISOString().split('T')[0];
+    };
+
+    // Check if selected date is a weekend
+    const isWeekendDate = (dateString: string) => {
+        const date = new Date(dateString);
+        const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
+        return dayOfWeek === 0 || dayOfWeek === 6;
+    };
+
+    const [selectedDate, setSelectedDate] = useState<string>(getNearestWeekend());
     const [attendanceEntries, setAttendanceEntries] = useState<Record<string, StudentAttendanceEntry>>({});
     const [isHoliday, setIsHoliday] = useState<boolean>(false);
     const [holidayReason, setHolidayReason] = useState<string>("");
+    const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
 
     const { data: studentsResponse, isLoading, error } = useStudentsBySemester(semesterId!);
 
@@ -129,7 +165,7 @@ export const MarkStudentAttendance = () => {
                 return updated;
             });
         }
-    }, [isHoliday]); // Removed other dependencies to make it trigger only on holiday change
+    }, [isHoliday, students, attendanceEntries]);
 
     // Reset attendance entries when date changes - now handled in the main useEffect above
 
@@ -158,6 +194,13 @@ export const MarkStudentAttendance = () => {
     };
 
     const handleSubmitAttendance = async () => {
+        if (!isWeekendDate(selectedDate)) {
+            const confirmSubmit = window.confirm(
+                "This is not a weekend date. Student attendance is typically marked on weekends only. Do you want to continue?"
+            );
+            if (!confirmSubmit) return;
+        }
+
         const studentAttendances = Object.values(attendanceEntries).map(entry => ({
             studentId: entry.studentId,
             enrollmentId: entry.enrollmentId,
@@ -311,18 +354,37 @@ export const MarkStudentAttendance = () => {
                 {/* Date Filter and Controls */}
                 <div className="bg-white rounded-lg shadow-sm border p-3 mb-4">
                     <div className="space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 gap-3">
                             <div>
                                 <label className="block text-xs font-medium text-gray-700 mb-1">
                                     <CalendarIcon className="w-3 h-3 inline mr-1" />
                                     Date
                                 </label>
-                                <input
-                                    type="date"
-                                    value={selectedDate}
-                                    onChange={(e) => setSelectedDate(e.target.value)}
-                                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                />
+                                {isEducatorOrCenterManager ? (
+                                    // Display date as read-only for Educators and Center Managers
+                                    <div className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-md bg-gray-50 text-gray-700">
+                                        {new Date(selectedDate).toLocaleDateString('en-US', {
+                                            weekday: 'long',
+                                            year: 'numeric',
+                                            month: 'long',
+                                            day: 'numeric'
+                                        })}
+                                    </div>
+                                ) : (
+                                    // Allow date selection for other roles
+                                    <input
+                                        type="date"
+                                        value={selectedDate}
+                                        onChange={(e) => setSelectedDate(e.target.value)}
+                                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    />
+                                )}
+                                {!isWeekendDate(selectedDate) && (
+                                    <p className="mt-1 text-xs text-amber-600 flex items-center">
+                                        <AlertTriangleIcon className="w-3 h-3 mr-1" />
+                                        Weekend only
+                                    </p>
+                                )}
                             </div>
 
                             <div>
@@ -456,10 +518,10 @@ export const MarkStudentAttendance = () => {
                                                 <button
                                                     type="button"
                                                     onClick={() => {
-                                                        const notesSection = document.getElementById(`notes-${student.id}`);
-                                                        if (notesSection) {
-                                                            notesSection.style.display = notesSection.style.display === 'none' ? 'block' : 'none';
-                                                        }
+                                                        setExpandedNotes(prev => ({
+                                                            ...prev,
+                                                            [student.id]: !prev[student.id]
+                                                        }));
                                                     }}
                                                     className="text-xs text-blue-600 hover:text-blue-800 font-medium"
                                                 >
@@ -468,15 +530,17 @@ export const MarkStudentAttendance = () => {
                                             </div>
 
                                             {/* Collapsible Notes Section */}
-                                            <div id={`notes-${student.id}`} style={{ display: 'none' }} className="pt-3 border-t border-gray-100">
-                                                <textarea
-                                                    value={entry?.notes || ''}
-                                                    onChange={(e) => updateAttendanceNotes(student.id, e.target.value)}
-                                                    placeholder="Add notes..."
-                                                    rows={2}
-                                                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-                                                />
-                                            </div>
+                                            {expandedNotes[student.id] && (
+                                                <div className="pt-3 border-t border-gray-100">
+                                                    <textarea
+                                                        value={entry?.notes || ''}
+                                                        onChange={(e) => updateAttendanceNotes(student.id, e.target.value)}
+                                                        placeholder="Add notes..."
+                                                        rows={2}
+                                                        className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                                                    />
+                                                </div>
+                                            )}
                                         </div>
                                     </motion.div>
                                 );
