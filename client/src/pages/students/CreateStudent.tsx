@@ -117,9 +117,9 @@ const CreateStudent = () => {
             newErrors.name = 'Student name is required';
         }
 
-        if (!formData.profileImageUrl) {
-            newErrors.profileImageUrl = 'Profile image is required';
-        }
+        // if (!formData.profileImageUrl) {
+        //     newErrors.profileImageUrl = 'Profile image is required';
+        // }
 
         if (!formData.enrollment?.level) {
             newErrors.level = 'Level is required';
@@ -247,7 +247,7 @@ const CreateStudent = () => {
                         {/* Profile Image */}
                         <div>
                             <ImageUpload
-                                label="Profile Image *"
+                                label="Profile Image"
                                 value={formData.profileImageUrl}
                                 onChange={(url) => handleInputChange('profileImageUrl', url)}
                                 placeholder="Upload student's profile image"
