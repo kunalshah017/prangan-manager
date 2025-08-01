@@ -120,7 +120,46 @@ Login user and get JWT token.
 ```json
 {
   "message": "Login successful",
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "user_id",
+    "email": "user@example.com",
+    "name": "John Doe",
+    "profileImageUrl": "https://example.com/profile.jpg",
+    "role": "USER",
+    "status": "APPROVED",
+    "phone": "1234567890",
+    "qualification": "Bachelor's Degree",
+    "address": "123 Main St, City, State",
+    "dob": "1990-01-01T00:00:00.000Z",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z",
+    "roleAssignments": [
+      {
+        "id": "assignment_id",
+        "subRole": "EDUCATOR",
+        "level": "LEVEL_2",
+        "committedDays": "BOTH",
+        "projectId": "project_id",
+        "centerId": "center_id",
+        "semesterId": "semester_id",
+        "isActive": true,
+        "assignedAt": "2024-01-01T00:00:00.000Z",
+        "project": {
+          "id": "project_id",
+          "name": "Project Name"
+        },
+        "center": {
+          "id": "center_id",
+          "name": "Center Name"
+        },
+        "semester": {
+          "id": "semester_id",
+          "name": "Semester Name"
+        }
+      }
+    ]
+  }
 }
 ```
 
@@ -153,7 +192,32 @@ Authorization: Bearer <jwt_token>
     "address": "123 Main St, City, State",
     "dob": "1990-01-01T00:00:00.000Z",
     "createdAt": "2024-01-01T00:00:00.000Z",
-    "updatedAt": "2024-01-01T00:00:00.000Z"
+    "updatedAt": "2024-01-01T00:00:00.000Z",
+    "roleAssignments": [
+      {
+        "id": "assignment_id",
+        "subRole": "EDUCATOR",
+        "level": "LEVEL_2",
+        "committedDays": "BOTH",
+        "projectId": "project_id",
+        "centerId": "center_id",
+        "semesterId": "semester_id",
+        "isActive": true,
+        "assignedAt": "2024-01-01T00:00:00.000Z",
+        "project": {
+          "id": "project_id",
+          "name": "Project Name"
+        },
+        "center": {
+          "id": "center_id",
+          "name": "Center Name"
+        },
+        "semester": {
+          "id": "semester_id",
+          "name": "Semester Name"
+        }
+      }
+    ]
   }
 }
 ```
@@ -235,14 +299,59 @@ Authorization: Bearer <admin_jwt_token>
 
 ```json
 {
-  "message": "User status updated successfully and password sent via email",
+  "message": "User verification completed successfully and notification email sent",
   "user": {
     "id": "user_id",
     "email": "user@example.com",
     "name": "John Doe",
+    "profileImageUrl": "https://example.com/profile.jpg",
+    "role": "USER",
     "status": "APPROVED",
-    "role": "USER"
-  }
+    "phone": "1234567890",
+    "qualification": "Bachelor's Degree",
+    "address": "123 Main St, City, State",
+    "dob": "1990-01-01T00:00:00.000Z",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z",
+    "roleAssignments": [
+      {
+        "id": "assignment_id",
+        "subRole": "EDUCATOR",
+        "level": "LEVEL_2",
+        "committedDays": "BOTH",
+        "projectId": "project_id",
+        "centerId": "center_id",
+        "semesterId": "semester_id",
+        "isActive": true,
+        "assignedAt": "2024-01-01T00:00:00.000Z",
+        "project": {
+          "id": "project_id",
+          "name": "Project Name"
+        },
+        "center": {
+          "id": "center_id",
+          "name": "Center Name"
+        },
+        "semester": {
+          "id": "semester_id",
+          "name": "Semester Name"
+        }
+      }
+    ]
+  },
+  "roleAssignments": [
+    {
+      "id": "assignment_id",
+      "subRole": "EDUCATOR",
+      "level": "LEVEL_2",
+      "committedDays": "BOTH",
+      "projectId": "project_id",
+      "centerId": "center_id",
+      "semesterId": "semester_id",
+      "isActive": true,
+      "assignedAt": "2024-01-01T00:00:00.000Z"
+    }
+  ]
 }
 ```
 
