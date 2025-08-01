@@ -15,4 +15,7 @@ export default defineConfig({
     port: 5173,
     allowedHosts: ["engaged-griffon-crucial.ngrok-free.app"],
   },
+  define: {
+    "import.meta.env.VITE_BUILD_TIME": JSON.stringify(new Date().toISOString()),
+  },
 });
