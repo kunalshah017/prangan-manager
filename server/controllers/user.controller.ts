@@ -1010,11 +1010,6 @@ export const getStudent = asyncHandle(
 
 export const updateStudentController = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = request.user;
-    if (!user || user.role !== Role.ADMIN) {
-      return errorHandle("Only admins can update students.", reply, 403);
-    }
-
     const { id } = request.params as { id: string };
     const data = request.body as {
       name?: string;
