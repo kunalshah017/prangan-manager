@@ -41,7 +41,7 @@ export const MarkStudentAttendance = () => {
 
         if (dayOfWeek === 0 || dayOfWeek === 6) {
             // Already a weekend, return today
-            return today.toISOString().split('T')[0];
+            return formatDateToLocal(today);
         }
 
         // Calculate days until Saturday
@@ -51,7 +51,15 @@ export const MarkStudentAttendance = () => {
         const nearestWeekendDate = new Date(today);
         nearestWeekendDate.setDate(today.getDate() + daysUntilSaturday);
 
-        return nearestWeekendDate.toISOString().split('T')[0];
+        return formatDateToLocal(nearestWeekendDate);
+    };
+
+    // Helper function to format date in local timezone as YYYY-MM-DD
+    const formatDateToLocal = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     };
 
     // Check if selected date is a weekend
@@ -79,10 +87,42 @@ export const MarkStudentAttendance = () => {
 
     const bulkMarkAttendanceMutation = useBulkMarkStudentAttendance();
 
-    // Get students with enrollments from the API response
+    // Get students with enrollments from the API response, grouped by level
     const students = useMemo(() => {
         return studentsResponse?.students || [];
     }, [studentsResponse?.students]);
+
+    // Group students by their enrollment level
+    const studentsByLevel = useMemo(() => {
+        const grouped: Record<string, StudentWithEnrollment[]> = {};
+
+        students.forEach((student: StudentWithEnrollment) => {
+            const activeEnrollment = student.enrollments?.find(
+                (enrollment: StudentEnrollment) => enrollment.semesterId === semesterId && enrollment.isActive
+            );
+
+            if (activeEnrollment) {
+                const level = activeEnrollment.level || 'UNKNOWN';
+                if (!grouped[level]) {
+                    grouped[level] = [];
+                }
+                grouped[level].push(student);
+            }
+        });
+
+        // Sort levels in a logical order
+        const levelOrder = ['LEVEL_1', 'LEVEL_2', 'LEVEL_3', 'LEVEL_4', 'PRIMARY_A', 'PRIMARY_B', 'UNKNOWN'];
+        const sortedGrouped: Record<string, StudentWithEnrollment[]> = {};
+
+        levelOrder.forEach(level => {
+            if (grouped[level]) {
+                // Sort students within each level alphabetically by name
+                sortedGrouped[level] = grouped[level].sort((a, b) => a.name.localeCompare(b.name));
+            }
+        });
+
+        return sortedGrouped;
+    }, [students, semesterId]);
 
     // Initialize attendance entries when students load
     useEffect(() => {
@@ -151,8 +191,11 @@ export const MarkStudentAttendance = () => {
 
     // Update all students when holiday status changes
     useEffect(() => {
-        if (students.length > 0 && Object.keys(attendanceEntries).length > 0) {
+        if (students.length > 0) {
             setAttendanceEntries(prev => {
+                // Only update if there are existing entries to avoid unnecessary updates
+                if (Object.keys(prev).length === 0) return prev;
+
                 const updated = { ...prev };
                 students.forEach((student: StudentWithEnrollment) => {
                     if (updated[student.id]) {
@@ -165,7 +208,7 @@ export const MarkStudentAttendance = () => {
                 return updated;
             });
         }
-    }, [isHoliday, students, attendanceEntries]);
+    }, [isHoliday, students]);
 
     // Reset attendance entries when date changes - now handled in the main useEffect above
 
@@ -445,7 +488,7 @@ export const MarkStudentAttendance = () => {
 
                 {/* Attendance Form */}
                 <div className="bg-white rounded-lg shadow-sm border">
-                    {!students || students.length === 0 ? (
+                    {!students || students.length === 0 || Object.keys(studentsByLevel).length === 0 ? (
                         <div className="text-center py-12">
                             <UserIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                             <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -457,94 +500,111 @@ export const MarkStudentAttendance = () => {
                         </div>
                     ) : (
                         <div className="divide-y divide-gray-200">
-                            {students.map((student: StudentWithEnrollment) => {
-                                const entry = attendanceEntries[student.id];
-                                const activeEnrollment = student.enrollments?.find(
-                                    (enrollment: StudentEnrollment) => enrollment.semesterId === semesterId && enrollment.isActive
-                                );
+                            {Object.entries(studentsByLevel).map(([level, levelStudents]) => (
+                                <div key={level}>
+                                    {/* Level Header */}
+                                    <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                                        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                                            {level.replace('_', ' ')}
+                                            <span className="ml-2 text-xs text-gray-500 font-normal">
+                                                ({levelStudents.length} student{levelStudents.length !== 1 ? 's' : ''})
+                                            </span>
+                                        </h3>
+                                    </div>
 
-                                return (
-                                    <motion.div
-                                        key={student.id}
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        className="p-4"
-                                    >
-                                        <div className="space-y-3">
-                                            {/* Student Info - Full Width */}
-                                            <div className="flex items-center space-x-3">
-                                                <ProfilePicture
-                                                    imageUrl={student.profileImageUrl}
-                                                    name={student.name}
-                                                    size="md"
-                                                    colorScheme="blue"
-                                                />
-                                                <div className="flex-1">
-                                                    <div className="text-sm font-medium text-gray-900">
-                                                        {student.name}
-                                                    </div>
-                                                    <div className="text-xs text-gray-500">
-                                                        Level: {activeEnrollment?.level?.replace('_', ' ') || 'N/A'}
-                                                    </div>
-                                                </div>
-                                            </div>
+                                    {/* Students in this level */}
+                                    <div className="divide-y divide-gray-100">
+                                        {levelStudents.map((student: StudentWithEnrollment) => {
+                                            const entry = attendanceEntries[student.id];
+                                            const activeEnrollment = student.enrollments?.find(
+                                                (enrollment: StudentEnrollment) => enrollment.semesterId === semesterId && enrollment.isActive
+                                            );
 
-                                            {/* Attendance Controls */}
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center space-x-3">
-                                                    <div className="flex items-center space-x-2">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={entry?.status === "PRESENT" || entry?.status === "HOLIDAY"}
-                                                            onChange={(e) => toggleAttendanceStatus(student.id, e.target.checked)}
-                                                            disabled={isHoliday}
-                                                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
-                                                        />
-                                                        <span className={`text-xs font-medium ${isHoliday ? 'text-blue-900' : 'text-gray-900'}`}>
-                                                            {isHoliday ? "Holiday" : "Present"}
-                                                        </span>
-                                                    </div>
-
-                                                    {/* Status Badge */}
-                                                    <div className="flex items-center space-x-1">
-                                                        {getStatusIcon(entry?.status || "ABSENT")}
-                                                        <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full border ${getStatusBadgeClass(entry?.status || "ABSENT")}`}>
-                                                            {(entry?.status || "ABSENT").toLowerCase()}
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                {/* Notes Toggle */}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setExpandedNotes(prev => ({
-                                                            ...prev,
-                                                            [student.id]: !prev[student.id]
-                                                        }));
-                                                    }}
-                                                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                                            return (
+                                                <motion.div
+                                                    key={student.id}
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    className="p-4 bg-white hover:bg-gray-50 transition-colors"
                                                 >
-                                                    Notes
-                                                </button>
-                                            </div>
+                                                    <div className="space-y-3">
+                                                        {/* Student Info - Full Width */}
+                                                        <div className="flex items-center space-x-3">
+                                                            <ProfilePicture
+                                                                imageUrl={student.profileImageUrl}
+                                                                name={student.name}
+                                                                size="md"
+                                                                colorScheme="blue"
+                                                            />
+                                                            <div className="flex-1">
+                                                                <div className="text-sm font-medium text-gray-900">
+                                                                    {student.name}
+                                                                </div>
+                                                                <div className="text-xs text-gray-500">
+                                                                    Level: {activeEnrollment?.level?.replace('_', ' ') || 'N/A'}
+                                                                </div>
+                                                            </div>
+                                                        </div>
 
-                                            {/* Collapsible Notes Section */}
-                                            {expandedNotes[student.id] && (
-                                                <div className="pt-3 border-t border-gray-100">
-                                                    <textarea
-                                                        value={entry?.notes || ''}
-                                                        onChange={(e) => updateAttendanceNotes(student.id, e.target.value)}
-                                                        placeholder="Add notes..."
-                                                        rows={2}
-                                                        className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-                                                    />
-                                                </div>
-                                            )}
-                                        </div>
-                                    </motion.div>
-                                );
-                            })}
+                                                        {/* Attendance Controls */}
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center space-x-3">
+                                                                <div className="flex items-center space-x-2">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={entry?.status === "PRESENT" || entry?.status === "HOLIDAY"}
+                                                                        onChange={(e) => toggleAttendanceStatus(student.id, e.target.checked)}
+                                                                        disabled={isHoliday}
+                                                                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+                                                                    />
+                                                                    <span className={`text-xs font-medium ${isHoliday ? 'text-blue-900' : 'text-gray-900'}`}>
+                                                                        {isHoliday ? "Holiday" : "Present"}
+                                                                    </span>
+                                                                </div>
+
+                                                                {/* Status Badge */}
+                                                                <div className="flex items-center space-x-1">
+                                                                    {getStatusIcon(entry?.status || "ABSENT")}
+                                                                    <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full border ${getStatusBadgeClass(entry?.status || "ABSENT")}`}>
+                                                                        {(entry?.status || "ABSENT").toLowerCase()}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Notes Toggle */}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setExpandedNotes(prev => ({
+                                                                        ...prev,
+                                                                        [student.id]: !prev[student.id]
+                                                                    }));
+                                                                }}
+                                                                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                                                            >
+                                                                Notes
+                                                            </button>
+                                                        </div>
+
+                                                        {/* Collapsible Notes Section */}
+                                                        {expandedNotes[student.id] && (
+                                                            <div className="pt-3 border-t border-gray-100">
+                                                                <textarea
+                                                                    value={entry?.notes || ''}
+                                                                    onChange={(e) => updateAttendanceNotes(student.id, e.target.value)}
+                                                                    placeholder="Add notes..."
+                                                                    rows={2}
+                                                                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                                                                />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </motion.div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     )}
                 </div>
