@@ -1,13 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { User, Phone, MapPin, GraduationCap, Calendar, Badge, Building, Users } from 'lucide-react';
+import { User, Phone, MapPin, GraduationCap, Calendar, Badge, Building, Users, Settings } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useProject } from '@/hooks/useProjectQueries';
 import { useCenter } from '@/hooks/useCenterQueries';
 import { useSemester } from '@/hooks/useSemesterQueries';
 import { ProfilePicture } from '@/components/ui';
+import { CustomButton } from '@/components/ui/custom-button';
 import LoadingButterfly from '@/components/LoadingButterfly';
 import DoodleBackground from '@/components/DoodleBackground';
+import { CacheManagementModal } from '@/components/CacheManagementModal';
+import { AppVersion } from '@/components/AppVersion';
 import {
     Breadcrumb,
     BreadcrumbList,
@@ -20,6 +23,7 @@ import { cn } from '@/lib/utils';
 
 const Profile: React.FC = () => {
     const { user, isLoading } = useAuth();
+    const [isCacheModalOpen, setIsCacheModalOpen] = useState(false);
 
     // Component to display role assignment with fetched names
     const RoleAssignmentCard: React.FC<{ assignment: NonNullable<NonNullable<typeof user>['roleAssignments']>[0]; index: number }> = ({ assignment, index }) => {
@@ -323,8 +327,50 @@ const Profile: React.FC = () => {
                                 </div>
                             </div>
                         </motion.section>
+
+                        {/* App Settings Section */}
+                        <motion.section
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.5, delay: 0.4 }}
+                            className="border-t border-gray-200 pt-6"
+                        >
+                            <h2 className="text-lg sm:text-xl md:text-2xl font-semibold text-gray-900 mb-4 sm:mb-6 flex items-center">
+                                <Settings className="h-5 w-5 sm:h-6 sm:w-6 mr-2 text-orange-600" />
+                                App Settings
+                            </h2>
+                            <div className="bg-gray-50 rounded-lg p-4 sm:p-6 space-y-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+                                    <div>
+                                        <h3 className="text-sm sm:text-base font-medium text-gray-900">Cache Management</h3>
+                                        <p className="text-xs sm:text-sm text-gray-600 mt-1">
+                                            Having issues with the app? Try clearing the cache or checking for updates.
+                                        </p>
+                                    </div>
+                                    <CustomButton
+                                        onClick={() => setIsCacheModalOpen(true)}
+                                        variant="outline"
+                                        className="w-full sm:w-auto"
+                                    >
+                                        Manage App Data
+                                    </CustomButton>
+                                </div>
+                                
+                                {/* App Version Info */}
+                                <div className="border-t border-gray-200 pt-4">
+                                    <h4 className="text-sm font-medium text-gray-900 mb-2">App Information</h4>
+                                    <AppVersion />
+                                </div>
+                            </div>
+                        </motion.section>
                     </div>
                 </motion.div>
+
+                {/* Cache Management Modal */}
+                <CacheManagementModal
+                    isOpen={isCacheModalOpen}
+                    onClose={() => setIsCacheModalOpen(false)}
+                />
             </div>
         </div>
     );
