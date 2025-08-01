@@ -1,26 +1,29 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useParams } from 'react-router-dom';
-import { Plus, Edit, Trash2, User, Calendar, Phone, GraduationCap, MessageCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, User, Calendar, Phone, GraduationCap, MessageCircle, Search } from 'lucide-react';
 import { useStudentsBySemester, useDeleteStudent } from '@/hooks/useStudentQueries';
-import { useAuth } from '@/hooks/useAuth';
 import LoadingButterfly from '@/components/LoadingButterfly';
-import { CustomButton } from '@/components/ui/button';
+import { CustomButton } from '@/components/ui/custom-button';
 import ConfirmationModal from '@/components/ui/confirmation-modal';
 import { ProfilePicture } from '@/components/ui';
 import type { Student } from '@/types/api';
+import ProtectedComponent from '@/components/ProtectedComponent';
 
 const Students = () => {
-    const { user } = useAuth();
     const { projectId, centerId, semesterId } = useParams();
     const { data: students, isLoading, error } = useStudentsBySemester(semesterId!);
     const deleteStudentMutation = useDeleteStudent();
     const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
-
-    const isAdmin = user?.role === 'ADMIN';
+    const [searchQuery, setSearchQuery] = useState<string>('');
 
     // Build the base URL for student routes
     const baseStudentUrl = `/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/students`;
+
+    // Filter students based on search query
+    const filteredStudents = students?.filter(student =>
+        student.name.toLowerCase().includes(searchQuery.toLowerCase())
+    ) || [];
 
     const handleDeleteStudent = async () => {
         if (!studentToDelete) return;
@@ -89,20 +92,40 @@ const Students = () => {
                     <h1 className="text-2xl font-semibold text-gray-900">Students</h1>
                     <p className="text-gray-600">Manage student information and records</p>
                 </div>
-                {isAdmin && (
+                <ProtectedComponent allowedSubRoles={['CENTER_MANAGER']} >
                     <Link to={`${baseStudentUrl}/new`}>
                         <CustomButton className="bg-orange-600 hover:bg-orange-700 text-white">
                             <Plus className="w-4 h-4 mr-2" />
                             Add Student
                         </CustomButton>
                     </Link>
+                </ProtectedComponent>
+            </div>
+
+            {/* Search Bar */}
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <input
+                        type="text"
+                        placeholder="Search students by name..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
+                    />
+                </div>
+                {searchQuery && (
+                    <div className="mt-2 text-sm text-gray-600">
+                        Found {filteredStudents.length} student{filteredStudents.length !== 1 ? 's' : ''}
+                        {filteredStudents.length > 0 && ` matching "${searchQuery}"`}
+                    </div>
                 )}
             </div>
 
             {/* Students Grid */}
-            {students && students.length > 0 ? (
+            {filteredStudents.length > 0 ? (
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                    {students.map((student, index) => (
+                    {filteredStudents.map((student, index) => (
                         <motion.div
                             key={student.id}
                             initial={{ opacity: 0, y: 20 }}
@@ -243,8 +266,8 @@ const Students = () => {
                                 </div>
 
                                 {/* Actions */}
-                                {isAdmin && (
-                                    <div className="flex space-x-2 pt-4 border-t border-gray-100">
+                                <div className="flex space-x-2 pt-4 border-t border-gray-100">
+                                    <ProtectedComponent allowedSubRoles={['CENTER_MANAGER']}>
                                         <Link
                                             to={`${baseStudentUrl}/${student.id}/edit`}
                                             className="flex-1"
@@ -257,6 +280,8 @@ const Students = () => {
                                                 Edit
                                             </CustomButton>
                                         </Link>
+                                    </ProtectedComponent>
+                                    <ProtectedComponent requireAdmin>
                                         <CustomButton
                                             variant="outline"
                                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
@@ -265,8 +290,8 @@ const Students = () => {
                                         >
                                             <Trash2 className="w-4 h-4" />
                                         </CustomButton>
-                                    </div>
-                                )}
+                                    </ProtectedComponent>
+                                </div>
                             </div>
                         </motion.div>
                     ))}
@@ -274,16 +299,34 @@ const Students = () => {
             ) : (
                 <div className="text-center py-12">
                     <User className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No students found</h3>
-                    <p className="text-gray-600 mb-4">Get started by adding your first student.</p>
-                    {isAdmin && (
+                    {searchQuery ? (
+                        <>
+                            <h3 className="text-lg font-medium text-gray-900 mb-2">No students found</h3>
+                            <p className="text-gray-600 mb-4">
+                                No students match your search for "{searchQuery}". Try a different search term.
+                            </p>
+                            <CustomButton
+                                variant="outline"
+                                onClick={() => setSearchQuery('')}
+                                className="mb-4"
+                            >
+                                Clear Search
+                            </CustomButton>
+                        </>
+                    ) : (
+                        <>
+                            <h3 className="text-lg font-medium text-gray-900 mb-2">No students found</h3>
+                            <p className="text-gray-600 mb-4">Get started by adding your first student.</p>
+                        </>
+                    )}
+                    <ProtectedComponent allowedSubRoles={['CENTER_MANAGER']}>
                         <Link to={`${baseStudentUrl}/new`}>
                             <CustomButton className="bg-orange-600 hover:bg-orange-700 text-white">
                                 <Plus className="w-4 h-4 mr-2" />
                                 Add Student
                             </CustomButton>
                         </Link>
-                    )}
+                    </ProtectedComponent>
                 </div>
             )}
 

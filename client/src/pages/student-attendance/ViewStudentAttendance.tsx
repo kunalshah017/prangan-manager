@@ -19,7 +19,6 @@ export const ViewStudentAttendance = () => {
     const { projectId, centerId, semesterId } = useParams();
     const [startDate, setStartDate] = useState<string>("");
     const [endDate, setEndDate] = useState<string>("");
-    const [selectedStudent, setSelectedStudent] = useState<string>("");
     const [selectedStatus, setSelectedStatus] = useState<string>("");
 
     const { data: attendanceData, isLoading, error } = useStudentAttendanceRecords({
@@ -28,7 +27,6 @@ export const ViewStudentAttendance = () => {
         semesterId: semesterId!,
         ...(startDate && { startDate }),
         ...(endDate && { endDate }),
-        ...(selectedStudent && { studentId: selectedStudent }),
         ...(selectedStatus && { status: selectedStatus }),
     });
 
@@ -139,18 +137,6 @@ export const ViewStudentAttendance = () => {
                                 type="date"
                                 value={endDate}
                                 onChange={(e) => setEndDate(e.target.value)}
-                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                                Student ID
-                            </label>
-                            <input
-                                type="text"
-                                value={selectedStudent}
-                                onChange={(e) => setSelectedStudent(e.target.value)}
-                                placeholder="Filter by ID..."
                                 className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500"
                             />
                         </div>

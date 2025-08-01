@@ -227,7 +227,7 @@ const Dashboard = () => {
                 </ProtectedComponent>
 
                 {/* Student Attendance */}
-                <ProtectedComponent requireAdmin>
+                <ProtectedComponent allowedSubRoles={['CENTER_MANAGER', 'EDUCATOR']}>
                     <div className="space-y-3">
                         <h2 className="text-sm font-medium text-gray-700 px-1">Student Attendance</h2>
                         <div className="grid grid-cols-2 gap-3">
