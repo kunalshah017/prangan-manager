@@ -11,7 +11,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "postinstall": "prisma generate",
     "seed": "tsx prisma/seed.ts",
-    "db:seed:prod": "tsx prisma/seed.ts",
+    "db:seed:prod": "tsx prisma/seed-prod.ts",
     "vercel-build": "npx prisma migrate deploy && npx prisma generate && tsc"
   },
   "keywords": [],
