@@ -97,6 +97,7 @@ export const ViewAttendance = () => {
                             Date
                         </label>
                         <input
+                            aria-label="Select date"
                             type="date"
                             value={selectedDate}
                             onChange={(e) => setSelectedDate(e.target.value)}
@@ -124,7 +125,7 @@ export const ViewAttendance = () => {
                                     <thead className="bg-gray-50">
                                         <tr>
                                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Staff
+                                                Educator / Center Manager
                                             </th>
                                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 Status
@@ -251,7 +252,7 @@ export const ViewAttendance = () => {
                                                 <strong>Holiday:</strong> {record.holidayReason}
                                             </div>
                                         )}
-                                        
+
                                         <div className="flex justify-between text-xs text-gray-500 mb-2">
                                             <span>
                                                 {record.markedAt ? new Date(record.markedAt).toLocaleTimeString('en-US', {

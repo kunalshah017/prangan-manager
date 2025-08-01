@@ -145,77 +145,77 @@ const Students = () => {
                                     {(student.phoneNumber || student.whatsappNumber || student.alternateNumber) && (
                                         <div className="space-y-2">
                                             {student.phoneNumber && (
-                                            <div className="flex items-center justify-between text-sm text-gray-600">
-                                                <div className="flex items-center">
-                                                    <Phone className="w-4 h-4 mr-2" />
-                                                    <span>Phone: {student.phoneNumber}</span>
+                                                <div className="flex items-center justify-between text-sm text-gray-600">
+                                                    <div className="flex items-center">
+                                                        <Phone className="w-4 h-4 mr-2" />
+                                                        <span>Phone: {student.phoneNumber}</span>
+                                                    </div>
+                                                    <div className="flex space-x-1">
+                                                        <button
+                                                            onClick={() => student.phoneNumber && handlePhoneCall(student.phoneNumber)}
+                                                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                                                            title="Call this number"
+                                                        >
+                                                            <Phone className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => student.phoneNumber && handleWhatsApp(student.phoneNumber)}
+                                                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                                                            title="WhatsApp this number"
+                                                        >
+                                                            <MessageCircle className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                                <div className="flex space-x-1">
-                                                    <button
-                                                        onClick={() => student.phoneNumber && handlePhoneCall(student.phoneNumber)}
-                                                        className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
-                                                        title="Call this number"
-                                                    >
-                                                        <Phone className="w-4 h-4" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => student.phoneNumber && handleWhatsApp(student.phoneNumber)}
-                                                        className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
-                                                        title="WhatsApp this number"
-                                                    >
-                                                        <MessageCircle className="w-4 h-4" />
-                                                    </button>
+                                            )}
+                                            {student.whatsappNumber && (
+                                                <div className="flex items-center justify-between text-sm text-gray-600">
+                                                    <div className="flex items-center">
+                                                        <MessageCircle className="w-4 h-4 mr-2" />
+                                                        <span>WhatsApp: {student.whatsappNumber}</span>
+                                                    </div>
+                                                    <div className="flex space-x-1">
+                                                        <button
+                                                            onClick={() => student.whatsappNumber && handlePhoneCall(student.whatsappNumber)}
+                                                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                                                            title="Call this number"
+                                                        >
+                                                            <Phone className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => student.whatsappNumber && handleWhatsApp(student.whatsappNumber)}
+                                                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                                                            title="WhatsApp this number"
+                                                        >
+                                                            <MessageCircle className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
-                                        {student.whatsappNumber && (
-                                            <div className="flex items-center justify-between text-sm text-gray-600">
-                                                <div className="flex items-center">
-                                                    <MessageCircle className="w-4 h-4 mr-2" />
-                                                    <span>WhatsApp: {student.whatsappNumber}</span>
+                                            )}
+                                            {student.alternateNumber && (
+                                                <div className="flex items-center justify-between text-sm text-gray-600">
+                                                    <div className="flex items-center">
+                                                        <Phone className="w-4 h-4 mr-2" />
+                                                        <span>Alt: {student.alternateNumber}</span>
+                                                    </div>
+                                                    <div className="flex space-x-1">
+                                                        <button
+                                                            onClick={() => student.alternateNumber && handlePhoneCall(student.alternateNumber)}
+                                                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                                                            title="Call this number"
+                                                        >
+                                                            <Phone className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => student.alternateNumber && handleWhatsApp(student.alternateNumber)}
+                                                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                                                            title="WhatsApp this number"
+                                                        >
+                                                            <MessageCircle className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                                <div className="flex space-x-1">
-                                                    <button
-                                                        onClick={() => student.whatsappNumber && handlePhoneCall(student.whatsappNumber)}
-                                                        className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
-                                                        title="Call this number"
-                                                    >
-                                                        <Phone className="w-4 h-4" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => student.whatsappNumber && handleWhatsApp(student.whatsappNumber)}
-                                                        className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
-                                                        title="WhatsApp this number"
-                                                    >
-                                                        <MessageCircle className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-                                        {student.alternateNumber && (
-                                            <div className="flex items-center justify-between text-sm text-gray-600">
-                                                <div className="flex items-center">
-                                                    <Phone className="w-4 h-4 mr-2" />
-                                                    <span>Alt: {student.alternateNumber}</span>
-                                                </div>
-                                                <div className="flex space-x-1">
-                                                    <button
-                                                        onClick={() => student.alternateNumber && handlePhoneCall(student.alternateNumber)}
-                                                        className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
-                                                        title="Call this number"
-                                                    >
-                                                        <Phone className="w-4 h-4" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => student.alternateNumber && handleWhatsApp(student.alternateNumber)}
-                                                        className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
-                                                        title="WhatsApp this number"
-                                                    >
-                                                        <MessageCircle className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
+                                            )}
                                         </div>
                                     )}
                                     {student.schoolName && (

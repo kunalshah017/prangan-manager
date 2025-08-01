@@ -166,18 +166,15 @@ export const loginUser = asyncHandle(
     }
 
     const token = generToken(user.id);
+
+    // Fetch full user details with role assignments for response
+    const fullUserDetails = await getUserById(user.id);
+
     return successHandle(
       {
         message: "Login successful",
         token: token,
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          status: user.status,
-          profileImageUrl: user.profileImageUrl,
-        },
+        user: fullUserDetails,
       },
       reply,
       200
@@ -765,17 +762,14 @@ export const verifyUser = asyncHandle(
       );
     }
 
+    // Fetch full user details with role assignments for response
+    const fullUserDetails = await getUserById(updatedUser.id);
+
     return successHandle(
       {
         message:
           "User verification completed successfully and notification email sent",
-        user: {
-          id: updatedUser.id,
-          email: updatedUser.email,
-          name: updatedUser.name,
-          status: updatedUser.status,
-          role: updatedUser.role,
-        },
+        user: fullUserDetails,
         roleAssignments: createdAssignments,
       },
       reply,
@@ -810,11 +804,6 @@ export const GetUnverifiedUsers = asyncHandle(
 // Student Controllers
 export const addStudent = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = request.user;
-    if (!user || user.role !== Role.ADMIN) {
-      return errorHandle("Only admins can add students.", reply, 403);
-    }
-
     const data = request.body as {
       name: string;
       dob?: string;

@@ -1,9 +1,10 @@
 import React from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronDown, LogOut, User, Settings, PanelRightOpen, X } from 'lucide-react';
+import { ChevronDown, LogOut, User, PanelRightOpen, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
+import { hasPermission } from '@/lib/permissions';
 import BreadcrumbNavigation from '@/components/BreadcrumbNavigation';
 import PWAInstallButton from '@/components/PWAInstallButton';
 import { ProfilePicture } from '@/components/ui';
@@ -15,6 +16,9 @@ const Layout: React.FC = () => {
     const { user, logout } = useAuth();
     const [userMenuOpen, setUserMenuOpen] = React.useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+
+    // Check if user can view registration requests
+    const canViewRegistrationRequests = hasPermission(user, [], [], true);
 
     // Handle logout
     const handleLogout = async () => {
@@ -80,17 +84,19 @@ const Layout: React.FC = () => {
                         >
                             Projects
                         </Link>
-                        <Link
-                            to="/registration-requests"
-                            className={cn(
-                                "text-sm font-medium transition-colors hover:text-primary",
-                                location.pathname === '/registration-requests'
-                                    ? "text-foreground"
-                                    : "text-muted-foreground"
-                            )}
-                        >
-                            Registration Requests
-                        </Link>
+                        {canViewRegistrationRequests && (
+                            <Link
+                                to="/registration-requests"
+                                className={cn(
+                                    "text-sm font-medium transition-colors hover:text-primary",
+                                    location.pathname === '/registration-requests'
+                                        ? "text-foreground"
+                                        : "text-muted-foreground"
+                                )}
+                            >
+                                Registration Requests
+                            </Link>
+                        )}
                     </nav>
 
                     {/* PWA Install Button & User Menu */}
@@ -130,13 +136,6 @@ const Layout: React.FC = () => {
                                     >
                                         <User className="mr-2 h-4 w-4" />
                                         Profile
-                                    </Link>
-                                    <Link
-                                        to="/settings"
-                                        className="flex w-full items-center px-4 py-2 text-sm hover:bg-accent"
-                                    >
-                                        <Settings className="mr-2 h-4 w-4" />
-                                        Settings
                                     </Link>
                                     <button
                                         onClick={handleLogout}
@@ -203,18 +202,20 @@ const Layout: React.FC = () => {
                                 >
                                     Projects
                                 </Link>
-                                <Link
-                                    to="/registration-requests"
-                                    onClick={() => setMobileMenuOpen(false)}
-                                    className={cn(
-                                        "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors hover:bg-accent",
-                                        location.pathname === '/registration-requests'
-                                            ? "bg-accent text-accent-foreground"
-                                            : "text-muted-foreground hover:text-foreground"
-                                    )}
-                                >
-                                    Registration Requests
-                                </Link>
+                                {canViewRegistrationRequests && (
+                                    <Link
+                                        to="/registration-requests"
+                                        onClick={() => setMobileMenuOpen(false)}
+                                        className={cn(
+                                            "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors hover:bg-accent",
+                                            location.pathname === '/registration-requests'
+                                                ? "bg-accent text-accent-foreground"
+                                                : "text-muted-foreground hover:text-foreground"
+                                        )}
+                                    >
+                                        Registration Requests
+                                    </Link>
+                                )}
                             </nav>
 
                             {/* Mobile User Section */}
@@ -242,14 +243,6 @@ const Layout: React.FC = () => {
                                     >
                                         <User className="mr-2 h-4 w-4" />
                                         Profile
-                                    </Link>
-                                    <Link
-                                        to="/settings"
-                                        onClick={() => setMobileMenuOpen(false)}
-                                        className="flex w-full items-center px-2 py-1.5 text-sm hover:bg-accent rounded-md"
-                                    >
-                                        <Settings className="mr-2 h-4 w-4" />
-                                        Settings
                                     </Link>
                                     <button
                                         onClick={() => {

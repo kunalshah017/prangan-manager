@@ -84,6 +84,45 @@ export const useAuth = () => {
       return user?.role === "ADMIN";
     },
 
+    // Check if user has any of the specified sub-roles
+    hasSubRole: (subRoles: string[]) => {
+      const user = currentUser || authStore.user;
+      if (user?.role === "ADMIN") return true; // Admins have access to everything
+
+      return (
+        user?.roleAssignments?.some(
+          (assignment) =>
+            assignment.isActive && subRoles.includes(assignment.subRole)
+        ) || false
+      );
+    },
+
+    // Check if user is an educator
+    isEducator: () => {
+      const user = currentUser || authStore.user;
+      if (user?.role === "ADMIN") return true; // Admins have access to everything
+
+      return (
+        user?.roleAssignments?.some(
+          (assignment) =>
+            assignment.isActive && assignment.subRole === "EDUCATOR"
+        ) || false
+      );
+    },
+
+    // Check if user is a center manager
+    isCenterManager: () => {
+      const user = currentUser || authStore.user;
+      if (user?.role === "ADMIN") return true; // Admins have access to everything
+
+      return (
+        user?.roleAssignments?.some(
+          (assignment) =>
+            assignment.isActive && assignment.subRole === "CENTER_MANAGER"
+        ) || false
+      );
+    },
+
     // Mutation states
     loginError: loginMutation.error?.message,
     registerError: registerMutation.error?.message,

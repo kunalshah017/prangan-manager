@@ -363,7 +363,7 @@ export const ViewStudentAttendance = () => {
                                                 <strong>Holiday:</strong> {record.holidayReason}
                                             </div>
                                         )}
-                                        
+
                                         <div className="flex justify-between text-xs text-gray-500 mb-2">
                                             <span>
                                                 {record.markedAt ? new Date(record.markedAt).toLocaleTimeString('en-US', {

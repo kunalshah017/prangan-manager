@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, X, Image as ImageIcon } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, Camera, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { uploadToCloudinary, validateImageFile } from '@/lib/cloudinary';
 import LoadingButterfly from '@/components/LoadingButterfly';
@@ -28,7 +28,9 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
     const [isUploading, setIsUploading] = useState(false);
     const [dragActive, setDragActive] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [showOptions, setShowOptions] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
 
     const handleFile = async (file: File) => {
         setError(null);
@@ -54,7 +56,27 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
 
     const handleClick = () => {
         if (disabled || isUploading) return;
+
+        // Check if device supports camera
+        const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+        if (isMobile) {
+            setShowOptions(true);
+        } else {
+            // On desktop, directly open file picker
+            fileInputRef.current?.click();
+        }
+    };
+
+    const handleCameraClick = () => {
+        if (disabled || isUploading) return;
+        cameraInputRef.current?.click();
+        setShowOptions(false);
+    };
+
+    const handleGalleryClick = () => {
+        if (disabled || isUploading) return;
         fileInputRef.current?.click();
+        setShowOptions(false);
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -136,6 +158,18 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
                     title={`Upload ${label.toLowerCase()}`}
                 />
 
+                <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleFileChange}
+                    disabled={disabled || isUploading}
+                    className="hidden"
+                    aria-label={`Camera capture ${label.toLowerCase()}`}
+                    title={`Camera capture ${label.toLowerCase()}`}
+                />
+
                 {isUploading ? (
                     <div className={cn(
                         "flex flex-col items-center justify-center",
@@ -204,6 +238,42 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
                     </div>
                 )}
             </div>
+
+            {/* Mobile options modal */}
+            {showOptions && (
+                <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50" onClick={() => setShowOptions(false)}>
+                    <div className="bg-white rounded-t-2xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+                        <div className="text-center">
+                            <h3 className="text-lg font-medium text-gray-900 mb-4">Select Image Source</h3>
+                        </div>
+
+                        <button
+                            onClick={handleCameraClick}
+                            className="w-full flex items-center justify-center space-x-3 p-4 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors"
+                            disabled={disabled || isUploading}
+                        >
+                            <Camera className="w-5 h-5 text-orange-600" />
+                            <span className="font-medium text-orange-700">Take Photo</span>
+                        </button>
+
+                        <button
+                            onClick={handleGalleryClick}
+                            className="w-full flex items-center justify-center space-x-3 p-4 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                            disabled={disabled || isUploading}
+                        >
+                            <FolderOpen className="w-5 h-5 text-blue-600" />
+                            <span className="font-medium text-blue-700">Choose from Gallery</span>
+                        </button>
+
+                        <button
+                            onClick={() => setShowOptions(false)}
+                            className="w-full p-4 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                        >
+                            <span className="font-medium text-gray-700">Cancel</span>
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {error && (
                 <p className="text-sm text-red-600">
