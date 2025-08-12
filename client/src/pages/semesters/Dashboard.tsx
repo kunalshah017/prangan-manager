@@ -1,4 +1,4 @@
-import { Users, UserPlus, ClipboardList, CalendarCheck } from 'lucide-react';
+import { Users, UserPlus, ClipboardList, CalendarCheck, IndianRupee } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMemo } from 'react';
 import DoodleBackground from '@/components/DoodleBackground';
@@ -6,8 +6,9 @@ import LoadingButterfly from '@/components/LoadingButterfly';
 import { useSemester } from '@/hooks/useSemesterQueries';
 import { useCenter } from '@/hooks/useCenterQueries';
 import { useStudentsBySemester } from '@/hooks/useStudentQueries';
-import type { Student } from '@/types/api';
+import type { Student, RoleAssignment } from '@/types/api';
 import ProtectedComponent from '@/components/ProtectedComponent';
+import { useUsers } from '@/hooks/useUserQueries';
 
 const Dashboard = () => {
     const { projectId, centerId, semesterId } = useParams<{
@@ -23,6 +24,7 @@ const Dashboard = () => {
     const { data: studentsData, isLoading: studentsLoading } = useStudentsBySemester(semesterId!);
 
     const isLoading = semesterLoading || centerLoading || studentsLoading;
+    const { data: users = [] } = useUsers();
 
     // Handle both data formats - direct array or wrapped in object
     const students: Student[] = useMemo(() => {
@@ -46,6 +48,30 @@ const Dashboard = () => {
             return acc;
         }, {} as Record<string, number>);
     }, [students]);
+
+    // Counts for Educators and Center Managers from all users (not filtered by active), scoped to current context
+    const { educatorCount, centerManagerCount } = useMemo(() => {
+        const educatorIds = new Set<string>();
+        const managerIds = new Set<string>();
+
+        const inContext = (ra: RoleAssignment) => {
+            if (projectId && ra.projectId && ra.projectId !== projectId) return false;
+            if (centerId && ra.centerId && ra.centerId !== centerId) return false;
+            if (semesterId && ra.semesterId && ra.semesterId !== semesterId) return false;
+            return true;
+        };
+
+        for (const user of users) {
+            const roles = user.roleAssignments || [];
+            if (roles.some((r) => r.subRole === 'EDUCATOR' && inContext(r))) {
+                educatorIds.add(user.id);
+            }
+            if (roles.some((r) => r.subRole === 'CENTER_MANAGER' && inContext(r))) {
+                managerIds.add(user.id);
+            }
+        }
+        return { educatorCount: educatorIds.size, centerManagerCount: managerIds.size };
+    }, [users, projectId, centerId, semesterId]);
 
     // Function to handle navigation to students with context
     const handleManageStudents = () => {
@@ -87,6 +113,11 @@ const Dashboard = () => {
     // Function to handle navigation to mark student attendance
     const handleMarkStudentAttendance = () => {
         navigate(`/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/student-attendance/mark`);
+    };
+
+    // Function to handle navigation to renumeration page
+    const handleRenumeration = () => {
+        navigate(`/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/attendance/renumeration`);
     };
 
     // Function to handle navigation to add student with context
@@ -167,7 +198,7 @@ const Dashboard = () => {
                 </div>
 
                 {/* Quick Stats */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="bg-white/90 backdrop-blur-sm rounded-lg border p-3 text-center">
                         <p className="text-2xl font-bold text-orange-600">{totalStudents}</p>
                         <p className="text-xs text-gray-600">Students</p>
@@ -175,6 +206,14 @@ const Dashboard = () => {
                     <div className="bg-white/90 backdrop-blur-sm rounded-lg border p-3 text-center">
                         <p className="text-2xl font-bold text-blue-600">{Object.keys(studentsByLevel).length}</p>
                         <p className="text-xs text-gray-600">Levels</p>
+                    </div>
+                    <div className="bg-white/90 backdrop-blur-sm rounded-lg border p-3 text-center">
+                        <p className="text-2xl font-bold text-emerald-600">{educatorCount}</p>
+                        <p className="text-xs text-gray-600">Educators</p>
+                    </div>
+                    <div className="bg-white/90 backdrop-blur-sm rounded-lg border p-3 text-center">
+                        <p className="text-2xl font-bold text-indigo-600">{centerManagerCount}</p>
+                        <p className="text-xs text-gray-600">Center Managers</p>
                     </div>
                 </div>
 
@@ -206,7 +245,7 @@ const Dashboard = () => {
                 <ProtectedComponent allowedSubRoles={['CENTER_MANAGER']}>
                     <div className="space-y-3">
                         <h2 className="text-sm font-medium text-gray-700 px-1">Educators / Center Manager Attendance</h2>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                             <button
                                 onClick={handleMarkAttendance}
                                 className="flex flex-col items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg p-4 h-20 transition-colors"
@@ -222,12 +261,22 @@ const Dashboard = () => {
                                 <ClipboardList className="h-5 w-5" />
                                 <span className="text-xs font-medium">View Attendance</span>
                             </button>
+
+                            <ProtectedComponent requireAdmin>
+                                <button
+                                    onClick={handleRenumeration}
+                                    className="flex flex-col items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg p-4 h-20 transition-colors"
+                                >
+                                    <IndianRupee className="h-5 w-5" />
+                                    <span className="text-xs font-medium">Renumeration</span>
+                                </button>
+                            </ProtectedComponent>
                         </div>
                     </div>
-                </ProtectedComponent>
+                </ProtectedComponent >
 
                 {/* Student Attendance */}
-                <ProtectedComponent allowedSubRoles={['CENTER_MANAGER', 'EDUCATOR']}>
+                < ProtectedComponent allowedSubRoles={['CENTER_MANAGER', 'EDUCATOR']} >
                     <div className="space-y-3">
                         <h2 className="text-sm font-medium text-gray-700 px-1">Student Attendance</h2>
                         <div className="grid grid-cols-2 gap-3">
@@ -248,8 +297,8 @@ const Dashboard = () => {
                             </button>
                         </div>
                     </div>
-                </ProtectedComponent>                {/* Admin Functions */}
-                <ProtectedComponent requireAdmin>
+                </ProtectedComponent > {/* Admin Functions */}
+                < ProtectedComponent requireAdmin >
                     <div className="space-y-3">
                         <h2 className="text-sm font-medium text-gray-700 px-1">Admin Functions</h2>
                         <div className="grid grid-cols-1 gap-3">
@@ -262,28 +311,30 @@ const Dashboard = () => {
                             </button>
                         </div>
                     </div>
-                </ProtectedComponent>
+                </ProtectedComponent >
 
                 {/* Students by Level */}
-                {Object.keys(studentsByLevel).length > 0 && (
-                    <div className="mx-4 sm:mx-0">
-                        <div className="bg-white/90 backdrop-blur-sm rounded-lg border p-4">
-                            <h2 className="text-sm font-medium text-gray-700 mb-3">Students by Level</h2>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                {getSortedLevels().map((level) => (
-                                    <div key={level} className="bg-orange-50 rounded-lg p-3 text-center">
-                                        <p className="text-lg font-bold text-orange-600">
-                                            {studentsByLevel[level]}
-                                        </p>
-                                        <p className="text-xs text-gray-600">
-                                            {getLevelDisplay(level)}
-                                        </p>
-                                    </div>
-                                ))}
+                {
+                    Object.keys(studentsByLevel).length > 0 && (
+                        <div className="mx-4 sm:mx-0">
+                            <div className="bg-white/90 backdrop-blur-sm rounded-lg border p-4">
+                                <h2 className="text-sm font-medium text-gray-700 mb-3">Students by Level</h2>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                    {getSortedLevels().map((level) => (
+                                        <div key={level} className="bg-orange-50 rounded-lg p-3 text-center">
+                                            <p className="text-lg font-bold text-orange-600">
+                                                {studentsByLevel[level]}
+                                            </p>
+                                            <p className="text-xs text-gray-600">
+                                                {getLevelDisplay(level)}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    )
+                }
 
                 {/* Empty State */}
                 <ProtectedComponent allowedSubRoles={['EDUCATOR', 'CENTER_MANAGER']} fallback={
@@ -318,9 +369,11 @@ const Dashboard = () => {
                         </div>
                     )}
                 </ProtectedComponent>
-            </div>
+            </div >
         </>
     );
 };
 
 export default Dashboard;
+
+

@@ -22,6 +22,7 @@ import {
   updateUserManagementController,
   createUserAssignmentController,
   deleteUserAssignmentController,
+  updateMyBankDetails,
 } from "../controllers/user.controller.js";
 import { authChecker } from "../utils/authChecker.js";
 
@@ -29,7 +30,19 @@ export const userRoutes = async (fastify: FastifyInstance): Promise<void> => {
   // User routes
   fastify.post("/users/register", registerUser);
   fastify.post("/users/login", loginUser);
+  fastify.get("/users", { preHandler: authChecker }, getAllUsersController);
   fastify.get("/users/me", { preHandler: authChecker }, getCurrentUser);
+  fastify.patch(
+    "/users/me/bank",
+    { preHandler: authChecker },
+    updateMyBankDetails
+  );
+  // PUT alias for clients that cannot use PATCH (CORS/proxies)
+  fastify.put(
+    "/users/me/bank",
+    { preHandler: authChecker },
+    updateMyBankDetails
+  );
   fastify.post("/users/verify", { preHandler: authChecker }, verifyUser);
   fastify.get(
     "/users/registration-requests",

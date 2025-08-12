@@ -28,7 +28,8 @@ async function createFastifyInstance(): Promise<FastifyInstance> {
   await fastify.register(import("@fastify/cors"), {
     origin: true,
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   });
 
   // Health check endpoint

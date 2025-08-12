@@ -134,11 +134,11 @@ export class StudentAttendanceService {
     markedBy: string
   ): Promise<BulkStudentAttendanceResponse> {
     const attendanceDate = new Date(data.date);
-    
+
     // Extract all student and enrollment IDs for batch validation
-    const studentIds = data.studentAttendances.map(sa => sa.studentId);
-    const enrollmentIds = data.studentAttendances.map(sa => sa.enrollmentId);
-    
+    const studentIds = data.studentAttendances.map((sa) => sa.studentId);
+    const enrollmentIds = data.studentAttendances.map((sa) => sa.enrollmentId);
+
     // Batch validate all enrollments in a single query
     const enrollments = await prisma.studentEnrollments.findMany({
       where: {
@@ -160,7 +160,7 @@ export class StudentAttendanceService {
 
     // Create a map for quick enrollment lookup
     const enrollmentMap = new Map(
-      enrollments.map(e => [`${e.studentId}-${e.id}`, e])
+      enrollments.map((e) => [`${e.studentId}-${e.id}`, e])
     );
 
     // Prepare bulk operations
@@ -170,17 +170,17 @@ export class StudentAttendanceService {
     for (const studentAttendance of data.studentAttendances) {
       const enrollmentKey = `${studentAttendance.studentId}-${studentAttendance.enrollmentId}`;
       const enrollment = enrollmentMap.get(enrollmentKey);
-      
+
       if (!enrollment) {
         errors.push({
           studentId: studentAttendance.studentId,
-          error: "Invalid or inactive enrollment"
+          error: "Invalid or inactive enrollment",
         });
         continue;
       }
 
       const attendanceStatus = studentAttendance.status || data.status;
-      
+
       validAttendances.push({
         studentId: studentAttendance.studentId,
         date: attendanceDate,
@@ -190,7 +190,8 @@ export class StudentAttendanceService {
         centerId: data.centerId,
         semesterId: data.semesterId,
         notes: studentAttendance.notes,
-        holidayReason: attendanceStatus === "HOLIDAY" ? data.holidayReason : null,
+        holidayReason:
+          attendanceStatus === "HOLIDAY" ? data.holidayReason : null,
         markedBy,
         markedAt: new Date(),
       });
@@ -203,61 +204,64 @@ export class StudentAttendanceService {
     // Alternative: Non-transactional approach for better performance with large batches
     // This is faster but less atomic - good for bulk attendance where partial success is acceptable
     const useTransaction = validAttendances.length <= 20; // Use transaction for smaller batches only
-    
+
     if (useTransaction) {
       // Use transaction for bulk operations with increased timeout
-      const results = await prisma.$transaction(async (tx) => {
-        const attendanceResults = [];
-        
-        // Process in smaller batches to avoid query limits and reduce transaction time
-        const batchSize = 5; // Reduced batch size for faster processing
-        for (let i = 0; i < validAttendances.length; i += batchSize) {
-          const batch = validAttendances.slice(i, i + batchSize);
-          
-          // For each item in batch, use upsert
-          const batchPromises = batch.map(attendance => 
-            tx.studentAttendance.upsert({
-              where: {
-                studentId_date_projectId_centerId_semesterId: {
-                  studentId: attendance.studentId,
-                  date: attendance.date,
-                  projectId: attendance.projectId,
-                  centerId: attendance.centerId,
-                  semesterId: attendance.semesterId,
+      const results = await prisma.$transaction(
+        async (tx) => {
+          const attendanceResults = [];
+
+          // Process in smaller batches to avoid query limits and reduce transaction time
+          const batchSize = 5; // Reduced batch size for faster processing
+          for (let i = 0; i < validAttendances.length; i += batchSize) {
+            const batch = validAttendances.slice(i, i + batchSize);
+
+            // For each item in batch, use upsert
+            const batchPromises = batch.map((attendance) =>
+              tx.studentAttendance.upsert({
+                where: {
+                  studentId_date_projectId_centerId_semesterId: {
+                    studentId: attendance.studentId,
+                    date: attendance.date,
+                    projectId: attendance.projectId,
+                    centerId: attendance.centerId,
+                    semesterId: attendance.semesterId,
+                  },
                 },
-              },
-              update: {
-                status: attendance.status,
-                notes: attendance.notes,
-                holidayReason: attendance.holidayReason,
-                markedBy: attendance.markedBy,
-                markedAt: attendance.markedAt,
-              },
-              create: attendance,
-              select: {
-                id: true,
-                studentId: true,
-                date: true,
-                status: true,
-                student: {
-                  select: {
-                    id: true,
-                    name: true,
-                  }
-                }
-              },
-            })
-          );
-          
-          const batchResults = await Promise.all(batchPromises);
-          attendanceResults.push(...batchResults);
+                update: {
+                  status: attendance.status,
+                  notes: attendance.notes,
+                  holidayReason: attendance.holidayReason,
+                  markedBy: attendance.markedBy,
+                  markedAt: attendance.markedAt,
+                },
+                create: attendance,
+                select: {
+                  id: true,
+                  studentId: true,
+                  date: true,
+                  status: true,
+                  student: {
+                    select: {
+                      id: true,
+                      name: true,
+                    },
+                  },
+                },
+              })
+            );
+
+            const batchResults = await Promise.all(batchPromises);
+            attendanceResults.push(...batchResults);
+          }
+
+          return attendanceResults;
+        },
+        {
+          timeout: 30000, // 30 second timeout instead of default 5 seconds
         }
-        
-        return attendanceResults;
-      }, {
-        timeout: 30000, // 30 second timeout instead of default 5 seconds
-      });
-      
+      );
+
       return {
         processedCount: results.length,
         errors,
@@ -267,12 +271,12 @@ export class StudentAttendanceService {
       // Non-transactional approach for larger batches (42+ students)
       const attendanceResults = [];
       const processingErrors = [...errors]; // Start with validation errors
-      
+
       // Process in batches without transaction for better performance
       const batchSize = 10;
       for (let i = 0; i < validAttendances.length; i += batchSize) {
         const batch = validAttendances.slice(i, i + batchSize);
-        
+
         // Process batch with error handling for each item
         const batchPromises = batch.map(async (attendance) => {
           try {
@@ -303,24 +307,26 @@ export class StudentAttendanceService {
                   select: {
                     id: true,
                     name: true,
-                  }
-                }
+                  },
+                },
               },
             });
             return result;
           } catch (error: any) {
             processingErrors.push({
               studentId: attendance.studentId,
-              error: error.message || 'Failed to process attendance'
+              error: error.message || "Failed to process attendance",
             });
             return null;
           }
         });
-        
+
         const batchResults = await Promise.all(batchPromises);
-        attendanceResults.push(...batchResults.filter(result => result !== null));
+        attendanceResults.push(
+          ...batchResults.filter((result) => result !== null)
+        );
       }
-      
+
       return {
         processedCount: attendanceResults.length,
         errors: processingErrors,
@@ -333,15 +339,28 @@ export class StudentAttendanceService {
   static async getAttendance(
     filter: StudentAttendanceFilter
   ): Promise<StudentAttendanceWithDetails[]> {
+    // Build a single date filter to avoid overwriting conditions
+    const dateFilter: { equals?: Date; gte?: Date; lte?: Date } = {};
+    if (filter.date) {
+      // If an exact date is provided, prioritize equals
+      dateFilter.equals = new Date(filter.date);
+    } else {
+      if (filter.dateFrom) dateFilter.gte = new Date(filter.dateFrom);
+      if (filter.dateTo) {
+        const to = new Date(filter.dateTo);
+        // Make end date inclusive to end-of-day
+        to.setUTCHours(23, 59, 59, 999);
+        dateFilter.lte = to;
+      }
+    }
+
     return await prisma.studentAttendance.findMany({
       where: {
         ...(filter.studentId && { studentId: filter.studentId }),
         ...(filter.projectId && { projectId: filter.projectId }),
         ...(filter.centerId && { centerId: filter.centerId }),
         ...(filter.semesterId && { semesterId: filter.semesterId }),
-        ...(filter.date && { date: new Date(filter.date) }),
-        ...(filter.dateFrom && { date: { gte: new Date(filter.dateFrom) } }),
-        ...(filter.dateTo && { date: { lte: new Date(filter.dateTo) } }),
+        ...(Object.keys(dateFilter).length > 0 && { date: dateFilter }),
         ...(filter.status && { status: filter.status }),
       },
       include: {

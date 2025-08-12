@@ -238,6 +238,13 @@ const BreadcrumbNavigation: React.FC = () => {
                                     isCurrentPage: true
                                 });
                             }
+                            // Handle /dashboard/attendance/renumeration
+                            else if (pathSegments[semesterIndex + 5] === 'renumeration') {
+                                breadcrumbs.push({
+                                    label: 'Educator / Center Manager Renumeration',
+                                    isCurrentPage: true
+                                });
+                            }
                         }
                         // Handle dashboard sub-routes (student-attendance)
                         else if (pathSegments[semesterIndex + 4] === 'student-attendance') {
@@ -255,6 +262,13 @@ const BreadcrumbNavigation: React.FC = () => {
                                     isCurrentPage: true
                                 });
                             }
+                        }
+                        // Handle dashboard sub-route (bank-details)
+                        else if (pathSegments[semesterIndex + 4] === 'bank-details') {
+                            breadcrumbs.push({
+                                label: 'Bank Details',
+                                isCurrentPage: true
+                            });
                         }
                         // Handle /dashboard (current page)
                         else {

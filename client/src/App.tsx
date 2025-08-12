@@ -33,10 +33,12 @@ const CreateStudent = lazy(() => import('./pages/students/CreateStudent'))
 const EditStudent = lazy(() => import('./pages/students/EditStudent'))
 const ViewAttendance = lazy(() => import('./pages/attendance/ViewAttendance').then(module => ({ default: module.ViewAttendance })))
 const MarkAttendance = lazy(() => import('./pages/attendance/MarkAttendance').then(module => ({ default: module.MarkAttendance })))
+const Renumeration = lazy(() => import('./pages/attendance/Renumeration').then(module => ({ default: module.Renumeration })))
 const ViewStudentAttendance = lazy(() => import('./pages/student-attendance/ViewStudentAttendance').then(module => ({ default: module.ViewStudentAttendance })))
 const MarkStudentAttendance = lazy(() => import('./pages/student-attendance/MarkStudentAttendance').then(module => ({ default: module.MarkStudentAttendance })))
 const RegistrationRequests = lazy(() => import('./pages/RegistrationRequests'))
 const Profile = lazy(() => import('./pages/Profile'))
+const BankDetails = lazy(() => import('./pages/BankDetails'))
 
 // Loading fallback component
 const PageLoading = () => (
@@ -116,6 +118,19 @@ function App() {
                   <MarkAttendance />
                 </ProtectedRoute>
               } />
+              <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/attendance/renumeration" element={
+                <ProtectedRoute allowedSubRoles={['CENTER_MANAGER']}>
+                  <Renumeration />
+                </ProtectedRoute>
+              } />
+              <Route
+                path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/bank-details"
+                element={
+                  <ProtectedRoute allowAll={true}>
+                    <BankDetails />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/student-attendance/view"
                 element={
@@ -143,6 +158,7 @@ function App() {
               }
             >
               <Route index element={<Profile />} />
+              <Route path="bank" element={<BankDetails />} />
             </Route>
 
             <Route

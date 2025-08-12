@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { User, Phone, MapPin, GraduationCap, Calendar, Badge, Building, Users, Settings } from 'lucide-react';
+import { User, Phone, MapPin, GraduationCap, Calendar, Badge, Building, Users, Settings, Banknote } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useProject } from '@/hooks/useProjectQueries';
 import { useCenter } from '@/hooks/useCenterQueries';
@@ -20,9 +20,11 @@ import {
     BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { cn } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 const Profile: React.FC = () => {
     const { user, isLoading } = useAuth();
+    const navigate = useNavigate();
     const [isCacheModalOpen, setIsCacheModalOpen] = useState(false);
 
     // Component to display role assignment with fetched names
@@ -328,6 +330,70 @@ const Profile: React.FC = () => {
                             </div>
                         </motion.section>
 
+                        {/* Bank Details */}
+                        <motion.section
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.5, delay: 0.35 }}
+                            className="border-t border-gray-200 pt-6"
+                        >
+                            <div className="flex items-center justify-between mb-4 sm:mb-6">
+                                <h2 className="text-lg sm:text-xl md:text-2xl font-semibold text-gray-900 flex items-center">
+                                    <Banknote className="h-5 w-5 sm:h-6 sm:w-6 mr-2 text-orange-600" />
+                                    Bank Details
+                                </h2>
+                                {(!user.bankAccountNumber && !user.bankAccountName && !user.bankIfsc && !user.bankName && !user.bankBranch) ? (
+                                    <CustomButton onClick={() => navigate('/profile/bank')}>
+                                        Add Bank Details
+                                    </CustomButton>
+                                ) : (
+                                    <CustomButton onClick={() => navigate('/profile/bank')} variant="outline">Edit</CustomButton>
+                                )}
+                            </div>
+                            {(!user.bankAccountNumber && !user.bankAccountName && !user.bankIfsc && !user.bankName && !user.bankBranch && !user.upiId) ? (
+                                <p className="text-sm text-gray-600">No bank details added yet.</p>
+                            ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
+                                    {user.bankAccountNumber && (
+                                        <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
+                                            <p className="text-xs sm:text-sm font-medium text-gray-900">Account Number</p>
+                                            <p className="text-xs sm:text-sm text-gray-600 break-all">{user.bankAccountNumber}</p>
+                                        </div>
+                                    )}
+                                    {user.bankAccountName && (
+                                        <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
+                                            <p className="text-xs sm:text-sm font-medium text-gray-900">Name on Account</p>
+                                            <p className="text-xs sm:text-sm text-gray-600">{user.bankAccountName}</p>
+                                        </div>
+                                    )}
+                                    {user.bankIfsc && (
+                                        <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
+                                            <p className="text-xs sm:text-sm font-medium text-gray-900">IFSC</p>
+                                            <p className="text-xs sm:text-sm text-gray-600">{user.bankIfsc}</p>
+                                        </div>
+                                    )}
+                                    {user.bankName && (
+                                        <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
+                                            <p className="text-xs sm:text-sm font-medium text-gray-900">Bank</p>
+                                            <p className="text-xs sm:text-sm text-gray-600">{user.bankName}</p>
+                                        </div>
+                                    )}
+                                    {user.bankBranch && (
+                                        <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
+                                            <p className="text-xs sm:text-sm font-medium text-gray-900">Branch</p>
+                                            <p className="text-xs sm:text-sm text-gray-600">{user.bankBranch}</p>
+                                        </div>
+                                    )}
+                                    {user.upiId && (
+                                        <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
+                                            <p className="text-xs sm:text-sm font-medium text-gray-900">UPI ID</p>
+                                            <p className="text-xs sm:text-sm text-gray-600 break-all">{user.upiId}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </motion.section>
+
                         {/* App Settings Section */}
                         <motion.section
                             initial={{ opacity: 0, y: 20 }}
@@ -355,7 +421,7 @@ const Profile: React.FC = () => {
                                         Manage App Data
                                     </CustomButton>
                                 </div>
-                                
+
                                 {/* App Version Info */}
                                 <div className="border-t border-gray-200 pt-4">
                                     <h4 className="text-sm font-medium text-gray-900 mb-2">App Information</h4>

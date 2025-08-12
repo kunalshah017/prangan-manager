@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -14,21 +14,86 @@ import { useStudentAttendanceRecords } from "@/hooks/useStudentAttendanceQueries
 import LoadingButterfly from "@/components/LoadingButterfly";
 import { ProfilePicture } from "@/components/ui";
 import type { StudentAttendanceRecord } from "@/types/api";
+import { useSemester } from "@/hooks/useSemesterQueries";
 
 export const ViewStudentAttendance = () => {
     const { projectId, centerId, semesterId } = useParams();
-    const [startDate, setStartDate] = useState<string>("");
-    const [endDate, setEndDate] = useState<string>("");
+    // Timeframe selection: single date | month | full semester
+    const [timeframe, setTimeframe] = useState<"single" | "month" | "semester">("single");
+    const [singleDate, setSingleDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+    const [month, setMonth] = useState<string>(""); // format YYYY-MM
+    const [selectedYear, setSelectedYear] = useState<string>("");
+    const [selectedMonth, setSelectedMonth] = useState<string>(""); // 01..12
     const [selectedStatus, setSelectedStatus] = useState<string>("");
+    const [selectedLevel, setSelectedLevel] = useState<string>("");
+
+    // Fetch semester to know start/end for full semester option
+    const { data: semester } = useSemester(semesterId!);
+
+    // Compute date params based on timeframe selection
+    const { date, startDate, endDate } = useMemo(() => {
+        if (timeframe === "single" && singleDate) {
+            return { date: singleDate } as const;
+        }
+        if (timeframe === "month" && month) {
+            const [y, m] = month.split("-").map(Number);
+            if (y && m) {
+                const first = new Date(Date.UTC(y, m - 1, 1));
+                const last = new Date(Date.UTC(y, m, 0));
+                const fmt = (d: Date) => d.toISOString().slice(0, 10);
+                return { startDate: fmt(first), endDate: fmt(last) } as const;
+            }
+        }
+        if (timeframe === "semester" && semester?.startDate && semester?.endDate) {
+            return {
+                startDate: new Date(semester.startDate).toISOString().slice(0, 10),
+                endDate: new Date(semester.endDate).toISOString().slice(0, 10),
+            } as const;
+        }
+        return {} as { date?: string; startDate?: string; endDate?: string };
+    }, [timeframe, singleDate, month, semester?.startDate, semester?.endDate]);
 
     const { data: attendanceData, isLoading, error } = useStudentAttendanceRecords({
         projectId: projectId!,
         centerId: centerId!,
         semesterId: semesterId!,
-        ...(startDate && { startDate }),
-        ...(endDate && { endDate }),
-        ...(selectedStatus && { status: selectedStatus }),
+        ...(date ? { date } : {}),
+        ...(startDate ? { startDate } : {}),
+        ...(endDate ? { endDate } : {}),
+        ...(selectedStatus ? { status: selectedStatus } : {}),
     });
+
+    // Build month string when year/month selects change
+    const years = useMemo(() => {
+        const now = new Date().getUTCFullYear();
+        const list: number[] = [];
+        for (let y = now - 3; y <= now + 1; y++) list.push(y);
+        return list;
+    }, []);
+    const months = [
+        { value: "01", label: "Jan" },
+        { value: "02", label: "Feb" },
+        { value: "03", label: "Mar" },
+        { value: "04", label: "Apr" },
+        { value: "05", label: "May" },
+        { value: "06", label: "Jun" },
+        { value: "07", label: "Jul" },
+        { value: "08", label: "Aug" },
+        { value: "09", label: "Sep" },
+        { value: "10", label: "Oct" },
+        { value: "11", label: "Nov" },
+        { value: "12", label: "Dec" },
+    ];
+    const onYearChange = (y: string) => {
+        setSelectedYear(y);
+        const mm = selectedMonth;
+        setMonth(y && mm ? `${y}-${mm}` : "");
+    };
+    const onMonthChange = (m: string) => {
+        setSelectedMonth(m);
+        const y = selectedYear;
+        setMonth(y && m ? `${y}-${m}` : "");
+    };
 
     const getStatusIcon = (status: StudentAttendanceRecord['status']) => {
         switch (status) {
@@ -56,13 +121,21 @@ export const ViewStudentAttendance = () => {
         }
     };
 
-    const getAttendanceStats = () => {
-        if (!attendanceData?.attendance) return null;
+    // Client-side filter by level (API may not support level filtering)
+    const filteredAttendance = useMemo(() => {
+        const records = attendanceData?.attendance || [];
+        if (!selectedLevel) return records;
+        return records.filter(rec => rec.enrollment?.level === selectedLevel);
+    }, [attendanceData?.attendance, selectedLevel]);
 
-        const total = attendanceData.attendance.length;
-        const present = attendanceData.attendance.filter(record => record.status === 'PRESENT').length;
-        const absent = attendanceData.attendance.filter(record => record.status === 'ABSENT').length;
-        const holidays = attendanceData.attendance.filter(record => record.status === 'HOLIDAY').length;
+    const getAttendanceStats = () => {
+        const list = filteredAttendance;
+        if (!list) return null;
+
+        const total = list.length;
+        const present = list.filter(record => record.status === 'PRESENT').length;
+        const absent = list.filter(record => record.status === 'ABSENT').length;
+        const holidays = list.filter(record => record.status === 'HOLIDAY').length;
 
         const workingDays = total - holidays;
         const attendancePercentage = workingDays > 0 ? ((present / workingDays) * 100).toFixed(1) : '0.0';
@@ -71,6 +144,9 @@ export const ViewStudentAttendance = () => {
     };
 
     const stats = getAttendanceStats();
+    const [openNotes, setOpenNotes] = useState<Record<string, boolean>>({});
+    const toggleNote = (id: string) =>
+        setOpenNotes((prev) => ({ ...prev, [id]: !prev[id] }));
 
     if (isLoading) {
         return (
@@ -117,33 +193,92 @@ export const ViewStudentAttendance = () => {
                         <Calendar className="w-4 h-4 mr-1 text-gray-600" />
                         Filters
                     </h3>
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                        {/* Timeframe selector */}
                         <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                                Start Date
-                            </label>
-                            <input
-                                type="date"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500"
-                            />
+                            <label className="block text-xs font-medium text-gray-700 mb-2">Timeframe</label>
+                            <div className="flex flex-wrap gap-3 text-xs">
+                                <label className="inline-flex items-center gap-1">
+                                    <input
+                                        type="radio"
+                                        name="timeframe"
+                                        value="single"
+                                        checked={timeframe === 'single'}
+                                        onChange={() => setTimeframe('single')}
+                                    />
+                                    Single Date
+                                </label>
+                                <label className="inline-flex items-center gap-1">
+                                    <input
+                                        type="radio"
+                                        name="timeframe"
+                                        value="month"
+                                        checked={timeframe === 'month'}
+                                        onChange={() => setTimeframe('month')}
+                                    />
+                                    Month
+                                </label>
+                                <label className="inline-flex items-center gap-1">
+                                    <input
+                                        type="radio"
+                                        name="timeframe"
+                                        value="semester"
+                                        checked={timeframe === 'semester'}
+                                        onChange={() => setTimeframe('semester')}
+                                    />
+                                    Full Semester
+                                </label>
+                            </div>
+                            <div className="mt-2">
+                                {timeframe === 'single' && (
+                                    <input
+                                        type="date"
+                                        value={singleDate}
+                                        onChange={(e) => setSingleDate(e.target.value)}
+                                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                    />
+                                )}
+                                {timeframe === 'month' && (
+                                    <div className="flex gap-2">
+                                        <select
+                                            value={selectedYear}
+                                            onChange={(e) => onYearChange(e.target.value)}
+                                            className="w-1/2 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                        >
+                                            <option value="">Year</option>
+                                            {years.map((y) => (
+                                                <option key={y} value={y}>{y}</option>
+                                            ))}
+                                        </select>
+                                        <select
+                                            value={selectedMonth}
+                                            onChange={(e) => onMonthChange(e.target.value)}
+                                            className="w-1/2 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                        >
+                                            <option value="">Month</option>
+                                            {months.map((m) => (
+                                                <option key={m.value} value={m.value}>{m.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                                {timeframe === 'semester' && (
+                                    <div className="text-xs text-gray-600">
+                                        {semester ? (
+                                            <span>
+                                                {new Date(semester.startDate).toLocaleDateString()} - {new Date(semester.endDate).toLocaleDateString()}
+                                            </span>
+                                        ) : (
+                                            <span>Loading semester dates…</span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
+
+                        {/* Status */}
                         <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                                End Date
-                            </label>
-                            <input
-                                type="date"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                                Status
-                            </label>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
                             <select
                                 value={selectedStatus}
                                 onChange={(e) => setSelectedStatus(e.target.value)}
@@ -153,6 +288,24 @@ export const ViewStudentAttendance = () => {
                                 <option value="PRESENT">Present</option>
                                 <option value="ABSENT">Absent</option>
                                 <option value="HOLIDAY">Holiday</option>
+                            </select>
+                        </div>
+
+                        {/* Level */}
+                        <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Level</label>
+                            <select
+                                value={selectedLevel}
+                                onChange={(e) => setSelectedLevel(e.target.value)}
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500"
+                            >
+                                <option value="">All</option>
+                                <option value="PRIMARY_A">Primary A</option>
+                                <option value="PRIMARY_B">Primary B</option>
+                                <option value="LEVEL_1">Level 1</option>
+                                <option value="LEVEL_2">Level 2</option>
+                                <option value="LEVEL_3">Level 3</option>
+                                <option value="LEVEL_4">Level 4</option>
                             </select>
                         </div>
                     </div>
@@ -190,15 +343,15 @@ export const ViewStudentAttendance = () => {
                         <h3 className="text-sm font-semibold text-gray-900 flex items-center">
                             <Users className="w-4 h-4 mr-1 text-gray-600" />
                             Records
-                            {attendanceData?.attendance && (
+                            {filteredAttendance && (
                                 <span className="ml-2 text-xs font-normal text-gray-500">
-                                    ({attendanceData.attendance.length})
+                                    ({filteredAttendance.length})
                                 </span>
                             )}
                         </h3>
                     </div>
 
-                    {!attendanceData?.attendance || attendanceData.attendance.length === 0 ? (
+                    {!filteredAttendance || filteredAttendance.length === 0 ? (
                         <div className="text-center py-8">
                             <UserIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                             <h3 className="text-sm font-medium text-gray-900 mb-2">
@@ -233,7 +386,7 @@ export const ViewStudentAttendance = () => {
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
-                                        {attendanceData.attendance.map((record) => (
+                                        {filteredAttendance.map((record) => (
                                             <motion.tr
                                                 key={record.id}
                                                 initial={{ opacity: 0 }}
@@ -285,20 +438,15 @@ export const ViewStudentAttendance = () => {
                                                         {record.notes && (
                                                             <button
                                                                 type="button"
-                                                                onClick={() => {
-                                                                    const detailsSection = document.getElementById(`details-${record.id}`);
-                                                                    if (detailsSection) {
-                                                                        detailsSection.style.display = detailsSection.style.display === 'none' ? 'block' : 'none';
-                                                                    }
-                                                                }}
+                                                                onClick={() => toggleNote(record.id)}
                                                                 className="text-blue-600 hover:text-blue-800 underline"
                                                             >
-                                                                Show Notes
+                                                                {openNotes[record.id] ? 'Hide Notes' : 'Show Notes'}
                                                             </button>
                                                         )}
                                                     </div>
-                                                    {record.notes && (
-                                                        <div id={`details-${record.id}`} style={{ display: 'none' }} className="mt-2 p-2 bg-gray-50 rounded text-xs">
+                                                    {record.notes && openNotes[record.id] && (
+                                                        <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
                                                             <strong>Notes:</strong> {record.notes}
                                                         </div>
                                                     )}
@@ -311,7 +459,7 @@ export const ViewStudentAttendance = () => {
 
                             {/* Mobile Card Layout */}
                             <div className="sm:hidden space-y-3">
-                                {attendanceData.attendance.map((record) => (
+                                {filteredAttendance.map((record) => (
                                     <motion.div
                                         key={`mobile-${record.id}`}
                                         initial={{ opacity: 0 }}
@@ -365,21 +513,18 @@ export const ViewStudentAttendance = () => {
                                             <div>
                                                 <button
                                                     type="button"
-                                                    onClick={() => {
-                                                        const mobileNotesSection = document.getElementById(`mobile-notes-${record.id}`);
-                                                        if (mobileNotesSection) {
-                                                            mobileNotesSection.style.display = mobileNotesSection.style.display === 'none' ? 'block' : 'none';
-                                                        }
-                                                    }}
+                                                    onClick={() => toggleNote(record.id)}
                                                     className="text-xs text-blue-600 hover:text-blue-800 underline"
                                                 >
-                                                    Show Notes
+                                                    {openNotes[record.id] ? 'Hide Notes' : 'Show Notes'}
                                                 </button>
-                                                <div id={`mobile-notes-${record.id}`} style={{ display: 'none' }} className="mt-2 pt-2 border-t border-gray-100">
-                                                    <div className="text-xs text-gray-600">
-                                                        <strong>Notes:</strong> {record.notes}
+                                                {openNotes[record.id] && (
+                                                    <div className="mt-2 pt-2 border-t border-gray-100">
+                                                        <div className="text-xs text-gray-600">
+                                                            <strong>Notes:</strong> {record.notes}
+                                                        </div>
                                                     </div>
-                                                </div>
+                                                )}
                                             </div>
                                         )}
                                     </motion.div>

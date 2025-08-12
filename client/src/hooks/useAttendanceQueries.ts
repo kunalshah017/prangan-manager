@@ -40,7 +40,6 @@ export const useActiveUsers = (
       return response.data.users;
     },
     enabled: !!date && !!projectId && !!centerId && !!semesterId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
 
@@ -75,7 +74,6 @@ export const useAttendanceRecords = (params: {
       );
       return response.data;
     },
-    staleTime: 2 * 60 * 1000, // 2 minutes
   });
 };
 
