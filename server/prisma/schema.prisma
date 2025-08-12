@@ -68,6 +68,12 @@ model User {
   qualification    String?
   address          String?
   role             Role       @default(USER)
+  bankAccountNumber String?
+  bankAccountName   String?
+  bankIfsc          String?
+  bankName          String?
+  bankBranch        String?
+  upiId             String?
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
   roleAssignments  UserRoleAssignments[]

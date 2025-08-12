@@ -37,6 +37,8 @@ interface UseStudentAttendanceRecordsOptions {
   startDate?: string;
   endDate?: string;
   status?: string;
+  refetchIntervalMs?: number;
+  enabled?: boolean;
 }
 
 export const useStudentAttendanceRecords = (
@@ -72,8 +74,15 @@ export const useStudentAttendanceRecords = (
 
       return response.json();
     },
-    enabled: !!(options.projectId && options.centerId && options.semesterId),
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    enabled:
+      options.enabled ??
+      !!(options.projectId && options.centerId && options.semesterId),
+    // Real-time-ish syncing support
+    refetchInterval: options.refetchIntervalMs,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchOnMount: "always",
+    staleTime: 0,
   });
 };
 

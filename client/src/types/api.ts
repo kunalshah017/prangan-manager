@@ -10,6 +10,13 @@ export interface User {
   address?: string;
   dob?: string;
   profileImageUrl?: string;
+  // Optional bank details
+  bankAccountNumber?: string | null;
+  bankAccountName?: string | null;
+  bankIfsc?: string | null;
+  bankName?: string | null;
+  bankBranch?: string | null;
+  upiId?: string | null;
   createdAt: string;
   updatedAt: string;
   roleAssignments?: {

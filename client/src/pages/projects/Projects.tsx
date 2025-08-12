@@ -1,10 +1,13 @@
 import { Plus, Clock, GanttChart, Edit } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/lib/button-variants';
 import DoodleBackground from '@/components/DoodleBackground';
 import LoadingButterfly from '@/components/LoadingButterfly';
 import { useProjects } from '@/hooks/useProjectQueries';
+import { useCentersByProject } from '@/hooks/useCenterQueries';
+import { useSemestersByCenter } from '@/hooks/useSemesterQueries';
 import { useAuth } from '@/hooks/useAuth';
 
 const Projects = () => {
@@ -13,6 +16,83 @@ const Projects = () => {
 
     // Fetch projects using TanStack Query
     const { data: projects, isLoading, error, refetch } = useProjects();
+
+    // Gate auto-navigation to only run once per session using sessionStorage
+    const autoNavHandledRef = useRef<boolean>(
+        typeof window !== 'undefined' && sessionStorage.getItem('pm:autoNavHandled') === '1'
+    );
+    const autoNavEnabled = !autoNavHandledRef.current;
+
+    // Prefetch centers and semesters here to enable smart redirects (only if auto-nav is enabled)
+    const singleProjectId = autoNavEnabled && projects && projects.length === 1 ? projects[0].id : '';
+    const { data: centers, isLoading: centersLoading } = useCentersByProject(singleProjectId);
+    const singleCenterId = autoNavEnabled && centers && centers.length === 1 ? centers[0].id : '';
+    const { data: semesters, isLoading: semestersLoading } = useSemestersByCenter(singleCenterId);
+
+    // Auto-redirect logic when there's exactly one at each level
+    const hasRedirectedRef = useRef(false);
+
+    useEffect(() => {
+        if (hasRedirectedRef.current) return;
+        if (!autoNavEnabled) return; // only once per session
+        if (isLoading || !projects) return;
+
+        // If multiple projects, stay on this page.
+        if (projects.length > 1) return;
+
+        const projectId = projects[0]?.id;
+        // Wait for centers of the single project
+        if (centersLoading || !centers) return;
+
+        if (centers.length === 0) {
+            // Navigate to centers list for this project (empty list state will show)
+            hasRedirectedRef.current = true;
+            autoNavHandledRef.current = true;
+            sessionStorage.setItem('pm:autoNavHandled', '1');
+            navigate(`/projects/${projectId}/centers`, { replace: true });
+            return;
+        }
+
+        if (centers.length > 1) {
+            hasRedirectedRef.current = true;
+            autoNavHandledRef.current = true;
+            sessionStorage.setItem('pm:autoNavHandled', '1');
+            navigate(`/projects/${projectId}/centers`, { replace: true });
+            return;
+        }
+
+        // Exactly one center; check semesters next
+        const centerId = centers[0]?.id;
+        if (semestersLoading || !semesters) return;
+
+        if (semesters.length === 0) {
+            hasRedirectedRef.current = true;
+            autoNavHandledRef.current = true;
+            sessionStorage.setItem('pm:autoNavHandled', '1');
+            navigate(`/projects/${projectId}/centers/${centerId}/semesters`, { replace: true });
+            return;
+        }
+
+        if (semesters.length > 1) {
+            hasRedirectedRef.current = true;
+            autoNavHandledRef.current = true;
+            sessionStorage.setItem('pm:autoNavHandled', '1');
+            navigate(`/projects/${projectId}/centers/${centerId}/semesters`, { replace: true });
+            return;
+        }
+
+        // Exactly one semester; go to dashboard
+        const semesterId = semesters[0]?.id;
+        if (projectId && centerId && semesterId) {
+            hasRedirectedRef.current = true;
+            autoNavHandledRef.current = true;
+            sessionStorage.setItem('pm:autoNavHandled', '1');
+            navigate(
+                `/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard`,
+                { replace: true }
+            );
+        }
+    }, [isLoading, projects, centersLoading, centers, semestersLoading, semesters, navigate, autoNavEnabled]);
 
     const handleProjectClick = (projectId: string) => {
         // Navigate to centers for this project
@@ -57,6 +137,21 @@ const Projects = () => {
     const projectList = (projects || []).sort((a, b) =>
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
+
+    // If there's exactly one project, and we're resolving centers/semesters, keep a brief loading state
+    const resolvingSinglePath =
+        autoNavEnabled && !!projects && projects.length === 1 && (centersLoading || (centers && centers.length === 1 && semestersLoading));
+
+    if (resolvingSinglePath) {
+        return (
+            <>
+                <DoodleBackground numElements={12} />
+                <div className="flex flex-col items-center justify-center min-h-[400px] relative z-1">
+                    <LoadingButterfly size="md" />
+                </div>
+            </>
+        );
+    }
 
     return (
         <>

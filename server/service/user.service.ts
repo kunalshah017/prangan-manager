@@ -45,6 +45,12 @@ export const getUserById = async (id: string) => {
         qualification: true,
         address: true,
         dob: true,
+        bankAccountNumber: true,
+        bankAccountName: true,
+        bankIfsc: true,
+        bankName: true,
+        bankBranch: true,
+        ...({ upiId: true } as any),
         createdAt: true,
         updatedAt: true,
         roleAssignments: {
@@ -84,6 +90,38 @@ export const updateUser = async (
   } catch (error: unknown) {
     console.error("Error updating user:", error);
     return "Failed to update user";
+  }
+};
+
+// Update only bank details for a user
+export const updateUserBankDetails = async (
+  id: string,
+  data: {
+    bankAccountNumber?: string | null;
+    bankAccountName?: string | null;
+    bankIfsc?: string | null;
+    bankName?: string | null;
+    bankBranch?: string | null;
+    upiId?: string | null;
+  }
+) => {
+  try {
+    const user = await prisma.user.update({
+      where: { id },
+      // Cast to any to allow upiId before prisma generate refreshes types
+      data: {
+        bankAccountNumber: data.bankAccountNumber ?? null,
+        bankAccountName: data.bankAccountName ?? null,
+        bankIfsc: data.bankIfsc ?? null,
+        bankName: data.bankName ?? null,
+        bankBranch: data.bankBranch ?? null,
+        upiId: data.upiId ?? null,
+      } as any,
+    });
+    return user;
+  } catch (error: unknown) {
+    console.error("Error updating user bank details:", error);
+    return "Failed to update user bank details";
   }
 };
 

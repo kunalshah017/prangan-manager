@@ -70,3 +70,24 @@ export const useLogout = () => {
     },
   });
 };
+
+// Update current user's bank details
+export const useUpdateBankDetails = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: {
+      bankAccountNumber?: string;
+      bankAccountName?: string;
+      bankIfsc?: string;
+      bankName?: string;
+      bankBranch?: string;
+      upiId?: string;
+    }): Promise<{ message: string; user: User }> => {
+      return api.put<{ message: string; user: User }>("/users/me/bank", data);
+    },
+    onSuccess: () => {
+      // Refresh current user so UI picks up new fields
+      queryClient.invalidateQueries({ queryKey: queryKeys.currentUser });
+    },
+  });
+};

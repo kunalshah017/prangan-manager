@@ -36,8 +36,8 @@ export const getActiveUsersForAttendance = async (
   if (dayOfWeek === 6 || dayOfWeek === 0) {
     // For any weekend day (Saturday or Sunday), include all weekend committed days
     relevantCommittedDays.push(
-      CommittedDays.SATURDAY, 
-      CommittedDays.SUNDAY, 
+      CommittedDays.SATURDAY,
+      CommittedDays.SUNDAY,
       CommittedDays.BOTH
     );
   }
@@ -309,10 +309,12 @@ export const getAttendanceRecords = async (
   if (startDate || endDate) {
     whereClause.date = {};
     if (startDate) {
-      whereClause.date.gte = new Date(startDate);
+      // Normalize to start of day (UTC) to avoid timezone drift
+      whereClause.date.gte = new Date(`${startDate}T00:00:00.000Z`);
     }
     if (endDate) {
-      whereClause.date.lte = new Date(endDate);
+      // Make end date inclusive by setting to end of day (UTC)
+      whereClause.date.lte = new Date(`${endDate}T23:59:59.999Z`);
     }
   }
 
@@ -407,8 +409,8 @@ export const getAttendanceSummary = async (
 
   const whereClause: any = {
     date: {
-      gte: new Date(startDate),
-      lte: new Date(endDate),
+      gte: new Date(`${startDate}T00:00:00.000Z`),
+      lte: new Date(`${endDate}T23:59:59.999Z`),
     },
   };
 

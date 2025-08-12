@@ -47,9 +47,72 @@ import {
   isValidISOFormat,
 } from "../utils/dateHelpers.js";
 import { EMAIL_TEMPLATES } from "../constants/email_templates.js";
+import { updateUserBankDetails } from "../service/user.service.js";
 
 // Initialize Prisma Client for transaction handling
 const prisma = new PrismaClient();
+
+// Update current user's bank details
+export const updateMyBankDetails = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const authUser = request.user;
+    if (!authUser) return errorHandle("Unauthorized", reply, 401);
+
+    const body = request.body as {
+      bankAccountNumber?: string;
+      bankAccountName?: string;
+      bankIfsc?: string;
+      bankName?: string;
+      bankBranch?: string;
+      upiId?: string;
+    };
+
+    // Basic validation (optional fields; when present, trim and validate)
+    const cleaned = {
+      bankAccountNumber: body?.bankAccountNumber?.trim() || null,
+      bankAccountName: body?.bankAccountName?.trim() || null,
+      bankIfsc: body?.bankIfsc?.trim().toUpperCase() || null,
+      bankName: body?.bankName?.trim() || null,
+      bankBranch: body?.bankBranch?.trim() || null,
+      upiId: body?.upiId?.trim() || null,
+    };
+
+    if (cleaned.bankIfsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(cleaned.bankIfsc)) {
+      return errorHandle("Invalid IFSC code format.", reply, 400);
+    }
+
+    const result = await updateUserBankDetails(authUser.id, cleaned);
+    if (typeof result === "string") return errorHandle(result, reply, 500);
+
+    return successHandle(
+      {
+        message: "Bank details updated successfully",
+        user: {
+          id: result.id,
+          email: result.email,
+          name: result.name,
+          profileImageUrl: result.profileImageUrl,
+          role: result.role,
+          status: result.status,
+          phone: result.phone,
+          qualification: result.qualification,
+          address: result.address,
+          dob: result.dob,
+          bankAccountNumber: result.bankAccountNumber,
+          bankAccountName: result.bankAccountName,
+          bankIfsc: result.bankIfsc,
+          bankName: result.bankName,
+          bankBranch: result.bankBranch,
+          upiId: (result as any).upiId ?? null,
+          createdAt: result.createdAt,
+          updatedAt: result.updatedAt,
+        },
+      },
+      reply,
+      200
+    );
+  }
+);
 
 export const registerUser = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
@@ -117,6 +180,12 @@ export const registerUser = asyncHandle(
       address: data.address || null,
       profileImageUrl: data.profileImageUrl || null,
       status: UserStatus.PENDING, // Use Prisma enum
+      bankAccountNumber: null,
+      bankAccountName: null,
+      bankIfsc: null,
+      bankName: null,
+      bankBranch: null,
+      upiId: null,
     };
 
     const user = await createUser(userData);
@@ -1447,11 +1516,6 @@ export const getStudentHistoryController = asyncHandle(
 // User Management Controllers
 export const getAllUsersController = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
-    const admin = request.user;
-    if (!admin || admin.role !== Role.ADMIN) {
-      return errorHandle("Only admins can access user management.", reply, 403);
-    }
-
     const users = await getAllUsersWithAssignments();
 
     if (typeof users === "string") {
