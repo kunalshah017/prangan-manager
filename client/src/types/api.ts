@@ -435,7 +435,6 @@ export interface StudentAttendanceRecord {
   notes?: string;
   holidayReason?: string;
   markedBy?: string;
-  markedByName?: string;
   markedAt?: string;
   createdAt: string;
   updatedAt: string;

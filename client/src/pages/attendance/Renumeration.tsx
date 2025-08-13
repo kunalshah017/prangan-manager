@@ -126,12 +126,6 @@ export const Renumeration: React.FC = () => {
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
     const toggleExpanded = (id: string) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
 
-    const maskAccount = (acc?: string | null) => {
-        if (!acc) return '—';
-        const s = acc.toString();
-        if (s.length <= 4) return s.padStart(4, '•');
-        return `${'•'.repeat(Math.max(0, s.length - 4))}${s.slice(-4)}`;
-    };
 
     const copyToClipboard = async (text: string) => {
         try {
@@ -384,7 +378,7 @@ export const Renumeration: React.FC = () => {
                                                                             </button>
                                                                         )}
                                                                     </div>
-                                                                    <p className="font-medium">{maskAccount(u?.bankAccountNumber)}</p>
+                                                                    <p className="font-medium">{u?.bankAccountNumber || '—'}</p>
                                                                 </div>
                                                                 <div className="bg-white/90 border rounded p-3">
                                                                     <div className="flex items-center justify-between">
@@ -543,7 +537,7 @@ export const Renumeration: React.FC = () => {
                                                                             </button>
                                                                         )}
                                                                     </div>
-                                                                    <p className="font-medium">{maskAccount(u?.bankAccountNumber)}</p>
+                                                                    <p className="font-medium">{u?.bankAccountNumber || '—'}</p>
                                                                 </div>
                                                                 <div className="bg-white/90 border rounded p-3">
                                                                     <div className="flex items-center justify-between">

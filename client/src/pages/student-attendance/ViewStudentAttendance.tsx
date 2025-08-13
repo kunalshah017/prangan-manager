@@ -433,7 +433,7 @@ export const ViewStudentAttendance = () => {
                                                 </td>
                                                 <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-700 hidden lg:table-cell">
                                                     <div className="space-y-1">
-                                                        <div>By: {record.markedByName || 'System'}</div>
+                                                        <div>By: {record.markedByUser?.name || 'System'}</div>
                                                         <div>{record.markedAt ? new Date(record.markedAt).toLocaleString() : '-'}</div>
                                                         {record.notes && (
                                                             <button
@@ -506,7 +506,7 @@ export const ViewStudentAttendance = () => {
                                                     hour12: true,
                                                 }) : 'No time'}
                                             </span>
-                                            <span>By: {record.markedByName || 'System'}</span>
+                                            <span>By: {record.markedByUser?.name || 'System'}</span>
                                         </div>
 
                                         {record.notes && (
