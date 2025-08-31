@@ -1,12 +1,9 @@
 import { PrismaClient } from "../generated/prisma/index.js";
-import type { User } from "../generated/prisma/index.js";
 import { UserStatus, Level, Role } from "../generated/prisma/index.js";
 
 const prisma = new PrismaClient();
 
-export const createUser = async (
-  userData: Omit<User, "id" | "createdAt" | "updatedAt">
-) => {
+export const createUser = async (userData: any) => {
   try {
     const user = await prisma.user.create({
       data: userData,
@@ -45,6 +42,7 @@ export const getUserById = async (id: string) => {
         qualification: true,
         address: true,
         dob: true,
+        reimbursementAmount: true,
         bankAccountNumber: true,
         bankAccountName: true,
         bankIfsc: true,

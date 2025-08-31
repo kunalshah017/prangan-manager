@@ -98,6 +98,7 @@ export const updateMyBankDetails = asyncHandle(
           qualification: result.qualification,
           address: result.address,
           dob: result.dob,
+          reimbursementAmount: (result as any).reimbursementAmount ?? null,
           bankAccountNumber: result.bankAccountNumber,
           bankAccountName: result.bankAccountName,
           bankIfsc: result.bankIfsc,
