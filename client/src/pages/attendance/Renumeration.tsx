@@ -119,7 +119,19 @@ export const Renumeration: React.FC = () => {
     const { data: allUsers = [] } = useUsers();
     const userById: Record<string, User> = useMemo(() => {
         const index: Record<string, User> = {};
-        for (const u of allUsers) index[u.id] = u;
+        for (const u of allUsers) {
+            // Normalize reimbursementAmount to a number if the API returns it as string
+            const rate = (u as User & { reimbursementAmount?: number | string })
+                .reimbursementAmount;
+            const normalized: User = {
+                ...u,
+                reimbursementAmount:
+                    typeof rate === 'string'
+                        ? (Number(rate) || undefined)
+                        : rate,
+            };
+            index[u.id] = normalized;
+        }
         return index;
     }, [allUsers]);
 
@@ -151,6 +163,7 @@ export const Renumeration: React.FC = () => {
         present: number;
         absent: number;
         notAvailable: number;
+        rate: number; // per-day rate
         total: number; // remuneration in INR
     };
 
@@ -163,12 +176,16 @@ export const Renumeration: React.FC = () => {
 
             const key = rec.userId;
             if (!map.has(key)) {
+                const rate = typeof userById[key]?.reimbursementAmount === 'number'
+                    ? (userById[key]?.reimbursementAmount as number)
+                    : 500;
                 map.set(key, {
                     userId: rec.userId,
                     userName: rec.userName || rec.user?.name || 'Unknown',
                     present: 0,
                     absent: 0,
                     notAvailable: 0,
+                    rate,
                     total: 0,
                 });
             }
@@ -178,17 +195,18 @@ export const Renumeration: React.FC = () => {
             else if (rec.status === 'NOT_AVAILABLE') r.notAvailable += 1;
             // holidays not counted
         }
-        // Compute totals: Rs. 500 per present day
+        // Compute totals using stored per-user rate
         for (const r of map.values()) {
-            r.total = r.present * 500;
+            r.total = r.present * r.rate;
         }
         return Array.from(map.values()).sort((a, b) => a.userName.localeCompare(b.userName));
-    }, [attendance]);
+    }, [attendance, userById]);
 
     // For full semester: build per-user, per-month remuneration
     type FullRow = {
         userId: string;
         userName: string;
+        rate: number; // per-day rate
         byMonth: Record<string, { present: number; amount: number }>; // key: 'YYYY-MM'
         total: number;
     };
@@ -203,11 +221,15 @@ export const Renumeration: React.FC = () => {
             if (subRole !== 'EDUCATOR' && subRole !== 'CENTER_MANAGER') continue;
             const key = rec.userId;
             if (!map.has(key)) {
+                const rate = typeof userById[key]?.reimbursementAmount === 'number'
+                    ? (userById[key]?.reimbursementAmount as number)
+                    : 500;
                 const initByMonth: Record<string, { present: number; amount: number }> = {};
                 for (const mk of monthKeys) initByMonth[mk] = { present: 0, amount: 0 };
                 map.set(key, {
                     userId: rec.userId,
                     userName: rec.userName || rec.user?.name || 'Unknown',
+                    rate,
                     byMonth: initByMonth,
                     total: 0,
                 });
@@ -217,14 +239,14 @@ export const Renumeration: React.FC = () => {
             if (!r.byMonth[monthKey]) r.byMonth[monthKey] = { present: 0, amount: 0 };
             if (rec.status === 'PRESENT') {
                 r.byMonth[monthKey].present += 1;
-                r.byMonth[monthKey].amount = r.byMonth[monthKey].present * 500;
+                r.byMonth[monthKey].amount = r.byMonth[monthKey].present * r.rate;
             }
         }
         for (const r of map.values()) {
             r.total = monthKeys.reduce((sum, mk) => sum + (r.byMonth[mk]?.amount || 0), 0);
         }
         return Array.from(map.values()).sort((a, b) => a.userName.localeCompare(b.userName));
-    }, [attendance, isFull, monthKeys]);
+    }, [attendance, isFull, monthKeys, userById]);
 
     const monthTotal = useMemo(() => rows.reduce((sum, r) => sum + r.total, 0), [rows]);
 
@@ -236,7 +258,7 @@ export const Renumeration: React.FC = () => {
                 <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
                     <div>
                         <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Educator / Center Manager Renumeration</h1>
-                        <p className="text-gray-600 text-sm">Rs. 500 per present day</p>
+                        <p className="text-gray-600 text-sm">Per present day</p>
                     </div>
                     <div className="bg-white/90 backdrop-blur-sm rounded-lg border p-3">
                         <label htmlFor="month" className="block text-xs text-gray-600 mb-1">Month</label>
@@ -297,6 +319,7 @@ export const Renumeration: React.FC = () => {
                             <thead className="bg-gray-50">
                                 <tr className="text-left">
                                     <th className="px-3 py-2 font-medium text-gray-700">Name</th>
+                                    <th className="px-3 py-2 font-medium text-gray-700">Renumeration</th>
                                     <th className="px-3 py-2 font-medium text-gray-700">Present</th>
                                     <th className="px-3 py-2 font-medium text-gray-700">Absent</th>
                                     <th className="px-3 py-2 font-medium text-gray-700">Not Available</th>
@@ -325,6 +348,7 @@ export const Renumeration: React.FC = () => {
                                             <React.Fragment key={r.userId}>
                                                 <tr className="border-t">
                                                     <td className="px-3 py-2 text-gray-900">{r.userName}</td>
+                                                    <td className="px-3 py-2 text-gray-700">{formatINR(r.rate)}</td>
                                                     <td className="px-3 py-2 text-emerald-700 font-medium">{r.present}</td>
                                                     <td className="px-3 py-2 text-red-700">{r.absent}</td>
                                                     <td className="px-3 py-2 text-gray-600">{r.notAvailable}</td>
@@ -348,7 +372,7 @@ export const Renumeration: React.FC = () => {
                                                 </tr>
                                                 {expanded[r.userId] && (
                                                     <tr className="bg-gray-50/60">
-                                                        <td className="px-3 py-3" colSpan={6}>
+                                                        <td className="px-3 py-3" colSpan={7}>
                                                             <div className="grid sm:grid-cols-3 gap-3 text-xs text-gray-700">
                                                                 <div className="bg-white/90 border rounded p-3">
                                                                     <div className="flex items-center justify-between">
@@ -468,6 +492,7 @@ export const Renumeration: React.FC = () => {
                             <thead className="bg-gray-50">
                                 <tr className="text-left">
                                     <th className="px-3 py-2 font-medium text-gray-700">Name</th>
+                                    <th className="px-3 py-2 font-medium text-gray-700">Rate</th>
                                     {months.map((m) => (
                                         <th key={m.value} className="px-3 py-2 font-medium text-gray-700">{m.label}</th>
                                     ))}
@@ -487,6 +512,7 @@ export const Renumeration: React.FC = () => {
                                             <React.Fragment key={r.userId}>
                                                 <tr className="border-t">
                                                     <td className="px-3 py-2 text-gray-900 whitespace-nowrap">{r.userName}</td>
+                                                    <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{formatINR(r.rate)}</td>
                                                     {months.map((m) => (
                                                         <td key={m.value} className="px-3 py-2">
                                                             <div className="flex flex-col">
@@ -507,7 +533,7 @@ export const Renumeration: React.FC = () => {
                                                 </tr>
                                                 {expanded[r.userId] && (
                                                     <tr className="bg-gray-50/60">
-                                                        <td className="px-3 py-3" colSpan={months.length + 3}>
+                                                        <td className="px-3 py-3" colSpan={months.length + 4}>
                                                             <div className="grid sm:grid-cols-3 gap-3 text-xs text-gray-700">
                                                                 <div className="bg-white/90 border rounded p-3">
                                                                     <div className="flex items-center justify-between">

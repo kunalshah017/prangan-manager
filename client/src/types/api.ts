@@ -10,6 +10,7 @@ export interface User {
   address?: string;
   dob?: string;
   profileImageUrl?: string;
+  reimbursementAmount?: number;
   // Optional bank details
   bankAccountNumber?: string | null;
   bankAccountName?: string | null;
