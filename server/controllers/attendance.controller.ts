@@ -150,6 +150,7 @@ export const markAttendanceController = async (
 /**
  * Mark attendance for multiple users in bulk
  * POST /api/v1/attendance/bulk-mark
+ * Optimized for serverless environments to avoid timeouts
  */
 export const markBulkAttendanceController = async (
   request: AuthenticatedRequest<{
@@ -173,6 +174,16 @@ export const markBulkAttendanceController = async (
       return reply.status(400).send({
         error:
           "date, projectId, centerId, semesterId, and attendances array are required",
+      });
+    }
+
+    // Check for reasonable batch size to prevent timeouts
+    if (bulkData.attendances.length > 100) {
+      return reply.status(400).send({
+        error:
+          "Too many attendance records. Please process in batches of 100 or fewer.",
+        maxBatchSize: 100,
+        receivedCount: bulkData.attendances.length,
       });
     }
 
@@ -215,8 +226,39 @@ export const markBulkAttendanceController = async (
 
     const result = await markBulkAttendance(bulkData, markedBy);
 
-    return reply.status(200).send(result);
+    // Return appropriate status code based on results
+    if (result.errors.length > 0 && result.processedCount === 0) {
+      // All failed
+      return reply.status(400).send({
+        success: false,
+        ...result,
+      });
+    } else if (result.errors.length > 0) {
+      // Partial success
+      return reply.status(207).send({
+        success: true,
+        partialFailure: true,
+        ...result,
+      });
+    } else {
+      // Complete success
+      return reply.status(200).send({
+        success: true,
+        ...result,
+      });
+    }
   } catch (error: any) {
+    console.error("Bulk attendance controller error:", error);
+
+    if (error.message?.includes("timeout") || error.code === "P2024") {
+      return reply.status(408).send({
+        error:
+          "Request timed out. Please try processing fewer records at once.",
+        suggestion: "Split your request into smaller batches of 20-30 records.",
+        details: error.message,
+      });
+    }
+
     return reply.status(500).send({
       error: "Failed to mark bulk attendance",
       details: error.message,

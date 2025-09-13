@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import PhoneInput from 'react-phone-number-input';
+import 'react-phone-number-input/style.css';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -26,61 +28,6 @@ const Register = () => {
         }
     }, [isAuthenticated, isLoading, navigate]);
 
-    const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-
-        // Always ensure +91 prefix is maintained
-        if (!value.startsWith('+91 ')) {
-            setPhone('+91 ');
-            return;
-        }
-
-        // Extract only the digits after +91
-        const phoneNumber = value.slice(4); // Remove "+91 " prefix
-        const digitsOnly = phoneNumber.replace(/\D/g, ''); // Only keep digits
-
-        // Limit to 10 digits (Indian mobile number length)
-        if (digitsOnly.length <= 10) {
-            // Format as: +91 XXXXX XXXXX (5+5 digits)
-            let formattedNumber = digitsOnly;
-            if (digitsOnly.length > 5) {
-                formattedNumber = digitsOnly.slice(0, 5) + ' ' + digitsOnly.slice(5);
-            }
-            setPhone('+91 ' + formattedNumber);
-        }
-
-        // Clear phone error when user starts typing
-        if (errors.phone) {
-            setErrors(prev => ({ ...prev, phone: '' }));
-        }
-    };
-
-    const handlePhoneKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-        const input = e.target as HTMLInputElement;
-        const cursorPosition = input.selectionStart || 0;
-
-        // Prevent deletion of +91 prefix
-        if ((e.key === 'Backspace' || e.key === 'Delete') && cursorPosition <= 4) {
-            e.preventDefault();
-        }
-
-        // Move cursor after +91 if user tries to place it before
-        if (cursorPosition < 4) {
-            setTimeout(() => {
-                input.setSelectionRange(4, 4);
-            }, 0);
-        }
-    };
-
-    const handlePhoneFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-        const input = e.target;
-        // Move cursor to end of +91 prefix if phone is empty or cursor is before prefix
-        if (phone === '+91 ' || input.selectionStart! < 4) {
-            setTimeout(() => {
-                input.setSelectionRange(4, 4);
-            }, 0);
-        }
-    };
 
     const clearFieldError = (field: string) => {
         if (errors[field]) {
@@ -122,11 +69,11 @@ const Register = () => {
             }
         }
 
-        // Phone validation
-        if (!phone || phone === '+91 ') {
+        // Phone validation (accept E.164 format from react-phone-number-input)
+        if (!phone || phone.length < 10) {
             newErrors.phone = 'Phone number is required';
-        } else if (!/^\+91\s\d{5}\s\d{5}$/.test(phone)) {
-            newErrors.phone = 'Please enter a valid 10-digit Indian phone number';
+        } else if (!/^\+\d{10,15}$/.test(phone)) {
+            newErrors.phone = 'Please enter a valid phone number';
         }
 
         // Qualification validation
@@ -304,19 +251,18 @@ const Register = () => {
                                     <label htmlFor="phone" className="text-sm font-medium">
                                         Phone Number *
                                     </label>
-                                    <input
+                                    <PhoneInput
                                         id="phone"
-                                        placeholder="+91 98765 43210"
-                                        type="tel"
-                                        disabled={isLoading}
+                                        international
+                                        defaultCountry="IN"
                                         value={phone}
-                                        onChange={handlePhoneChange}
-                                        onKeyDown={handlePhoneKeyDown}
-                                        onFocus={handlePhoneFocus}
+                                        onChange={(value) => {
+                                            setPhone(value || '');
+                                            clearFieldError('phone');
+                                        }}
+                                        disabled={isLoading}
                                         className={`flex h-10 w-full rounded-md border ${errors.phone ? 'border-red-300' : 'border-input'} bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
                                         required
-                                        minLength={15} // +91 + space + 5 digits + space + 5 digits
-                                        maxLength={15}
                                     />
                                     {errors.phone && (
                                         <p className="text-sm text-red-600">{errors.phone}</p>

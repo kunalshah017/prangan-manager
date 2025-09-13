@@ -3,6 +3,8 @@ import {
   registerUser,
   loginUser,
   getCurrentUser,
+  getUserByIdController,
+  updateUserController,
   verifyUser,
   GetUnverifiedUsers,
   addStudent,
@@ -32,6 +34,16 @@ export const userRoutes = async (fastify: FastifyInstance): Promise<void> => {
   fastify.post("/users/login", loginUser);
   fastify.get("/users", { preHandler: authChecker }, getAllUsersController);
   fastify.get("/users/me", { preHandler: authChecker }, getCurrentUser);
+  fastify.get(
+    "/users/:userId",
+    { preHandler: authChecker },
+    getUserByIdController
+  );
+  fastify.put(
+    "/users/:userId",
+    { preHandler: authChecker },
+    updateUserController
+  );
   fastify.patch(
     "/users/me/bank",
     { preHandler: authChecker },

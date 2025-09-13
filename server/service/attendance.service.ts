@@ -245,7 +245,21 @@ export const markAttendance = async (
 };
 
 /**
- * Mark attendance for multiple users in bulk
+ * Mark attendance for multiple users in bulk - Optimized for serverless environments
+ *
+ * PERFORMANCE OPTIMIZATION:
+ * - Uses a single transaction instead of individual markAttendance() calls
+ * - Processes records in batches to prevent memory issues
+ * - Includes 8-second timeout to stay under Vercel's 10-second limit
+ * - Pre-validates all data to fail fast on errors
+ *
+ * ALTERNATIVE: For even better performance with very large batches, consider using raw SQL:
+ * ```sql
+ * INSERT INTO "UserAttendance" ("userId","roleAssignmentId","date","status","projectId","centerId","semesterId","markedBy","markedAt")
+ * VALUES ...
+ * ON CONFLICT ("userId","date","projectId","centerId","semesterId")
+ * DO UPDATE SET "status"=EXCLUDED."status", "markedBy"=EXCLUDED."markedBy", "markedAt"=EXCLUDED."markedAt"
+ * ```
  */
 export const markBulkAttendance = async (
   request: MarkBulkAttendanceRequest,
@@ -253,35 +267,129 @@ export const markBulkAttendance = async (
 ): Promise<{ message: string; processedCount: number; errors: string[] }> => {
   const { date, projectId, centerId, semesterId, attendances } = request;
   const errors: string[] = [];
-  let processedCount = 0;
+  const requestDate = new Date(date);
+  const now = new Date();
 
-  for (const attendanceData of attendances) {
-    try {
-      await markAttendance(
-        {
-          userId: attendanceData.userId,
-          date,
-          status: attendanceData.status,
-          roleAssignmentId: attendanceData.roleAssignmentId,
-          projectId,
-          centerId,
-          semesterId,
-          notes: attendanceData.notes,
-          holidayReason: attendanceData.holidayReason,
-        },
-        markedBy
-      );
-      processedCount++;
-    } catch (error: any) {
-      errors.push(`User ${attendanceData.userId}: ${error.message}`);
+  try {
+    // Pre-validate all attendance data
+    const validAttendances: typeof attendances = [];
+    for (const attendanceData of attendances) {
+      // Validate holiday reason is provided when status is HOLIDAY
+      if (
+        attendanceData.status === AttendanceStatus.HOLIDAY &&
+        !attendanceData.holidayReason
+      ) {
+        errors.push(
+          `User ${attendanceData.userId}: Holiday reason is required when marking as holiday`
+        );
+        continue;
+      }
+      validAttendances.push(attendanceData);
     }
-  }
 
-  return {
-    message: `Bulk attendance marking completed. Processed ${processedCount}/${attendances.length} records.`,
-    processedCount,
-    errors,
-  };
+    // If no valid attendances, return early
+    if (validAttendances.length === 0) {
+      return {
+        message: `Bulk attendance marking failed - no valid records to process.`,
+        processedCount: 0,
+        errors,
+      };
+    }
+
+    // Use a single database transaction with batched operations for maximum efficiency
+    const result = await prisma.$transaction(
+      async (tx) => {
+        let successCount = 0;
+
+        // Process attendances in smaller batches to avoid memory issues
+        const batchSize = 10;
+        for (let i = 0; i < validAttendances.length; i += batchSize) {
+          const batch = validAttendances.slice(i, i + batchSize);
+
+          // Process each item in the batch
+          for (const attendanceData of batch) {
+            try {
+              // Use upsert for each record - this is still faster than individual transactions
+              await tx.userAttendance.upsert({
+                where: {
+                  userId_date_projectId_centerId_semesterId: {
+                    userId: attendanceData.userId,
+                    date: requestDate,
+                    projectId,
+                    centerId,
+                    semesterId,
+                  },
+                },
+                update: {
+                  status: attendanceData.status,
+                  roleAssignmentId: attendanceData.roleAssignmentId,
+                  notes: attendanceData.notes || null,
+                  holidayReason:
+                    attendanceData.status === AttendanceStatus.HOLIDAY
+                      ? attendanceData.holidayReason
+                      : null,
+                  markedBy,
+                  markedAt: now,
+                  updatedAt: now,
+                },
+                create: {
+                  userId: attendanceData.userId,
+                  date: requestDate,
+                  status: attendanceData.status,
+                  roleAssignmentId: attendanceData.roleAssignmentId,
+                  projectId,
+                  centerId,
+                  semesterId,
+                  notes: attendanceData.notes || null,
+                  holidayReason:
+                    attendanceData.status === AttendanceStatus.HOLIDAY
+                      ? attendanceData.holidayReason
+                      : null,
+                  markedBy,
+                  markedAt: now,
+                },
+              });
+              successCount++;
+            } catch (error: any) {
+              console.error(
+                `Error processing attendance for user ${attendanceData.userId}:`,
+                error
+              );
+              errors.push(`User ${attendanceData.userId}: ${error.message}`);
+            }
+          }
+        }
+
+        return successCount;
+      },
+      {
+        timeout: 8000, // Set timeout to 8 seconds (less than Vercel's 10s limit)
+      }
+    );
+
+    return {
+      message: `Bulk attendance marking completed. Processed ${result}/${attendances.length} records.`,
+      processedCount: result,
+      errors,
+    };
+  } catch (error: any) {
+    console.error("Bulk attendance marking transaction failed:", error);
+
+    // If the entire transaction fails due to timeout or other issues
+    if (error.message.includes("timeout") || error.code === "P2024") {
+      errors.push(
+        `Transaction timed out. Try processing fewer records at once.`
+      );
+    } else {
+      errors.push(`Transaction failed: ${error.message}`);
+    }
+
+    return {
+      message: `Bulk attendance marking failed.`,
+      processedCount: 0,
+      errors,
+    };
+  }
 };
 
 /**

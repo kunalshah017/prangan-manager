@@ -121,6 +121,15 @@ export const useUpdateStudent = () => {
       // Invalidate students list and specific student
       queryClient.invalidateQueries({ queryKey: queryKeys.students });
       queryClient.invalidateQueries({ queryKey: ["students", variables.id] });
+
+      // Invalidate semester-specific student queries
+      queryClient.invalidateQueries({ queryKey: ["students", "semester"] });
+      queryClient.invalidateQueries({ queryKey: ["enrollments", "semester"] });
+
+      // Invalidate student attendance queries that might be affected
+      queryClient.invalidateQueries({
+        queryKey: ["students", "semester", undefined, "attendance"],
+      });
     },
   });
 };

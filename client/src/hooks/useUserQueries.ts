@@ -23,6 +23,18 @@ export const useUsers = () => {
   });
 };
 
+export const useUser = (userId: string) => {
+  return useQuery({
+    queryKey: ["user", userId],
+    queryFn: async (): Promise<User> => {
+      const response = await api.get<{ user: User }>(`/users/${userId}`);
+      return response.user;
+    },
+    staleTime: 1 * 60 * 1000,
+    enabled: !!userId,
+  });
+};
+
 export const usePendingUsers = () => {
   return useQuery({
     queryKey: queryKeys.pendingUsers,
@@ -167,6 +179,48 @@ export const useRejectUser = () => {
         rejectionReason,
       });
       return result;
+    },
+  });
+};
+
+export const useUpdateUser = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      userId,
+      userData,
+      roleAssignments,
+    }: {
+      userId: string;
+      userData: {
+        name?: string;
+        email?: string;
+        phone?: string;
+        qualification?: string;
+        address?: string;
+        dob?: string | null;
+        role?: "USER" | "ADMIN";
+      };
+      roleAssignments?: Array<{
+        subRole: string;
+        projectId?: string;
+        centerId?: string;
+        semesterId?: string;
+        level?: string;
+        committedDays?: string;
+      }>;
+    }): Promise<{ message: string; user: User }> => {
+      return api.put<{ message: string; user: User }>(`/users/${userId}`, {
+        ...userData,
+        roleAssignments,
+      });
+    },
+    onSuccess: (_, variables) => {
+      // Invalidate user-related queries
+      queryClient.invalidateQueries({ queryKey: queryKeys.users });
+      queryClient.invalidateQueries({ queryKey: ["user", variables.userId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.currentUser });
     },
   });
 };

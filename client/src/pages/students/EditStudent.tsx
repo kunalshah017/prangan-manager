@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
+import PhoneInput from 'react-phone-number-input';
+import 'react-phone-number-input/style.css';
 import { motion } from 'framer-motion';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
+import type { Student, StudentEnrollmentData } from "@/types/api";
 import { ArrowLeft } from 'lucide-react';
 import { useStudent, useUpdateStudent } from '@/hooks/useStudentQueries';
 import { CustomButton } from '@/components/ui/button';
@@ -21,9 +25,9 @@ const EditStudent = () => {
         name: '',
         profileImageUrl: '',
         dob: '',
-        phoneNumber: '+91 ',
-        whatsappNumber: '+91 ',
-        alternateNumber: '+91 ',
+        phoneNumber: '',
+        whatsappNumber: '',
+        alternateNumber: '',
         fatherName: '',
         motherName: '',
         address: '',
@@ -32,67 +36,13 @@ const EditStudent = () => {
         motherOccupation: '',
         familyIncome: '',
         enrollment: {
-            level: 'LEVEL_1'
+            level: 'LEVEL_1',
         }
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
 
     // Phone number formatting functions
-    const handlePhoneChange = (field: 'phoneNumber' | 'whatsappNumber' | 'alternateNumber', value: string) => {
-        // Always ensure +91 prefix is maintained
-        if (!value.startsWith('+91 ')) {
-            setFormData(prev => ({ ...prev, [field]: '+91 ' }));
-            return;
-        }
-
-        // Extract only the digits after +91
-        const phoneNumber = value.slice(4); // Remove "+91 " prefix
-        const digitsOnly = phoneNumber.replace(/\D/g, ''); // Only keep digits
-
-        // Limit to 10 digits (Indian mobile number length)
-        if (digitsOnly.length <= 10) {
-            // Format as: +91 XXXXX XXXXX (5+5 digits)
-            let formattedNumber = digitsOnly;
-            if (digitsOnly.length > 5) {
-                formattedNumber = digitsOnly.slice(0, 5) + ' ' + digitsOnly.slice(5);
-            }
-            setFormData(prev => ({ ...prev, [field]: '+91 ' + formattedNumber }));
-        }
-
-        // Clear error when user starts typing
-        if (errors[field]) {
-            setErrors(prev => ({ ...prev, [field]: '' }));
-        }
-    };
-
-    const handlePhoneKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-        const input = e.target as HTMLInputElement;
-        const cursorPosition = input.selectionStart || 0;
-
-        // Prevent deletion of +91 prefix
-        if ((e.key === 'Backspace' || e.key === 'Delete') && cursorPosition <= 4) {
-            e.preventDefault();
-        }
-
-        // Move cursor after +91 if user tries to place it before
-        if (cursorPosition < 4) {
-            setTimeout(() => {
-                input.setSelectionRange(4, 4);
-            }, 0);
-        }
-    };
-
-    const handlePhoneFocus = (e: React.FocusEvent<HTMLInputElement>, field: 'phoneNumber' | 'whatsappNumber' | 'alternateNumber') => {
-        const input = e.target;
-        const currentValue = formData[field];
-        // Move cursor to end of +91 prefix if phone is empty or cursor is before prefix
-        if (currentValue === '+91 ' || input.selectionStart! < 4) {
-            setTimeout(() => {
-                input.setSelectionRange(4, 4);
-            }, 0);
-        }
-    };
 
     const levelOptions = [
         { value: 'LEVEL_1', label: 'Level 1' },
@@ -113,25 +63,49 @@ const EditStudent = () => {
     ];
 
     // Populate form when student data loads
+    // Extend Student type to include enrollments for this component
+
+    type Enrollment = {
+        id: string;
+        centerId: string;
+        semesterId: string;
+        projectId: string;
+        level: StudentEnrollmentData["level"];
+        isActive: boolean;
+    };
+    type StudentWithEnrollments = Student & {
+        enrollments?: Enrollment[];
+    };
+
     useEffect(() => {
-        if (student) {
+        const s = student as StudentWithEnrollments;
+        if (s) {
+            // Find the active enrollment (isActive: true)
+            const activeEnrollment = Array.isArray(s.enrollments)
+                ? s.enrollments.find((e: Enrollment) => e && e.isActive)
+                : undefined;
             setFormData({
-                name: student.name || '',
-                profileImageUrl: student.profileImageUrl || '',
-                dob: student.dob ? student.dob.split('T')[0] : '',
-                phoneNumber: student.phoneNumber || '+91 ',
-                whatsappNumber: student.whatsappNumber || '+91 ',
-                alternateNumber: student.alternateNumber || '+91 ',
-                fatherName: student.fatherName || '',
-                motherName: student.motherName || '',
-                address: student.address || '',
-                schoolName: student.schoolName || '',
-                fatherOccupation: student.fatherOccupation || '',
-                motherOccupation: student.motherOccupation || '',
-                familyIncome: student.familyIncome || '',
-                enrollment: {
-                    level: student.level || 'LEVEL_1'
-                }
+                name: s.name || '',
+                profileImageUrl: s.profileImageUrl || '',
+                dob: s.dob ? s.dob.split('T')[0] : '',
+                phoneNumber: s.phoneNumber && /^\+\d{10,15}$/.test(s.phoneNumber) ? s.phoneNumber : '',
+                whatsappNumber: s.whatsappNumber && /^\+\d{10,15}$/.test(s.whatsappNumber) ? s.whatsappNumber : '',
+                alternateNumber: s.alternateNumber && /^\+\d{10,15}$/.test(s.alternateNumber) ? s.alternateNumber : '',
+                fatherName: s.fatherName || '',
+                motherName: s.motherName || '',
+                address: s.address || '',
+                schoolName: s.schoolName || '',
+                fatherOccupation: s.fatherOccupation || '',
+                motherOccupation: s.motherOccupation || '',
+                familyIncome: s.familyIncome || '',
+                enrollment: activeEnrollment
+                    ? {
+                        centerId: activeEnrollment.centerId,
+                        semesterId: activeEnrollment.semesterId,
+                        projectId: activeEnrollment.projectId,
+                        level: activeEnrollment.level as StudentEnrollmentData["level"],
+                    }
+                    : { level: 'LEVEL_1' },
             });
         }
     }, [student]);
@@ -147,16 +121,15 @@ const EditStudent = () => {
             newErrors.level = 'Level is required';
         }
 
-        if (formData.phoneNumber && formData.phoneNumber !== '+91 ' && !/^\+91\s\d{5}\s?\d{0,5}$/.test(formData.phoneNumber)) {
-            newErrors.phoneNumber = 'Please enter a valid Indian phone number';
+        // Accept E.164 format from react-phone-number-input
+        if (formData.phoneNumber && !/^\+\d{10,15}$/.test(formData.phoneNumber)) {
+            newErrors.phoneNumber = 'Please enter a valid phone number';
         }
-
-        if (formData.whatsappNumber && formData.whatsappNumber !== '+91 ' && !/^\+91\s\d{5}\s?\d{0,5}$/.test(formData.whatsappNumber)) {
-            newErrors.whatsappNumber = 'Please enter a valid Indian WhatsApp number';
+        if (formData.whatsappNumber && !/^\+\d{10,15}$/.test(formData.whatsappNumber)) {
+            newErrors.whatsappNumber = 'Please enter a valid WhatsApp number';
         }
-
-        if (formData.alternateNumber && formData.alternateNumber !== '+91 ' && !/^\+91\s\d{5}\s?\d{0,5}$/.test(formData.alternateNumber)) {
-            newErrors.alternateNumber = 'Please enter a valid Indian alternate number';
+        if (formData.alternateNumber && !/^\+\d{10,15}$/.test(formData.alternateNumber)) {
+            newErrors.alternateNumber = 'Please enter a valid alternate number';
         }
 
         setErrors(newErrors);
@@ -172,6 +145,7 @@ const EditStudent = () => {
 
         try {
             // Clean the form data - remove empty strings and only send changed fields, format phone numbers for API
+
             const cleanedData: UpdateStudentRequest & { id: string } = {
                 id,
                 ...(formData.name && { name: formData.name }),
@@ -194,15 +168,17 @@ const EditStudent = () => {
                 ...(formData.fatherOccupation !== undefined && { fatherOccupation: formData.fatherOccupation }),
                 ...(formData.motherOccupation !== undefined && { motherOccupation: formData.motherOccupation }),
                 ...(formData.familyIncome !== undefined && { familyIncome: formData.familyIncome }),
-                // Include enrollment data if level is being updated
+                // Include enrollment data if present
                 ...(formData.enrollment && {
-                    enrollment: {
-                        centerId: centerId!,
-                        semesterId: semesterId!,
-                        projectId: projectId!,
-                        level: formData.enrollment.level
-                    }
-                })
+                    enrollments: [
+                        {
+                            centerId: formData.enrollment.centerId || centerId!,
+                            semesterId: formData.enrollment.semesterId || semesterId!,
+                            projectId: formData.enrollment.projectId || projectId!,
+                            level: formData.enrollment.level,
+                        },
+                    ],
+                }),
             };
 
             await updateStudentMutation.mutateAsync(cleanedData);
@@ -360,19 +336,14 @@ const EditStudent = () => {
                                 <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-2">
                                     Phone Number
                                 </label>
-                                <input
-                                    type="tel"
+                                <PhoneInput
                                     id="phoneNumber"
+                                    international
+                                    defaultCountry="IN"
                                     value={formData.phoneNumber || ''}
-                                    onChange={(e) => handlePhoneChange('phoneNumber', e.target.value)}
-                                    onKeyDown={handlePhoneKeyDown}
-                                    onFocus={(e) => handlePhoneFocus(e, 'phoneNumber')}
+                                    onChange={(value) => handleInputChange('phoneNumber', value || '')}
                                     disabled={updateStudentMutation.isPending}
-                                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 ${errors.phoneNumber ? 'border-red-300' : 'border-gray-300'
-                                        }`}
-                                    placeholder="+91 98765 43210"
-                                    minLength={15}
-                                    maxLength={15}
+                                    className={`w-full ${errors.phoneNumber ? 'border-red-300' : 'border-gray-300'}`}
                                 />
                                 {errors.phoneNumber && (
                                     <p className="mt-1 text-sm text-red-600">{errors.phoneNumber}</p>
@@ -383,19 +354,14 @@ const EditStudent = () => {
                                 <label htmlFor="whatsappNumber" className="block text-sm font-medium text-gray-700 mb-2">
                                     WhatsApp Number
                                 </label>
-                                <input
-                                    type="tel"
+                                <PhoneInput
                                     id="whatsappNumber"
+                                    international
+                                    defaultCountry="IN"
                                     value={formData.whatsappNumber || ''}
-                                    onChange={(e) => handlePhoneChange('whatsappNumber', e.target.value)}
-                                    onKeyDown={handlePhoneKeyDown}
-                                    onFocus={(e) => handlePhoneFocus(e, 'whatsappNumber')}
+                                    onChange={(value) => handleInputChange('whatsappNumber', value || '')}
                                     disabled={updateStudentMutation.isPending}
-                                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 ${errors.whatsappNumber ? 'border-red-300' : 'border-gray-300'
-                                        }`}
-                                    placeholder="+91 98765 43210"
-                                    minLength={15}
-                                    maxLength={15}
+                                    className={`w-full ${errors.whatsappNumber ? 'border-red-300' : 'border-gray-300'}`}
                                 />
                                 {errors.whatsappNumber && (
                                     <p className="mt-1 text-sm text-red-600">{errors.whatsappNumber}</p>
@@ -406,19 +372,14 @@ const EditStudent = () => {
                                 <label htmlFor="alternateNumber" className="block text-sm font-medium text-gray-700 mb-2">
                                     Alternate Number
                                 </label>
-                                <input
-                                    type="tel"
+                                <PhoneInput
                                     id="alternateNumber"
+                                    international
+                                    defaultCountry="IN"
                                     value={formData.alternateNumber || ''}
-                                    onChange={(e) => handlePhoneChange('alternateNumber', e.target.value)}
-                                    onKeyDown={handlePhoneKeyDown}
-                                    onFocus={(e) => handlePhoneFocus(e, 'alternateNumber')}
+                                    onChange={(value) => handleInputChange('alternateNumber', value || '')}
                                     disabled={updateStudentMutation.isPending}
-                                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 ${errors.alternateNumber ? 'border-red-300' : 'border-gray-300'
-                                        }`}
-                                    placeholder="+91 98765 43210"
-                                    minLength={15}
-                                    maxLength={15}
+                                    className={`w-full ${errors.alternateNumber ? 'border-red-300' : 'border-gray-300'}`}
                                 />
                                 {errors.alternateNumber && (
                                     <p className="mt-1 text-sm text-red-600">{errors.alternateNumber}</p>

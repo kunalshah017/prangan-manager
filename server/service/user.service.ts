@@ -151,8 +151,21 @@ export const getUnverifiedUsers = async () => {
 // Student service functions
 export const createStudent = async (studentData: any) => {
   try {
+    // Separate enrollments if provided
+    const { enrollments, ...studentFields } = studentData;
     const student = await prisma.students.create({
-      data: studentData,
+      data: {
+        ...studentFields,
+        enrollments:
+          enrollments && Array.isArray(enrollments)
+            ? {
+                create: enrollments,
+              }
+            : undefined,
+      },
+      include: {
+        enrollments: true,
+      },
     });
     return student;
   } catch (error: unknown) {
@@ -167,6 +180,9 @@ export const getAllStudents = async () => {
       orderBy: {
         createdAt: "desc",
       },
+      include: {
+        enrollments: true,
+      },
     });
     return students;
   } catch (error: unknown) {
@@ -179,6 +195,9 @@ export const getStudentById = async (id: string) => {
   try {
     const student = await prisma.students.findUnique({
       where: { id },
+      include: {
+        enrollments: true,
+      },
     });
     return student;
   } catch (error: unknown) {
@@ -189,12 +208,42 @@ export const getStudentById = async (id: string) => {
 
 export const updateStudent = async (id: string, studentData: any) => {
   try {
-    const { id: _, createdAt, updatedAt, ...updateData } = studentData;
+    const {
+      id: _,
+      createdAt,
+      updatedAt,
+      enrollments,
+      ...updateData
+    } = studentData;
+    // Update student fields
     const student = await prisma.students.update({
       where: { id },
       data: updateData,
+      include: {
+        enrollments: true,
+      },
     });
-    return student;
+
+    // If enrollments provided, update them (replace all for simplicity)
+    if (Array.isArray(enrollments)) {
+      // Remove all current enrollments for this student
+      await (prisma as any).studentEnrollments.deleteMany({
+        where: { studentId: id },
+      });
+      // Add new enrollments
+      for (const enrollment of enrollments) {
+        await (prisma as any).studentEnrollments.create({
+          data: { ...enrollment, studentId: id },
+        });
+      }
+    }
+
+    // Return updated student with enrollments
+    const updatedStudent = await prisma.students.findUnique({
+      where: { id },
+      include: { enrollments: true },
+    });
+    return updatedStudent;
   } catch (error: unknown) {
     console.error("Error updating student:", error);
     return "Failed to update student";
@@ -205,6 +254,9 @@ export const deleteStudent = async (id: string) => {
   try {
     await prisma.students.delete({
       where: { id },
+      include: {
+        enrollments: true,
+      },
     });
     return true;
   } catch (error: unknown) {
