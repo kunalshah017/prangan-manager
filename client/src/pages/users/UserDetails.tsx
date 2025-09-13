@@ -125,16 +125,12 @@ const UserDetails = () => {
         const notAvailableDays = attendance.filter(record => record.status === 'NOT_AVAILABLE').length;
         const holidayDays = attendance.filter(record => record.status === 'HOLIDAY').length;
 
-        const attendancePercentage = totalDays > 0 ? (presentDays / (totalDays - holidayDays)) * 100 : 0;
+        const attendancePercentage = totalDays > 0 ? parseFloat(((presentDays / (totalDays - holidayDays)) * 100).toFixed(1)) : 0;
 
-        // Calculate remuneration (assuming 500 INR per present day for educators/center managers)
-        const remunerableRecords = attendance.filter(record =>
-            record.status === 'PRESENT' &&
-            (record.roleAssignment?.subRole === 'EDUCATOR' || record.roleAssignment?.subRole === 'CENTER_MANAGER')
-        );
-        const totalRemuneration = remunerableRecords.length * (user?.reimbursementAmount || 500);
+        // Calculate remuneration (using current reimbursement amount per present day for educators/center managers)
+        const reimbursementRate = user?.reimbursementAmount || 500;
 
-        // Monthly breakdown
+        // Monthly breakdown - using logic similar to Renumeration.tsx
         const monthlyMap = new Map<string, {
             month: string;
             monthName: string;
@@ -145,6 +141,8 @@ const UserDetails = () => {
             holiday: number;
             remuneration: number;
         }>();
+
+        // First pass: collect monthly stats
         attendance.forEach(record => {
             const monthKey = record.date?.substring(0, 7) || '';
             if (!monthlyMap.has(monthKey)) {
@@ -165,9 +163,6 @@ const UserDetails = () => {
             switch (record.status) {
                 case 'PRESENT':
                     monthData.present++;
-                    if (record.roleAssignment?.subRole === 'EDUCATOR' || record.roleAssignment?.subRole === 'CENTER_MANAGER') {
-                        monthData.remuneration += (user?.reimbursementAmount || 500);
-                    }
                     break;
                 case 'ABSENT':
                     monthData.absent++;
@@ -181,58 +176,100 @@ const UserDetails = () => {
             }
         });
 
+        // Second pass: calculate remuneration per month (only for EDUCATOR/CENTER_MANAGER roles)
+        for (const [monthKey, monthData] of monthlyMap.entries()) {
+            const monthAttendance = attendance.filter(record =>
+                record.date?.substring(0, 7) === monthKey &&
+                record.status === 'PRESENT' &&
+                (record.roleAssignment?.subRole === 'EDUCATOR' || record.roleAssignment?.subRole === 'CENTER_MANAGER')
+            );
+            monthData.remuneration = monthAttendance.length * reimbursementRate;
+        }
+
         const monthlyData = Array.from(monthlyMap.values()).map(month => ({
             ...month,
-            attendanceRate: month.total - month.holiday > 0 ? (month.present / (month.total - month.holiday)) * 100 : 0
+            attendanceRate: month.total - month.holiday > 0 ? parseFloat(((month.present / (month.total - month.holiday)) * 100).toFixed(1)) : 0
         })).sort((a, b) => a.month.localeCompare(b.month));
 
-        // Committed days analysis
+        // Use sum of monthly remuneration for consistency
+        const calculatedTotalRemuneration = monthlyData.reduce((sum, month) => sum + month.remuneration, 0);
+
+        // Get user's committed days from active role assignments
+        const userCommittedDays = user?.roleAssignments
+            ?.filter(assignment => assignment.isActive)
+            ?.map(assignment => assignment.committedDays)
+            ?.filter(Boolean) || [];
+
+        // Committed days analysis (excluding holidays and only for committed days)
         const committedDaysMap = new Map<string, {
             day: string;
             total: number;
             present: number;
             absent: number;
             notAvailable: number;
+            holiday: number;
+            isCommitted: boolean;
         }>();
+
         attendance.forEach(record => {
             const dayOfWeek = new Date(record.date + 'T00:00:00Z').getDay(); // 0 = Sunday, 6 = Saturday
             const dayName = dayOfWeek === 0 ? 'SUNDAY' : dayOfWeek === 6 ? 'SATURDAY' : 'WEEKDAY';
 
             if (dayName !== 'WEEKDAY') {
                 if (!committedDaysMap.has(dayName)) {
+                    // Check if user is committed to this day
+                    const isCommitted = userCommittedDays.some(committedDay =>
+                        committedDay === dayName ||
+                        (committedDay === 'BOTH' && (dayName === 'SATURDAY' || dayName === 'SUNDAY'))
+                    );
+
                     committedDaysMap.set(dayName, {
                         day: dayName,
                         total: 0,
                         present: 0,
                         absent: 0,
-                        notAvailable: 0
+                        notAvailable: 0,
+                        holiday: 0,
+                        isCommitted
                     });
                 }
                 const dayData = committedDaysMap.get(dayName)!;
-                dayData.total++;
 
                 switch (record.status) {
                     case 'PRESENT':
                         dayData.present++;
+                        dayData.total++;
                         break;
                     case 'ABSENT':
                         dayData.absent++;
+                        dayData.total++;
                         break;
                     case 'NOT_AVAILABLE':
                         dayData.notAvailable++;
+                        dayData.total++;
+                        break;
+                    case 'HOLIDAY':
+                        dayData.holiday++;
+                        // Don't count holidays in total
                         break;
                 }
             }
         });
 
-        const committedDaysAnalysis = Array.from(committedDaysMap.values()).map(day => ({
-            ...day,
-            attendanceRate: day.total > 0 ? (day.present / day.total) * 100 : 0
-        }));
+        const committedDaysAnalysis = Array.from(committedDaysMap.values())
+            .map(day => ({
+                ...day,
+                attendanceRate: day.total > 0 ? parseFloat(((day.present / day.total) * 100).toFixed(1)) : 0
+            }))
+            .sort((a, b) => {
+                // Sort Saturday first, then Sunday
+                const order = { 'SATURDAY': 0, 'SUNDAY': 1 };
+                return (order[a.day as keyof typeof order] || 2) - (order[b.day as keyof typeof order] || 2);
+            });
 
         // Calculate averages and trends
         const averageMonthlyAttendance = monthlyData.length > 0
-            ? monthlyData.reduce((sum, month) => sum + month.attendanceRate, 0) / monthlyData.length
+            ? parseFloat((monthlyData.reduce((sum, month) => sum + month.attendanceRate, 0) / monthlyData.length).toFixed(1))
             : 0;
 
         const bestMonth = monthlyData.length > 0
@@ -244,14 +281,28 @@ const UserDetails = () => {
             : null;
 
         // Recent trend (last 3 months vs previous 3 months)
-        const recentMonths = monthlyData.slice(-3);
-        const previousMonths = monthlyData.slice(-6, -3);
-        const recentAvg = recentMonths.length > 0 ? recentMonths.reduce((sum, m) => sum + m.attendanceRate, 0) / recentMonths.length : 0;
-        const previousAvg = previousMonths.length > 0 ? previousMonths.reduce((sum, m) => sum + m.attendanceRate, 0) / previousMonths.length : 0;
-
+        // Need at least 6 months of data to calculate meaningful trend
         let recentTrend = 'stable';
-        if (recentAvg > previousAvg + 5) recentTrend = 'improving';
-        else if (recentAvg < previousAvg - 5) recentTrend = 'declining';
+        if (monthlyData.length >= 6) {
+            const recentMonths = monthlyData.slice(-3); // Last 3 months
+            const previousMonths = monthlyData.slice(-6, -3); // Previous 3 months (months 4-6 from end)
+
+            const recentAvg = recentMonths.length > 0 ? recentMonths.reduce((sum, m) => sum + m.attendanceRate, 0) / recentMonths.length : 0;
+            const previousAvg = previousMonths.length > 0 ? previousMonths.reduce((sum, m) => sum + m.attendanceRate, 0) / previousMonths.length : 0;
+
+            // Only calculate trend if we have data for both periods
+            if (recentMonths.length === 3 && previousMonths.length === 3) {
+                if (recentAvg > previousAvg + 5) recentTrend = 'improving';
+                else if (recentAvg < previousAvg - 5) recentTrend = 'declining';
+            }
+        } else if (monthlyData.length >= 2) {
+            // For fewer months, compare last month with first month
+            const lastMonth = monthlyData[monthlyData.length - 1];
+            const firstMonth = monthlyData[0];
+
+            if (lastMonth.attendanceRate > firstMonth.attendanceRate + 10) recentTrend = 'improving';
+            else if (lastMonth.attendanceRate < firstMonth.attendanceRate - 10) recentTrend = 'declining';
+        }
 
         return {
             totalDays,
@@ -260,7 +311,7 @@ const UserDetails = () => {
             notAvailableDays,
             holidayDays,
             attendancePercentage,
-            totalRemuneration,
+            totalRemuneration: calculatedTotalRemuneration, // Use sum of monthly remuneration for consistency
             monthlyData,
             committedDaysAnalysis,
             averageMonthlyAttendance,
@@ -268,7 +319,7 @@ const UserDetails = () => {
             worstMonth,
             recentTrend
         };
-    }, [attendanceData?.attendances, user?.reimbursementAmount]);
+    }, [attendanceData?.attendances, user?.reimbursementAmount, user?.roleAssignments]);
 
     if (userLoading || attendanceLoading) {
         return (
@@ -318,17 +369,28 @@ const UserDetails = () => {
                     <div className="flex items-center space-x-4">
                         <button
                             onClick={() => navigate('/users')}
-                            className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
                         >
-                            <ArrowLeft className="w-4 h-4 mr-1" />
-                            Back
+                            <ArrowLeft className="w-5 h-5 mr-1" />
                         </button>
                         <div>
                             <h1 className="text-2xl font-semibold text-gray-900">User Details</h1>
                             <p className="text-gray-600">Comprehensive attendance and performance analytics</p>
                         </div>
                     </div>
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center justify-between space-x-3">
+                        <div className="flex items-center space-x-3">
+                            <ProfilePicture
+                                imageUrl={user.profileImageUrl}
+                                name={user.name}
+                                size="w-12 h-12"
+                                colorScheme="orange"
+                                className="border-2 border-orange-100"
+                            />
+                            <div>
+                                <p className="text-sm font-medium text-gray-900">{user.name}</p>
+                                <p className="text-xs text-gray-600">{user.email}</p>
+                            </div>
+                        </div>
                         <button
                             onClick={() => navigate(`/users/${user.id}/edit`)}
                             className="inline-flex items-center px-3 py-2 text-sm font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded-md hover:bg-orange-100 transition-colors"
@@ -336,17 +398,6 @@ const UserDetails = () => {
                             <Edit className="w-4 h-4 mr-1" />
                             Edit User
                         </button>
-                        <ProfilePicture
-                            imageUrl={user.profileImageUrl}
-                            name={user.name}
-                            size="w-12 h-12"
-                            colorScheme="orange"
-                            className="border-2 border-orange-100"
-                        />
-                        <div>
-                            <p className="text-sm font-medium text-gray-900">{user.name}</p>
-                            <p className="text-xs text-gray-600">{user.email}</p>
-                        </div>
                     </div>
                 </div>
 
@@ -573,7 +624,7 @@ const UserDetails = () => {
                                         <YAxis tick={{ fontSize: 12 }} />
                                         <Tooltip
                                             formatter={(value, name) => [
-                                                name === 'attendanceRate' ? `${value}%` : value,
+                                                name === 'attendanceRate' ? `${parseFloat(String(value)).toFixed(1)}%` : value,
                                                 name === 'attendanceRate' ? 'Attendance Rate' : name
                                             ]}
                                         />
@@ -675,7 +726,7 @@ const UserDetails = () => {
                         </div>
                     </motion.div>
 
-                    {/* Committed Days Analysis */}
+                    {/* Weekend Days Analysis */}
                     {analytics.committedDaysAnalysis.length > 0 && (
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
@@ -686,38 +737,76 @@ const UserDetails = () => {
                             <div className="px-6 py-4 border-b border-gray-200">
                                 <div className="flex items-center">
                                     <Target className="w-5 h-5 text-gray-400 mr-2" />
-                                    <h3 className="text-lg font-medium text-gray-900">Committed Days Performance</h3>
+                                    <h3 className="text-lg font-medium text-gray-900">Weekend Days Performance</h3>
                                 </div>
                             </div>
                             <div className="p-6">
                                 <div className="space-y-4">
-                                    {analytics.committedDaysAnalysis.map((dayData) => (
-                                        <div key={dayData.day} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                                            <div>
-                                                <p className="font-medium text-gray-900">{dayData.day}</p>
-                                                <p className="text-sm text-gray-600">
-                                                    {dayData.present} / {dayData.total} days present
-                                                </p>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="text-2xl font-bold text-gray-900">
-                                                    {dayData.attendanceRate.toFixed(1)}%
-                                                </p>
-                                                <div className="w-20 bg-gray-200 rounded-full h-2 mt-1 relative overflow-hidden">
-                                                    <div
-                                                        className={`h-2 rounded-full absolute left-0 top-0 transition-all duration-300 ${dayData.attendanceRate >= 80 ? 'bg-green-500' :
-                                                            dayData.attendanceRate >= 60 ? 'bg-yellow-500' :
-                                                                'bg-red-500'
-                                                            }`}
-                                                        data-width={Math.min(dayData.attendanceRate, 100)}
-                                                        style={{
-                                                            width: `${Math.min(dayData.attendanceRate, 100)}%`
-                                                        }}
-                                                    />
+                                    {analytics.committedDaysAnalysis.length > 0 ? (
+                                        analytics.committedDaysAnalysis.map((dayData) => (
+                                            <div
+                                                key={dayData.day}
+                                                className={`flex items-center justify-between p-4 rounded-lg border ${dayData.isCommitted
+                                                    ? 'bg-orange-50 border-orange-200'
+                                                    : 'bg-gray-50 border-gray-200'
+                                                    }`}
+                                            >
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className={`font-medium ${dayData.isCommitted ? 'text-orange-900' : 'text-gray-700'
+                                                            }`}>
+                                                            {COMMITTED_DAYS_MAP[dayData.day as keyof typeof COMMITTED_DAYS_MAP] || dayData.day}
+                                                        </p>
+                                                        {dayData.isCommitted ? (
+                                                            <span className="px-2 py-1 text-xs font-medium bg-orange-200 text-orange-800 rounded-full">
+                                                                Committed
+                                                            </span>
+                                                        ) : (
+                                                            <span className="px-2 py-1 text-xs font-medium bg-gray-200 text-gray-600 rounded-full">
+                                                                Not Committed
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className={`text-sm mt-1 ${dayData.isCommitted ? 'text-orange-700' : 'text-gray-600'
+                                                        }`}>
+                                                        {dayData.present} / {dayData.total} working days present
+                                                    </p>
+                                                    {dayData.holiday > 0 && (
+                                                        <p className={`text-xs ${dayData.isCommitted ? 'text-orange-600' : 'text-gray-500'
+                                                            }`}>
+                                                            ({dayData.holiday} holidays excluded)
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className={`text-2xl font-bold ${dayData.isCommitted ? 'text-orange-900' : 'text-gray-700'
+                                                        }`}>
+                                                        {dayData.attendanceRate.toFixed(1)}%
+                                                    </p>
+                                                    <div className={`w-20 rounded-full h-2 mt-1 relative overflow-hidden ${dayData.isCommitted ? 'bg-orange-200' : 'bg-gray-200'
+                                                        }`}>
+                                                        <div
+                                                            className={`h-2 rounded-full absolute left-0 top-0 transition-all duration-300 ${dayData.attendanceRate >= 80 ? 'bg-green-500' :
+                                                                dayData.attendanceRate >= 60 ? 'bg-yellow-500' :
+                                                                    'bg-red-500'
+                                                                } ${dayData.attendanceRate >= 90 ? 'w-full' :
+                                                                    dayData.attendanceRate >= 80 ? 'w-5/6' :
+                                                                        dayData.attendanceRate >= 70 ? 'w-3/4' :
+                                                                            dayData.attendanceRate >= 60 ? 'w-2/3' :
+                                                                                dayData.attendanceRate >= 50 ? 'w-1/2' :
+                                                                                    dayData.attendanceRate >= 25 ? 'w-1/4' : 'w-1/12'
+                                                                }`}
+                                                        />
+                                                    </div>
                                                 </div>
                                             </div>
+                                        ))
+                                    ) : (
+                                        <div className="text-center py-8 text-gray-500">
+                                            <p>No weekend attendance data found.</p>
+                                            <p className="text-sm mt-1">Weekend attendance data may not be available.</p>
                                         </div>
-                                    ))}
+                                    )}
                                 </div>
                             </div>
                         </motion.div>
