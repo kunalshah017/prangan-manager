@@ -13,6 +13,8 @@ import { useAttendanceRecords } from '@/hooks/useAttendanceQueries';
 import type { Student, RoleAssignment, User } from '@/types/api';
 import ProtectedComponent from '@/components/ProtectedComponent';
 import { useUsers } from '@/hooks/useUserQueries';
+import { useAuth } from '@/hooks/useAuth';
+import LoadingButterflyImage from '@/assets/loading-butterfly.png';
 
 const Dashboard = () => {
     const { projectId, centerId, semesterId } = useParams<{
@@ -49,52 +51,74 @@ const Dashboard = () => {
 
     const isLoading = semesterLoading || centerLoading || studentsLoading;
     const { data: users = [] } = useUsers();
+    const { user: currentUser } = useAuth();
 
     // Handle both data formats - direct array or wrapped in object
     const students: Student[] = useMemo(() => {
-        if (!studentsData) return [];
-        if (Array.isArray(studentsData)) return studentsData;
-        // Handle wrapped format from student attendance queries
-        if (typeof studentsData === 'object' && 'students' in studentsData) {
-            return (studentsData as { students: Student[] }).students || [];
+        try {
+            if (!studentsData) return [];
+            if (Array.isArray(studentsData)) return studentsData;
+            // Handle wrapped format from student attendance queries
+            if (typeof studentsData === 'object' && 'students' in studentsData) {
+                return (studentsData as { students: Student[] }).students || [];
+            }
+            return [];
+        } catch (error) {
+            console.error('Error processing students data:', error);
+            return [];
         }
-        return [];
     }, [studentsData]);
 
     // Calculate student metrics (before early returns)
     const totalStudents = students?.length || 0;
     const studentsByLevel = useMemo(() => {
-        if (!students || !Array.isArray(students)) return {};
-        return students.reduce((acc: Record<string, number>, student: Student) => {
-            if (student?.level) {
-                acc[student.level] = (acc[student.level] || 0) + 1;
-            }
-            return acc;
-        }, {} as Record<string, number>);
+        try {
+            if (!students || !Array.isArray(students)) return {};
+            return students.reduce((acc: Record<string, number>, student: Student) => {
+                if (student?.level && typeof student.level === 'string') {
+                    acc[student.level] = (acc[student.level] || 0) + 1;
+                }
+                return acc;
+            }, {} as Record<string, number>);
+        } catch (error) {
+            console.error('Error calculating students by level:', error);
+            return {};
+        }
     }, [students]);
 
     // Counts for Educators and Center Managers from all users (not filtered by active), scoped to current context
     const { educatorCount, centerManagerCount } = useMemo(() => {
-        const educatorIds = new Set<string>();
-        const managerIds = new Set<string>();
+        try {
+            const educatorIds = new Set<string>();
+            const managerIds = new Set<string>();
 
-        const inContext = (ra: RoleAssignment) => {
-            if (projectId && ra.projectId && ra.projectId !== projectId) return false;
-            if (centerId && ra.centerId && ra.centerId !== centerId) return false;
-            if (semesterId && ra.semesterId && ra.semesterId !== semesterId) return false;
-            return true;
-        };
+            const inContext = (ra: RoleAssignment) => {
+                try {
+                    if (projectId && ra.projectId && ra.projectId !== projectId) return false;
+                    if (centerId && ra.centerId && ra.centerId !== centerId) return false;
+                    if (semesterId && ra.semesterId && ra.semesterId !== semesterId) return false;
+                    return true;
+                } catch (error) {
+                    console.warn('Error checking role assignment context:', error);
+                    return false;
+                }
+            };
 
-        for (const user of users) {
-            const roles = user.roleAssignments || [];
-            if (roles.some((r) => r.subRole === 'EDUCATOR' && inContext(r))) {
-                educatorIds.add(user.id);
+            for (const user of users || []) {
+                if (!user || !user.id) continue;
+                const roles = user.roleAssignments || [];
+                if (roles.some((r) => r && r.subRole === 'EDUCATOR' && inContext(r))) {
+                    educatorIds.add(user.id);
+                }
+                if (roles.some((r) => r && r.subRole === 'CENTER_MANAGER' && inContext(r))) {
+                    managerIds.add(user.id);
+                }
             }
-            if (roles.some((r) => r.subRole === 'CENTER_MANAGER' && inContext(r))) {
-                managerIds.add(user.id);
-            }
+            return { educatorCount: educatorIds.size, centerManagerCount: managerIds.size };
+        } catch (error) {
+            console.error('Error calculating educator/manager counts:', error);
+            return { educatorCount: 0, centerManagerCount: 0 };
         }
-        return { educatorCount: educatorIds.size, centerManagerCount: managerIds.size };
     }, [users, projectId, centerId, semesterId]);
 
     // Check if today is weekend (Saturday or Sunday)
@@ -125,62 +149,118 @@ const Dashboard = () => {
         const todayMonth = today.getMonth() + 1; // getMonth() returns 0-11
         const todayDate = today.getDate();
 
-        // Check user birthdays (only show active users in current context)
+        // Check if it's the current user's birthday and they're an Educator/Center Manager
+        const isCurrentUserBirthday = currentUser && currentUser.dob && (() => {
+            try {
+                const currentUserDob = new Date(currentUser.dob);
+                if (isNaN(currentUserDob.getTime())) return false;
+
+                // Check if current user is an Educator or Center Manager in this context
+                const isEducatorOrManager = currentUser.roleAssignments?.some(role =>
+                    role && role.isActive &&
+                    (role.subRole === 'EDUCATOR' || role.subRole === 'CENTER_MANAGER') &&
+                    (!role.projectId || role.projectId === projectId) &&
+                    (!role.centerId || role.centerId === centerId) &&
+                    (!role.semesterId || role.semesterId === semesterId)
+                );
+
+                return isEducatorOrManager &&
+                    currentUserDob.getMonth() + 1 === todayMonth &&
+                    currentUserDob.getDate() === todayDate;
+            } catch (error) {
+                console.warn('Error checking current user birthday:', error);
+                return false;
+            }
+        })();
+
+        // Add special birthday message for current user
+        if (isCurrentUserBirthday) {
+            alerts.push({
+                type: 'own-birthday',
+                title: `Happiest Birthday To You ${currentUser.name.split(' ')[0]}! 🎉`,
+                people: [currentUser],
+                message: `Today is your special day! Wishing you joy, happiness, and all the wonderful things life has to offer.`,
+            });
+        }
+
+        // Check user birthdays (only show active users in current context, excluding current user)
         const usersWithBirthdays = users.filter(user => {
-            if (!user.dob || user.status !== 'APPROVED') return false;
+            try {
+                if (!user || !user.dob || user.status !== 'APPROVED') return false;
 
-            // Check if user has active role assignments in current context
-            const hasActiveRole = user.roleAssignments?.some(role =>
-                role.isActive &&
-                (!role.projectId || role.projectId === projectId) &&
-                (!role.centerId || role.centerId === centerId) &&
-                (!role.semesterId || role.semesterId === semesterId)
-            );
+                // Exclude current user (they get their own special message)
+                if (currentUser && user.id === currentUser.id) return false;
 
-            if (!hasActiveRole) return false;
+                // Check if user has active role assignments in current context
+                const hasActiveRole = user.roleAssignments?.some(role =>
+                    role && role.isActive &&
+                    (!role.projectId || role.projectId === projectId) &&
+                    (!role.centerId || role.centerId === centerId) &&
+                    (!role.semesterId || role.semesterId === semesterId)
+                );
 
-            const userDob = new Date(user.dob);
-            return userDob.getMonth() + 1 === todayMonth && userDob.getDate() === todayDate;
+                if (!hasActiveRole) return false;
+
+                const userDob = new Date(user.dob);
+                // Check if date is valid
+                if (isNaN(userDob.getTime())) return false;
+
+                return userDob.getMonth() + 1 === todayMonth && userDob.getDate() === todayDate;
+            } catch (error) {
+                console.warn('Error checking user birthday:', error);
+                return false;
+            }
         });
 
         // Check student birthdays (only students in current semester)
         const studentsWithBirthdays = students.filter(student => {
-            if (!student.dob) return false;
-            const studentDob = new Date(student.dob);
-            return studentDob.getMonth() + 1 === todayMonth && studentDob.getDate() === todayDate;
+            try {
+                if (!student || !student.dob) return false;
+                const studentDob = new Date(student.dob);
+                // Check if date is valid
+                if (isNaN(studentDob.getTime())) return false;
+
+                return studentDob.getMonth() + 1 === todayMonth && studentDob.getDate() === todayDate;
+            } catch (error) {
+                console.warn('Error checking student birthday:', error);
+                return false;
+            }
         });
 
         if (usersWithBirthdays.length > 0) {
             alerts.push({
                 type: 'user-birthday',
-                title: '🎉 Educator / Center Manager Birthday Today!',
+                title: 'We have Birthday Today!',
                 people: usersWithBirthdays,
                 message: usersWithBirthdays.length === 1
-                    ? `It's ${usersWithBirthdays[0].name.split(' ')[0]}'s birthday today!`
+                    ? `It's ${usersWithBirthdays[0]?.name?.split(' ')[0] || 'Someone'}'s birthday today!`
                     : `${usersWithBirthdays.length} educators/center managers have birthdays today!`,
             });
-            // Trigger confetti for birthday celebration
-            setShowConfetti(true);
-            setTimeout(() => setShowConfetti(false), 5000);
         }
 
         if (studentsWithBirthdays.length > 0) {
             alerts.push({
                 type: 'student-birthday',
-                title: '� Student Birthday Today!',
+                title: 'Student Birthday Today!',
                 people: studentsWithBirthdays,
                 message: studentsWithBirthdays.length === 1
-                    ? `It's ${studentsWithBirthdays[0].name.split(' ')[0]}'s birthday today!`
+                    ? `It's ${studentsWithBirthdays[0]?.name?.split(' ')[0] || 'Someone'}'s birthday today!`
                     : `${studentsWithBirthdays.length} students have birthdays today!`,
 
             });
-            // Trigger confetti for birthday celebration
-            setShowConfetti(true);
-            setTimeout(() => setShowConfetti(false), 5000);
         }
 
         return alerts;
-    }, [users, students, today, projectId, centerId, semesterId]);
+    }, [users, students, today, projectId, centerId, semesterId, currentUser]);
+
+    // Handle confetti trigger effect (separate from calculation to prevent infinite re-renders)
+    useEffect(() => {
+        if (birthdayAlerts.length > 0) {
+            setShowConfetti(true);
+            const timer = setTimeout(() => setShowConfetti(false), 10000);
+            return () => clearTimeout(timer);
+        }
+    }, [birthdayAlerts.length]);
 
     // Calculate weekend attendance alerts
     const weekendAlerts = useMemo(() => {
@@ -300,6 +380,16 @@ const Dashboard = () => {
 
     // Function to handle navigation to manage users
     const handleManageUsers = () => {
+        const dashboardContext = {
+            projectId,
+            centerId,
+            semesterId,
+            projectName: 'Project', // Will be updated by breadcrumb component
+            centerName: center?.name || 'Center',
+            semesterName: semester?.name || 'Semester'
+        };
+
+        sessionStorage.setItem('dashboardContext', JSON.stringify(dashboardContext));
         navigate('/users');
     };
 
@@ -460,63 +550,70 @@ const Dashboard = () => {
                             {birthdayAlerts.map((alert, index) => (
                                 <div
                                     key={`${alert.type}-${index}`}
-                                    className="relative bg-gradient-to-r from-pink-50 to-purple-50 border-2 border-pink-200 rounded-lg p-4 flex items-start space-x-3 shadow-lg"
+                                    className={`relative ${alert.type === 'own-birthday'
+                                        ? 'bg-gradient-to-r from-yellow-50 via-orange-50 to-red-50 border-4 border-orange-300 shadow-2xl'
+                                        : 'bg-gradient-to-r from-pink-50 to-purple-50 border-2 border-pink-200 shadow-lg'
+                                        } rounded-lg p-4 flex items-start space-x-3`}
                                 >
                                     <div className="flex-shrink-0">
-                                        <div className="h-8 w-8 rounded-full bg-gradient-to-r from-pink-400 to-purple-400 flex items-center justify-center text-white text-lg">
-                                            {alert.type === 'user-birthday' ? '👥' : '🎓'}
+                                        <div className={`h-8 w-8 rounded-full flex items-center justify-center text-white text-lg`}>
+                                            <img
+                                                src={LoadingButterflyImage}
+                                                alt="Birthday"
+                                                className="h-8 w-8"
+                                            />
                                         </div>
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center justify-between">
-                                            <h4 className="text-sm font-bold text-purple-800">
+                                            <h4 className={`text-sm font-bold ${alert.type === 'own-birthday'
+                                                ? 'text-orange-800 text-lg'
+                                                : 'text-purple-800'
+                                                }`}>
                                                 {alert.title}
                                             </h4>
-                                            <div className="flex items-center text-xs text-pink-600 font-medium">
-                                                <span className="mr-1">🎂</span>
-                                                <span>Today</span>
-                                            </div>
                                         </div>
-                                        <p className="text-sm text-purple-700 mt-1 font-medium">
+                                        <p className={`text-sm mt-1 font-medium ${alert.type === 'own-birthday'
+                                            ? 'text-orange-700 text-base'
+                                            : 'text-purple-700'
+                                            }`}>
                                             {alert.message}
                                         </p>
-                                        {alert.people && alert.people.length > 0 && (
-                                            <div className="mt-2 flex flex-wrap gap-2">
+                                        {alert.people && alert.people.length > 0 && alert.type !== 'own-birthday' && (
+                                            <div className="mt-2 flex flex-wrap gap-2 ">
                                                 {alert.people.slice(0, 3).map((person: User | Student) => (
-                                                    <div
-                                                        key={person.id}
-                                                        className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-pink-100 to-purple-100 text-pink-800 border border-pink-200 shadow-sm"
-                                                    >
-                                                        <span className="mr-1">🎉</span>
-                                                        <span className="font-semibold">{person.name.split(' ')[0]}</span>
-                                                        {/* Individual WhatsApp button */}
-                                                        <button
-                                                            onClick={(e) => {
+                                                    <button
+                                                        onClick={(e) => {
+                                                            try {
                                                                 e.stopPropagation();
-                                                                // Generate individual WhatsApp message with proper emoji encoding
+
                                                                 const isUser = 'roles' in person;
-                                                                const birthdayEmoji = String.fromCodePoint(0x1F389); // 🎉
-                                                                const cakeEmoji = String.fromCodePoint(0x1F382); // 🎂
-                                                                const heartEmoji = String.fromCodePoint(0x1F499); // 💙
-                                                                const balloonEmoji = String.fromCodePoint(0x1F388); // 🎈
-                                                                const sparklesEmoji = String.fromCodePoint(0x2728); // ✨
-                                                                const starEmoji = String.fromCodePoint(0x1F31F); // 🌟
+                                                                const firstName = person?.name?.split(' ')[0] || 'Friend';
 
-                                                                const firstName = person.name.split(' ')[0];
+                                                                const lineBreak = '\r\n\r\n';
+
                                                                 const individualMessage = isUser
-                                                                    ? `${birthdayEmoji} Happy Birthday, ${firstName}! ${cakeEmoji}\n\nYour dedication and hard work in shaping young minds is truly inspiring. May this new year of your life bring you joy, success, and countless moments of fulfillment in your educational journey.\n\nWishing you a fantastic day filled with love, laughter, and all your favorite things! ${balloonEmoji}${sparklesEmoji}\n\nFrom the Prangan Manager team ${heartEmoji}`
-                                                                    : `${birthdayEmoji} Happy Birthday, ${firstName}! ${cakeEmoji}\n\nWishing you a day full of happiness, fun, and all your favorite things! May this new year bring you exciting adventures, great achievements in your studies, and lots of wonderful memories.\n\nKeep shining bright and never stop learning! You're amazing! ${starEmoji}${balloonEmoji}\n\nFrom your friends at Prangan Manager ${heartEmoji}`;
+                                                                    ? `Happy Birthday, ${firstName}!${lineBreak}Your dedication and hard work in shaping young minds is truly inspiring. May this new year of your life bring you joy, success, and countless moments of fulfillment in your educational journey.${lineBreak}Wishing you a fantastic day filled with love, laughter, and all your favorite things.${lineBreak}Warm wishes from the Prangan team.`
+                                                                    : `Happy Birthday, ${firstName}!${lineBreak}Wishing you a day full of happiness, fun, and all your favorite things. May this new year bring you exciting adventures, great achievements in your studies, and lots of wonderful memories.${lineBreak}Keep shining bright and never stop learning. You're amazing!${lineBreak}Best wishes from your friends at Prangan.`;
 
-                                                                // Open WhatsApp with message
                                                                 const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(individualMessage)}`;
                                                                 window.open(whatsappUrl, '_blank');
-                                                            }}
+                                                            } catch (error) {
+                                                                console.error('Error opening WhatsApp:', error);
+                                                            }
+                                                        }}
+                                                        key={person.id}
+                                                        className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium shadow-sm bg-gradient-to-r from-pink-100 to-purple-100 text-pink-800 border border-pink-200"
+                                                    >
+                                                        <span className="font-semibold">{person?.name?.split(' ')[0] || 'Friend'}</span>
+                                                        {/* Individual WhatsApp button */}
+                                                        <div
                                                             className="ml-2 p-1 rounded-full hover:bg-green-100 transition-colors duration-200"
-                                                            title={`Send WhatsApp birthday message to ${person.name.split(' ')[0]}`}
+                                                            title={`Send WhatsApp birthday message to ${person?.name?.split(' ')[0] || 'Friend'}`}
                                                         >
                                                             <WhatsAppIcon size={14} className="text-green-600" />
-                                                        </button>
-                                                    </div>
+                                                        </div>
+                                                    </button>
                                                 ))}
                                                 {alert.people.length > 3 && (
                                                     <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-800 border border-purple-200 shadow-sm">

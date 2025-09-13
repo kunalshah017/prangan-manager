@@ -69,15 +69,15 @@ export const markBulkStudentAttendance = async (
       });
     }
 
-    // Check for reasonable batch size to prevent timeouts
-    if (bulkData.studentAttendances.length > 60) {
+    // Allow larger batches - backend will handle splitting automatically
+    // Set a reasonable upper limit to prevent abuse (e.g., 200 students max)
+    if (bulkData.studentAttendances.length > 200) {
       return reply.status(400).send({
         message:
-          "Too many student attendance records. Please process in batches of 60 or fewer.",
-        maxBatchSize: 60,
+          "Too many student attendance records. Maximum allowed is 200 students per request.",
+        maxBatchSize: 200,
         receivedCount: bulkData.studentAttendances.length,
-        suggestion:
-          "Split your request into smaller batches for better performance.",
+        suggestion: "Please split very large requests into multiple API calls.",
       });
     }
 
@@ -120,6 +120,19 @@ export const markBulkStudentAttendance = async (
       errorCount: result.errors.length,
       attendances: result.attendances,
       errors: result.errors,
+      processingInfo: {
+        automaticOptimization: true,
+        batchStrategy:
+          bulkData.studentAttendances.length <= 20
+            ? "SMALL"
+            : bulkData.studentAttendances.length <= 50
+            ? "MEDIUM"
+            : "LARGE",
+        estimatedProcessingTime: `${Math.ceil(
+          bulkData.studentAttendances.length * 0.15
+        )} seconds`,
+        note: "Backend automatically handles optimal batch sizes and parallel processing",
+      },
     });
   } catch (error: any) {
     console.error("Error marking bulk student attendance:", error);
@@ -130,10 +143,22 @@ export const markBulkStudentAttendance = async (
     ) {
       return reply.status(408).send({
         message:
-          "Request timed out. Please try processing fewer students at once.",
-        suggestion:
-          "Split your request into smaller batches of 30-40 students.",
+          "Request timed out during processing. The system automatically optimizes batch sizes, but this request exceeded available processing time.",
+        explanation:
+          "Our backend automatically splits large requests into optimal chunks and processes them efficiently. However, this particular request was too large for the available processing window.",
         error: error.message,
+        recommendedActions: [
+          "Try splitting your request into 2-3 smaller requests (e.g., by class level or grade)",
+          "Process attendance for different centers separately if applicable",
+          "Try again during off-peak hours when server load is lower",
+          "Contact support if this error persists with reasonable batch sizes",
+        ],
+        technicalInfo: {
+          automaticOptimization:
+            "The system automatically uses different batch sizes: 8 students per chunk for small requests, 6 for medium, and 4 for large requests",
+          processingStrategy:
+            "Requests are processed with controlled parallelism and timeout protection",
+        },
       });
     }
 
@@ -355,6 +380,77 @@ export const getStudentsWithoutAttendance = async (
     console.error("Error getting students without attendance:", error);
     return reply.status(500).send({
       message: error.message || "Failed to get students without attendance",
+    });
+  }
+};
+
+// Get processing estimates for bulk attendance operation
+export const getBulkAttendanceEstimate = async (
+  request: FastifyRequest,
+  reply: FastifyReply
+) => {
+  try {
+    const { studentCount } = request.query as { studentCount: string };
+
+    const count = parseInt(studentCount);
+    if (isNaN(count) || count <= 0) {
+      return reply.status(400).send({
+        message: "Valid student count is required",
+      });
+    }
+
+    // Calculate estimates based on our processing strategy
+    let batchStrategy: string;
+    let estimatedTime: number;
+    let maxRecommended: number;
+
+    if (count <= 20) {
+      batchStrategy = "SMALL";
+      estimatedTime = Math.ceil(count * 0.1); // ~0.1 seconds per student
+      maxRecommended = 30;
+    } else if (count <= 50) {
+      batchStrategy = "MEDIUM";
+      estimatedTime = Math.ceil(count * 0.15); // ~0.15 seconds per student
+      maxRecommended = 75;
+    } else {
+      batchStrategy = "LARGE";
+      estimatedTime = Math.ceil(count * 0.2); // ~0.2 seconds per student
+      maxRecommended = 150;
+    }
+
+    return reply.status(200).send({
+      message: "Processing estimate calculated successfully",
+      estimate: {
+        studentCount: count,
+        batchStrategy,
+        estimatedProcessingTime: `${estimatedTime} seconds`,
+        maxRecommendedBatchSize: maxRecommended,
+        processingInfo: {
+          automaticOptimization: true,
+          parallelProcessing: true,
+          timeoutProtection: true,
+          explanation:
+            "Backend automatically handles optimal chunking and parallel processing for best performance",
+        },
+        recommendations:
+          count > maxRecommended
+            ? [
+                `Consider splitting into ${Math.ceil(
+                  count / maxRecommended
+                )} smaller requests`,
+                "Process different class levels or centers separately",
+                "Use the bulk processing during off-peak hours",
+              ]
+            : [
+                "This batch size is optimal for processing",
+                "Expected to complete within timeout limits",
+              ],
+      },
+    });
+  } catch (error: any) {
+    console.error("Error calculating bulk attendance estimate:", error);
+    return reply.status(500).send({
+      message: error.message || "Failed to calculate processing estimate",
     });
   }
 };

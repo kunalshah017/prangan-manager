@@ -151,10 +151,8 @@ const EditUser = () => {
                 <div className="flex items-center space-x-4">
                     <button
                         onClick={() => navigate('/users')}
-                        className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
                     >
-                        <ArrowLeft className="w-4 h-4 mr-1" />
-                        Back
+                        <ArrowLeft className="w-5 h-5 mr-1" />
                     </button>
                     <div>
                         <h1 className="text-2xl font-semibold text-gray-900">Edit User</h1>
