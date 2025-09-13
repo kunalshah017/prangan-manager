@@ -49,6 +49,7 @@ export const markStudentAttendance = async (
 };
 
 // Mark attendance for multiple students in bulk
+// Optimized for serverless environments to avoid timeouts
 export const markBulkStudentAttendance = async (
   request: FastifyRequest,
   reply: FastifyReply
@@ -68,18 +69,51 @@ export const markBulkStudentAttendance = async (
       });
     }
 
+    // Check for reasonable batch size to prevent timeouts
+    if (bulkData.studentAttendances.length > 60) {
+      return reply.status(400).send({
+        message:
+          "Too many student attendance records. Please process in batches of 60 or fewer.",
+        maxBatchSize: 60,
+        receivedCount: bulkData.studentAttendances.length,
+        suggestion:
+          "Split your request into smaller batches for better performance.",
+      });
+    }
+
+    // Validate date format
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(bulkData.date)) {
+      return reply.status(400).send({
+        message: "Date must be in YYYY-MM-DD format",
+      });
+    }
+
     const result = await StudentAttendanceService.markBulkAttendance(
       bulkData,
       userId
     );
 
     const hasErrors = result.errors.length > 0;
-    const status = hasErrors ? 207 : 200; // 207 Multi-Status for partial success
+    const allFailed = result.processedCount === 0 && hasErrors;
+    const partialSuccess = hasErrors && result.processedCount > 0;
+
+    // Return appropriate status code based on results
+    let status = 200;
+    let message = "Bulk student attendance marked successfully";
+
+    if (allFailed) {
+      status = 400;
+      message = "All student attendance records failed to process";
+    } else if (partialSuccess) {
+      status = 207; // 207 Multi-Status for partial success
+      message = `Bulk attendance partially completed. ${result.processedCount} successful, ${result.errors.length} failed.`;
+    }
 
     return reply.status(status).send({
-      message: hasErrors 
-        ? `Bulk attendance partially completed. ${result.processedCount} successful, ${result.errors.length} failed.`
-        : "Bulk student attendance marked successfully",
+      message,
+      success: !allFailed,
+      partialFailure: partialSuccess,
       processedCount: result.processedCount,
       totalCount: bulkData.studentAttendances.length,
       successCount: result.processedCount,
@@ -89,6 +123,20 @@ export const markBulkStudentAttendance = async (
     });
   } catch (error: any) {
     console.error("Error marking bulk student attendance:", error);
+
+    if (
+      error.message?.includes("timeout") ||
+      error.message?.includes("timed out")
+    ) {
+      return reply.status(408).send({
+        message:
+          "Request timed out. Please try processing fewer students at once.",
+        suggestion:
+          "Split your request into smaller batches of 30-40 students.",
+        error: error.message,
+      });
+    }
+
     return reply.status(500).send({
       message: error.message || "Failed to mark bulk student attendance",
     });

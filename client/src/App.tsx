@@ -37,8 +37,12 @@ const Renumeration = lazy(() => import('./pages/attendance/Renumeration').then(m
 const ViewStudentAttendance = lazy(() => import('./pages/student-attendance/ViewStudentAttendance').then(module => ({ default: module.ViewStudentAttendance })))
 const MarkStudentAttendance = lazy(() => import('./pages/student-attendance/MarkStudentAttendance').then(module => ({ default: module.MarkStudentAttendance })))
 const RegistrationRequests = lazy(() => import('./pages/RegistrationRequests'))
+const Users = lazy(() => import('./pages/users/Users'))
+const UserDetails = lazy(() => import('./pages/users/UserDetails'))
+const EditUser = lazy(() => import('./pages/users/EditUser'))
 const Profile = lazy(() => import('./pages/Profile'))
 const BankDetails = lazy(() => import('./pages/BankDetails'))
+
 
 // Loading fallback component
 const PageLoading = () => (
@@ -170,6 +174,19 @@ function App() {
               }
             >
               <Route index element={<RegistrationRequests />} />
+            </Route>
+
+            <Route
+              path="/users"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<Users />} />
+              <Route path=":userId/details" element={<UserDetails />} />
+              <Route path=":userId/edit" element={<EditUser />} />
             </Route>
 
             {/* Redirect any unmatched routes to home */}

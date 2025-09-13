@@ -128,97 +128,174 @@ export class StudentAttendanceService {
     return attendance;
   }
 
-  // Mark attendance for multiple students in bulk
+  /**
+   * Mark attendance for multiple students in bulk
+   *
+   * PERFORMANCE OPTIMIZATIONS FOR SERVERLESS:
+   * - Batch validation of enrollments in single query
+   * - Uses transaction for small batches (≤15 students) with 8s timeout
+   * - Uses non-transactional approach for larger batches (16+ students)
+   * - Processes in optimized batch sizes (8 for transactions, 12 for non-transactional)
+   * - Individual error handling to allow partial success
+   * - Pre-validates all data to fail fast on validation errors
+   */
   static async markBulkAttendance(
     data: BulkStudentAttendanceInput,
     markedBy: string
   ): Promise<BulkStudentAttendanceResponse> {
-    const attendanceDate = new Date(data.date);
+    try {
+      const attendanceDate = new Date(data.date);
 
-    // Extract all student and enrollment IDs for batch validation
-    const studentIds = data.studentAttendances.map((sa) => sa.studentId);
-    const enrollmentIds = data.studentAttendances.map((sa) => sa.enrollmentId);
+      // Extract all student and enrollment IDs for batch validation
+      const studentIds = data.studentAttendances.map((sa) => sa.studentId);
+      const enrollmentIds = data.studentAttendances.map(
+        (sa) => sa.enrollmentId
+      );
 
-    // Batch validate all enrollments in a single query
-    const enrollments = await prisma.studentEnrollments.findMany({
-      where: {
-        id: { in: enrollmentIds },
-        studentId: { in: studentIds },
-        isActive: true,
-        projectId: data.projectId,
-        centerId: data.centerId,
-        semesterId: data.semesterId,
-      },
-      select: {
-        id: true,
-        studentId: true,
-        projectId: true,
-        centerId: true,
-        semesterId: true,
-      },
-    });
+      // Batch validate all enrollments in a single query
+      const enrollments = await prisma.studentEnrollments.findMany({
+        where: {
+          id: { in: enrollmentIds },
+          studentId: { in: studentIds },
+          isActive: true,
+          projectId: data.projectId,
+          centerId: data.centerId,
+          semesterId: data.semesterId,
+        },
+        select: {
+          id: true,
+          studentId: true,
+          projectId: true,
+          centerId: true,
+          semesterId: true,
+        },
+      });
 
-    // Create a map for quick enrollment lookup
-    const enrollmentMap = new Map(
-      enrollments.map((e) => [`${e.studentId}-${e.id}`, e])
-    );
+      // Create a map for quick enrollment lookup
+      const enrollmentMap = new Map(
+        enrollments.map((e) => [`${e.studentId}-${e.id}`, e])
+      );
 
-    // Prepare bulk operations
-    const validAttendances: StudentAttendanceData[] = [];
-    const errors: Array<{ studentId: string; error: string }> = [];
+      // Prepare bulk operations
+      const validAttendances: StudentAttendanceData[] = [];
+      const errors: Array<{ studentId: string; error: string }> = [];
 
-    for (const studentAttendance of data.studentAttendances) {
-      const enrollmentKey = `${studentAttendance.studentId}-${studentAttendance.enrollmentId}`;
-      const enrollment = enrollmentMap.get(enrollmentKey);
+      for (const studentAttendance of data.studentAttendances) {
+        const enrollmentKey = `${studentAttendance.studentId}-${studentAttendance.enrollmentId}`;
+        const enrollment = enrollmentMap.get(enrollmentKey);
 
-      if (!enrollment) {
-        errors.push({
+        if (!enrollment) {
+          errors.push({
+            studentId: studentAttendance.studentId,
+            error: "Invalid or inactive enrollment",
+          });
+          continue;
+        }
+
+        const attendanceStatus = studentAttendance.status || data.status;
+
+        validAttendances.push({
           studentId: studentAttendance.studentId,
-          error: "Invalid or inactive enrollment",
+          date: attendanceDate,
+          status: attendanceStatus,
+          enrollmentId: studentAttendance.enrollmentId,
+          projectId: data.projectId,
+          centerId: data.centerId,
+          semesterId: data.semesterId,
+          notes: studentAttendance.notes,
+          holidayReason:
+            attendanceStatus === "HOLIDAY" ? data.holidayReason : null,
+          markedBy,
+          markedAt: new Date(),
         });
-        continue;
       }
 
-      const attendanceStatus = studentAttendance.status || data.status;
+      if (validAttendances.length === 0) {
+        return { processedCount: 0, errors, attendances: [] };
+      }
 
-      validAttendances.push({
-        studentId: studentAttendance.studentId,
-        date: attendanceDate,
-        status: attendanceStatus,
-        enrollmentId: studentAttendance.enrollmentId,
-        projectId: data.projectId,
-        centerId: data.centerId,
-        semesterId: data.semesterId,
-        notes: studentAttendance.notes,
-        holidayReason:
-          attendanceStatus === "HOLIDAY" ? data.holidayReason : null,
-        markedBy,
-        markedAt: new Date(),
-      });
-    }
+      // Optimized approach for serverless environments (Vercel has 10s limit)
+      // Use transaction for smaller batches, non-transactional for larger ones
+      const useTransaction = validAttendances.length <= 15; // Reduced threshold for faster processing
 
-    if (validAttendances.length === 0) {
-      return { processedCount: 0, errors, attendances: [] };
-    }
+      if (useTransaction) {
+        // Use transaction for bulk operations with serverless-friendly timeout
+        const results = await prisma.$transaction(
+          async (tx) => {
+            const attendanceResults = [];
 
-    // Alternative: Non-transactional approach for better performance with large batches
-    // This is faster but less atomic - good for bulk attendance where partial success is acceptable
-    const useTransaction = validAttendances.length <= 20; // Use transaction for smaller batches only
+            // Process in smaller batches to avoid query limits and reduce transaction time
+            const batchSize = 8; // Optimized batch size for faster processing
+            for (let i = 0; i < validAttendances.length; i += batchSize) {
+              const batch = validAttendances.slice(i, i + batchSize);
 
-    if (useTransaction) {
-      // Use transaction for bulk operations with increased timeout
-      const results = await prisma.$transaction(
-        async (tx) => {
-          const attendanceResults = [];
+              // For each item in batch, use upsert
+              const batchPromises = batch.map((attendance) =>
+                tx.studentAttendance.upsert({
+                  where: {
+                    studentId_date_projectId_centerId_semesterId: {
+                      studentId: attendance.studentId,
+                      date: attendance.date,
+                      projectId: attendance.projectId,
+                      centerId: attendance.centerId,
+                      semesterId: attendance.semesterId,
+                    },
+                  },
+                  update: {
+                    status: attendance.status,
+                    notes: attendance.notes,
+                    holidayReason: attendance.holidayReason,
+                    markedBy: attendance.markedBy,
+                    markedAt: attendance.markedAt,
+                    updatedAt: attendance.markedAt,
+                  },
+                  create: attendance,
+                  select: {
+                    id: true,
+                    studentId: true,
+                    date: true,
+                    status: true,
+                    student: {
+                      select: {
+                        id: true,
+                        name: true,
+                      },
+                    },
+                  },
+                })
+              );
 
-          // Process in smaller batches to avoid query limits and reduce transaction time
-          const batchSize = 5; // Reduced batch size for faster processing
-          for (let i = 0; i < validAttendances.length; i += batchSize) {
-            const batch = validAttendances.slice(i, i + batchSize);
+              const batchResults = await Promise.all(batchPromises);
+              attendanceResults.push(...batchResults);
+            }
 
-            // For each item in batch, use upsert
-            const batchPromises = batch.map((attendance) =>
-              tx.studentAttendance.upsert({
+            return attendanceResults;
+          },
+          {
+            timeout: 8000, // 8 second timeout to stay under Vercel's 10s limit
+          }
+        );
+
+        return {
+          processedCount: results.length,
+          errors,
+          attendances: results,
+        };
+      } else {
+        // Non-transactional approach for larger batches (16+ students)
+        // Better for serverless environments with large datasets
+        const attendanceResults = [];
+        const processingErrors = [...errors]; // Start with validation errors
+
+        // Process in optimized batches without transaction for better performance
+        const batchSize = 12; // Optimized for serverless performance
+        for (let i = 0; i < validAttendances.length; i += batchSize) {
+          const batch = validAttendances.slice(i, i + batchSize);
+
+          // Process batch with error handling for each item
+          const batchPromises = batch.map(async (attendance) => {
+            try {
+              const result = await prisma.studentAttendance.upsert({
                 where: {
                   studentId_date_projectId_centerId_semesterId: {
                     studentId: attendance.studentId,
@@ -234,6 +311,7 @@ export class StudentAttendanceService {
                   holidayReason: attendance.holidayReason,
                   markedBy: attendance.markedBy,
                   markedAt: attendance.markedAt,
+                  updatedAt: attendance.markedAt,
                 },
                 create: attendance,
                 select: {
@@ -248,90 +326,44 @@ export class StudentAttendanceService {
                     },
                   },
                 },
-              })
-            );
+              });
+              return result;
+            } catch (error: any) {
+              console.error(
+                `Error processing student attendance for ${attendance.studentId}:`,
+                error
+              );
+              processingErrors.push({
+                studentId: attendance.studentId,
+                error: error.message || "Failed to process attendance",
+              });
+              return null;
+            }
+          });
 
-            const batchResults = await Promise.all(batchPromises);
-            attendanceResults.push(...batchResults);
-          }
-
-          return attendanceResults;
-        },
-        {
-          timeout: 30000, // 30 second timeout instead of default 5 seconds
+          const batchResults = await Promise.all(batchPromises);
+          attendanceResults.push(
+            ...batchResults.filter((result) => result !== null)
+          );
         }
-      );
 
-      return {
-        processedCount: results.length,
-        errors,
-        attendances: results,
-      };
-    } else {
-      // Non-transactional approach for larger batches (42+ students)
-      const attendanceResults = [];
-      const processingErrors = [...errors]; // Start with validation errors
+        return {
+          processedCount: attendanceResults.length,
+          errors: processingErrors,
+          attendances: attendanceResults,
+        };
+      }
+    } catch (error: any) {
+      console.error("Student bulk attendance marking failed:", error);
 
-      // Process in batches without transaction for better performance
-      const batchSize = 10;
-      for (let i = 0; i < validAttendances.length; i += batchSize) {
-        const batch = validAttendances.slice(i, i + batchSize);
-
-        // Process batch with error handling for each item
-        const batchPromises = batch.map(async (attendance) => {
-          try {
-            const result = await prisma.studentAttendance.upsert({
-              where: {
-                studentId_date_projectId_centerId_semesterId: {
-                  studentId: attendance.studentId,
-                  date: attendance.date,
-                  projectId: attendance.projectId,
-                  centerId: attendance.centerId,
-                  semesterId: attendance.semesterId,
-                },
-              },
-              update: {
-                status: attendance.status,
-                notes: attendance.notes,
-                holidayReason: attendance.holidayReason,
-                markedBy: attendance.markedBy,
-                markedAt: attendance.markedAt,
-              },
-              create: attendance,
-              select: {
-                id: true,
-                studentId: true,
-                date: true,
-                status: true,
-                student: {
-                  select: {
-                    id: true,
-                    name: true,
-                  },
-                },
-              },
-            });
-            return result;
-          } catch (error: any) {
-            processingErrors.push({
-              studentId: attendance.studentId,
-              error: error.message || "Failed to process attendance",
-            });
-            return null;
-          }
-        });
-
-        const batchResults = await Promise.all(batchPromises);
-        attendanceResults.push(
-          ...batchResults.filter((result) => result !== null)
+      // Handle timeout and other critical errors
+      if (error.message?.includes("timeout") || error.code === "P2024") {
+        throw new Error(
+          "Request timed out. Please try processing fewer students at once."
         );
       }
 
-      return {
-        processedCount: attendanceResults.length,
-        errors: processingErrors,
-        attendances: attendanceResults,
-      };
+      throw new Error(`Bulk attendance marking failed: ${error.message}`);
     }
   }
 

@@ -1095,6 +1095,12 @@ export const updateStudentController = asyncHandle(
       fatherOccupation?: string;
       motherOccupation?: string;
       familyIncome?: string;
+      enrollments?: Array<{
+        centerId: string;
+        semesterId: string;
+        projectId: string;
+        level: Level;
+      }>;
       enrollment?: {
         centerId?: string;
         semesterId?: string;
@@ -1107,12 +1113,42 @@ export const updateStudentController = asyncHandle(
       return errorHandle("Student ID is required.", reply, 400);
     }
 
-    // Validate enrollment level if provided
+    // Validate enrollment level if provided (both single enrollment and enrollments array)
     if (
       data.enrollment?.level &&
       !Object.values(Level).includes(data.enrollment.level)
     ) {
       return errorHandle("Invalid level provided in enrollment.", reply, 400);
+    }
+
+    // Validate enrollments array if provided
+    if (data.enrollments) {
+      if (!Array.isArray(data.enrollments)) {
+        return errorHandle("Enrollments must be an array", reply, 400);
+      }
+
+      for (const enrollment of data.enrollments) {
+        if (
+          !enrollment.centerId ||
+          !enrollment.semesterId ||
+          !enrollment.projectId ||
+          !enrollment.level
+        ) {
+          return errorHandle(
+            "Each enrollment must have centerId, semesterId, projectId, and level",
+            reply,
+            400
+          );
+        }
+
+        if (!Object.values(Level).includes(enrollment.level)) {
+          return errorHandle(
+            `Invalid level provided: ${enrollment.level}`,
+            reply,
+            400
+          );
+        }
+      }
     }
 
     const updateData: any = {};
@@ -1186,6 +1222,11 @@ export const updateStudentController = asyncHandle(
     if (data.familyIncome !== undefined)
       updateData.familyIncome = data.familyIncome;
 
+    // Add enrollments to updateData if provided
+    if (data.enrollments) {
+      updateData.enrollments = data.enrollments;
+    }
+
     const student = await updateStudent(id, updateData);
 
     if (typeof student === "string") {
@@ -1194,22 +1235,27 @@ export const updateStudentController = asyncHandle(
 
     // Handle enrollment updates if provided
     let enrollmentResult = null;
-    if (data.enrollment) {
-      // If level is provided, promote the student
+    let wasEnrollmentUpdated = false;
+
+    // Check if enrollments array was provided and processed
+    if (data.enrollments && data.enrollments.length > 0 && student) {
+      wasEnrollmentUpdated = true;
+      enrollmentResult = student.enrollments; // The updated enrollments are already in the student object
+    } else if (data.enrollment) {
+      // Handle single enrollment update (legacy support)
       if (data.enrollment.level) {
         enrollmentResult = await promoteStudent(
           id,
           data.enrollment.level,
           data.enrollment.centerId
         );
+        wasEnrollmentUpdated = true;
       }
-      // If other enrollment fields are provided without level, we could add logic to update current enrollment
-      // For now, we'll focus on level promotion as the main use case
     }
 
-    const responseMessage = data.enrollment?.level
-      ? "Student updated and promoted successfully"
-      : "Student updated successfully. Use enrollment endpoints to update level assignments.";
+    const responseMessage = wasEnrollmentUpdated
+      ? "Student updated and enrollments updated successfully"
+      : "Student updated successfully";
 
     return successHandle(
       {
@@ -1738,5 +1784,145 @@ export const deleteUserAssignmentController = asyncHandle(
       reply,
       200
     );
+  }
+);
+
+// Get Single User Controller
+export const getUserByIdController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const authUser = request.user;
+    if (!authUser) {
+      return errorHandle("Authentication required.", reply, 401);
+    }
+
+    // Only admins can view other users, or users can view themselves
+    const { userId } = request.params as { userId: string };
+    if (authUser.role !== Role.ADMIN && authUser.id !== userId) {
+      return errorHandle(
+        "You can only view your own profile or you must be an admin.",
+        reply,
+        403
+      );
+    }
+
+    const user = await getUserById(userId);
+    if (!user || typeof user === "string") {
+      return errorHandle("User not found.", reply, 404);
+    }
+
+    return successHandle(
+      {
+        message: "User retrieved successfully",
+        user,
+      },
+      reply,
+      200
+    );
+  }
+);
+
+// Update User Details Controller
+export const updateUserController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const authUser = request.user;
+    if (!authUser) {
+      return errorHandle("Authentication required.", reply, 401);
+    }
+
+    const { userId } = request.params as { userId: string };
+
+    // Only admins can update other users, or users can update themselves
+    if (authUser.role !== Role.ADMIN && authUser.id !== userId) {
+      return errorHandle(
+        "You can only update your own profile or you must be an admin.",
+        reply,
+        403
+      );
+    }
+
+    const data = request.body as {
+      name?: string;
+      email?: string;
+      phone?: string;
+      qualification?: string;
+      address?: string;
+      dob?: string;
+      role?: Role;
+      roleAssignments?: Array<{
+        subRole: string;
+        projectId?: string;
+        centerId?: string;
+        semesterId?: string;
+        level?: string;
+        committedDays?: string;
+      }>;
+    };
+
+    // Validate required fields
+    if (data.name !== undefined && !data.name.trim()) {
+      return errorHandle("Name cannot be empty.", reply, 400);
+    }
+
+    if (
+      data.email !== undefined &&
+      (!data.email.trim() || !/\S+@\S+\.\S+/.test(data.email))
+    ) {
+      return errorHandle("Valid email is required.", reply, 400);
+    }
+
+    // Only admins can change roles
+    if (data.role && authUser.role !== Role.ADMIN) {
+      return errorHandle("Only admins can change user roles.", reply, 403);
+    }
+
+    try {
+      // Parse DOB if provided
+      let dobDate: Date | null = null;
+      if (data.dob) {
+        dobDate = new Date(data.dob);
+        if (isNaN(dobDate.getTime())) {
+          return errorHandle("Invalid date of birth format.", reply, 400);
+        }
+      }
+
+      // Update user basic details
+      const updateData: any = {};
+      if (data.name !== undefined) updateData.name = data.name.trim();
+      if (data.email !== undefined) updateData.email = data.email.trim();
+      if (data.phone !== undefined)
+        updateData.phone = data.phone?.trim() || null;
+      if (data.qualification !== undefined)
+        updateData.qualification = data.qualification?.trim() || null;
+      if (data.address !== undefined)
+        updateData.address = data.address?.trim() || null;
+      if (data.dob !== undefined) updateData.dob = dobDate;
+      if (data.role !== undefined) updateData.role = data.role;
+
+      // Update user in database
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: updateData,
+      });
+
+      // Update role assignments if provided
+      if (data.roleAssignments && Array.isArray(data.roleAssignments)) {
+        await bulkUpdateUserAssignments(userId, data.roleAssignments);
+      }
+
+      // Get full user details with assignments
+      const fullUser = await getUserById(userId);
+
+      return successHandle(
+        {
+          message: "User updated successfully",
+          user: fullUser,
+        },
+        reply,
+        200
+      );
+    } catch (error) {
+      console.error("Error updating user:", error);
+      return errorHandle("Failed to update user.", reply, 500);
+    }
   }
 );

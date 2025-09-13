@@ -9,6 +9,7 @@ import ConfirmationModal from '@/components/ui/confirmation-modal';
 import { ProfilePicture } from '@/components/ui';
 import type { Student } from '@/types/api';
 import ProtectedComponent from '@/components/ProtectedComponent';
+import WhatsAppIcon from '@/components/ui/WhatsAppIcon';
 
 const Students = () => {
     const { projectId, centerId, semesterId } = useParams();
@@ -20,10 +21,28 @@ const Students = () => {
     // Build the base URL for student routes
     const baseStudentUrl = `/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/students`;
 
-    // Filter students based on search query
+    // Define level order for sorting
+    const levelOrder = ['PRIMARY_A', 'PRIMARY_B', 'LEVEL_1', 'LEVEL_2', 'LEVEL_3', 'LEVEL_4'];
+
+    // Filter and sort students based on search query, level order, and then by name
     const filteredStudents = students?.filter(student =>
         student.name.toLowerCase().includes(searchQuery.toLowerCase())
-    ) || [];
+    ).sort((a, b) => {
+        // First sort by level order
+        const aLevelIndex = levelOrder.indexOf(a.level || '');
+        const bLevelIndex = levelOrder.indexOf(b.level || '');
+
+        // If levels are different, sort by level order
+        if (aLevelIndex !== bLevelIndex) {
+            // Handle cases where level is not in our predefined order (put them at the end)
+            if (aLevelIndex === -1) return 1;
+            if (bLevelIndex === -1) return -1;
+            return aLevelIndex - bLevelIndex;
+        }
+
+        // If levels are the same, sort by name alphabetically
+        return a.name.localeCompare(b.name);
+    }) || [];
 
     const handleDeleteStudent = async () => {
         if (!studentToDelete) return;
@@ -186,7 +205,7 @@ const Students = () => {
                                                             className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
                                                             title="WhatsApp this number"
                                                         >
-                                                            <MessageCircle className="w-4 h-4" />
+                                                            <WhatsAppIcon size={16} />
                                                         </button>
                                                     </div>
                                                 </div>
@@ -210,7 +229,7 @@ const Students = () => {
                                                             className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
                                                             title="WhatsApp this number"
                                                         >
-                                                            <MessageCircle className="w-4 h-4" />
+                                                            <WhatsAppIcon size={16} />
                                                         </button>
                                                     </div>
                                                 </div>
@@ -234,7 +253,7 @@ const Students = () => {
                                                             className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
                                                             title="WhatsApp this number"
                                                         >
-                                                            <MessageCircle className="w-4 h-4" />
+                                                            <WhatsAppIcon size={16} />
                                                         </button>
                                                     </div>
                                                 </div>

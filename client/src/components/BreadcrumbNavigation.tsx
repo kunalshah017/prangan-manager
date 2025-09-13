@@ -35,7 +35,7 @@ const BreadcrumbNavigation: React.FC = () => {
     const studentId = params.id && location.pathname.includes('/students/') ? params.id : undefined;
 
     // Get dashboard context for student pages and attendance pages
-    const dashboardContext = (location.pathname.includes('/students') || location.pathname.includes('/attendance') || location.pathname.includes('/student-attendance') || location.pathname.includes('/registration-requests')) ?
+    const dashboardContext = (location.pathname.includes('/students') || location.pathname.includes('/attendance') || location.pathname.includes('/student-attendance') || location.pathname.includes('/registration-requests') || location.pathname.includes('/users')) ?
         (() => {
             try {
                 const stored = sessionStorage.getItem('dashboardContext');
@@ -326,6 +326,59 @@ const BreadcrumbNavigation: React.FC = () => {
                 label: 'Registration Requests',
                 isCurrentPage: true
             });
+        }
+        // Handle /users
+        else if (pathSegments.includes('users')) {
+            // Check if we have dashboard context for users
+            if (dashboardContext && dashboardContext.projectId && dashboardContext.centerId && dashboardContext.semesterId) {
+                // Use actual data if available, otherwise fall back to context data
+                const projectName = project?.name || dashboardContext.projectName || 'Project';
+                const centerName = center?.name || dashboardContext.centerName || 'Center';
+                const semesterName = semester?.name || dashboardContext.semesterName || 'Semester';
+
+                breadcrumbs.push({
+                    label: 'Projects',
+                    href: '/projects'
+                });
+                breadcrumbs.push({
+                    label: projectName,
+                    href: `/projects/${dashboardContext.projectId}/centers`
+                });
+                breadcrumbs.push({
+                    label: centerName,
+                    href: `/projects/${dashboardContext.projectId}/centers/${dashboardContext.centerId}/semesters`
+                });
+                breadcrumbs.push({
+                    label: semesterName,
+                    href: `/projects/${dashboardContext.projectId}/centers/${dashboardContext.centerId}/semesters/${dashboardContext.semesterId}/dashboard`
+                });
+            }
+
+            // Check if this is the edit user page or details page
+            if (pathSegments.includes('edit') && params.userId) {
+                breadcrumbs.push({
+                    label: 'Users',
+                    href: '/users'
+                });
+                breadcrumbs.push({
+                    label: 'Edit User',
+                    isCurrentPage: true
+                });
+            } else if (pathSegments.includes('details') && params.userId) {
+                breadcrumbs.push({
+                    label: 'Users',
+                    href: '/users'
+                });
+                breadcrumbs.push({
+                    label: 'User Details',
+                    isCurrentPage: true
+                });
+            } else {
+                breadcrumbs.push({
+                    label: 'Users',
+                    isCurrentPage: true
+                });
+            }
         }
 
         return breadcrumbs;
