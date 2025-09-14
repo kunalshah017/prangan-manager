@@ -1,22 +1,206 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { CalendarIcon, UserIcon, ClockIcon, CheckIcon, XIcon } from "lucide-react";
+import {
+    CalendarIcon,
+    UserIcon,
+    ClockIcon,
+    CheckIcon,
+    XIcon,
+    Download,
+    ChevronDown,
+    FileText,
+    FileSpreadsheet,
+    Eye
+} from "lucide-react";
 import { useAttendanceRecords } from "@/hooks/useAttendanceQueries";
 import LoadingButterfly from "@/components/LoadingButterfly";
 import { CustomButton } from "@/components/ui/custom-button";
+import toast from "react-hot-toast";
 
 export const ViewAttendance = () => {
     const { centerId } = useParams();
     const [selectedDate, setSelectedDate] = useState<string>(
         new Date().toISOString().split('T')[0]
     );
+    const [isExporting, setIsExporting] = useState(false);
+    const [showExportDropdown, setShowExportDropdown] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
 
     const { data: attendanceData, isLoading, error } = useAttendanceRecords({
         startDate: selectedDate,
         endDate: selectedDate,
         centerId: centerId!,
     });
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setShowExportDropdown(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
+
+    // Export functionality
+    const getExportData = () => {
+        const records = attendanceData?.attendances || [];
+        return records.map((record, index) => ({
+            'S.No': index + 1,
+            'Name': record.userName || 'Unknown User',
+            'Role': record.roleAssignment?.subRole?.replace('_', ' ') || 'N/A',
+            'Date': selectedDate,
+            'Status': record.status.replace('_', ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase()),
+            'Holiday Reason': record.status === 'HOLIDAY' ? record.holidayReason || '-' : '-',
+            'Marked By': record.markedByName || 'System',
+            'Marked At': record.markedAt ? new Date(record.markedAt).toLocaleString() : '-',
+            'Notes': record.notes || '-'
+        }));
+    };
+
+    const exportToExcel = async () => {
+        setIsExporting(true);
+        try {
+            // Dynamically import xlsx to reduce bundle size
+            const XLSX = await import('xlsx');
+
+            const exportData = getExportData();
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            const workbook = XLSX.utils.book_new();
+
+            // Set column widths
+            const colWidths = [
+                { wch: 8 },  // S.No
+                { wch: 25 }, // Name
+                { wch: 20 }, // Role
+                { wch: 12 }, // Date
+                { wch: 10 }, // Status
+                { wch: 20 }, // Holiday Reason
+                { wch: 15 }, // Marked By
+                { wch: 20 }, // Marked At
+                { wch: 30 }  // Notes
+            ];
+            worksheet['!cols'] = colWidths;
+
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance Records');
+
+            // Generate filename
+            const filename = `Educator_Attendance_${selectedDate.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
+
+            XLSX.writeFile(workbook, filename);
+            toast.success('Excel file downloaded successfully!');
+        } catch (error) {
+            console.error('Error exporting to Excel:', error);
+            toast.error('Failed to export Excel file');
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    const exportToPDF = async () => {
+        setIsExporting(true);
+        try {
+            // Dynamically import jsPDF and autoTable to reduce bundle size
+            const jsPDFModule = await import('jspdf');
+            const jsPDF = jsPDFModule.default;
+            const autoTable = (await import('jspdf-autotable')).default;
+
+            const doc = new jsPDF();
+            const exportData = getExportData();
+
+            // Add logo
+            try {
+                const img = new Image();
+                img.src = '/images/logo/prangan-logo-light-mode.png';
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                });
+                // Add logo at top right (scaled down)
+                doc.addImage(img, 'PNG', 160, 5, 40, 20);
+            } catch (logoError) {
+                console.warn('Could not load logo:', logoError);
+            }
+
+            // Add title
+            doc.setFontSize(16);
+            doc.text('Educator & Center Manager Attendance Report', 14, 15);
+
+            // Add filters info
+            doc.setFontSize(10);
+            let yPos = 25;
+            doc.text(`Date: ${selectedDate}`, 14, yPos);
+            yPos += 5;
+            doc.text(`Total Records: ${exportData.length}`, 14, yPos);
+            yPos += 10;
+
+            // Add table
+            const tableColumns = ['S.No', 'Name', 'Role', 'Status', 'Time', 'Marked By'];
+            const tableRows = exportData.map(row => {
+                let timeFormatted = '-';
+                if (row['Marked At'] !== '-') {
+                    try {
+                        // Find the original record to get the raw markedAt value
+                        const originalRecord = attendanceData?.attendances?.find((_, index) => index + 1 === row['S.No']);
+                        if (originalRecord?.markedAt) {
+                            const date = new Date(originalRecord.markedAt);
+                            if (!isNaN(date.getTime())) {
+                                timeFormatted = date.toLocaleTimeString('en-US', {
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                    hour12: true
+                                });
+                            }
+                        }
+                    } catch (error) {
+                        console.warn('Error formatting time for PDF:', error);
+                        timeFormatted = '-';
+                    }
+                }
+
+                return [
+                    row['S.No'],
+                    row['Name'],
+                    row['Role'],
+                    row['Status'],
+                    timeFormatted,
+                    row['Marked By']
+                ];
+            });
+
+            autoTable(doc, {
+                head: [tableColumns],
+                body: tableRows,
+                startY: yPos,
+                styles: { fontSize: 8 },
+                headStyles: { fillColor: [255, 152, 0] }, // Orange theme
+                columnStyles: {
+                    0: { cellWidth: 15 }, // S.No
+                    1: { cellWidth: 40 }, // Name
+                    2: { cellWidth: 30 }, // Role
+                    3: { cellWidth: 25 }, // Status
+                    4: { cellWidth: 25 }, // Time
+                    5: { cellWidth: 30 }  // Marked By
+                }
+            });
+
+            // Generate filename
+            const filename = `Educator_Attendance_${selectedDate.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+
+            doc.save(filename);
+            toast.success('PDF file downloaded successfully!');
+        } catch (error) {
+            console.error('Error exporting to PDF:', error);
+            toast.error('Failed to export PDF file');
+        } finally {
+            setIsExporting(false);
+        }
+    };
 
     if (isLoading) {
         return (
@@ -81,7 +265,8 @@ export const ViewAttendance = () => {
             >
                 {/* Header */}
                 <div className="mb-4">
-                    <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
+                    <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 flex items-center">
+                        <Eye className="w-6 h-6 mr-2 text-orange-600" />
                         View Attendance
                     </h1>
                     <p className="text-sm text-gray-600">
@@ -105,6 +290,52 @@ export const ViewAttendance = () => {
                         />
                     </div>
                 </div>
+
+                {/* Export Button */}
+                {attendanceData?.attendances && attendanceData.attendances.length > 0 && (
+                    <div className="flex justify-end mb-4">
+                        <div className="relative" ref={dropdownRef}>
+                            <CustomButton
+                                onClick={() => setShowExportDropdown(!showExportDropdown)}
+                                isLoading={isExporting}
+                                loadingMessage="Exporting..."
+                                className="flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 text-white text-sm px-4 py-2"
+                            >
+                                <Download className="w-4 h-4" />
+                                Export
+                                <ChevronDown className="w-4 h-4" />
+                            </CustomButton>
+
+                            {/* Dropdown Menu */}
+                            {showExportDropdown && (
+                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50">
+                                    <div className="py-1">
+                                        <button
+                                            onClick={() => {
+                                                setShowExportDropdown(false);
+                                                exportToExcel();
+                                            }}
+                                            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                                        >
+                                            <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                                            Export to Excel
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setShowExportDropdown(false);
+                                                exportToPDF();
+                                            }}
+                                            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                                        >
+                                            <FileText className="w-4 h-4 text-red-600" />
+                                            Export to PDF
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 {/* Attendance Records */}
                 <div className="bg-white rounded-lg shadow-sm border">
@@ -168,7 +399,7 @@ export const ViewAttendance = () => {
                                                         <div className="flex items-center space-x-1">
                                                             {getStatusIcon(record.status)}
                                                             <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full border capitalize ${getStatusBadge(record.status)}`}>
-                                                                {record.status.toLowerCase()}
+                                                                {record.status.replace('_', ' ').toLowerCase()}
                                                             </span>
                                                         </div>
                                                         {record.status === 'HOLIDAY' && record.holidayReason && (
@@ -241,7 +472,7 @@ export const ViewAttendance = () => {
                                             <div className="flex items-center space-x-1">
                                                 {getStatusIcon(record.status)}
                                                 <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full border capitalize ${getStatusBadge(record.status)}`}>
-                                                    {record.status.toLowerCase()}
+                                                    {record.status.replace('_', ' ').toLowerCase()}
                                                 </span>
                                             </div>
                                         </div>

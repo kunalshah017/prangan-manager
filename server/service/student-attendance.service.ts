@@ -248,157 +248,175 @@ export class StudentAttendanceService {
       // This is 10-20x faster than individual upsert operations
       const sqlStart = Date.now();
 
-      // Create parameterized query values for bulk insert
-      const values = validAttendances.map((attendance, index) => {
-        const baseIndex = index * 10;
-        return `($${baseIndex + 1}::uuid, $${baseIndex + 2}::timestamp, $${
-          baseIndex + 3
-        }::"AttendanceStatus", $${baseIndex + 4}::uuid, $${
-          baseIndex + 5
-        }::uuid, $${baseIndex + 6}::uuid, $${baseIndex + 7}::uuid, $${
-          baseIndex + 8
-        }::text, $${baseIndex + 9}::text, $${baseIndex + 10}::uuid)`;
-      });
+      // Use Prisma's createMany with a simpler approach that handles UUIDs properly
+      // First, try to use batch processing with proper Prisma operations instead of raw SQL
+      try {
+        // Use Prisma's transaction for bulk operations
+        const bulkResults = await prisma.$transaction(async (tx) => {
+          const results = [];
 
-      // Flatten all parameters
-      const params = validAttendances.flatMap((attendance) => [
-        attendance.studentId,
-        attendance.date,
-        attendance.status,
-        attendance.enrollmentId,
-        attendance.projectId,
-        attendance.centerId,
-        attendance.semesterId,
-        attendance.notes || null,
-        attendance.holidayReason || null,
-        markedBy,
-      ]);
+          // Process in smaller batches to avoid overwhelming the database
+          const BATCH_SIZE = 50; // Process 50 at a time
 
-      // Add markedAt timestamp for all records (same for all)
-      const markedAtParam = markedAt;
+          for (let i = 0; i < validAttendances.length; i += BATCH_SIZE) {
+            const batch = validAttendances.slice(i, i + BATCH_SIZE);
 
-      // SQL bulk upsert query using ON CONFLICT DO UPDATE
-      const bulkUpsertSQL = `
-        INSERT INTO "StudentAttendance" (
-          "studentId", "date", "status", "enrollmentId", 
-          "projectId", "centerId", "semesterId", "notes", 
-          "holidayReason", "markedBy", "markedAt", "createdAt", "updatedAt"
-        )
-        VALUES ${values.join(", ")}
-        ON CONFLICT ("studentId", "date", "projectId", "centerId", "semesterId")
-        DO UPDATE SET
-          "status" = EXCLUDED."status",
-          "notes" = EXCLUDED."notes",
-          "holidayReason" = EXCLUDED."holidayReason",
-          "markedBy" = EXCLUDED."markedBy",
-          "markedAt" = $${params.length + 1}::timestamp,
-          "updatedAt" = $${params.length + 1}::timestamp
-        RETURNING "id", "studentId", "date", "status";
-      `;
+            // Use Promise.all for parallel processing within each batch
+            const batchPromises = batch.map(async (attendance) => {
+              return await tx.studentAttendance.upsert({
+                where: {
+                  studentId_date_projectId_centerId_semesterId: {
+                    studentId: attendance.studentId,
+                    date: attendance.date,
+                    projectId: attendance.projectId,
+                    centerId: attendance.centerId,
+                    semesterId: attendance.semesterId,
+                  },
+                },
+                update: {
+                  status: attendance.status,
+                  notes: attendance.notes,
+                  holidayReason: attendance.holidayReason,
+                  markedBy: attendance.markedBy,
+                  markedAt: attendance.markedAt,
+                  updatedAt: attendance.markedAt,
+                },
+                create: {
+                  studentId: attendance.studentId,
+                  date: attendance.date,
+                  status: attendance.status,
+                  enrollmentId: attendance.enrollmentId,
+                  projectId: attendance.projectId,
+                  centerId: attendance.centerId,
+                  semesterId: attendance.semesterId,
+                  notes: attendance.notes,
+                  holidayReason: attendance.holidayReason,
+                  markedBy: attendance.markedBy,
+                  markedAt: attendance.markedAt,
+                  createdAt: attendance.markedAt,
+                  updatedAt: attendance.markedAt,
+                },
+                select: {
+                  id: true,
+                  studentId: true,
+                  date: true,
+                  status: true,
+                },
+              });
+            });
 
-      // Add markedAt to the end of params array
-      const allParams = [...params, markedAtParam];
+            const batchResults = await Promise.all(batchPromises);
+            results.push(...batchResults);
 
-      // Execute bulk upsert with timeout protection
-      const bulkResults = (await Promise.race([
-        prisma.$queryRawUnsafe(bulkUpsertSQL, ...allParams),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error("SQL bulk operation timeout")),
-            5000 // 5 second timeout for SQL operation
-          )
-        ),
-      ])) as any[];
+            // Small delay between batches to prevent overwhelming the database
+            if (i + BATCH_SIZE < validAttendances.length) {
+              await new Promise((resolve) => setTimeout(resolve, 10));
+            }
+          }
 
-      const sqlTime = Date.now() - sqlStart;
-      console.log(
-        `⚡ SQL bulk operation completed in ${sqlTime}ms for ${bulkResults.length} records`
-      );
-
-      // Get student details for the successfully processed records
-      const processedStudentIds = bulkResults.map(
-        (result: any) => result.studentId
-      );
-
-      const studentsDetails = (await Promise.race([
-        prisma.students.findMany({
-          where: {
-            id: { in: processedStudentIds },
-          },
-          select: {
-            id: true,
-            name: true,
-          },
-        }),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error("Student details fetch timeout")),
-            1000
-          )
-        ),
-      ])) as any[];
-
-      // Create student lookup map
-      const studentMap = new Map(
-        studentsDetails.map((student: any) => [student.id, student])
-      );
-
-      // Transform results to match expected format
-      const processedAttendances = bulkResults.map((result: any) => ({
-        id: result.id,
-        studentId: result.studentId,
-        date: result.date,
-        status: result.status,
-        student: studentMap.get(result.studentId) || {
-          id: result.studentId,
-          name: "Unknown",
-        },
-      }));
-
-      // Find any students that weren't processed (shouldn't happen with bulk SQL, but safety check)
-      const processedStudentIdsSet = new Set(processedStudentIds);
-      const missedStudents = validAttendances.filter(
-        (attendance) => !processedStudentIdsSet.has(attendance.studentId)
-      );
-
-      // Add missed students to errors (this should be rare with SQL bulk operation)
-      missedStudents.forEach((attendance) => {
-        errors.push({
-          studentId: attendance.studentId,
-          error: "Student was validated but not processed in bulk operation",
+          return results;
         });
-      });
 
-      const totalTime = Date.now() - startTime;
-      const successRate = (
-        (processedAttendances.length / validAttendances.length) *
-        100
-      ).toFixed(1);
-      const overallSuccessRate = (
-        (processedAttendances.length / totalStudents) *
-        100
-      ).toFixed(1);
+        const sqlTime = Date.now() - sqlStart;
+        console.log(
+          `⚡ Prisma bulk transaction completed in ${sqlTime}ms for ${bulkResults.length} records`
+        );
 
-      console.log(`🎉 Bulk attendance processing completed in ${totalTime}ms`);
-      console.log(
-        `📈 Results: ${processedAttendances.length}/${validAttendances.length} valid records processed (${successRate}% success rate)`
-      );
-      console.log(
-        `📊 Overall: ${processedAttendances.length}/${totalStudents} total students processed (${overallSuccessRate}% overall success rate)`
-      );
-      console.log(`⚠️  Errors: ${errors.length} total errors`);
-      console.log(
-        `🚀 Performance: SQL operation took ${sqlTime}ms (${(
-          validAttendances.length /
-          (sqlTime / 1000)
-        ).toFixed(0)} records/sec)`
-      );
+        // Get student details for the successfully processed records
+        const processedStudentIds = bulkResults.map(
+          (result: any) => result.studentId
+        );
 
-      return {
-        processedCount: processedAttendances.length,
-        attendances: processedAttendances,
-        errors,
-      };
+        const studentsDetails = (await Promise.race([
+          prisma.students.findMany({
+            where: {
+              id: { in: processedStudentIds },
+            },
+            select: {
+              id: true,
+              name: true,
+            },
+          }),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("Student details fetch timeout")),
+              1000
+            )
+          ),
+        ])) as any[];
+
+        // Create student lookup map
+        const studentMap = new Map(
+          studentsDetails.map((student: any) => [student.id, student])
+        );
+
+        // Transform results to match expected format
+        const processedAttendances = bulkResults.map((result: any) => ({
+          id: result.id,
+          studentId: result.studentId,
+          date: result.date,
+          status: result.status,
+          student: studentMap.get(result.studentId) || {
+            id: result.studentId,
+            name: "Unknown",
+          },
+        }));
+
+        // Find any students that weren't processed (shouldn't happen with bulk SQL, but safety check)
+        const processedStudentIdsSet = new Set(processedStudentIds);
+        const missedStudents = validAttendances.filter(
+          (attendance) => !processedStudentIdsSet.has(attendance.studentId)
+        );
+
+        // Add missed students to errors (this should be rare with SQL bulk operation)
+        missedStudents.forEach((attendance) => {
+          errors.push({
+            studentId: attendance.studentId,
+            error: "Student was validated but not processed in bulk operation",
+          });
+        });
+
+        const totalTime = Date.now() - startTime;
+        const successRate = (
+          (processedAttendances.length / validAttendances.length) *
+          100
+        ).toFixed(1);
+        const overallSuccessRate = (
+          (processedAttendances.length / totalStudents) *
+          100
+        ).toFixed(1);
+
+        console.log(
+          `🎉 Bulk attendance processing completed in ${totalTime}ms`
+        );
+        console.log(
+          `📈 Results: ${processedAttendances.length}/${validAttendances.length} valid records processed (${successRate}% success rate)`
+        );
+        console.log(
+          `📊 Overall: ${processedAttendances.length}/${totalStudents} total students processed (${overallSuccessRate}% overall success rate)`
+        );
+        console.log(`⚠️  Errors: ${errors.length} total errors`);
+        console.log(
+          `🚀 Performance: SQL operation took ${sqlTime}ms (${(
+            validAttendances.length /
+            (sqlTime / 1000)
+          ).toFixed(0)} records/sec)`
+        );
+
+        return {
+          processedCount: processedAttendances.length,
+          attendances: processedAttendances,
+          errors,
+        };
+      } catch (transactionError: any) {
+        console.error(
+          `❌ Prisma transaction failed:`,
+          transactionError.message
+        );
+        throw new Error(
+          `Bulk attendance transaction failed: ${transactionError.message}`
+        );
+      }
     } catch (error: any) {
       const totalTime = Date.now() - startTime;
       console.error(
