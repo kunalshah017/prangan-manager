@@ -69,16 +69,15 @@ export const markBulkStudentAttendance = async (
       });
     }
 
-    // With SQL bulk operations, we can handle much larger batches efficiently
-    // Set a reasonable upper limit to prevent abuse (e.g., 1000 students max)
-    if (bulkData.studentAttendances.length > 1000) {
+    // Simple validation for reasonable batch sizes (your typical use case: ~100 students)
+    const MAX_BATCH_SIZE = 150; // Reasonable limit for typical class sizes
+    if (bulkData.studentAttendances.length > MAX_BATCH_SIZE) {
       return reply.status(400).send({
-        message:
-          "Too many student attendance records. Maximum allowed is 1000 students per request.",
-        maxBatchSize: 1000,
+        message: `Too many student attendance records. Maximum allowed is ${MAX_BATCH_SIZE} students per request.`,
+        maxBatchSize: MAX_BATCH_SIZE,
         receivedCount: bulkData.studentAttendances.length,
-        suggestion: "Please split very large requests into multiple API calls.",
-        note: "The system now uses high-performance SQL bulk operations for faster processing.",
+        suggestion:
+          "Please split into smaller batches if processing multiple classes.",
       });
     }
 
@@ -122,14 +121,13 @@ export const markBulkStudentAttendance = async (
       attendances: result.attendances,
       errors: result.errors,
       processingInfo: {
-        optimizationType: "SQL_BULK_OPERATION",
+        optimizationType: "SIMPLE_TRANSACTION",
         bulkProcessing: true,
         estimatedProcessingTime: `${Math.ceil(
-          bulkData.studentAttendances.length * 0.01
+          bulkData.studentAttendances.length * 0.02
         )} seconds`,
-        note: "Uses high-performance SQL bulk operations for 10x faster processing",
-        performance:
-          "Single SQL operation processes all students simultaneously",
+        note: "Optimized for typical class sizes (~100 students)",
+        performance: "Single transaction for reliable processing",
       },
     });
   } catch (error: any) {
@@ -137,25 +135,28 @@ export const markBulkStudentAttendance = async (
 
     if (
       error.message?.includes("timeout") ||
-      error.message?.includes("timed out")
+      error.message?.includes("timed out") ||
+      error.message?.includes("Transaction already closed") ||
+      error.message?.includes("expired transaction")
     ) {
       return reply.status(408).send({
         message:
-          "Request timed out during processing. The SQL bulk operation took longer than expected.",
+          "Request timed out during processing. Vercel's serverless environment has strict timeout limits.",
         explanation:
-          "Our backend uses high-performance SQL bulk operations that are 10x faster than the previous approach. However, this particular request exceeded the processing time limit.",
+          "The application is deployed on Vercel's serverless platform, which has execution time limits to ensure optimal performance. This batch exceeded those limits.",
         error: error.message,
         recommendedActions: [
-          "Try reducing the batch size to 500 students or fewer",
-          "Process attendance for different centers separately if applicable",
-          "Try again during off-peak hours when database load is lower",
-          "Contact support if this error persists with reasonable batch sizes",
+          "Try reducing the batch size to 200-300 students or fewer",
+          "Process attendance for different class levels separately",
+          "Split large centers into multiple smaller requests",
+          "Process during off-peak hours when database response is faster",
+          "Contact support if issues persist with reasonable batch sizes",
         ],
         technicalInfo: {
-          optimizationType: "SQL_BULK_OPERATION",
-          processingStrategy:
-            "Single SQL operation processes all students simultaneously using ON CONFLICT DO UPDATE",
-          performance: "Typical processing: 100+ students per second",
+          optimizationType: "SIMPLE_TRANSACTION",
+          processingStrategy: "Single transaction for typical class sizes",
+          transactionTimeout: "10 seconds",
+          maxRecommendedBatchSize: 150,
         },
       });
     }
@@ -397,10 +398,10 @@ export const getBulkAttendanceEstimate = async (
       });
     }
 
-    // Calculate estimates based on SQL bulk processing strategy
-    const batchStrategy = "SQL_BULK_OPERATION";
-    const estimatedTime = Math.ceil(Math.max(count * 0.01, 1)); // ~0.01 seconds per student, minimum 1 second
-    const maxRecommended = 1000; // Much higher with SQL bulk operations
+    // Calculate estimates based on Vercel serverless deployment constraints
+    const batchStrategy = "VERCEL_SERVERLESS_BATCHING";
+    const estimatedTime = Math.ceil(Math.max(count * 0.05, 2)); // More conservative for Vercel
+    const maxRecommended = 300; // Reduced for Vercel's timeout limits
 
     return reply.status(200).send({
       message: "Processing estimate calculated successfully",
@@ -410,13 +411,15 @@ export const getBulkAttendanceEstimate = async (
         estimatedProcessingTime: `${estimatedTime} seconds`,
         maxRecommendedBatchSize: maxRecommended,
         processingInfo: {
-          optimizationType: "SQL_BULK_OPERATION",
+          deployment: "VERCEL_SERVERLESS",
+          optimizationType: "BATCHED_TRANSACTIONS",
           bulkProcessing: true,
           timeoutProtection: true,
+          transactionTimeout: "15 seconds",
           explanation:
-            "Backend uses high-performance SQL bulk operations for 10x faster processing",
+            "Backend uses Prisma transactions with batching optimized for Vercel's serverless environment",
           performance:
-            "Single SQL operation processes all students simultaneously",
+            "Processes 20 students per batch with extended timeout protection",
         },
         recommendations:
           count > maxRecommended
@@ -425,12 +428,14 @@ export const getBulkAttendanceEstimate = async (
                   count / maxRecommended
                 )} smaller requests`,
                 "Process different class levels or centers separately",
-                "Use the bulk processing during off-peak hours",
+                "Use bulk processing during off-peak hours for better performance",
+                "Vercel's serverless limits require smaller batch sizes",
               ]
             : [
-                "This batch size is excellent for SQL bulk processing",
-                "Expected to complete very quickly with bulk operations",
-                "SQL bulk operations can handle 100+ students per second",
+                "This batch size is excellent for Vercel's serverless environment",
+                "Expected to complete within timeout limits",
+                "Batched processing handles 20 students per transaction batch",
+                "Optimized for Vercel's 15-second function timeout",
               ],
       },
     });
