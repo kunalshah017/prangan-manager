@@ -283,7 +283,35 @@ export const MarkStudentAttendance = () => {
                     <ul className="divide-y">
                         {visibleStudents
                             .slice()
-                            .sort((a, b) => a.name.localeCompare(b.name))
+                            .sort((a, b) => {
+                                // Get active enrollments for both students
+                                const activeA = a.enrollments?.find((en) => en.semesterId === semesterId && en.isActive);
+                                const activeB = b.enrollments?.find((en) => en.semesterId === semesterId && en.isActive);
+
+                                const levelA = activeA?.level || '';
+                                const levelB = activeB?.level || '';
+
+                                // Define level priority order
+                                const levelOrder = {
+                                    'PRIMARY_A': 1,
+                                    'PRIMARY_B': 2,
+                                    'LEVEL_1': 3,
+                                    'LEVEL_2': 4,
+                                    'LEVEL_3': 5,
+                                    'LEVEL_4': 6,
+                                };
+
+                                const priorityA = levelOrder[levelA as keyof typeof levelOrder] || 999;
+                                const priorityB = levelOrder[levelB as keyof typeof levelOrder] || 999;
+
+                                // First sort by level priority
+                                if (priorityA !== priorityB) {
+                                    return priorityA - priorityB;
+                                }
+
+                                // Then sort alphabetically by name within the same level
+                                return a.name.localeCompare(b.name);
+                            })
                             .map((s) => {
                                 const active = s.enrollments?.find((en) => en.semesterId === semesterId && en.isActive);
                                 const entry = entries[s.id];
