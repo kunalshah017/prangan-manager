@@ -14,12 +14,15 @@ import {
     Eye
 } from "lucide-react";
 import { useAttendanceRecords } from "@/hooks/useAttendanceQueries";
+import { useCenter } from "@/hooks/useCenterQueries";
+import { useProject } from "@/hooks/useProjectQueries";
+import { useSemester } from "@/hooks/useSemesterQueries";
 import LoadingButterfly from "@/components/LoadingButterfly";
 import { CustomButton } from "@/components/ui/custom-button";
 import toast from "react-hot-toast";
 
 export const ViewAttendance = () => {
-    const { centerId } = useParams();
+    const { projectId, centerId, semesterId } = useParams();
     const [selectedDate, setSelectedDate] = useState<string>(
         new Date().toISOString().split('T')[0]
     );
@@ -30,8 +33,14 @@ export const ViewAttendance = () => {
     const { data: attendanceData, isLoading, error } = useAttendanceRecords({
         startDate: selectedDate,
         endDate: selectedDate,
+        projectId: projectId!,
         centerId: centerId!,
+        semesterId: semesterId!,
     });
+
+    const { data: centerData } = useCenter(centerId!);
+    const { data: projectData } = useProject(projectId!);
+    const { data: semesterData } = useSemester(semesterId!);
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -89,8 +98,11 @@ export const ViewAttendance = () => {
 
             XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance Records');
 
-            // Generate filename
-            const filename = `Educator_Attendance_${selectedDate.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
+            // Generate filename with project, center, and semester details
+            const projectName = projectData?.name ? projectData.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Unknown_Project';
+            const centerName = centerData?.name ? centerData.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Unknown_Center';
+            const semesterName = semesterData?.name ? semesterData.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Unknown_Semester';
+            const filename = `Educator_Attendance_${projectName}_${centerName}_${semesterName}_${selectedDate.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
 
             XLSX.writeFile(workbook, filename);
             toast.success('Excel file downloaded successfully!');
@@ -134,6 +146,12 @@ export const ViewAttendance = () => {
             // Add filters info
             doc.setFontSize(10);
             let yPos = 25;
+            doc.text(`Project: ${projectData?.name || 'Unknown Project'}`, 14, yPos);
+            yPos += 5;
+            doc.text(`Center: ${centerData?.name || 'Unknown Center'}`, 14, yPos);
+            yPos += 5;
+            doc.text(`Semester: ${semesterData?.name || 'Unknown Semester'}`, 14, yPos);
+            yPos += 5;
             doc.text(`Date: ${selectedDate}`, 14, yPos);
             yPos += 5;
             doc.text(`Total Records: ${exportData.length}`, 14, yPos);
@@ -189,8 +207,11 @@ export const ViewAttendance = () => {
                 }
             });
 
-            // Generate filename
-            const filename = `Educator_Attendance_${selectedDate.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+            // Generate filename with project, center, and semester details
+            const projectName = projectData?.name ? projectData.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Unknown_Project';
+            const centerName = centerData?.name ? centerData.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Unknown_Center';
+            const semesterName = semesterData?.name ? semesterData.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Unknown_Semester';
+            const filename = `Educator_Attendance_${projectName}_${centerName}_${semesterName}_${selectedDate.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
 
             doc.save(filename);
             toast.success('PDF file downloaded successfully!');

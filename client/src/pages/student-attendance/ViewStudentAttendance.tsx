@@ -20,6 +20,8 @@ import { ProfilePicture } from "@/components/ui";
 import { CustomButton } from "@/components/ui/custom-button";
 import type { StudentAttendanceRecord } from "@/types/api";
 import { useSemester } from "@/hooks/useSemesterQueries";
+import { useCenter } from "@/hooks/useCenterQueries";
+import { useProject } from "@/hooks/useProjectQueries";
 import toast from "react-hot-toast";
 
 export const ViewStudentAttendance = () => {
@@ -35,6 +37,8 @@ export const ViewStudentAttendance = () => {
 
     // Fetch semester to know start/end for full semester option
     const { data: semester } = useSemester(semesterId!);
+    const { data: centerData } = useCenter(centerId!);
+    const { data: projectData } = useProject(projectId!);
 
     // Compute date params based on timeframe selection
     const { date, startDate, endDate } = useMemo(() => {
@@ -243,13 +247,16 @@ export const ViewStudentAttendance = () => {
 
             XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance Records');
 
-            // Generate filename
+            // Generate filename with project, center, and semester details
             const dateRange = timeframe === 'single'
                 ? singleDate
                 : timeframe === 'month'
                     ? month
                     : 'Full Semester';
-            const filename = `Student_Attendance_${dateRange.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
+            const projectName = projectData?.name ? projectData.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Unknown_Project';
+            const centerName = centerData?.name ? centerData.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Unknown_Center';
+            const semesterName = semester?.name ? semester.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Unknown_Semester';
+            const filename = `Student_Attendance_${projectName}_${centerName}_${semesterName}_${dateRange.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
 
             XLSX.writeFile(workbook, filename);
             toast.success('Excel file downloaded successfully!');
@@ -292,6 +299,12 @@ export const ViewStudentAttendance = () => {
             // Add filters info
             doc.setFontSize(10);
             let yPos = 25;
+            doc.text(`Project: ${projectData?.name || 'Unknown Project'}`, 14, yPos);
+            yPos += 5;
+            doc.text(`Center: ${centerData?.name || 'Unknown Center'}`, 14, yPos);
+            yPos += 5;
+            doc.text(`Semester: ${semester?.name || 'Unknown Semester'}`, 14, yPos);
+            yPos += 5;
             doc.text(`Timeframe: ${timeframe === 'single' ? singleDate : timeframe === 'month' ? month : 'Full Semester'}`, 14, yPos);
             yPos += 5;
             if (selectedStatus) {
@@ -334,13 +347,16 @@ export const ViewStudentAttendance = () => {
                 }
             });
 
-            // Generate filename
+            // Generate filename with project, center, and semester details
             const dateRange = timeframe === 'single'
                 ? singleDate
                 : timeframe === 'month'
                     ? month
                     : 'Full Semester';
-            const filename = `Student_Attendance_${dateRange.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+            const projectName = projectData?.name ? projectData.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Unknown_Project';
+            const centerName = centerData?.name ? centerData.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Unknown_Center';
+            const semesterName = semester?.name ? semester.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Unknown_Semester';
+            const filename = `Student_Attendance_${projectName}_${centerName}_${semesterName}_${dateRange.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
 
             doc.save(filename);
             toast.success('PDF file downloaded successfully!');
