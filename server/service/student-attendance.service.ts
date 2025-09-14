@@ -143,12 +143,12 @@ export class StudentAttendanceService {
     markedBy: string
   ): Promise<BulkStudentAttendanceResponse> {
     const startTime = Date.now();
-    const MAX_EXECUTION_TIME = 8000; // 8 seconds max
+    const MAX_EXECUTION_TIME = 8000; // 8 seconds max for typical batch sizes
     const totalStudents = data.studentAttendances.length;
 
     try {
       console.log(
-        `🚀 Starting SQL bulk attendance processing for ${totalStudents} students`
+        `🚀 Starting bulk attendance processing for ${totalStudents} students`
       );
 
       const attendanceDate = new Date(data.date);
@@ -233,89 +233,66 @@ export class StudentAttendanceService {
       }
 
       console.log(
-        `📝 Processing ${validAttendances.length} valid attendance records using SQL bulk operation`
+        `📝 Processing ${validAttendances.length} valid attendance records`
       );
 
       // Check if we're approaching timeout
       const elapsedTime = Date.now() - startTime;
-      if (elapsedTime > MAX_EXECUTION_TIME - 2000) {
+      if (elapsedTime > MAX_EXECUTION_TIME - 4000) {
         throw new Error(
           "Pre-processing took too long, aborting to prevent timeout"
         );
       }
 
-      // BULK SQL UPSERT - Single operation for all students
-      // This is 10-20x faster than individual upsert operations
+      // Simple transaction approach for typical batch sizes (~100 students)
       const sqlStart = Date.now();
 
-      // Use Prisma's createMany with a simpler approach that handles UUIDs properly
-      // First, try to use batch processing with proper Prisma operations instead of raw SQL
       try {
-        // Use Prisma's transaction for bulk operations
-        const bulkResults = await prisma.$transaction(async (tx) => {
-          const results = [];
-
-          // Process in smaller batches to avoid overwhelming the database
-          const BATCH_SIZE = 50; // Process 50 at a time
-
-          for (let i = 0; i < validAttendances.length; i += BATCH_SIZE) {
-            const batch = validAttendances.slice(i, i + BATCH_SIZE);
-
-            // Use Promise.all for parallel processing within each batch
-            const batchPromises = batch.map(async (attendance) => {
-              return await tx.studentAttendance.upsert({
-                where: {
-                  studentId_date_projectId_centerId_semesterId: {
-                    studentId: attendance.studentId,
-                    date: attendance.date,
-                    projectId: attendance.projectId,
-                    centerId: attendance.centerId,
-                    semesterId: attendance.semesterId,
-                  },
-                },
-                update: {
-                  status: attendance.status,
-                  notes: attendance.notes,
-                  holidayReason: attendance.holidayReason,
-                  markedBy: attendance.markedBy,
-                  markedAt: attendance.markedAt,
-                  updatedAt: attendance.markedAt,
-                },
-                create: {
+        // Use a single transaction with all upserts for typical class sizes
+        const bulkResults = await prisma.$transaction(
+          validAttendances.map((attendance) =>
+            prisma.studentAttendance.upsert({
+              where: {
+                studentId_date_projectId_centerId_semesterId: {
                   studentId: attendance.studentId,
                   date: attendance.date,
-                  status: attendance.status,
-                  enrollmentId: attendance.enrollmentId,
                   projectId: attendance.projectId,
                   centerId: attendance.centerId,
                   semesterId: attendance.semesterId,
-                  notes: attendance.notes,
-                  holidayReason: attendance.holidayReason,
-                  markedBy: attendance.markedBy,
-                  markedAt: attendance.markedAt,
-                  createdAt: attendance.markedAt,
-                  updatedAt: attendance.markedAt,
                 },
-                select: {
-                  id: true,
-                  studentId: true,
-                  date: true,
-                  status: true,
-                },
-              });
-            });
-
-            const batchResults = await Promise.all(batchPromises);
-            results.push(...batchResults);
-
-            // Small delay between batches to prevent overwhelming the database
-            if (i + BATCH_SIZE < validAttendances.length) {
-              await new Promise((resolve) => setTimeout(resolve, 10));
-            }
-          }
-
-          return results;
-        });
+              },
+              update: {
+                status: attendance.status,
+                notes: attendance.notes,
+                holidayReason: attendance.holidayReason,
+                markedBy: attendance.markedBy,
+                markedAt: attendance.markedAt,
+                updatedAt: attendance.markedAt,
+              },
+              create: {
+                studentId: attendance.studentId,
+                date: attendance.date,
+                status: attendance.status,
+                enrollmentId: attendance.enrollmentId,
+                projectId: attendance.projectId,
+                centerId: attendance.centerId,
+                semesterId: attendance.semesterId,
+                notes: attendance.notes,
+                holidayReason: attendance.holidayReason,
+                markedBy: attendance.markedBy,
+                markedAt: attendance.markedAt,
+                createdAt: attendance.markedAt,
+                updatedAt: attendance.markedAt,
+              },
+              select: {
+                id: true,
+                studentId: true,
+                date: true,
+                status: true,
+              },
+            })
+          )
+        );
 
         const sqlTime = Date.now() - sqlStart;
         console.log(
@@ -424,12 +401,14 @@ export class StudentAttendanceService {
         error.message
       );
 
-      // Handle timeout and critical errors
+      // Handle timeout and critical errors (including Prisma transaction timeouts)
       if (
         error.message?.includes("timeout") ||
+        error.message?.includes("timed out") ||
+        error.message?.includes("Transaction already closed") ||
+        error.message?.includes("expired transaction") ||
         error.code === "P2024" ||
-        totalTime > MAX_EXECUTION_TIME ||
-        error.message?.includes("timed out")
+        totalTime > MAX_EXECUTION_TIME
       ) {
         throw new Error(
           "Request timed out. Please try reducing the batch size or try again during off-peak hours."
