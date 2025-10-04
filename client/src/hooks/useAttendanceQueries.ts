@@ -62,6 +62,7 @@ export const useAttendanceRecords = (params: {
       page: number;
       totalPages: number;
     }> => {
+      // Fetch first page to get total pages
       const searchParams = new URLSearchParams();
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -69,10 +70,44 @@ export const useAttendanceRecords = (params: {
         }
       });
 
-      const response = await api.get<AttendanceRecordsResponse>(
+      const firstResponse = await api.get<AttendanceRecordsResponse>(
         `/attendance/records?${searchParams.toString()}`
       );
-      return response.data;
+
+      const { totalPages, totalCount } = firstResponse.data;
+
+      // If there's only one page, return immediately
+      if (totalPages <= 1) {
+        return firstResponse.data;
+      }
+
+      // Fetch remaining pages in parallel
+      const pagePromises: Promise<AttendanceRecordsResponse>[] = [];
+      for (let page = 2; page <= totalPages; page++) {
+        const pageParams = new URLSearchParams(searchParams);
+        pageParams.set("page", page.toString());
+        pagePromises.push(
+          api.get<AttendanceRecordsResponse>(
+            `/attendance/records?${pageParams.toString()}`
+          )
+        );
+      }
+
+      // Wait for all pages to complete
+      const additionalResponses = await Promise.all(pagePromises);
+
+      // Combine all attendances
+      const allAttendances = [
+        ...firstResponse.data.attendances,
+        ...additionalResponses.flatMap((res) => res.data.attendances),
+      ];
+
+      return {
+        attendances: allAttendances,
+        totalCount,
+        page: 1,
+        totalPages: 1, // Return 1 since we've fetched everything
+      };
     },
   });
 };

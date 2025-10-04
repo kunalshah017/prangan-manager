@@ -10,6 +10,7 @@ import PublicRoute from '@/components/PublicRoute'
 import PWAInstallPrompt from '@/components/PWAInstallPrompt'
 import { queryClient } from '@/lib/query-client'
 import { initializeAuth } from '@/stores/authStore'
+import { Analytics } from '@vercel/analytics/react';
 
 // Layouts
 const Layout = lazy(() => import('./components/Layout'))
@@ -60,183 +61,186 @@ function App() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Suspense fallback={<PageLoading />}>
-          <Routes>
-            {/* Public routes - redirect to /projects if authenticated */}
-            <Route path="/" element={<PublicRoute><Home /></PublicRoute>} />
-            <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-            <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+    <>
+      <Analytics />
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <Suspense fallback={<PageLoading />}>
+            <Routes>
+              {/* Public routes - redirect to /projects if authenticated */}
+              <Route path="/" element={<PublicRoute><Home /></PublicRoute>} />
+              <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+              <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
 
-            {/* Protected routes with layout */}
-            <Route
-              path="/projects"
-              element={
-                <ProtectedRoute>
-                  <Layout />
-                </ProtectedRoute>
-              }
-            >
-              <Route index element={<Projects />} />
-              <Route path="new" element={<CreateProject />} />
-              <Route path=":id/edit" element={<EditProject />} />
-              <Route path=":projectId/centers" element={<Centers />} />
-              <Route path=":projectId/centers/new" element={<CreateCenter />} />
-              <Route path=":projectId/centers/:id/edit" element={<EditCenter />} />
-              <Route path=":projectId/centers/:centerId/semesters" element={<Semesters />} />
-              <Route path=":projectId/centers/:centerId/semesters/new" element={<CreateSemester />} />
-              <Route path=":projectId/centers/:centerId/semesters/:id/edit" element={<EditSemester />} />
-              <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard" element={<Dashboard />} />
+              {/* Protected routes with layout */}
               <Route
-                path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/students"
+                path="/projects"
                 element={
-                  <ProtectedRoute allowAll={true}>
-                    <Students />
+                  <ProtectedRoute>
+                    <Layout />
                   </ProtectedRoute>
                 }
-              />
-              <Route
-                path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/students/new"
-                element={
+              >
+                <Route index element={<Projects />} />
+                <Route path="new" element={<CreateProject />} />
+                <Route path=":id/edit" element={<EditProject />} />
+                <Route path=":projectId/centers" element={<Centers />} />
+                <Route path=":projectId/centers/new" element={<CreateCenter />} />
+                <Route path=":projectId/centers/:id/edit" element={<EditCenter />} />
+                <Route path=":projectId/centers/:centerId/semesters" element={<Semesters />} />
+                <Route path=":projectId/centers/:centerId/semesters/new" element={<CreateSemester />} />
+                <Route path=":projectId/centers/:centerId/semesters/:id/edit" element={<EditSemester />} />
+                <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard" element={<Dashboard />} />
+                <Route
+                  path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/students"
+                  element={
+                    <ProtectedRoute allowAll={true}>
+                      <Students />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/students/new"
+                  element={
+                    <ProtectedRoute allowedSubRoles={['CENTER_MANAGER']}>
+                      <CreateStudent />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/students/:id/edit"
+                  element={
+                    <ProtectedRoute allowedSubRoles={['CENTER_MANAGER']}>
+                      <EditStudent />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/attendance/view" element={
                   <ProtectedRoute allowedSubRoles={['CENTER_MANAGER']}>
-                    <CreateStudent />
+                    <ViewAttendance />
                   </ProtectedRoute>
-                }
-              />
-              <Route
-                path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/students/:id/edit"
-                element={
+                } />
+                <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/attendance/mark" element={
                   <ProtectedRoute allowedSubRoles={['CENTER_MANAGER']}>
-                    <EditStudent />
+                    <MarkAttendance />
                   </ProtectedRoute>
-                }
-              />
-              <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/attendance/view" element={
-                <ProtectedRoute allowedSubRoles={['CENTER_MANAGER']}>
-                  <ViewAttendance />
-                </ProtectedRoute>
-              } />
-              <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/attendance/mark" element={
-                <ProtectedRoute allowedSubRoles={['CENTER_MANAGER']}>
-                  <MarkAttendance />
-                </ProtectedRoute>
-              } />
-              <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/attendance/renumeration" element={
-                <ProtectedRoute allowedSubRoles={['CENTER_MANAGER']}>
-                  <Renumeration />
-                </ProtectedRoute>
-              } />
+                } />
+                <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/attendance/renumeration" element={
+                  <ProtectedRoute allowedSubRoles={['CENTER_MANAGER']}>
+                    <Renumeration />
+                  </ProtectedRoute>
+                } />
+                <Route
+                  path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/bank-details"
+                  element={
+                    <ProtectedRoute allowAll={true}>
+                      <BankDetails />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/student-attendance/view"
+                  element={
+                    <ProtectedRoute allowedSubRoles={['EDUCATOR', 'CENTER_MANAGER']}>
+                      <ViewStudentAttendance />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/student-attendance/mark"
+                  element={
+                    <ProtectedRoute allowedSubRoles={['EDUCATOR', 'CENTER_MANAGER']}>
+                      <MarkStudentAttendance />
+                    </ProtectedRoute>
+                  }
+                />
+              </Route>
+
               <Route
-                path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/bank-details"
+                path="/profile"
                 element={
-                  <ProtectedRoute allowAll={true}>
-                    <BankDetails />
+                  <ProtectedRoute>
+                    <Layout />
                   </ProtectedRoute>
                 }
-              />
+              >
+                <Route index element={<Profile />} />
+                <Route path="bank" element={<BankDetails />} />
+              </Route>
+
               <Route
-                path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/student-attendance/view"
+                path="/registration-requests"
                 element={
-                  <ProtectedRoute allowedSubRoles={['EDUCATOR', 'CENTER_MANAGER']}>
-                    <ViewStudentAttendance />
+                  <ProtectedRoute requireAdmin>
+                    <Layout />
                   </ProtectedRoute>
                 }
-              />
+              >
+                <Route index element={<RegistrationRequests />} />
+              </Route>
+
               <Route
-                path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/student-attendance/mark"
+                path="/users"
                 element={
-                  <ProtectedRoute allowedSubRoles={['EDUCATOR', 'CENTER_MANAGER']}>
-                    <MarkStudentAttendance />
+                  <ProtectedRoute requireAdmin>
+                    <Layout />
                   </ProtectedRoute>
                 }
-              />
-            </Route>
+              >
+                <Route index element={<Users />} />
+                <Route path=":userId/details" element={<UserDetails />} />
+                <Route path=":userId/edit" element={<EditUser />} />
+              </Route>
 
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <Layout />
-                </ProtectedRoute>
-              }
-            >
-              <Route index element={<Profile />} />
-              <Route path="bank" element={<BankDetails />} />
-            </Route>
+              {/* Redirect any unmatched routes to home */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
+        </BrowserRouter>
 
-            <Route
-              path="/registration-requests"
-              element={
-                <ProtectedRoute requireAdmin>
-                  <Layout />
-                </ProtectedRoute>
-              }
-            >
-              <Route index element={<RegistrationRequests />} />
-            </Route>
-
-            <Route
-              path="/users"
-              element={
-                <ProtectedRoute requireAdmin>
-                  <Layout />
-                </ProtectedRoute>
-              }
-            >
-              <Route index element={<Users />} />
-              <Route path=":userId/details" element={<UserDetails />} />
-              <Route path=":userId/edit" element={<EditUser />} />
-            </Route>
-
-            {/* Redirect any unmatched routes to home */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Suspense>
-      </BrowserRouter>
-
-      {/* Toast notifications */}
-      <Toaster
-        position="top-center"
-        toastOptions={{
-          duration: 4000,
-          style: {
-            background: '#ffffff',
-            color: '#333333',
-            border: '1px solid #e5e7eb',
-            borderRadius: '8px',
-            fontSize: '14px',
-            padding: '12px 16px',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-          },
-          success: {
-            duration: 3000,
-            iconTheme: {
-              primary: '#10b981',
-              secondary: '#ffffff',
+        {/* Toast notifications */}
+        <Toaster
+          position="top-center"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: '#ffffff',
+              color: '#333333',
+              border: '1px solid #e5e7eb',
+              borderRadius: '8px',
+              fontSize: '14px',
+              padding: '12px 16px',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
             },
-          },
-          error: {
-            duration: 5000,
-            iconTheme: {
-              primary: '#ef4444',
-              secondary: '#ffffff',
+            success: {
+              duration: 3000,
+              iconTheme: {
+                primary: '#10b981',
+                secondary: '#ffffff',
+              },
             },
-          },
-          loading: {
-            iconTheme: {
-              primary: '#f97316',
-              secondary: '#ffffff',
+            error: {
+              duration: 5000,
+              iconTheme: {
+                primary: '#ef4444',
+                secondary: '#ffffff',
+              },
             },
-          },
-        }}
-      />
+            loading: {
+              iconTheme: {
+                primary: '#f97316',
+                secondary: '#ffffff',
+              },
+            },
+          }}
+        />
 
-      {/* PWA Install Prompt */}
-      <PWAInstallPrompt />
+        {/* PWA Install Prompt */}
+        <PWAInstallPrompt />
 
-      {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
-    </QueryClientProvider>
+        {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
+      </QueryClientProvider>
+    </>
   )
 }
 
