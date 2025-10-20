@@ -41,8 +41,11 @@ fastify.register(studentAttendanceRoutes, {
   prefix: "/api/v1/student-attendance",
 });
 
-// Start the server for local development only
-if (process.env.NODE_ENV !== "production") {
+// Start the server for local development and Azure (but not Vercel)
+// Vercel uses serverless functions, so we skip server startup there
+const isVercel = process.env.VERCEL === "1";
+
+if (!isVercel) {
   const start = async (): Promise<void> => {
     try {
       const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
@@ -50,6 +53,7 @@ if (process.env.NODE_ENV !== "production") {
 
       await fastify.listen({ port, host });
       console.log(`Server is running on http://${host}:${port}`);
+      console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
     } catch (err) {
       fastify.log.error(err);
       process.exit(1);
@@ -72,3 +76,6 @@ if (process.env.NODE_ENV !== "production") {
   // Start the server
   start();
 }
+
+// Export the Fastify instance for Azure and other deployments
+export default fastify;
