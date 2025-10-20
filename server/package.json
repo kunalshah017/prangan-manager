@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsx watch server.ts",
     "dev:ts-node": "ts-node --esm server.ts",
-    "build": "tsc",
+    "build": "tsc && npm run copy-prisma",
+    "copy-prisma": "node scripts/copy-prisma.js",
     "start": "node dist/server.js",
     "test": "echo \"No tests specified\"",
     "postinstall": "prisma generate",
