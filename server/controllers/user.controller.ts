@@ -888,6 +888,7 @@ export const addStudent = asyncHandle(
       fatherOccupation?: string;
       motherOccupation?: string;
       familyIncome?: string;
+      futureProfession?: string;
       enrollment?: {
         centerId: string;
         semesterId: string;
@@ -975,6 +976,7 @@ export const addStudent = asyncHandle(
       fatherOccupation: data.fatherOccupation || null,
       motherOccupation: data.motherOccupation || null,
       familyIncome: data.familyIncome || null,
+      futureProfession: data.futureProfession || null,
     };
 
     const student = await createStudent(studentData);
@@ -1095,6 +1097,7 @@ export const updateStudentController = asyncHandle(
       fatherOccupation?: string;
       motherOccupation?: string;
       familyIncome?: string;
+      futureProfession?: string;
       enrollments?: Array<{
         centerId: string;
         semesterId: string;
@@ -1221,6 +1224,8 @@ export const updateStudentController = asyncHandle(
       updateData.motherOccupation = data.motherOccupation;
     if (data.familyIncome !== undefined)
       updateData.familyIncome = data.familyIncome;
+    if (data.futureProfession !== undefined)
+      updateData.futureProfession = data.futureProfession;
 
     // Add enrollments to updateData if provided
     if (data.enrollments) {
