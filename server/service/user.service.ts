@@ -388,48 +388,37 @@ export const enrollStudent = async (enrollmentData: {
   }
 };
 
-export const promoteStudent = async (
+// Create a new enrollment and deactivate current active enrollment
+export const createEnrollment = async (
   studentId: string,
-  newLevel: Level,
-  newCenterId?: string
+  centerId: string,
+  semesterId: string,
+  projectId: string,
+  level: Level
 ) => {
   try {
     return await prisma.$transaction(async (tx) => {
-      // Get current active enrollment
-      const currentEnrollment = await (tx as any).studentEnrollments.findFirst({
+      // Deactivate any current active enrollments
+      await (tx as any).studentEnrollments.updateMany({
         where: {
           studentId,
           isActive: true,
         },
-        include: {
-          center: true,
-          project: true,
-          semester: true,
-        },
-      });
-
-      if (!currentEnrollment) {
-        throw new Error("No active enrollment found for student");
-      }
-
-      // Close current enrollment
-      await (tx as any).studentEnrollments.update({
-        where: { id: currentEnrollment.id },
         data: {
           isActive: false,
           promotedAt: new Date(),
         },
       });
 
-      // Create new enrollment with promoted level
-      // Note: We don't update student.level anymore since it's removed from schema
+      // Create new enrollment
       const newEnrollment = await (tx as any).studentEnrollments.create({
         data: {
           studentId,
-          centerId: newCenterId || currentEnrollment.centerId,
-          semesterId: currentEnrollment.semesterId,
-          projectId: currentEnrollment.projectId,
-          level: newLevel,
+          centerId,
+          semesterId,
+          projectId,
+          level,
+          isActive: true,
         },
         include: {
           student: true,
@@ -442,26 +431,96 @@ export const promoteStudent = async (
       return newEnrollment;
     });
   } catch (error: unknown) {
-    console.error("Error promoting student:", error);
-    return "Failed to promote student - Please run 'prisma generate' first";
+    console.error("Error creating enrollment:", error);
+    return "Failed to create enrollment - Please run 'prisma generate' first";
   }
 };
 
-export const getStudentHistory = async (studentId: string) => {
+// Get all enrollments for a student (active and inactive)
+export const getStudentEnrollments = async (studentId: string) => {
   try {
-    const history = await (prisma as any).studentEnrollments.findMany({
+    const enrollments = await (prisma as any).studentEnrollments.findMany({
       where: { studentId },
       include: {
+        student: true,
         center: true,
         project: true,
         semester: true,
       },
       orderBy: { enrolledAt: "desc" },
     });
-    return history;
+    return enrollments;
   } catch (error: unknown) {
-    console.error("Error fetching student history:", error);
-    return "Failed to fetch student history - Please run 'prisma generate' first";
+    console.error("Error fetching student enrollments:", error);
+    return "Failed to fetch student enrollments - Please run 'prisma generate' first";
+  }
+};
+
+// Update an enrollment
+export const updateEnrollment = async (
+  enrollmentId: string,
+  data: {
+    centerId?: string;
+    semesterId?: string;
+    projectId?: string;
+    level?: Level;
+    isActive?: boolean;
+  }
+) => {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      // If setting this enrollment to active, deactivate others for the same student
+      if (data.isActive === true) {
+        const enrollment = await (tx as any).studentEnrollments.findUnique({
+          where: { id: enrollmentId },
+          select: { studentId: true },
+        });
+
+        if (enrollment) {
+          await (tx as any).studentEnrollments.updateMany({
+            where: {
+              studentId: enrollment.studentId,
+              isActive: true,
+              id: { not: enrollmentId },
+            },
+            data: {
+              isActive: false,
+              promotedAt: new Date(),
+            },
+          });
+        }
+      }
+
+      // Update the enrollment
+      const updatedEnrollment = await (tx as any).studentEnrollments.update({
+        where: { id: enrollmentId },
+        data,
+        include: {
+          student: true,
+          center: true,
+          project: true,
+          semester: true,
+        },
+      });
+
+      return updatedEnrollment;
+    });
+  } catch (error: unknown) {
+    console.error("Error updating enrollment:", error);
+    return "Failed to update enrollment - Please run 'prisma generate' first";
+  }
+};
+
+// Delete an enrollment
+export const deleteEnrollment = async (enrollmentId: string) => {
+  try {
+    await (prisma as any).studentEnrollments.delete({
+      where: { id: enrollmentId },
+    });
+    return { success: true };
+  } catch (error: unknown) {
+    console.error("Error deleting enrollment:", error);
+    return "Failed to delete enrollment - Please run 'prisma generate' first";
   }
 };
 

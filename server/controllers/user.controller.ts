@@ -16,8 +16,10 @@ import {
   getStudentsByCenter,
   getStudentsBySemester,
   enrollStudent,
-  promoteStudent,
-  getStudentHistory,
+  createEnrollment,
+  getStudentEnrollments,
+  updateEnrollment,
+  deleteEnrollment,
   createUserRoleAssignment,
   getUserRoleAssignments,
   updateUserRoleAssignment,
@@ -1227,46 +1229,17 @@ export const updateStudentController = asyncHandle(
     if (data.futureProfession !== undefined)
       updateData.futureProfession = data.futureProfession;
 
-    // Add enrollments to updateData if provided
-    if (data.enrollments) {
-      updateData.enrollments = data.enrollments;
-    }
-
+    // Update student details only, not enrollment
     const student = await updateStudent(id, updateData);
 
     if (typeof student === "string") {
       return errorHandle(student, reply, 500);
     }
 
-    // Handle enrollment updates if provided
-    let enrollmentResult = null;
-    let wasEnrollmentUpdated = false;
-
-    // Check if enrollments array was provided and processed
-    if (data.enrollments && data.enrollments.length > 0 && student) {
-      wasEnrollmentUpdated = true;
-      enrollmentResult = student.enrollments; // The updated enrollments are already in the student object
-    } else if (data.enrollment) {
-      // Handle single enrollment update (legacy support)
-      if (data.enrollment.level) {
-        enrollmentResult = await promoteStudent(
-          id,
-          data.enrollment.level,
-          data.enrollment.centerId
-        );
-        wasEnrollmentUpdated = true;
-      }
-    }
-
-    const responseMessage = wasEnrollmentUpdated
-      ? "Student updated and enrollments updated successfully"
-      : "Student updated successfully";
-
     return successHandle(
       {
-        message: responseMessage,
+        message: "Student updated successfully",
         student: student,
-        enrollment: enrollmentResult,
       },
       reply,
       200
@@ -1441,6 +1414,7 @@ export const getStudentsBySemesterController = asyncHandle(
   }
 );
 
+// Keep enrollStudentController for backward compatibility
 export const enrollStudentController = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user;
@@ -1488,54 +1462,93 @@ export const enrollStudentController = asyncHandle(
   }
 );
 
-export const promoteStudentController = asyncHandle(
+// New enrollment management controllers
+export const createEnrollmentController = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user;
     if (!user || user.role !== Role.ADMIN) {
-      return errorHandle("Only admins can promote students.", reply, 403);
+      return errorHandle("Only admins can create enrollments.", reply, 403);
     }
 
     const { studentId } = request.params as { studentId: string };
     const data = request.body as {
-      newLevel: Level;
-      newCenterId?: string;
+      centerId: string;
+      semesterId: string;
+      projectId: string;
+      level: Level;
     };
 
     if (!studentId) {
       return errorHandle("Student ID is required.", reply, 400);
     }
 
-    if (!data.newLevel) {
-      return errorHandle("New level is required.", reply, 400);
+    if (!data.centerId || !data.semesterId || !data.projectId || !data.level) {
+      return errorHandle("All enrollment fields are required.", reply, 400);
     }
 
     // Validate level enum
-    if (!Object.values(Level).includes(data.newLevel)) {
+    if (!Object.values(Level).includes(data.level)) {
       return errorHandle("Invalid level provided.", reply, 400);
     }
 
-    const promotion = await promoteStudent(
+    // Validate hierarchy: semester belongs to center, center belongs to project
+    const semester = await getSemesterById(data.semesterId);
+    const center = await getCenterById(data.centerId);
+    const project = await getProjectById(data.projectId);
+
+    if (!semester || typeof semester === "string") {
+      return errorHandle("Invalid semester ID.", reply, 400);
+    }
+
+    if (!center || typeof center === "string") {
+      return errorHandle("Invalid center ID.", reply, 400);
+    }
+
+    if (!project || typeof project === "string") {
+      return errorHandle("Invalid project ID.", reply, 400);
+    }
+
+    if (semester.centerId !== data.centerId) {
+      return errorHandle(
+        "Semester does not belong to the specified center.",
+        reply,
+        400
+      );
+    }
+
+    if (center.projectId !== data.projectId) {
+      return errorHandle(
+        "Center does not belong to the specified project.",
+        reply,
+        400
+      );
+    }
+
+    const enrollment = await createEnrollment(
       studentId,
-      data.newLevel,
-      data.newCenterId
+      data.centerId,
+      data.semesterId,
+      data.projectId,
+      data.level
     );
 
-    if (typeof promotion === "string") {
-      return errorHandle(promotion, reply, 500);
+    if (typeof enrollment === "string") {
+      return errorHandle(enrollment, reply, 500);
     }
 
     return successHandle(
       {
-        message: "Student promoted successfully",
-        enrollment: promotion,
+        message:
+          "Enrollment created successfully. Previous active enrollment has been deactivated.",
+        enrollment: enrollment,
       },
       reply,
-      200
+      201
     );
   }
 );
 
-export const getStudentHistoryController = asyncHandle(
+export const getStudentEnrollmentsController = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user;
     if (!user) {
@@ -1548,16 +1561,123 @@ export const getStudentHistoryController = asyncHandle(
       return errorHandle("Student ID is required.", reply, 400);
     }
 
-    const history = await getStudentHistory(studentId);
+    const enrollments = await getStudentEnrollments(studentId);
 
-    if (typeof history === "string") {
-      return errorHandle(history, reply, 500);
+    if (typeof enrollments === "string") {
+      return errorHandle(enrollments, reply, 500);
+    }
+
+    const activeEnrollments = enrollments.filter((e: any) => e.isActive);
+    const inactiveEnrollments = enrollments.filter((e: any) => !e.isActive);
+
+    return successHandle(
+      {
+        message: "Student enrollments retrieved successfully",
+        enrollments: {
+          all: enrollments,
+          active: activeEnrollments,
+          inactive: inactiveEnrollments,
+        },
+      },
+      reply,
+      200
+    );
+  }
+);
+
+export const updateEnrollmentController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+    if (!user || user.role !== Role.ADMIN) {
+      return errorHandle("Only admins can update enrollments.", reply, 403);
+    }
+
+    const { enrollmentId } = request.params as { enrollmentId: string };
+    const data = request.body as {
+      centerId?: string;
+      semesterId?: string;
+      projectId?: string;
+      level?: Level;
+      isActive?: boolean;
+    };
+
+    if (!enrollmentId) {
+      return errorHandle("Enrollment ID is required.", reply, 400);
+    }
+
+    // Validate level enum if provided
+    if (data.level && !Object.values(Level).includes(data.level)) {
+      return errorHandle("Invalid level provided.", reply, 400);
+    }
+
+    // Validate hierarchy if changing relationships
+    if (data.centerId && data.projectId) {
+      const center = await getCenterById(data.centerId);
+      if (!center || typeof center === "string") {
+        return errorHandle("Invalid center ID.", reply, 400);
+      }
+      if (center.projectId !== data.projectId) {
+        return errorHandle(
+          "Center does not belong to the specified project.",
+          reply,
+          400
+        );
+      }
+    }
+
+    if (data.semesterId && data.centerId) {
+      const semester = await getSemesterById(data.semesterId);
+      if (!semester || typeof semester === "string") {
+        return errorHandle("Invalid semester ID.", reply, 400);
+      }
+      if (semester.centerId !== data.centerId) {
+        return errorHandle(
+          "Semester does not belong to the specified center.",
+          reply,
+          400
+        );
+      }
+    }
+
+    const enrollment = await updateEnrollment(enrollmentId, data);
+
+    if (typeof enrollment === "string") {
+      return errorHandle(enrollment, reply, 500);
     }
 
     return successHandle(
       {
-        message: "Student history retrieved successfully",
-        history: history,
+        message: "Enrollment updated successfully",
+        enrollment: enrollment,
+      },
+      reply,
+      200
+    );
+  }
+);
+
+export const deleteEnrollmentController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+    if (!user || user.role !== Role.ADMIN) {
+      return errorHandle("Only admins can delete enrollments.", reply, 403);
+    }
+
+    const { enrollmentId } = request.params as { enrollmentId: string };
+
+    if (!enrollmentId) {
+      return errorHandle("Enrollment ID is required.", reply, 400);
+    }
+
+    const result = await deleteEnrollment(enrollmentId);
+
+    if (typeof result === "string") {
+      return errorHandle(result, reply, 500);
+    }
+
+    return successHandle(
+      {
+        message: "Enrollment deleted successfully",
       },
       reply,
       200

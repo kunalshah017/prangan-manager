@@ -16,9 +16,10 @@ import {
   getStudentsByProjectController,
   getStudentsByCenterController,
   getStudentsBySemesterController,
-  enrollStudentController,
-  promoteStudentController,
-  getStudentHistoryController,
+  createEnrollmentController,
+  getStudentEnrollmentsController,
+  updateEnrollmentController,
+  deleteEnrollmentController,
   getAllUsersController,
   getUserAssignmentsController,
   updateUserManagementController,
@@ -99,21 +100,26 @@ export const userRoutes = async (fastify: FastifyInstance): Promise<void> => {
     getStudentsBySemesterController
   );
 
-  // Student enrollment and promotion routes
+  // Student enrollment management routes
   fastify.post(
-    "/users/students/enroll",
+    "/users/students/:studentId/enrollments",
     { preHandler: authChecker },
-    enrollStudentController
-  );
-  fastify.post(
-    "/users/students/:studentId/promote",
-    { preHandler: authChecker },
-    promoteStudentController
+    createEnrollmentController
   );
   fastify.get(
-    "/users/students/:studentId/history",
+    "/users/students/:studentId/enrollments",
     { preHandler: authChecker },
-    getStudentHistoryController
+    getStudentEnrollmentsController
+  );
+  fastify.put(
+    "/users/students/enrollments/:enrollmentId",
+    { preHandler: authChecker },
+    updateEnrollmentController
+  );
+  fastify.delete(
+    "/users/students/enrollments/:enrollmentId",
+    { preHandler: authChecker },
+    deleteEnrollmentController
   );
 
   // User Management routes
