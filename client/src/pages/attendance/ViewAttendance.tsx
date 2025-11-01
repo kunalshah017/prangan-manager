@@ -419,6 +419,7 @@ export const ViewAttendance = () => {
                         const monthName = `${new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleDateString('en-US', { month: 'short' })} ${year}`;
                         headerRow1[`${monthName} - Present`] = monthName;
                         headerRow1[`${monthName} - Absent`] = '';
+                        headerRow1[`${monthName} - Not Avail`] = '';
                         headerRow1[`${monthName} - Avg%`] = '';
                     });
                     headerRow1['Overall Avg%'] = 'Overall Avg%';
@@ -431,6 +432,7 @@ export const ViewAttendance = () => {
                         const monthName = `${new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleDateString('en-US', { month: 'short' })} ${year}`;
                         headerRow2[`${monthName} - Present`] = 'Present';
                         headerRow2[`${monthName} - Absent`] = 'Absent';
+                        headerRow2[`${monthName} - Not Avail`] = 'Not Avail';
                         headerRow2[`${monthName} - Avg%`] = 'Avg%';
                     });
                     headerRow2['Overall Avg%'] = '';
@@ -448,6 +450,7 @@ export const ViewAttendance = () => {
                             const monthName = `${new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleDateString('en-US', { month: 'short' })} ${year}`;
                             roleHeader[`${monthName} - Present`] = '';
                             roleHeader[`${monthName} - Absent`] = '';
+                            roleHeader[`${monthName} - Not Avail`] = '';
                             roleHeader[`${monthName} - Avg%`] = '';
                         });
                         roleHeader['Overall Avg%'] = '';
@@ -467,22 +470,25 @@ export const ViewAttendance = () => {
                                 const monthStats = stats.monthlyStats.get(monthKey);
 
                                 if (monthStats) {
-                                    const workingDays = monthStats.total - monthStats.holidays;
-                                    const avgPercentage = workingDays > 0 ? ((monthStats.present / workingDays) * 100).toFixed(1) : '0.0';
+                                    // Average = present / (present + absent) - NOT_AVAILABLE days don't affect percentage
+                                    const attendedDays = monthStats.present + monthStats.absent;
+                                    const avgPercentage = attendedDays > 0 ? ((monthStats.present / attendedDays) * 100).toFixed(1) : '0.0';
 
                                     row[`${monthName} - Present`] = monthStats.present;
                                     row[`${monthName} - Absent`] = monthStats.absent;
+                                    row[`${monthName} - Not Avail`] = monthStats.notAvailable;
                                     row[`${monthName} - Avg%`] = `${avgPercentage}%`;
                                 } else {
                                     row[`${monthName} - Present`] = 0;
                                     row[`${monthName} - Absent`] = 0;
+                                    row[`${monthName} - Not Avail`] = 0;
                                     row[`${monthName} - Avg%`] = '0.0%';
                                 }
                             });
 
-                            // Calculate overall average
-                            const overallWorkingDays = stats.totalDays - stats.holidays;
-                            const overallAvg = overallWorkingDays > 0 ? ((stats.present / overallWorkingDays) * 100).toFixed(1) : '0.0';
+                            // Calculate overall average (present / (present + absent)) - NOT_AVAILABLE days don't affect percentage
+                            const totalAttendedDays = stats.present + stats.absent;
+                            const overallAvg = totalAttendedDays > 0 ? ((stats.present / totalAttendedDays) * 100).toFixed(1) : '0.0';
                             row['Overall Avg%'] = `${overallAvg}%`;
 
                             // Calculate remuneration (500 per present day for EDUCATOR and CENTER_MANAGER)
@@ -506,6 +512,7 @@ export const ViewAttendance = () => {
                         ...sortedMonths.flatMap(() => [
                             { wch: 10 }, // Present
                             { wch: 10 }, // Absent
+                            { wch: 10 }, // Not Avail
                             { wch: 10 }  // Avg%
                         ]),
                         { wch: 12 }, // Overall Avg%
@@ -870,7 +877,7 @@ export const ViewAttendance = () => {
                         absent: number;
                         notAvailable: number;
                         holidays: number;
-                        monthlyStats: Map<string, { present: number; absent: number; holidays: number; total: number }>;
+                        monthlyStats: Map<string, { present: number; absent: number; notAvailable: number; holidays: number; total: number }>;
                     }>();
 
                     sortedData.forEach(record => {
@@ -893,7 +900,7 @@ export const ViewAttendance = () => {
                         const monthKey = `${recordDate.getFullYear()}-${String(recordDate.getMonth() + 1).padStart(2, '0')}`;
 
                         if (!stats.monthlyStats.has(monthKey)) {
-                            stats.monthlyStats.set(monthKey, { present: 0, absent: 0, holidays: 0, total: 0 });
+                            stats.monthlyStats.set(monthKey, { present: 0, absent: 0, notAvailable: 0, holidays: 0, total: 0 });
                         }
                         const monthStats = stats.monthlyStats.get(monthKey)!;
 
@@ -908,6 +915,7 @@ export const ViewAttendance = () => {
                             monthStats.absent++;
                         } else if (record.status === 'NOT_AVAILABLE') {
                             stats.notAvailable++;
+                            monthStats.notAvailable++;
                         } else if (record.status === 'HOLIDAY') {
                             stats.holidays++;
                             monthStats.holidays++;
@@ -927,8 +935,8 @@ export const ViewAttendance = () => {
                     sortedMonths.forEach(monthKey => {
                         const [year, month] = monthKey.split('-');
                         const monthName = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-                        headerRow1.push({ content: monthName, colSpan: 4, styles: { halign: 'center', fillColor: [255, 152, 0] } });
-                        headerRow2.push('Present', 'Absent', 'Avg%', 'Rs. Remuner.');
+                        headerRow1.push({ content: monthName, colSpan: 5, styles: { halign: 'center', fillColor: [255, 152, 0] } });
+                        headerRow2.push('Present', 'Absent', 'Not Avail', 'Avg%', 'Rs. Remuner.');
                     });
 
                     headerRow1.push('Overall\nAvg%', 'Total\nRs. Remuner.');
@@ -958,7 +966,7 @@ export const ViewAttendance = () => {
 
                     sortedRoles.forEach(role => {
                         // Role header with orange background
-                        const roleHeader = [{ content: role.replace('_', ' '), colSpan: 1 + sortedMonths.length * 4 + 2, styles: { fontStyle: 'bold', fillColor: [255, 152, 0], textColor: [255, 255, 255] } }];
+                        const roleHeader = [{ content: role.replace('_', ' '), colSpan: 1 + sortedMonths.length * 5 + 2, styles: { fontStyle: 'bold', fillColor: [255, 152, 0], textColor: [255, 255, 255] } }];
                         summaryBody.push(roleHeader);
 
                         // Users in role
@@ -969,23 +977,26 @@ export const ViewAttendance = () => {
                             sortedMonths.forEach(monthKey => {
                                 const monthStats = stats.monthlyStats.get(monthKey);
                                 if (monthStats) {
-                                    const workingDays = monthStats.total - monthStats.holidays;
-                                    const avgPercentage = workingDays > 0 ? ((monthStats.present / workingDays) * 100).toFixed(1) : '0.0';
+                                    // Average = present / (present + absent) - NOT_AVAILABLE days don't affect percentage
+                                    const attendedDays = monthStats.present + monthStats.absent;
+                                    const avgPercentage = attendedDays > 0 ? ((monthStats.present / attendedDays) * 100).toFixed(1) : '0.0';
                                     const monthlyRemuneration = monthStats.present * 500;
 
                                     row.push(
                                         monthStats.present,
                                         monthStats.absent,
+                                        monthStats.notAvailable,
                                         { content: `${avgPercentage}%`, styles: { fontStyle: 'bold', fillColor: getPercentageColor(parseFloat(avgPercentage)) } },
                                         `Rs. ${monthlyRemuneration}`
                                     );
                                 } else {
-                                    row.push(0, 0, { content: '0.0%', styles: { fontStyle: 'bold' } }, 'Rs. 0');
+                                    row.push(0, 0, 0, { content: '0.0%', styles: { fontStyle: 'bold' } }, 'Rs. 0');
                                 }
                             });
 
-                            const overallWorkingDays = stats.totalDays - stats.holidays;
-                            const overallAvg = overallWorkingDays > 0 ? ((stats.present / overallWorkingDays) * 100).toFixed(1) : '0.0';
+                            // Calculate overall average (present / (present + absent)) - NOT_AVAILABLE days don't affect percentage
+                            const totalAttendedDays = stats.present + stats.absent;
+                            const overallAvg = totalAttendedDays > 0 ? ((stats.present / totalAttendedDays) * 100).toFixed(1) : '0.0';
                             row.push({ content: `${overallAvg}%`, styles: { fontStyle: 'bold', fillColor: getPercentageColor(parseFloat(overallAvg)) } });
 
                             const remuneration = stats.present * 500;
@@ -1018,6 +1029,7 @@ export const ViewAttendance = () => {
                             { content: '', styles: { fillColor: [255, 243, 205] } },
                             { content: '', styles: { fillColor: [255, 243, 205] } },
                             { content: '', styles: { fillColor: [255, 243, 205] } },
+                            { content: '', styles: { fillColor: [255, 243, 205] } },
                             { content: `Rs. ${monthTotal}`, styles: { fontStyle: 'bold', fillColor: [255, 243, 205] } }
                         );
                     });
@@ -1041,8 +1053,19 @@ export const ViewAttendance = () => {
                         head: [headerRow1, headerRow2],
                         body: summaryBody,
                         startY: 33,
-                        styles: { fontSize: 7, cellPadding: 2, halign: 'center' },
-                        headStyles: { fillColor: [255, 152, 0], fontStyle: 'bold' },
+                        styles: {
+                            fontSize: 7,
+                            cellPadding: 2,
+                            halign: 'center',
+                            lineWidth: 0.1,
+                            lineColor: [200, 200, 200]
+                        },
+                        headStyles: {
+                            fillColor: [255, 152, 0],
+                            fontStyle: 'bold',
+                            lineWidth: 0.1,
+                            lineColor: [200, 200, 200]
+                        },
                         columnStyles: {
                             0: { cellWidth: 35, halign: 'left' }
                         }
@@ -1204,24 +1227,26 @@ export const ViewAttendance = () => {
                             )}
                         </div>
 
-                        <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Quick Select</label>
-                            <div className="space-y-2">
-                                <button
-                                    onClick={setCurrentMonth}
-                                    className="w-full px-3 py-1.5 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 transition-colors"
-                                >
-                                    Current Month
-                                </button>
-                                <button
-                                    onClick={setFullSemester}
-                                    disabled={!semesterData?.startDate}
-                                    className="w-full px-3 py-1.5 text-xs bg-purple-50 text-purple-700 rounded hover:bg-purple-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Full Semester
-                                </button>
+                        {timeframe === "range" && (
+                            <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Quick Select</label>
+                                <div className="space-y-2">
+                                    <button
+                                        onClick={setCurrentMonth}
+                                        className="w-full px-3 py-1.5 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 transition-colors"
+                                    >
+                                        Current Month
+                                    </button>
+                                    <button
+                                        onClick={setFullSemester}
+                                        disabled={!semesterData?.startDate}
+                                        className="w-full px-3 py-1.5 text-xs bg-purple-50 text-purple-700 rounded hover:bg-purple-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Full Semester
+                                    </button>
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                 </div>
 
