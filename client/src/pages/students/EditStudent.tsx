@@ -4,12 +4,12 @@ import 'react-phone-number-input/style.css';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useParams } from 'react-router-dom';
-import type { Student, StudentEnrollmentData } from "@/types/api";
 import { ArrowLeft } from 'lucide-react';
 import { useStudent, useUpdateStudent } from '@/hooks/useStudentQueries';
 import { CustomButton } from '@/components/ui/button';
 import ImageUpload from '@/components/ui/image-upload';
 import LoadingButterfly from '@/components/LoadingButterfly';
+import EnrollmentManager from '@/components/EnrollmentManager';
 import type { UpdateStudentRequest } from '@/types/api';
 
 const EditStudent = () => {
@@ -35,24 +35,10 @@ const EditStudent = () => {
         fatherOccupation: '',
         motherOccupation: '',
         familyIncome: '',
-        futureProfession: '',
-        enrollment: {
-            level: 'LEVEL_1',
-        }
+        futureProfession: ''
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
-
-    // Phone number formatting functions
-
-    const levelOptions = [
-        { value: 'LEVEL_1', label: 'Level 1' },
-        { value: 'LEVEL_2', label: 'Level 2' },
-        { value: 'LEVEL_3', label: 'Level 3' },
-        { value: 'LEVEL_4', label: 'Level 4' },
-        { value: 'PRIMARY_A', label: 'Primary A' },
-        { value: 'PRIMARY_B', label: 'Primary B' }
-    ];
 
     const familyIncomeOptions = [
         { value: '', label: 'Select Income Range' },
@@ -63,51 +49,23 @@ const EditStudent = () => {
         { value: '100000+', label: '₹1,00,000+' }
     ];
 
-    // Populate form when student data loads
-    // Extend Student type to include enrollments for this component
-
-    type Enrollment = {
-        id: string;
-        centerId: string;
-        semesterId: string;
-        projectId: string;
-        level: StudentEnrollmentData["level"];
-        isActive: boolean;
-    };
-    type StudentWithEnrollments = Student & {
-        enrollments?: Enrollment[];
-    };
-
     useEffect(() => {
-        const s = student as StudentWithEnrollments;
-        if (s) {
-            // Find the active enrollment (isActive: true)
-            const activeEnrollment = Array.isArray(s.enrollments)
-                ? s.enrollments.find((e: Enrollment) => e && e.isActive)
-                : undefined;
+        if (student) {
             setFormData({
-                name: s.name || '',
-                profileImageUrl: s.profileImageUrl || '',
-                dob: s.dob ? s.dob.split('T')[0] : '',
-                phoneNumber: s.phoneNumber && /^\+\d{10,15}$/.test(s.phoneNumber) ? s.phoneNumber : '',
-                whatsappNumber: s.whatsappNumber && /^\+\d{10,15}$/.test(s.whatsappNumber) ? s.whatsappNumber : '',
-                alternateNumber: s.alternateNumber && /^\+\d{10,15}$/.test(s.alternateNumber) ? s.alternateNumber : '',
-                fatherName: s.fatherName || '',
-                motherName: s.motherName || '',
-                address: s.address || '',
-                schoolName: s.schoolName || '',
-                fatherOccupation: s.fatherOccupation || '',
-                motherOccupation: s.motherOccupation || '',
-                familyIncome: s.familyIncome || '',
-                futureProfession: s.futureProfession || '',
-                enrollment: activeEnrollment
-                    ? {
-                        centerId: activeEnrollment.centerId,
-                        semesterId: activeEnrollment.semesterId,
-                        projectId: activeEnrollment.projectId,
-                        level: activeEnrollment.level as StudentEnrollmentData["level"],
-                    }
-                    : { level: 'LEVEL_1' },
+                name: student.name || '',
+                profileImageUrl: student.profileImageUrl || '',
+                dob: student.dob ? student.dob.split('T')[0] : '',
+                phoneNumber: student.phoneNumber && /^\+\d{10,15}$/.test(student.phoneNumber) ? student.phoneNumber : '',
+                whatsappNumber: student.whatsappNumber && /^\+\d{10,15}$/.test(student.whatsappNumber) ? student.whatsappNumber : '',
+                alternateNumber: student.alternateNumber && /^\+\d{10,15}$/.test(student.alternateNumber) ? student.alternateNumber : '',
+                fatherName: student.fatherName || '',
+                motherName: student.motherName || '',
+                address: student.address || '',
+                schoolName: student.schoolName || '',
+                fatherOccupation: student.fatherOccupation || '',
+                motherOccupation: student.motherOccupation || '',
+                familyIncome: student.familyIncome || '',
+                futureProfession: student.futureProfession || ''
             });
         }
     }, [student]);
@@ -117,10 +75,6 @@ const EditStudent = () => {
 
         if (!formData.name?.trim()) {
             newErrors.name = 'Student name is required';
-        }
-
-        if (!formData.enrollment?.level) {
-            newErrors.level = 'Level is required';
         }
 
         // Accept E.164 format from react-phone-number-input
@@ -146,8 +100,7 @@ const EditStudent = () => {
         }
 
         try {
-            // Clean the form data - remove empty strings and only send changed fields, format phone numbers for API
-
+            // Clean the form data - only student details, no enrollment
             const cleanedData: UpdateStudentRequest & { id: string } = {
                 id,
                 ...(formData.name && { name: formData.name }),
@@ -170,18 +123,7 @@ const EditStudent = () => {
                 ...(formData.fatherOccupation !== undefined && { fatherOccupation: formData.fatherOccupation }),
                 ...(formData.motherOccupation !== undefined && { motherOccupation: formData.motherOccupation }),
                 ...(formData.familyIncome !== undefined && { familyIncome: formData.familyIncome }),
-                ...(formData.futureProfession !== undefined && { futureProfession: formData.futureProfession }),
-                // Include enrollment data if present
-                ...(formData.enrollment && {
-                    enrollments: [
-                        {
-                            centerId: formData.enrollment.centerId || centerId!,
-                            semesterId: formData.enrollment.semesterId || semesterId!,
-                            projectId: formData.enrollment.projectId || projectId!,
-                            level: formData.enrollment.level,
-                        },
-                    ],
-                }),
+                ...(formData.futureProfession !== undefined && { futureProfession: formData.futureProfession })
             };
 
             await updateStudentMutation.mutateAsync(cleanedData);
@@ -196,20 +138,6 @@ const EditStudent = () => {
         // Clear error when user starts typing
         if (errors[field]) {
             setErrors(prev => ({ ...prev, [field]: '' }));
-        }
-    };
-
-    const handleLevelChange = (level: string) => {
-        setFormData(prev => ({
-            ...prev,
-            enrollment: {
-                ...prev.enrollment,
-                level: level as "LEVEL_1" | "LEVEL_2" | "LEVEL_3" | "LEVEL_4" | "PRIMARY_A" | "PRIMARY_B"
-            }
-        }));
-        // Clear error when user changes level
-        if (errors.level) {
-            setErrors(prev => ({ ...prev, level: '' }));
         }
     };
 
@@ -240,7 +168,7 @@ const EditStudent = () => {
                 >
                     <ArrowLeft className="w-5 h-5" />
                 </button>
-                <div>
+                <div >
                     <h1 className="text-2xl font-semibold text-gray-900">Edit Student</h1>
                     <p className="text-sm text-gray-600 mt-1">Update {student.name}'s information</p>
                 </div>
@@ -295,29 +223,6 @@ const EditStudent = () => {
                                 />
                                 {errors.name && (
                                     <p className="mt-1 text-sm text-red-600">{errors.name}</p>
-                                )}
-                            </div>
-
-                            <div>
-                                <label htmlFor="level" className="block text-sm font-medium text-gray-700 mb-2">
-                                    Level *
-                                </label>
-                                <select
-                                    id="level"
-                                    value={formData.enrollment?.level || 'LEVEL_1'}
-                                    onChange={(e) => handleLevelChange(e.target.value)}
-                                    disabled={updateStudentMutation.isPending}
-                                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 ${errors.level ? 'border-red-300' : 'border-gray-300'
-                                        }`}
-                                >
-                                    {levelOptions.map((option) => (
-                                        <option key={option.value} value={option.value}>
-                                            {option.label}
-                                        </option>
-                                    ))}
-                                </select>
-                                {errors.level && (
-                                    <p className="mt-1 text-sm text-red-600">{errors.level}</p>
                                 )}
                             </div>
 
@@ -550,7 +455,21 @@ const EditStudent = () => {
                     </form>
                 </div>
             </motion.div>
-        </div>
+
+            {/* Enrollment Management Section */}
+            {
+                id && student && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: 0.1 }}
+                        className="bg-white rounded-lg border border-gray-200 shadow-sm p-6"
+                    >
+                        <EnrollmentManager studentId={id} studentName={student.name} />
+                    </motion.div>
+                )
+            }
+        </div >
     );
 };
 

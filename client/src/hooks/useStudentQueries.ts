@@ -147,3 +147,131 @@ export const useDeleteStudent = () => {
     },
   });
 };
+
+// Enrollment Management Queries
+export const useStudentEnrollments = (studentId: string) => {
+  return useQuery({
+    queryKey: ["students", studentId, "enrollments"],
+    queryFn: async (): Promise<{
+      all: StudentEnrollment[];
+      active: StudentEnrollment[];
+      inactive: StudentEnrollment[];
+    }> => {
+      const response = await api.get<{
+        message: string;
+        enrollments: {
+          all: StudentEnrollment[];
+          active: StudentEnrollment[];
+          inactive: StudentEnrollment[];
+        };
+      }>(`/users/students/${studentId}/enrollments`);
+      return response.enrollments;
+    },
+    enabled: !!studentId,
+    staleTime: 1 * 60 * 1000, // 1 minute
+  });
+};
+
+// Enrollment Mutations
+export const useCreateEnrollment = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      studentId,
+      ...enrollmentData
+    }: {
+      studentId: string;
+      centerId: string;
+      semesterId: string;
+      projectId: string;
+      level: StudentEnrollment["level"];
+    }): Promise<{ message: string; enrollment: StudentEnrollment }> => {
+      return api.post(
+        `/users/students/${studentId}/enrollments`,
+        enrollmentData
+      );
+    },
+    onSuccess: (_, variables) => {
+      // Invalidate enrollments for this student
+      queryClient.invalidateQueries({
+        queryKey: ["students", variables.studentId, "enrollments"],
+      });
+      // Invalidate student data as level might have changed
+      queryClient.invalidateQueries({
+        queryKey: ["students", variables.studentId],
+      });
+      // Invalidate semester enrollments
+      queryClient.invalidateQueries({ queryKey: ["enrollments", "semester"] });
+      queryClient.invalidateQueries({ queryKey: ["students", "semester"] });
+    },
+  });
+};
+
+export const useUpdateEnrollment = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      enrollmentId,
+      ...enrollmentData
+    }: {
+      enrollmentId: string;
+      studentId: string;
+      centerId?: string;
+      semesterId?: string;
+      projectId?: string;
+      level?: StudentEnrollment["level"];
+      isActive?: boolean;
+    }): Promise<{ message: string; enrollment: StudentEnrollment }> => {
+      return api.put(
+        `/users/students/enrollments/${enrollmentId}`,
+        enrollmentData
+      );
+    },
+    onSuccess: (data, variables) => {
+      // Get studentId from the returned enrollment data
+      const studentId = data.enrollment.studentId || variables.studentId;
+
+      // Invalidate enrollments for this student
+      queryClient.invalidateQueries({
+        queryKey: ["students", studentId, "enrollments"],
+      });
+      // Invalidate student data
+      queryClient.invalidateQueries({
+        queryKey: ["students", studentId],
+      });
+      // Invalidate semester enrollments
+      queryClient.invalidateQueries({ queryKey: ["enrollments", "semester"] });
+      queryClient.invalidateQueries({ queryKey: ["students", "semester"] });
+    },
+  });
+};
+
+export const useDeleteEnrollment = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      enrollmentId,
+    }: {
+      enrollmentId: string;
+      studentId: string; // Keep for type safety in component
+    }): Promise<MessageResponse> => {
+      return api.delete(`/users/students/enrollments/${enrollmentId}`);
+    },
+    onSuccess: (_, variables) => {
+      // Invalidate enrollments for this student
+      queryClient.invalidateQueries({
+        queryKey: ["students", variables.studentId, "enrollments"],
+      });
+      // Invalidate student data
+      queryClient.invalidateQueries({
+        queryKey: ["students", variables.studentId],
+      });
+      // Invalidate semester enrollments
+      queryClient.invalidateQueries({ queryKey: ["enrollments", "semester"] });
+      queryClient.invalidateQueries({ queryKey: ["students", "semester"] });
+    },
+  });
+};

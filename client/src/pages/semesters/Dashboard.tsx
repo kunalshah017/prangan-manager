@@ -14,7 +14,7 @@ import type { Student, RoleAssignment, User } from '@/types/api';
 import ProtectedComponent from '@/components/ProtectedComponent';
 import { useUsers } from '@/hooks/useUserQueries';
 import { useAuth } from '@/hooks/useAuth';
-import LoadingButterflyImage from '@/assets/loading-butterfly.png';
+import BdayCake from '@/assets/bday_cake.svg';
 
 const Dashboard = () => {
     const { projectId, centerId, semesterId } = useParams<{
@@ -233,7 +233,7 @@ const Dashboard = () => {
                 title: 'We have Birthday Today!',
                 people: usersWithBirthdays,
                 message: usersWithBirthdays.length === 1
-                    ? `It's ${usersWithBirthdays[0]?.name?.split(' ')[0] || 'Someone'}'s birthday today!`
+                    ? `It's our Educator ${usersWithBirthdays[0]?.name?.split(' ')[0] || 'Someone'}'s birthday`
                     : `${usersWithBirthdays.length} educators/center managers have birthdays today!`,
             });
         }
@@ -244,9 +244,8 @@ const Dashboard = () => {
                 title: 'Student Birthday Today!',
                 people: studentsWithBirthdays,
                 message: studentsWithBirthdays.length === 1
-                    ? `It's ${studentsWithBirthdays[0]?.name?.split(' ')[0] || 'Someone'}'s birthday today!`
+                    ? `It's our Student ${studentsWithBirthdays[0]?.name?.split(' ')[0] || 'Someone'}'s birthday today!`
                     : `${studentsWithBirthdays.length} students have birthdays today!`,
-
             });
         }
 
@@ -558,7 +557,7 @@ const Dashboard = () => {
                                     <div className="flex-shrink-0">
                                         <div className={`h-8 w-8 rounded-full flex items-center justify-center text-white text-lg`}>
                                             <img
-                                                src={LoadingButterflyImage}
+                                                src={BdayCake}
                                                 alt="Birthday"
                                                 className="h-8 w-8"
                                             />
@@ -605,14 +604,8 @@ const Dashboard = () => {
                                                         key={person.id}
                                                         className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium shadow-sm bg-gradient-to-r from-pink-100 to-purple-100 text-pink-800 border border-pink-200"
                                                     >
-                                                        <span className="font-semibold">{person?.name?.split(' ')[0] || 'Friend'}</span>
-                                                        {/* Individual WhatsApp button */}
-                                                        <div
-                                                            className="ml-2 p-1 rounded-full hover:bg-green-100 transition-colors duration-200"
-                                                            title={`Send WhatsApp birthday message to ${person?.name?.split(' ')[0] || 'Friend'}`}
-                                                        >
-                                                            <WhatsAppIcon size={14} className="text-green-600" />
-                                                        </div>
+                                                        <span className="font-semibold">Send Wishes!</span>
+                                                        <WhatsAppIcon size={14} className="text-green-600 ml-1" />
                                                     </button>
                                                 ))}
                                                 {alert.people.length > 3 && (
