@@ -166,6 +166,11 @@ const Students = () => {
                                         <h3 className="text-lg font-medium text-gray-900 truncate">
                                             {student.name}
                                         </h3>
+                                        {student.futureProfession && (
+                                            <div className="text-sm font-semibold text-orange-600 mt-0.5">
+                                                Future: {student.futureProfession}
+                                            </div>
+                                        )}
                                         <div className="flex items-center mt-1">
                                             <GraduationCap className="w-4 h-4 text-gray-400 mr-1" />
                                             <span className="text-sm text-gray-600">

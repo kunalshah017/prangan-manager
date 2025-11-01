@@ -100,6 +100,7 @@ export interface Student {
   fatherOccupation?: string;
   motherOccupation?: string;
   familyIncome?: string;
+  futureProfession?: string;
   createdAt: string;
   updatedAt: string;
   // Level is now available through enrollments
@@ -316,6 +317,7 @@ export type CreateStudentRequest = CreateRequest<
   | "fatherOccupation"
   | "motherOccupation"
   | "familyIncome"
+  | "futureProfession"
 > & {
   enrollment?: StudentEnrollmentData;
 };
@@ -335,6 +337,7 @@ export type UpdateStudentRequest = UpdateRequest<
   | "fatherOccupation"
   | "motherOccupation"
   | "familyIncome"
+  | "futureProfession"
 > & {
   enrollment?: StudentEnrollmentData;
 };

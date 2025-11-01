@@ -31,6 +31,7 @@ const CreateStudent = () => {
         fatherOccupation: '',
         motherOccupation: '',
         familyIncome: '',
+        futureProfession: '',
         enrollment: {
             level: 'LEVEL_1'
         }
@@ -118,6 +119,7 @@ const CreateStudent = () => {
                 ...(formData.fatherOccupation && { fatherOccupation: formData.fatherOccupation }),
                 ...(formData.motherOccupation && { motherOccupation: formData.motherOccupation }),
                 ...(formData.familyIncome && { familyIncome: formData.familyIncome }),
+                ...(formData.futureProfession && { futureProfession: formData.futureProfession }),
                 enrollment: {
                     centerId: centerId!,
                     semesterId: semesterId!,
@@ -421,6 +423,22 @@ const CreateStudent = () => {
                                             </option>
                                         ))}
                                     </select>
+                                </div>
+
+                                {/* Future Profession */}
+                                <div>
+                                    <label htmlFor="futureProfession" className="block text-sm font-medium text-gray-700 mb-2">
+                                        Future Profession / Career Goal
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="futureProfession"
+                                        value={formData.futureProfession}
+                                        onChange={(e) => handleInputChange('futureProfession', e.target.value)}
+                                        disabled={createStudentMutation.isPending}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                        placeholder="e.g., Doctor, Engineer, Teacher"
+                                    />
                                 </div>
 
                                 {/* Address */}

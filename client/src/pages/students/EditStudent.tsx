@@ -35,6 +35,7 @@ const EditStudent = () => {
         fatherOccupation: '',
         motherOccupation: '',
         familyIncome: '',
+        futureProfession: '',
         enrollment: {
             level: 'LEVEL_1',
         }
@@ -98,6 +99,7 @@ const EditStudent = () => {
                 fatherOccupation: s.fatherOccupation || '',
                 motherOccupation: s.motherOccupation || '',
                 familyIncome: s.familyIncome || '',
+                futureProfession: s.futureProfession || '',
                 enrollment: activeEnrollment
                     ? {
                         centerId: activeEnrollment.centerId,
@@ -168,6 +170,7 @@ const EditStudent = () => {
                 ...(formData.fatherOccupation !== undefined && { fatherOccupation: formData.fatherOccupation }),
                 ...(formData.motherOccupation !== undefined && { motherOccupation: formData.motherOccupation }),
                 ...(formData.familyIncome !== undefined && { familyIncome: formData.familyIncome }),
+                ...(formData.futureProfession !== undefined && { futureProfession: formData.futureProfession }),
                 // Include enrollment data if present
                 ...(formData.enrollment && {
                     enrollments: [
@@ -489,6 +492,22 @@ const EditStudent = () => {
                                             </option>
                                         ))}
                                     </select>
+                                </div>
+
+                                {/* Future Profession */}
+                                <div>
+                                    <label htmlFor="futureProfession" className="block text-sm font-medium text-gray-700 mb-2">
+                                        Future Profession / Career Goal
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="futureProfession"
+                                        value={formData.futureProfession || ''}
+                                        onChange={(e) => handleInputChange('futureProfession', e.target.value)}
+                                        disabled={updateStudentMutation.isPending}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                        placeholder="e.g., Doctor, Engineer, Teacher"
+                                    />
                                 </div>
 
                                 {/* Address */}
