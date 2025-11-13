@@ -13,7 +13,11 @@
     "postinstall": "prisma generate",
     "seed": "tsx prisma/seed.ts",
     "db:seed:prod": "tsx prisma/seed-prod.ts",
-    "vercel-build": "npx prisma migrate deploy && npx prisma generate && tsc"
+    "vercel-build": "npx prisma migrate deploy && npx prisma generate && tsc",
+    "generate-profession-images": "node scripts/generate-future-profession-images.js",
+    "generate-profession-images:trial": "node scripts/generate-future-profession-images.js --trial",
+    "generate-profession-images:full": "node scripts/generate-future-profession-images.js --full",
+    "check-profession-images": "node scripts/check-profession-images-status.js"
   },
   "keywords": [],
   "author": "",

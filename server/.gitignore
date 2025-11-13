@@ -46,3 +46,7 @@ ehthumbs.db
 Thumbs.db
 
 /generated/prisma
+
+# Script artifacts
+scripts/future-profession-progress.json
+scripts/temp-images/

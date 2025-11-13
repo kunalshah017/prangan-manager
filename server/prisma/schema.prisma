@@ -109,25 +109,26 @@ model UserRoleAssignments {
 }
 
 model Students {
-  id                String       @id @default(cuid())
-  profileImageUrl   String?
-  name              String
-  dob               DateTime?
-  phoneNumber       String?
-  whatsappNumber    String?
-  alternateNumber   String?
-  fatherName        String?      // Father's full name
-  motherName        String?      // Mother's full name
-  address           String?      // Complete residential address
-  schoolName        String?      // Name of the school student is attending
-  fatherOccupation  String?      // Father's occupation/job
-  motherOccupation  String?      // Mother's occupation/job
-  familyIncome      String?      // Family income bracket (e.g., "0-25000", "25000-50000", etc.)
-  futureProfession  String?      // Student's aspirational future profession/career goal
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
-  enrollments       StudentEnrollments[]
-  attendance        StudentAttendance[]
+  id                        String       @id @default(cuid())
+  profileImageUrl           String?
+  name                      String
+  dob                       DateTime?
+  phoneNumber               String?
+  whatsappNumber            String?
+  alternateNumber           String?
+  fatherName                String?      // Father's full name
+  motherName                String?      // Mother's full name
+  address                   String?      // Complete residential address
+  schoolName                String?      // Name of the school student is attending
+  fatherOccupation          String?      // Father's occupation/job
+  motherOccupation          String?      // Mother's occupation/job
+  familyIncome              String?      // Family income bracket (e.g., "0-25000", "25000-50000", etc.)
+  futureProfession          String?      // Student's aspirational future profession/career goal
+  futureProfessionImageUrl  String?      // AI-generated image of student in their future profession
+  createdAt                 DateTime     @default(now())
+  updatedAt                 DateTime     @updatedAt
+  enrollments               StudentEnrollments[]
+  attendance                StudentAttendance[]
 }
 
 model StudentEnrollments {

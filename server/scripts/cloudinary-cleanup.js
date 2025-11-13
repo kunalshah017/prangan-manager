@@ -96,13 +96,19 @@ async function getAllImagePublicIdsFromDB() {
   const [projectImages, userImages, studentImages] = await Promise.all([
     prisma.projects.findMany({ select: { imageUrl: true } }),
     prisma.user.findMany({ select: { profileImageUrl: true } }),
-    prisma.students.findMany({ select: { profileImageUrl: true } }),
+    prisma.students.findMany({
+      select: {
+        profileImageUrl: true,
+        futureProfessionImageUrl: true,
+      },
+    }),
   ]);
 
   const urls = [
     ...projectImages.map((p) => p.imageUrl),
     ...userImages.map((u) => u.profileImageUrl),
     ...studentImages.map((s) => s.profileImageUrl),
+    ...studentImages.map((s) => s.futureProfessionImageUrl),
   ].filter(Boolean);
 
   const publicIds = new Set();
