@@ -133,7 +133,7 @@ const FutureProfessionCarousel = ({
                 </button>
 
                 {/* Compact Carousel */}
-                <div className="relative h-[280px] sm:h-[950px]">
+                <div className="relative h-[380px] sm:h-[950px]">
                     <AnimatePresence initial={false} custom={direction} mode="wait">
                         <motion.div
                             key={currentIndex}
