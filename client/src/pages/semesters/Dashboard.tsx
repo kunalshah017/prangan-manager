@@ -5,6 +5,7 @@ import Confetti from 'react-confetti';
 import DoodleBackground from '@/components/DoodleBackground';
 import WhatsAppIcon from '@/components/ui/WhatsAppIcon';
 import LoadingButterfly from '@/components/LoadingButterfly';
+import FutureProfessionCarousel from '@/components/FutureProfessionCarousel';
 import { useSemester } from '@/hooks/useSemesterQueries';
 import { useCenter } from '@/hooks/useCenterQueries';
 import { useStudentsBySemester } from '@/hooks/useStudentQueries';
@@ -802,6 +803,20 @@ const Dashboard = () => {
                         </div>
                     )}
                 </ProtectedComponent>
+
+                {/* Future Profession Showcase - At Bottom */}
+                {students.some(s => s.futureProfessionImageUrl) && (
+                    <div className="space-y-3">
+                        <div className="flex items-center gap-2 px-1">
+                            <span className="text-2xl">✨</span>
+                            <h2 className="text-sm font-medium text-gray-700">Future Profession Showcase</h2>
+                        </div>
+                        <FutureProfessionCarousel
+                            students={students}
+                            autoPlayInterval={6000}
+                        />
+                    </div>
+                )}
             </div >
         </>
     );

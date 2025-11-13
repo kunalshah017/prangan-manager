@@ -101,6 +101,7 @@ export interface Student {
   motherOccupation?: string;
   familyIncome?: string;
   futureProfession?: string;
+  futureProfessionImageUrl?: string;
   createdAt: string;
   updatedAt: string;
   // Level is now available through enrollments
