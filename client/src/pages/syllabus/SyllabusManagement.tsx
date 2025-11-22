@@ -174,26 +174,6 @@ const SyllabusManagement = () => {
         );
     }
 
-    if (!hasManagePermission) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[60dvh] relative">
-                <DoodleBackground numElements={8} />
-                <div className="bg-white/80 rounded-lg border shadow-md p-8 max-w-md text-center relative z-10">
-                    <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
-                    <p className="text-muted-foreground mb-4">
-                        You need to be an Admin or Curriculum Mentor to manage syllabi.
-                    </p>
-                    <button
-                        onClick={() => navigate(-1)}
-                        className={cn(buttonVariants({ variant: 'default' }))}
-                    >
-                        Go Back
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
     return (
         <div className="w-full relative p-2 sm:p-0">
             <DoodleBackground numElements={10} />
