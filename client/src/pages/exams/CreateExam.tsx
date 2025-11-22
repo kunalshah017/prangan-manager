@@ -201,7 +201,6 @@ const CreateExam = () => {
                                         id="examDate"
                                         value={examDate}
                                         onChange={(e) => setExamDate(e.target.value)}
-                                        min={new Date().toISOString().split('T')[0]}
                                         className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                                         required
                                     />
