@@ -250,6 +250,8 @@ export default function EditExam() {
                                             required
                                         >
                                             <option value="">Select Level</option>
+                                            <option value="PRIMARY_A">Primary A</option>
+                                            <option value="PRIMARY_B">Primary B</option>
                                             <option value="LEVEL_1">Level 1</option>
                                             <option value="LEVEL_2">Level 2</option>
                                             <option value="LEVEL_3">Level 3</option>
