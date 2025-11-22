@@ -1,5 +1,5 @@
-import { Users, UserPlus, ClipboardList, CalendarCheck, IndianRupee, UserCog, AlertTriangle, Clock } from 'lucide-react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { Users, UserPlus, ClipboardList, CalendarCheck, IndianRupee, UserCog, AlertTriangle, Clock, BookOpen, List, ClipboardCheck } from 'lucide-react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useMemo, useState, useEffect } from 'react';
 import Confetti from 'react-confetti';
 import DoodleBackground from '@/components/DoodleBackground';
@@ -15,6 +15,7 @@ import type { Student, RoleAssignment, User } from '@/types/api';
 import ProtectedComponent from '@/components/ProtectedComponent';
 import { useUsers } from '@/hooks/useUserQueries';
 import { useAuth } from '@/hooks/useAuth';
+import { useSyllabi, useSyllabusTopics } from '@/hooks/useSyllabusQueries';
 import BdayCake from '@/assets/bday_cake.svg';
 
 const Dashboard = () => {
@@ -331,6 +332,135 @@ const Dashboard = () => {
         return alerts;
     }, [isWeekend, students, studentsByLevel, studentAttendanceRecords, staffAttendanceRecords, educatorCount, centerManagerCount, users, projectId, centerId, semesterId]);
 
+    // Fetch syllabi for the current semester
+    const { data: syllabi = [] } = useSyllabi({
+        projectId,
+        centerId,
+        semesterId,
+        isActive: true,
+    });
+
+    // Get the first active syllabus for this semester (assuming one syllabus per level per semester)
+    const activeSyllabus = syllabi[0];
+
+    // Fetch topics with subtopics and progress logs
+    const { data: allTopics = [] } = useSyllabusTopics({
+        syllabusId: activeSyllabus?.id,
+        includeSubtopics: true,
+        status: 'ONGOING',
+    });
+
+    // Calculate ongoing topics alerts based on user role
+    const ongoingTopicsAlerts = useMemo(() => {
+        if (!currentUser || !allTopics.length) return null;
+
+        // Helper function to calculate weekend days
+        const calculateWeekendDays = (startDate: Date) => {
+            const currentDate = new Date();
+            let weekendDayCount = 0;
+            for (let d = new Date(startDate); d <= currentDate; d.setDate(d.getDate() + 1)) {
+                const day = d.getDay();
+                if (day === 0 || day === 6) weekendDayCount++;
+            }
+            return weekendDayCount;
+        };
+
+        // Check if user is an educator
+        const educatorAssignment = currentUser.roleAssignments?.find(role =>
+            role && role.isActive &&
+            role.subRole === 'EDUCATOR' &&
+            (!role.projectId || role.projectId === projectId) &&
+            (!role.centerId || role.centerId === centerId) &&
+            (!role.semesterId || role.semesterId === semesterId) &&
+            role.level
+        );
+
+        // Collect all topics and subtopics with their data
+        const allItems: Array<{
+            id: string;
+            title: string;
+            level: string;
+            isSubtopic: boolean;
+            updatedByName?: string;
+            weekendDays: number;
+            lastUpdated?: Date;
+        }> = [];
+
+        allTopics.forEach(topic => {
+            const syllabus = syllabi.find(s => s.id === topic.syllabusId);
+            if (!syllabus) return;
+
+            // Filter by level for educators
+            if (educatorAssignment && syllabus.level !== educatorAssignment.level) {
+                return;
+            }
+
+            // Get the most recent progress log for main topic
+            const topicProgress = Array.isArray(topic.recentProgress) && topic.recentProgress.length > 0
+                ? topic.recentProgress[0]
+                : null;
+
+            // Add main topic if it has progress
+            if (topicProgress?.createdAt) {
+                const weekendDays = calculateWeekendDays(new Date(topicProgress.createdAt));
+                allItems.push({
+                    id: topic.id,
+                    title: topic.title,
+                    level: syllabus.level,
+                    isSubtopic: false,
+                    updatedByName: topicProgress.updatedByUser?.name,
+                    weekendDays,
+                    lastUpdated: new Date(topicProgress.createdAt),
+                });
+            }
+
+            // Add subtopics if they have progress
+            if (topic.subtopics) {
+                topic.subtopics.forEach(subtopic => {
+                    const subtopicProgress = Array.isArray(subtopic.recentProgress) && subtopic.recentProgress.length > 0
+                        ? subtopic.recentProgress[0]
+                        : null;
+
+                    if (subtopicProgress?.createdAt) {
+                        const weekendDays = calculateWeekendDays(new Date(subtopicProgress.createdAt));
+                        allItems.push({
+                            id: subtopic.id,
+                            title: subtopic.title,
+                            level: syllabus.level,
+                            isSubtopic: true,
+                            updatedByName: subtopicProgress.updatedByUser?.name,
+                            weekendDays,
+                            lastUpdated: new Date(subtopicProgress.createdAt),
+                        });
+                    }
+                });
+            }
+        });
+
+        // For educators: show all ongoing items
+        if (educatorAssignment) {
+            return {
+                userRole: 'EDUCATOR',
+                level: educatorAssignment.level,
+                allItems,
+                showAll: true,
+            };
+        }
+
+        // For other roles: only show delayed subtopics (>6 days)
+        const delayedSubtopics = allItems.filter(item => item.isSubtopic && item.weekendDays > 6);
+
+        if (delayedSubtopics.length > 0) {
+            return {
+                userRole: 'OTHER',
+                delayedSubtopics,
+                showAll: false,
+            };
+        }
+
+        return null;
+    }, [currentUser, projectId, centerId, semesterId, allTopics, syllabi]);
+
     // Function to handle navigation to students with context
     const handleManageStudents = () => {
         // Navigate to the nested students route under dashboard
@@ -470,65 +600,146 @@ const Dashboard = () => {
                     </p>
                 </div>
 
-                {/* Weekend Attendance Alerts */}
-                {isWeekend && weekendAlerts.length > 0 && (
-                    <div className="space-y-2">
-                        {weekendAlerts.map((alert, index) => (
-                            <div
-                                key={`${alert.type}-${index}`}
-                                className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start space-x-3"
-                            >
-                                <div className="flex-shrink-0">
-                                    <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center justify-between">
-                                        <h4 className="text-sm font-medium text-amber-800">
-                                            {alert.title}
+                {/* Ongoing Topics Alert */}
+                {ongoingTopicsAlerts && (
+                    <div className={`border rounded-lg p-3 ${ongoingTopicsAlerts.userRole === 'EDUCATOR' ? 'bg-blue-50 border-blue-200' : 'bg-red-50 border-red-200'}`}>
+                        <div className="flex items-start gap-2">
+                            <BookOpen className={`h-4 w-4 mt-0.5 flex-shrink-0 ${ongoingTopicsAlerts.userRole === 'EDUCATOR' ? 'text-blue-600' : 'text-red-600'}`} />
+                            <div className="flex-1 min-w-0">
+                                {ongoingTopicsAlerts.showAll ? (
+                                    // Educator view: show all ongoing items
+                                    <>
+                                        <h4 className="text-sm font-semibold text-blue-800 mb-2">
+                                            Your Ongoing Topics - {ongoingTopicsAlerts.level?.replace('_', ' ')}
                                         </h4>
-                                        <div className="flex items-center text-xs text-amber-600">
-                                            <Clock className="h-3 w-3 mr-1" />
-                                            <span>Weekend</span>
-                                        </div>
-                                    </div>
-                                    <p className="text-sm text-amber-700 mt-1">
-                                        {alert.message}
-                                    </p>
-                                    {alert.type === 'student-attendance' && (
-                                        <>
-                                            <div className="mt-2 flex flex-wrap gap-1">
-                                                {alert.levels?.map((level) => (
-                                                    <span
-                                                        key={level}
-                                                        className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800"
+                                        {(ongoingTopicsAlerts.allItems?.length || 0) > 0 ? (
+                                            <div className="space-y-2 mb-3">
+                                                {ongoingTopicsAlerts.allItems?.map((item) => (
+                                                    <div
+                                                        key={item.id}
+                                                        className={`text-xs p-2 rounded ${item.weekendDays > 6 && item.isSubtopic ? 'bg-red-100 border border-red-300' : 'bg-white border border-blue-200'}`}
                                                     >
-                                                        {getLevelDisplay(level)}
-                                                    </span>
+                                                        <div className="flex items-start justify-between gap-2">
+                                                            <div className="flex-1">
+                                                                <span className={`font-medium ${item.weekendDays > 6 && item.isSubtopic ? 'text-red-800' : 'text-blue-800'}`}>
+                                                                    {item.isSubtopic ? '↳ ' : ''}{item.title}
+                                                                </span>
+                                                                <div className={`mt-1 ${item.weekendDays > 6 && item.isSubtopic ? 'text-red-700' : 'text-blue-600'}`}>
+                                                                    {item.updatedByName && (
+                                                                        <span>Updated by {item.updatedByName}</span>
+                                                                    )}
+                                                                    {item.updatedByName && <span> • </span>}
+                                                                    <span>Ongoing for {item.weekendDays} day{item.weekendDays !== 1 ? 's' : ''}</span>
+                                                                </div>
+                                                            </div>
+                                                            {item.weekendDays > 6 && item.isSubtopic && (
+                                                                <AlertTriangle className="h-4 w-4 text-red-600 flex-shrink-0" />
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 ))}
                                             </div>
-                                            <div className="mt-2">
+                                        ) : (
+                                            <p className="text-xs text-blue-700 mb-2">No ongoing topics at the moment</p>
+                                        )}
+                                        <button
+                                            onClick={() => navigate(`/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/syllabus`)}
+                                            className="text-xs font-medium text-blue-800 hover:text-blue-900 underline"
+                                        >
+                                            View Syllabus Progress →
+                                        </button>
+                                    </>
+                                ) : (
+                                    // Other roles view: only delayed subtopics alert
+                                    <>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <h4 className="text-sm font-semibold text-red-800">Delayed Subtopics Alert</h4>
+                                            <AlertTriangle className="h-4 w-4 text-red-600" />
+                                        </div>
+                                        <p className="text-xs text-red-700 mb-2">
+                                            {ongoingTopicsAlerts.delayedSubtopics?.length || 0} subtopic{(ongoingTopicsAlerts.delayedSubtopics?.length || 0) !== 1 ? 's' : ''} ongoing for more than 6 days
+                                        </p>
+                                        <div className="space-y-1.5 mb-3">
+                                            {ongoingTopicsAlerts.delayedSubtopics?.slice(0, 3).map((item) => (
+                                                <div key={item.id} className="text-xs bg-white p-2 rounded border border-red-200">
+                                                    <span className="font-medium text-red-800">↳ {item.title}</span>
+                                                    <div className="text-red-700 mt-0.5">
+                                                        {item.updatedByName && (
+                                                            <span>Updated by {item.updatedByName} • </span>
+                                                        )}
+                                                        <span className="font-semibold">{item.weekendDays} days</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {(ongoingTopicsAlerts.delayedSubtopics?.length || 0) > 3 && (
+                                                <p className="text-xs text-red-600 font-medium pl-2">
+                                                    +{(ongoingTopicsAlerts.delayedSubtopics?.length || 0) - 3} more
+                                                </p>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={() => navigate(`/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/syllabus`)}
+                                            className="text-xs font-medium text-red-800 hover:text-red-900 underline"
+                                        >
+                                            View Syllabus Progress →
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {/* Weekend Attendance Alerts */}
+                {isWeekend && weekendAlerts.length > 0 && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                        <div className="flex items-start gap-2">
+                            <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between mb-1">
+                                    <h4 className="text-sm font-semibold text-amber-800">Weekend Attendance Missing</h4>
+                                    <Clock className="h-3 w-3 text-amber-600" />
+                                </div>
+
+                                {weekendAlerts.map((alert, index) => (
+                                    <div key={`${alert.type}-${index}`} className="mt-2">
+                                        {alert.type === 'student-attendance' && (
+                                            <div>
+                                                <p className="text-xs text-amber-700 font-medium mb-1">Students:</p>
+                                                <div className="flex flex-wrap gap-1 mb-1.5">
+                                                    {alert.levels?.map((level) => (
+                                                        <span
+                                                            key={level}
+                                                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800"
+                                                        >
+                                                            {getLevelDisplay(level)}
+                                                        </span>
+                                                    ))}
+                                                </div>
                                                 <button
                                                     onClick={handleMarkStudentAttendance}
                                                     className="text-xs font-medium text-amber-800 hover:text-amber-900 underline"
                                                 >
-                                                    Mark Student Attendance →
+                                                    Mark Now →
                                                 </button>
                                             </div>
-                                        </>
-                                    )}
-                                    {alert.type === 'staff-attendance' && (
-                                        <div className="mt-2">
-                                            <button
-                                                onClick={handleMarkAttendance}
-                                                className="text-xs font-medium text-amber-800 hover:text-amber-900 underline"
-                                            >
-                                                Mark Educatos / Center Managers Attendance →
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
+                                        )}
+                                        {alert.type === 'staff-attendance' && (
+                                            <div>
+                                                <p className="text-xs text-amber-700">
+                                                    <span className="font-medium">Educators / CM:</span> {alert.count || 0} member{(alert.count || 0) > 1 ? 's' : ''} pending
+                                                    <button
+                                                        onClick={handleMarkAttendance}
+                                                        className="ml-2 font-medium text-amber-800 hover:text-amber-900 underline"
+                                                    >
+                                                        Mark Now →
+                                                    </button>
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
                             </div>
-                        ))}
+                        </div>
                     </div>
                 )}
 
@@ -644,9 +855,9 @@ const Dashboard = () => {
                     </div>
                 </div>
 
-                {/* Student Management */}
+                {/* Students */}
                 <div className="space-y-3">
-                    <h2 className="text-sm font-medium text-gray-700 px-1">Student Management</h2>
+                    <h2 className="text-sm font-medium text-gray-700 px-1">📚 Students</h2>
                     <div className="grid grid-cols-2 gap-3">
                         <button
                             onClick={handleManageStudents}
@@ -668,10 +879,62 @@ const Dashboard = () => {
                     </div>
                 </div>
 
-                {/* Educator / Center Manager Attendance */}
+                {/* Student Attendance */}
+                <ProtectedComponent allowedSubRoles={['CENTER_MANAGER', 'EDUCATOR']}>
+                    <div className="space-y-3">
+                        <h2 className="text-sm font-medium text-gray-700 px-1">📅 Student Attendance</h2>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                onClick={handleMarkStudentAttendance}
+                                className="flex flex-col items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg p-4 h-20 transition-colors"
+                            >
+                                <CalendarCheck className="h-5 w-5 shrink-0" />
+                                <span className="text-xs font-medium">Mark Attendance</span>
+                            </button>
+
+                            <button
+                                onClick={handleViewStudentAttendance}
+                                className="flex flex-col items-center justify-center gap-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg p-4 h-20 transition-colors"
+                            >
+                                <ClipboardList className="h-5 w-5 shrink-0" />
+                                <span className="text-xs font-medium">View Attendance</span>
+                            </button>
+                        </div>
+                    </div>
+                </ProtectedComponent>
+
+                {/* Curriculum & Assessment */}
+                <div className="space-y-3">
+                    <h2 className="text-sm font-medium text-gray-700 px-1">📖 Curriculum & Assessment</h2>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        <Link
+                            to="/library"
+                            className="flex flex-col items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg p-4 h-20 transition-colors"
+                        >
+                            <BookOpen className="h-5 w-5" />
+                            <span className="text-xs font-medium">Library</span>
+                        </Link>
+                        <button
+                            onClick={() => navigate(`/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/syllabus`)}
+                            className="flex flex-col items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg p-4 h-20 transition-colors"
+                        >
+                            <List className="h-5 w-5" />
+                            <span className="text-xs font-medium">Syllabus Tracker</span>
+                        </button>
+                        <button
+                            onClick={() => navigate(`/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/exams`)}
+                            className="flex flex-col items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg p-4 h-20 transition-colors"
+                        >
+                            <ClipboardCheck className="h-5 w-5" />
+                            <span className="text-xs font-medium">Exam Tracker</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Staff Management */}
                 <ProtectedComponent allowedSubRoles={['CENTER_MANAGER']}>
                     <div className="space-y-3">
-                        <h2 className="text-sm font-medium text-gray-700 px-1">Educators / Center Manager Attendance</h2>
+                        <h2 className="text-sm font-medium text-gray-700 px-1">👥 Educators Management</h2>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                             <button
                                 onClick={handleMarkAttendance}
@@ -700,52 +963,30 @@ const Dashboard = () => {
                             </ProtectedComponent>
                         </div>
                     </div>
-                </ProtectedComponent >
+                </ProtectedComponent>
 
-                {/* Student Attendance */}
-                < ProtectedComponent allowedSubRoles={['CENTER_MANAGER', 'EDUCATOR']} >
+                {/* Admin */}
+                <ProtectedComponent requireAdmin>
                     <div className="space-y-3">
-                        <h2 className="text-sm font-medium text-gray-700 px-1">Student Attendance</h2>
+                        <h2 className="text-sm font-medium text-gray-700 px-1">⚙️ Administration</h2>
                         <div className="grid grid-cols-2 gap-3">
                             <button
-                                onClick={handleMarkStudentAttendance}
-                                className="flex flex-col items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg p-4 h-20 transition-colors"
-                            >
-                                <CalendarCheck className="h-5 w-5 shrink-0" />
-                                <span className="text-xs font-medium">Mark Student Attendance</span>
-                            </button>
-
-                            <button
-                                onClick={handleViewStudentAttendance}
-                                className="flex flex-col items-center justify-center gap-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg p-4 h-20 transition-colors"
-                            >
-                                <ClipboardList className="h-5 w-5 shrink-0" />
-                                <span className="text-xs font-medium">View Student Attendance</span>
-                            </button>
-                        </div>
-                    </div>
-                </ProtectedComponent > {/* Admin Functions */}
-                < ProtectedComponent requireAdmin >
-                    <div className="space-y-3">
-                        <h2 className="text-sm font-medium text-gray-700 px-1">Admin Functions</h2>
-                        <div className="grid grid-cols-2 sm:grid-cols-2 gap-3">
-                            <button
                                 onClick={handleRegistrationRequests}
-                                className="flex items-center justify-center gap-3 bg-amber-600 hover:bg-amber-700 text-white rounded-lg p-4 h-16 transition-colors"
+                                className="flex flex-col items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg p-4 h-20 transition-colors"
                             >
                                 <UserPlus className="h-5 w-5" />
-                                <span className="text-sm font-medium">Registration Requests</span>
+                                <span className="text-xs font-medium">Registration Requests</span>
                             </button>
                             <button
                                 onClick={handleManageUsers}
-                                className="flex items-center justify-center gap-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg p-4 h-16 transition-colors"
+                                className="flex flex-col items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg p-4 h-20 transition-colors"
                             >
                                 <UserCog className="h-5 w-5" />
-                                <span className="text-sm font-medium">Manage Users</span>
+                                <span className="text-xs font-medium">Manage Users</span>
                             </button>
                         </div>
                     </div>
-                </ProtectedComponent >
+                </ProtectedComponent>
 
                 {/* Students by Level */}
                 {

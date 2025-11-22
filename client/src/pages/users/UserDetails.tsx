@@ -38,6 +38,9 @@ import {
 } from 'recharts';
 import { useUser } from '@/hooks/useUserQueries';
 import { useAttendanceRecords } from '@/hooks/useAttendanceQueries';
+import { useProjects } from '@/hooks/useProjectQueries';
+import { useCenters } from '@/hooks/useCenterQueries';
+import { useSemesters } from '@/hooks/useSemesterQueries';
 import { ProfilePicture } from '@/components/ui';
 import LoadingButterfly from '@/components/LoadingButterfly';
 import DoodleBackground from '@/components/DoodleBackground';
@@ -96,6 +99,16 @@ const UserDetails = () => {
         endDate,
         limit: 1000
     });
+
+    // Fetch projects, centers, and semesters for displaying in role assignments
+    const { data: projects = [] } = useProjects();
+    const { data: centers = [] } = useCenters();
+    const { data: semesters = [] } = useSemesters();
+
+    // Create lookup maps for efficient O(1) access
+    const projectsMap = useMemo(() => new Map(projects.map(p => [p.id, p])), [projects]);
+    const centersMap = useMemo(() => new Map(centers.map(c => [c.id, c])), [centers]);
+    const semestersMap = useMemo(() => new Map(semesters.map(s => [s.id, s])), [semesters]);
 
     // Calculate analytics
     const analytics = useMemo(() => {
@@ -463,23 +476,52 @@ const UserDetails = () => {
                             <div className="mt-6 pt-6 border-t border-gray-200">
                                 <h3 className="text-sm font-medium text-gray-700 mb-3">Role Assignments</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {user.roleAssignments.filter(assignment => assignment.isActive).map((assignment, index) => (
-                                        <div key={index} className="p-3 bg-orange-50 rounded-lg border border-orange-100">
-                                            <p className="text-sm font-medium text-gray-800">
-                                                {SUB_ROLE_MAP[assignment.subRole] || assignment.subRole}
-                                            </p>
-                                            {assignment.level && (
-                                                <p className="text-xs text-gray-600 mt-1">
-                                                    Level: {assignment.level.replace('_', ' ')}
+                                    {user.roleAssignments.filter(assignment => assignment.isActive).map((assignment, index) => {
+                                        const project = assignment.projectId ? projectsMap.get(assignment.projectId) : null;
+                                        const center = assignment.centerId ? centersMap.get(assignment.centerId) : null;
+                                        const semester = assignment.semesterId ? semestersMap.get(assignment.semesterId) : null;
+
+                                        return (
+                                            <div key={index} className="p-3 bg-orange-50 rounded-lg border border-orange-100">
+                                                <p className="text-sm font-medium text-gray-800">
+                                                    {SUB_ROLE_MAP[assignment.subRole] || assignment.subRole}
                                                 </p>
-                                            )}
-                                            {assignment.committedDays && (
-                                                <p className="text-xs text-gray-600">
-                                                    Committed: {COMMITTED_DAYS_MAP[assignment.committedDays] || assignment.committedDays}
-                                                </p>
-                                            )}
-                                        </div>
-                                    ))}
+
+                                                {/* Project/Center/Semester Info */}
+                                                <div className="mt-2 space-y-1">
+                                                    {project && (
+                                                        <div className="flex items-center text-xs text-gray-600">
+                                                            <span className="mr-1">📁</span>
+                                                            <span>{project.name}</span>
+                                                        </div>
+                                                    )}
+                                                    {center && (
+                                                        <div className="flex items-center text-xs text-gray-600">
+                                                            <span className="mr-1">📍</span>
+                                                            <span>{center.name}</span>
+                                                        </div>
+                                                    )}
+                                                    {semester && (
+                                                        <div className="flex items-center text-xs text-gray-600">
+                                                            <span className="mr-1">📅</span>
+                                                            <span>{semester.name}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {assignment.level && assignment.subRole === 'EDUCATOR' && (
+                                                    <p className="text-xs text-gray-600 mt-1">
+                                                        Level: {assignment.level.replace('_', ' ')}
+                                                    </p>
+                                                )}
+                                                {assignment.committedDays && (assignment.subRole === 'CENTER_MANAGER' || assignment.subRole === 'EDUCATOR') && (
+                                                    <p className="text-xs text-gray-600">
+                                                        Committed: {COMMITTED_DAYS_MAP[assignment.committedDays] || assignment.committedDays}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}

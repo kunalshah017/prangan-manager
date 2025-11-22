@@ -2,6 +2,9 @@
 const CACHE_NAME = `prangan-manager-v${Date.now()}`;
 const STATIC_CACHE = "prangan-static";
 const RUNTIME_CACHE = "prangan-runtime";
+const PDF_CACHE = "prangan-pdfs-v2"; // Incremented version for new caching strategy
+const PDF_CACHE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
+const MAX_PDF_SIZE = 50 * 1024 * 1024; // 50MB max for caching
 
 // Essential files to cache for offline functionality
 const urlsToCache = ["/", "/manifest.json", "/favicon.ico", "/icon.png"];
@@ -33,7 +36,11 @@ self.addEventListener("activate", (event) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
             // Delete old caches that don't match current version
-            if (cacheName !== STATIC_CACHE && cacheName !== RUNTIME_CACHE) {
+            if (
+              cacheName !== STATIC_CACHE &&
+              cacheName !== RUNTIME_CACHE &&
+              cacheName !== PDF_CACHE
+            ) {
               console.log("[SW] Deleting old cache:", cacheName);
               return caches.delete(cacheName);
             }
@@ -57,8 +64,13 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Skip external requests
+  // Skip external requests (including external PDFs - now handled by IndexedDB)
   if (url.origin !== location.origin) {
+    return;
+  }
+
+  // Skip PDF files - they are now cached in IndexedDB by the app
+  if (url.pathname.endsWith(".pdf")) {
     return;
   }
 

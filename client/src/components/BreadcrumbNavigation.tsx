@@ -35,7 +35,7 @@ const BreadcrumbNavigation: React.FC = () => {
     const studentId = params.id && location.pathname.includes('/students/') ? params.id : undefined;
 
     // Get dashboard context for student pages and attendance pages
-    const dashboardContext = (location.pathname.includes('/students') || location.pathname.includes('/attendance') || location.pathname.includes('/student-attendance') || location.pathname.includes('/registration-requests') || location.pathname.includes('/users')) ?
+    const dashboardContext = (location.pathname.includes('/students') || location.pathname.includes('/attendance') || location.pathname.includes('/student-attendance') || location.pathname.includes('/syllabus') || location.pathname.includes('/exams') || location.pathname.includes('/registration-requests') || location.pathname.includes('/users') || location.pathname.includes('/library')) ?
         (() => {
             try {
                 const stored = sessionStorage.getItem('dashboardContext');
@@ -263,6 +263,65 @@ const BreadcrumbNavigation: React.FC = () => {
                                 });
                             }
                         }
+                        // Handle dashboard sub-routes (syllabus)
+                        else if (pathSegments[semesterIndex + 4] === 'syllabus') {
+                            breadcrumbs.push({
+                                label: 'Syllabus',
+                                href: `/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/syllabus`
+                            });
+
+                            // Handle /dashboard/syllabus/create
+                            if (pathSegments[semesterIndex + 5] === 'create') {
+                                breadcrumbs.push({
+                                    label: 'Create Syllabus',
+                                    isCurrentPage: true
+                                });
+                            }
+                            // Handle /dashboard/syllabus/:syllabusId/progress
+                            else if (pathSegments[semesterIndex + 6] === 'progress') {
+                                breadcrumbs.push({
+                                    label: 'Progress',
+                                    isCurrentPage: true
+                                });
+                            }
+                            // Handle /dashboard/syllabus (current page)
+                            else {
+                                breadcrumbs[breadcrumbs.length - 1].isCurrentPage = true;
+                            }
+                        }
+                        // Handle dashboard sub-routes (exams)
+                        else if (pathSegments[semesterIndex + 4] === 'exams') {
+                            breadcrumbs.push({
+                                label: 'Exams',
+                                href: `/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/exams`
+                            });
+
+                            // Handle /dashboard/exams/create
+                            if (pathSegments[semesterIndex + 5] === 'create') {
+                                breadcrumbs.push({
+                                    label: 'Create Exam',
+                                    isCurrentPage: true
+                                });
+                            }
+                            // Handle /dashboard/exams/:examId/edit
+                            else if (pathSegments[semesterIndex + 6] === 'edit') {
+                                breadcrumbs.push({
+                                    label: 'Edit Exam',
+                                    isCurrentPage: true
+                                });
+                            }
+                            // Handle /dashboard/exams/:examId/scores
+                            else if (pathSegments[semesterIndex + 6] === 'scores') {
+                                breadcrumbs.push({
+                                    label: 'Exam Scores',
+                                    isCurrentPage: true
+                                });
+                            }
+                            // Handle /dashboard/exams (current page)
+                            else {
+                                breadcrumbs[breadcrumbs.length - 1].isCurrentPage = true;
+                            }
+                        }
                         // Handle dashboard sub-route (bank-details)
                         else if (pathSegments[semesterIndex + 4] === 'bank-details') {
                             breadcrumbs.push({
@@ -376,6 +435,50 @@ const BreadcrumbNavigation: React.FC = () => {
             } else {
                 breadcrumbs.push({
                     label: 'Users',
+                    isCurrentPage: true
+                });
+            }
+        }
+        // Handle /library
+        else if (pathSegments.includes('library')) {
+            // Check if we have dashboard context for library
+            if (dashboardContext && dashboardContext.projectId && dashboardContext.centerId && dashboardContext.semesterId) {
+                // Use actual data if available, otherwise fall back to context data
+                const projectName = project?.name || dashboardContext.projectName || 'Project';
+                const centerName = center?.name || dashboardContext.centerName || 'Center';
+                const semesterName = semester?.name || dashboardContext.semesterName || 'Semester';
+
+                breadcrumbs.push({
+                    label: 'Projects',
+                    href: '/projects'
+                });
+                breadcrumbs.push({
+                    label: projectName,
+                    href: `/projects/${dashboardContext.projectId}/centers`
+                });
+                breadcrumbs.push({
+                    label: centerName,
+                    href: `/projects/${dashboardContext.projectId}/centers/${dashboardContext.centerId}/semesters`
+                });
+                breadcrumbs.push({
+                    label: semesterName,
+                    href: `/projects/${dashboardContext.projectId}/centers/${dashboardContext.centerId}/semesters/${dashboardContext.semesterId}/dashboard`
+                });
+            }
+
+            // Check if this is a specific book page
+            if (pathSegments.length > 2 && pathSegments[1]) {
+                breadcrumbs.push({
+                    label: 'Library',
+                    href: '/library'
+                });
+                breadcrumbs.push({
+                    label: 'Book',
+                    isCurrentPage: true
+                });
+            } else {
+                breadcrumbs.push({
+                    label: 'Library',
                     isCurrentPage: true
                 });
             }

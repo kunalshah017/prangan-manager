@@ -22,6 +22,8 @@ model Centers {
   userRoleAssignments UserRoleAssignments[]
   attendance UserAttendance[]
   studentAttendance StudentAttendance[]
+  syllabi   Syllabus[]
+  exams     Exam[]
 }
 
 model Projects {
@@ -39,6 +41,8 @@ model Projects {
   userRoleAssignments UserRoleAssignments[]
   attendance  UserAttendance[]
   studentAttendance StudentAttendance[]
+  syllabi     Syllabus[]
+  exams       Exam[]
 }
 
 model Semesters {
@@ -54,6 +58,8 @@ model Semesters {
   userRoleAssignments UserRoleAssignments[]
   attendance UserAttendance[]
   studentAttendance StudentAttendance[]
+  syllabi   Syllabus[]
+  exams     Exam[]
 }
 
 model User {
@@ -81,6 +87,8 @@ model User {
   attendance       UserAttendance[]
   markedAttendance UserAttendance[] @relation("AttendanceMarkedBy")
   markedStudentAttendance StudentAttendance[] @relation("StudentAttendanceMarkedBy")
+  syllabusProgressLogs SyllabusProgressLog[]
+  gradedExams StudentExamScore[]
 }
 
 model UserRoleAssignments {
@@ -129,6 +137,7 @@ model Students {
   updatedAt                 DateTime     @updatedAt
   enrollments               StudentEnrollments[]
   attendance                StudentAttendance[]
+  examScores                StudentExamScore[]
 }
 
 model StudentEnrollments {
@@ -149,6 +158,7 @@ model StudentEnrollments {
   semester    Semesters @relation(fields: [semesterId], references: [id])
   project     Projects  @relation(fields: [projectId], references: [id])
   attendance  StudentAttendance[]
+  examScores  StudentExamScore[]
   
   @@unique([studentId, semesterId]) // A student can only be enrolled once per semester
 }
@@ -269,4 +279,142 @@ enum StudentAttendanceStatus {
   PRESENT              // Student was present
   ABSENT               // Student was absent
   HOLIDAY              // It was a holiday
+}
+
+// ============================================
+// SYLLABUS TRACKING MODELS
+// ============================================
+
+model Syllabus {
+  id          String   @id @default(cuid())
+  projectId   String
+  centerId    String
+  semesterId  String
+  level       Level
+  name        String   // e.g., "English SA-1 Syllabus", "Mathematics Complete Syllabus"
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  project     Projects  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  center      Centers   @relation(fields: [centerId], references: [id], onDelete: Cascade)
+  semester    Semesters @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  topics      SyllabusTopic[]
+  
+  // Ensure unique syllabus per context
+  @@unique([projectId, centerId, semesterId, level, name])
+  @@index([projectId, centerId, semesterId, level])
+}
+
+model SyllabusTopic {
+  id            String              @id @default(cuid())
+  syllabusId    String
+  parentId      String?             // For nested topics (e.g., subtopics under main topics)
+  serialNumber  String              // e.g., "1", "1.1", "1.2", "3.4"
+  title         String              // Topic title
+  cycle         String?             // e.g., "SA-1", "SA-2", "SA-3"
+  status        SyllabusTopicStatus @default(PENDING)
+  orderIndex    Int                 // For maintaining order within same parent
+  metadata      Json?               // For storing additional flexible data
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  
+  syllabus      Syllabus            @relation(fields: [syllabusId], references: [id], onDelete: Cascade)
+  parent        SyllabusTopic?      @relation("TopicHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  subtopics     SyllabusTopic[]     @relation("TopicHierarchy")
+  progressLogs  SyllabusProgressLog[]
+  
+  @@index([syllabusId, parentId])
+  @@index([syllabusId, cycle])
+  @@index([syllabusId, orderIndex])
+}
+
+model SyllabusProgressLog {
+  id            String              @id @default(cuid())
+  topicId       String
+  previousStatus SyllabusTopicStatus
+  newStatus     SyllabusTopicStatus
+  updatedBy     String              // UserId who updated the status
+  notes         String?
+  createdAt     DateTime            @default(now())
+  
+  topic         SyllabusTopic       @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  user          User                @relation(fields: [updatedBy], references: [id])
+  
+  @@index([topicId, createdAt])
+}
+
+enum SyllabusTopicStatus {
+  PENDING
+  ONGOING
+  COMPLETED
+}
+
+// ============================================
+// EXAM & ASSESSMENT TRACKING MODELS
+// ============================================
+
+model Exam {
+  id          String   @id @default(cuid())
+  projectId   String
+  centerId    String
+  semesterId  String
+  level       Level    // Level-wise exam
+  name        String   // e.g., "SA-1 English Exam", "Mid-Term Mathematics"
+  description String?
+  examDate    DateTime @db.Date // When the exam is scheduled
+  
+  // LSRW Skill Marks Distribution
+  listeningMaxMarks Int      // Maximum marks for Listening
+  speakingMaxMarks  Int      // Maximum marks for Speaking
+  readingMaxMarks   Int      // Maximum marks for Reading
+  writingMaxMarks   Int      // Maximum marks for Writing
+  totalMaxMarks     Int      // Total maximum marks (sum of LSRW)
+  
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  project     Projects  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  center      Centers   @relation(fields: [centerId], references: [id], onDelete: Cascade)
+  semester    Semesters @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  studentScores StudentExamScore[]
+  
+  // Ensure unique exam per context
+  @@unique([projectId, centerId, semesterId, level, name])
+  @@index([projectId, centerId, semesterId, level])
+}
+
+model StudentExamScore {
+  id              String   @id @default(cuid())
+  examId          String
+  studentId       String
+  enrollmentId    String   // Reference to student's enrollment for validation
+  
+  // LSRW Skill Scores
+  listeningScore  Decimal  @db.Decimal(5, 2) // Score obtained in Listening
+  speakingScore   Decimal  @db.Decimal(5, 2) // Score obtained in Speaking
+  readingScore    Decimal  @db.Decimal(5, 2) // Score obtained in Reading
+  writingScore    Decimal  @db.Decimal(5, 2) // Score obtained in Writing
+  totalScore      Decimal  @db.Decimal(6, 2) // Total score (sum of LSRW)
+  
+  // Metadata
+  remarks         String?  // Optional remarks/comments
+  gradedBy        String?  // UserId of who graded/entered the scores
+  gradedAt        DateTime? // When the scores were entered
+  isAbsent        Boolean  @default(false) // If student was absent for the exam
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  exam            Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student         Students @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  enrollment      StudentEnrollments @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  grader          User?    @relation(fields: [gradedBy], references: [id])
+  
+  // Ensure one score entry per student per exam
+  @@unique([examId, studentId])
+  @@index([examId])
+  @@index([studentId])
+  @@index([enrollmentId])
 }

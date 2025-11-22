@@ -608,3 +608,196 @@ export interface ApiError {
   status?: number;
   details?: unknown;
 }
+
+// ============================================
+// SYLLABUS TYPES
+// ============================================
+
+export type Level =
+  | "LEVEL_1"
+  | "LEVEL_2"
+  | "LEVEL_3"
+  | "LEVEL_4"
+  | "PRIMARY_A"
+  | "PRIMARY_B";
+
+export type SyllabusTopicStatus = "PENDING" | "ONGOING" | "COMPLETED";
+
+export interface Syllabus {
+  id: string;
+  projectId: string;
+  centerId: string;
+  semesterId: string;
+  level: Level;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  project?: {
+    id: string;
+    name: string;
+  };
+  center?: {
+    id: string;
+    name: string;
+  };
+  semester?: {
+    id: string;
+    name: string;
+  };
+  topics?: SyllabusTopic[];
+  stats?: {
+    totalTopics: number;
+    pendingTopics: number;
+    ongoingTopics: number;
+    completedTopics: number;
+  };
+}
+
+export interface SyllabusTopic {
+  id: string;
+  syllabusId: string;
+  parentId?: string;
+  serialNumber: string;
+  title: string;
+  cycle?: string;
+  status: SyllabusTopicStatus;
+  orderIndex: number;
+  metadata?: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
+  parent?: {
+    id: string;
+    title: string;
+    serialNumber: string;
+  };
+  subtopics?: SyllabusTopic[];
+  recentProgress?: SyllabusProgressLog[];
+}
+
+export interface SyllabusProgressLog {
+  id: string;
+  topicId: string;
+  previousStatus: SyllabusTopicStatus;
+  newStatus: SyllabusTopicStatus;
+  updatedBy: string;
+  updatedByUser: {
+    id: string;
+    name: string;
+  };
+  notes?: string;
+  createdAt: string;
+}
+
+export interface SyllabusStatistics {
+  totalSyllabi: number;
+  totalTopics: number;
+  statusBreakdown: {
+    pending: number;
+    ongoing: number;
+    completed: number;
+  };
+  completionPercentage: number;
+  cycleBreakdown?: {
+    cycle: string;
+    total: number;
+    pending: number;
+    ongoing: number;
+    completed: number;
+  }[];
+  syllabusDetails?: {
+    id: string;
+    name: string;
+    level: Level;
+    totalTopics: number;
+    completedTopics: number;
+    completionPercentage: number;
+  }[];
+}
+
+// Request Types
+export interface CreateSyllabusRequest {
+  projectId: string;
+  centerId: string;
+  semesterId: string;
+  level: Level;
+  name: string;
+  description?: string;
+}
+
+export interface UpdateSyllabusRequest {
+  name?: string;
+  description?: string;
+  isActive?: boolean;
+}
+
+export interface CreateSyllabusTopicRequest {
+  syllabusId: string;
+  parentId?: string;
+  serialNumber: string;
+  title: string;
+  cycle?: string;
+  orderIndex: number;
+  metadata?: Record<string, any>;
+}
+
+export interface BulkCreateTopicsRequest {
+  syllabusId: string;
+  topics: {
+    parentId?: string;
+    serialNumber: string;
+    title: string;
+    cycle?: string;
+    orderIndex: number;
+    metadata?: Record<string, any>;
+  }[];
+}
+
+export interface UpdateSyllabusTopicRequest {
+  serialNumber?: string;
+  title?: string;
+  cycle?: string;
+  status?: SyllabusTopicStatus;
+  orderIndex?: number;
+  metadata?: Record<string, any>;
+}
+
+export interface UpdateTopicStatusRequest {
+  status: SyllabusTopicStatus;
+  notes?: string;
+}
+
+// Response Types
+export interface SyllabusResponse {
+  message: string;
+  data: Syllabus;
+}
+
+export interface SyllabiResponse {
+  message: string;
+  data: Syllabus[];
+  total: number;
+}
+
+export interface SyllabusTopicResponse {
+  message: string;
+  data: SyllabusTopic;
+}
+
+export interface SyllabusTopicsResponse {
+  message: string;
+  data: SyllabusTopic[];
+  total: number;
+}
+
+export interface SyllabusStatisticsResponse {
+  message: string;
+  data: SyllabusStatistics;
+}
+
+export interface ProgressLogsResponse {
+  message: string;
+  data: SyllabusProgressLog[];
+  total: number;
+}

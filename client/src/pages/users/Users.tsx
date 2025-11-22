@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Search, Users as UsersIcon, UserCheck, Crown, User as UserIcon, MapPin, Calendar, GraduationCap, Edit, Eye } from 'lucide-react';
 import { useUsers } from '@/hooks/useUserQueries';
+import { useProjects } from '@/hooks/useProjectQueries';
+import { useCenters } from '@/hooks/useCenterQueries';
+import { useSemesters } from '@/hooks/useSemesterQueries';
 import LoadingButterfly from '@/components/LoadingButterfly';
 import { ProfilePicture } from '@/components/ui';
 import type { User } from '@/types/api';
@@ -10,6 +13,10 @@ import type { User } from '@/types/api';
 const Users = () => {
     const navigate = useNavigate();
     const { data: users, isLoading, error } = useUsers();
+    const { data: projects = [] } = useProjects();
+    const { data: centers = [] } = useCenters();
+    const { data: semesters = [] } = useSemesters();
+
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [roleFilter, setRoleFilter] = useState<string>('ALL');
     const [centerFilter, setCenterFilter] = useState<string>('ALL');
@@ -17,6 +24,19 @@ const Users = () => {
 
     // Define role order for sorting (Admin first, then User)
     const roleOrder = ['ADMIN', 'USER'];
+
+    // Create lookup maps for quick access
+    const projectsMap = useMemo(() => {
+        return new Map(projects.map(p => [p.id, p]));
+    }, [projects]);
+
+    const centersMap = useMemo(() => {
+        return new Map(centers.map(c => [c.id, c]));
+    }, [centers]);
+
+    const semestersMap = useMemo(() => {
+        return new Map(semesters.map(s => [s.id, s]));
+    }, [semesters]);
 
     // Filter and sort users (only show approved users)
     const filteredUsers = users?.filter(user => {
@@ -88,24 +108,55 @@ const Users = () => {
 
         return (
             <div className="space-y-2">
-                {activeAssignments.slice(0, 2).map((assignment) => (
-                    <div key={assignment.id} className="text-xs sm:text-sm text-gray-600 p-2 bg-orange-50 rounded-md border border-orange-100">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
-                            <span className="font-medium text-gray-800">{assignment.subRole.replace(/_/g, ' ')}</span>
-                            {assignment.level && (
-                                <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-medium self-start sm:self-auto">
-                                    {assignment.level.replace(/_/g, ' ')}
-                                </span>
+                {activeAssignments.slice(0, 2).map((assignment) => {
+                    const project = assignment.projectId ? projectsMap.get(assignment.projectId) : null;
+                    const center = assignment.centerId ? centersMap.get(assignment.centerId) : null;
+                    const semester = assignment.semesterId ? semestersMap.get(assignment.semesterId) : null;
+
+                    return (
+                        <div key={assignment.id} className="text-xs sm:text-sm text-gray-600 p-2 bg-orange-50 rounded-md border border-orange-100">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 mb-1">
+                                <span className="font-medium text-gray-800">{assignment.subRole.replace(/_/g, ' ')}</span>
+                                {/* Only show level for EDUCATOR role */}
+                                {assignment.subRole === 'EDUCATOR' && assignment.level && (
+                                    <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-medium self-start sm:self-auto">
+                                        {assignment.level.replace(/_/g, ' ')}
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Show project, center, and semester information */}
+                            <div className="space-y-1 text-xs text-gray-600">
+                                {project && (
+                                    <div className="flex items-center">
+                                        <span className="text-gray-500 mr-1">📁</span>
+                                        <span>{project.name}</span>
+                                    </div>
+                                )}
+                                {center && (
+                                    <div className="flex items-center">
+                                        <span className="text-gray-500 mr-1">📍</span>
+                                        <span>{center.name}</span>
+                                    </div>
+                                )}
+                                {semester && (
+                                    <div className="flex items-center">
+                                        <span className="text-gray-500 mr-1">📅</span>
+                                        <span>{semester.name}</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Only show committed days for CENTER_MANAGER and EDUCATOR roles */}
+                            {(assignment.subRole === 'CENTER_MANAGER' || assignment.subRole === 'EDUCATOR') && assignment.committedDays && (
+                                <div className="flex items-center mt-1 text-xs text-gray-600">
+                                    <Calendar className="w-3 h-3 mr-1" />
+                                    <span>{assignment.committedDays}</span>
+                                </div>
                             )}
                         </div>
-                        {assignment.committedDays && (
-                            <div className="flex items-center mt-1 text-xs text-gray-600">
-                                <Calendar className="w-3 h-3 mr-1" />
-                                <span>{assignment.committedDays}</span>
-                            </div>
-                        )}
-                    </div>
-                ))}
+                    );
+                })}
                 {activeAssignments.length > 2 && (
                     <div className="text-xs text-gray-500 mt-1 font-medium">
                         +{activeAssignments.length - 2} more assignment{activeAssignments.length - 2 > 1 ? 's' : ''}
@@ -113,9 +164,7 @@ const Users = () => {
                 )}
             </div>
         );
-    };
-
-    if (isLoading) {
+    }; if (isLoading) {
         return (
             <div className="flex justify-center items-center min-h-[400px]">
                 <LoadingButterfly size="md" />

@@ -8,6 +8,8 @@ import { centerRoutes } from "./routes/center.routes.js";
 import { semesterRoutes } from "./routes/semester.routes.js";
 import attendanceRoutes from "./routes/attendance.routes.js";
 import studentAttendanceRoutes from "./routes/student-attendance.routes.js";
+import syllabusRoutes from "./routes/syllabus.routes.js";
+import examRoutes from "./routes/exam.routes.js";
 
 // Load environment variables from .env file
 dotenv.config();
@@ -19,7 +21,7 @@ const fastify: FastifyInstance = Fastify();
 fastify.register(import("@fastify/cors"), {
   origin: true, // Allow all origins
   credentials: true, // Allow credentials
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 });
 
 // Health check endpoint
@@ -40,6 +42,8 @@ fastify.register(attendanceRoutes, { prefix: "/api/v1/attendance" });
 fastify.register(studentAttendanceRoutes, {
   prefix: "/api/v1/student-attendance",
 });
+fastify.register(syllabusRoutes, { prefix: "/api/v1/syllabus" });
+fastify.register(examRoutes, { prefix: "/api/v1/exams" });
 
 // Start the server for local development and Azure (but not Vercel)
 // Vercel uses serverless functions, so we skip server startup there

@@ -1,7 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { Toaster } from 'react-hot-toast'
 import DoodleBackground from '@/components/DoodleBackground'
 import LoadingButterfly from '@/components/LoadingButterfly'
@@ -37,12 +36,22 @@ const MarkAttendance = lazy(() => import('./pages/attendance/MarkAttendance').th
 const Renumeration = lazy(() => import('./pages/attendance/Renumeration').then(module => ({ default: module.Renumeration })))
 const ViewStudentAttendance = lazy(() => import('./pages/student-attendance/ViewStudentAttendance').then(module => ({ default: module.ViewStudentAttendance })))
 const MarkStudentAttendance = lazy(() => import('./pages/student-attendance/MarkStudentAttendance').then(module => ({ default: module.MarkStudentAttendance })))
+const SyllabusManagement = lazy(() => import('./pages/syllabus').then(module => ({ default: module.SyllabusManagement })))
+const CreateSyllabus = lazy(() => import('./pages/syllabus').then(module => ({ default: module.CreateSyllabus })))
+const EditSyllabus = lazy(() => import('./pages/syllabus').then(module => ({ default: module.EditSyllabus })))
+const SyllabusProgress = lazy(() => import('./pages/syllabus').then(module => ({ default: module.SyllabusProgress })))
+const ExamManagement = lazy(() => import('./pages/exams').then(module => ({ default: module.ExamManagement })))
+const CreateExam = lazy(() => import('./pages/exams').then(module => ({ default: module.CreateExam })))
+const EditExam = lazy(() => import('./pages/exams').then(module => ({ default: module.EditExam })))
+const ExamScores = lazy(() => import('./pages/exams').then(module => ({ default: module.ExamScores })))
 const RegistrationRequests = lazy(() => import('./pages/RegistrationRequests'))
 const Users = lazy(() => import('./pages/users/Users'))
 const UserDetails = lazy(() => import('./pages/users/UserDetails'))
 const EditUser = lazy(() => import('./pages/users/EditUser'))
 const Profile = lazy(() => import('./pages/Profile'))
 const BankDetails = lazy(() => import('./pages/BankDetails'))
+const Library = lazy(() => import('./pages/library/Library'))
+const BookReader = lazy(() => import('./pages/library/BookReader'))
 
 
 // Loading fallback component
@@ -154,6 +163,72 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
+                {/* Syllabus Routes */}
+                <Route
+                  path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/syllabus"
+                  element={
+                    <ProtectedRoute allowedSubRoles={['CURRICULUM_MENTOR']}>
+                      <SyllabusManagement />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/syllabus/create"
+                  element={
+                    <ProtectedRoute allowedSubRoles={['CURRICULUM_MENTOR']}>
+                      <CreateSyllabus />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/syllabus/:syllabusId/edit"
+                  element={
+                    <ProtectedRoute allowedSubRoles={['CURRICULUM_MENTOR']}>
+                      <EditSyllabus />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/syllabus/:syllabusId/progress"
+                  element={
+                    <ProtectedRoute>
+                      <SyllabusProgress />
+                    </ProtectedRoute>
+                  }
+                />
+                {/* Exam Routes */}
+                <Route
+                  path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/exams"
+                  element={
+                    <ProtectedRoute>
+                      <ExamManagement />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/exams/create"
+                  element={
+                    <ProtectedRoute allowedSubRoles={['CENTER_MANAGER', 'CURRICULUM_MENTOR']}>
+                      <CreateExam />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/exams/:examId/edit"
+                  element={
+                    <ProtectedRoute allowedSubRoles={['CENTER_MANAGER', 'CURRICULUM_MENTOR']}>
+                      <EditExam />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/exams/:examId/scores"
+                  element={
+                    <ProtectedRoute>
+                      <ExamScores />
+                    </ProtectedRoute>
+                  }
+                />
               </Route>
 
               <Route
@@ -191,6 +266,26 @@ function App() {
                 <Route path=":userId/details" element={<UserDetails />} />
                 <Route path=":userId/edit" element={<EditUser />} />
               </Route>
+
+              <Route
+                path="/library"
+                element={
+                  <ProtectedRoute>
+                    <Layout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<Library />} />
+              </Route>
+
+              <Route
+                path="/library/:bookId"
+                element={
+                  <ProtectedRoute>
+                    <BookReader />
+                  </ProtectedRoute>
+                }
+              />
 
               {/* Redirect any unmatched routes to home */}
               <Route path="*" element={<Navigate to="/" replace />} />
@@ -238,7 +333,7 @@ function App() {
         {/* PWA Install Prompt */}
         <PWAInstallPrompt />
 
-        {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
+        {/* {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />} */}
       </QueryClientProvider>
     </>
   )

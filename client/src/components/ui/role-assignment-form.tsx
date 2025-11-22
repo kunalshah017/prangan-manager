@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/lib/button-variants';
 import { useProjects } from '@/hooks/useProjectQueries';
 import { useCenters } from '@/hooks/useCenterQueries';
-import { useSemestersByCenter } from '@/hooks/useSemesterQueries';
+import { useSemesters } from '@/hooks/useSemesterQueries';
 import type { RoleAssignment, Center, Semester } from '@/types/api';
 
 interface RoleAssignmentFormProps {
@@ -47,21 +47,16 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
 }) => {
     const { data: projects = [] } = useProjects();
 
-    // Fetch all centers instead of project-specific ones for now
+    // Fetch all centers
     const { data: allCenters = [] } = useCenters();
 
-    // Get the first center that's selected to fetch its semesters
-    const firstSelectedCenter = roleAssignments.find(ra => ra.centerId)?.centerId || '';
-
-    // Fetch semesters for the first selected center
-    const { data: semestersForCenter = [] } = useSemestersByCenter(firstSelectedCenter);
+    // Fetch all semesters at once
+    const { data: allSemesters = [] } = useSemesters();
 
     // Create mappings that make data available for all projects/centers
     const centersByProject = useMemo(() => {
         const result: Record<string, Center[]> = {};
 
-        // Make all centers available for all projects
-        // In a production app, you'd filter centers by project
         projects.forEach(project => {
             result[project.id] = allCenters.filter(center => center.projectId === project.id);
         });
@@ -69,18 +64,16 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
         return result;
     }, [allCenters, projects]);
 
+    // Build semester mappings from all semesters
     const semestersByCenter = useMemo(() => {
         const result: Record<string, Semester[]> = {};
 
-        // For now, make the same semesters available for all centers
-        // In a production app, you'd need to fetch semesters for each center individually
         allCenters.forEach(center => {
-            // We only have semester data for the selected center, so use that for all
-            result[center.id] = semestersForCenter;
+            result[center.id] = allSemesters.filter(s => s.centerId === center.id);
         });
 
         return result;
-    }, [semestersForCenter, allCenters]);
+    }, [allCenters, allSemesters]);
 
     // Duplicate validation and mandatory field validation logic
     const validateRoleAssignments = useMemo(() => {
@@ -174,30 +167,62 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
             }
         } else if (field === 'projectId') {
             assignment.projectId = value;
-            // Clear center and semester if project changes
-            delete assignment.centerId;
-            delete assignment.semesterId;
+
+            // Clear center and semester if project changes (unless they're empty)
+            if (assignment.centerId || assignment.semesterId) {
+                // Check if the current center belongs to the new project
+                if (value && assignment.centerId) {
+                    const center = allCenters.find(c => c.id === assignment.centerId);
+                    if (center && center.projectId !== value) {
+                        // Center doesn't belong to new project, clear it and semester
+                        delete assignment.centerId;
+                        delete assignment.semesterId;
+                    }
+                } else if (!value) {
+                    // Project cleared, clear everything
+                    delete assignment.centerId;
+                    delete assignment.semesterId;
+                }
+            }
         } else if (field === 'centerId') {
             assignment.centerId = value;
-            // Clear semester if center changes
-            delete assignment.semesterId;
-            // Auto-assign project if center is selected
-            if (value) {
-                const center = Object.values(centersByProject).flat().find(c => c.id === value);
+
+            // Only auto-assign project if it's not already set
+            if (value && !assignment.projectId) {
+                const center = allCenters.find(c => c.id === value);
                 if (center && center.projectId) {
                     assignment.projectId = center.projectId;
                 }
             }
+
+            // Only clear semester if it doesn't belong to this center
+            if (value && assignment.semesterId) {
+                const semester = allSemesters.find(s => s.id === assignment.semesterId);
+                if (semester && semester.centerId !== value) {
+                    delete assignment.semesterId;
+                }
+            } else if (!value) {
+                // Clear semester if center is cleared
+                delete assignment.semesterId;
+            }
         } else if (field === 'semesterId') {
             assignment.semesterId = value;
-            // Auto-assign center and project if semester is selected
+
+            // Only auto-assign center and project if they're not already set
             if (value) {
-                const semester = Object.values(semestersByCenter).flat().find(s => s.id === value);
+                const semester = allSemesters.find(s => s.id === value);
                 if (semester) {
-                    assignment.centerId = semester.centerId;
-                    const center = Object.values(centersByProject).flat().find(c => c.id === semester.centerId);
-                    if (center && center.projectId) {
-                        assignment.projectId = center.projectId;
+                    // Only set center if empty or if current center doesn't match
+                    if (!assignment.centerId) {
+                        assignment.centerId = semester.centerId;
+                    }
+
+                    // Only set project if empty
+                    if (!assignment.projectId) {
+                        const center = allCenters.find(c => c.id === semester.centerId);
+                        if (center && center.projectId) {
+                            assignment.projectId = center.projectId;
+                        }
                     }
                 }
             }

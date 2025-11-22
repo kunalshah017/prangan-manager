@@ -12,6 +12,17 @@ import type {
 } from "@/types/api";
 
 // Semester Queries
+export const useSemesters = () => {
+  return useQuery({
+    queryKey: queryKeys.semesters,
+    queryFn: async (): Promise<Semester[]> => {
+      const response = await api.get<SemestersResponse>("/semesters");
+      return response.semesters;
+    },
+    staleTime: 5 * 60 * 1000, // Semester data stays fresh for 5 minutes
+  });
+};
+
 export const useSemester = (id: string) => {
   return useQuery({
     queryKey: queryKeys.semester(id),

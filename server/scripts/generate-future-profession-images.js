@@ -399,9 +399,17 @@ async function main() {
   const progress = loadProgress();
   const processedIds = progress.processedStudents.map((p) => p.studentId);
 
+  // Identify students who were skipped but now have professions
+  const studentsToRegenerate = progress.processedStudents.filter(
+    (p) => p.status === "skipped" && (!p.profession || p.profession === null)
+  );
+
   console.log(`📊 Progress loaded:`);
   console.log(`   - Processed: ${progress.processedStudents.length}`);
   console.log(`   - Failed: ${progress.failedStudents.length}`);
+  console.log(
+    `   - Previously skipped (no profession): ${studentsToRegenerate.length}`
+  );
   console.log(`   - Last run: ${progress.lastProcessedAt || "Never"}\n`);
 
   // Fetch students
@@ -418,16 +426,59 @@ async function main() {
     },
   });
 
-  console.log(`📚 Total students in database: ${students.length}\n`);
+  // Check for students who were previously skipped but now have professions
+  const studentsWithUpdatedProfessions = [];
+  for (const student of students) {
+    const previousEntry = progress.processedStudents.find(
+      (p) => p.studentId === student.id
+    );
+    if (
+      previousEntry &&
+      previousEntry.status === "skipped" &&
+      (!previousEntry.profession || previousEntry.profession === null) &&
+      student.futureProfession &&
+      student.futureProfession.trim() !== ""
+    ) {
+      studentsWithUpdatedProfessions.push(student);
+      // Remove from progress so they can be reprocessed
+      const index = progress.processedStudents.findIndex(
+        (p) => p.studentId === student.id
+      );
+      if (index !== -1) {
+        progress.processedStudents.splice(index, 1);
+      }
+    }
+  }
+
+  if (studentsWithUpdatedProfessions.length > 0) {
+    console.log(
+      `🔄 Detected ${studentsWithUpdatedProfessions.length} students with NEW professions (previously skipped):
+`
+    );
+    studentsWithUpdatedProfessions.forEach((s) => {
+      console.log(`   - ${s.name}: ${s.futureProfession}`);
+    });
+    console.log("\n💡 These will be prioritized for processing in this run.\n");
+    // Save the updated progress after removing skipped students
+    saveProgress(progress);
+  }
+
+  // Filter out already processed students (using updated progress)
+  const processedIdsSet = new Set(
+    progress.processedStudents.map((p) => p.studentId)
+  );
+  students = students.filter((s) => !processedIdsSet.has(s.id));
+
+  console.log(`📚 Unprocessed students: ${students.length}\n`);
 
   // Filter based on mode
   if (mode === "--trial") {
     console.log("🧪 TRIAL MODE: Processing first 2 students only\n");
-    students = students.filter((s) => !processedIds.includes(s.id)).slice(0, 2);
+    students = students.slice(0, 2);
   } else if (mode === "--full") {
-    console.log("� FULL MODE: Processing next 5 unprocessed students\n");
-    console.log("� Run the script again to continue with next batch\n");
-    students = students.filter((s) => !processedIds.includes(s.id)).slice(0, 5);
+    console.log("🎯 FULL MODE: Processing next 5 unprocessed students\n");
+    console.log("🔄 Run the script again to continue with next batch\n");
+    students = students.slice(0, 5);
   } else {
     console.error(`❌ Unknown mode: ${mode}`);
     console.log("\nUsage:");

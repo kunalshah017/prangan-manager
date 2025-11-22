@@ -65,6 +65,14 @@ export const queryKeys = {
   students: ["students"] as const,
   student: (id: string) => ["students", id] as const,
   studentsByLevel: (level: string) => ["students", "level", level] as const,
+
+  // Syllabus
+  syllabi: ["syllabi"] as const,
+  syllabus: (id: string) => ["syllabi", id] as const,
+  syllabusTopics: ["syllabus-topics"] as const,
+  syllabusTopic: (id: string) => ["syllabus-topics", id] as const,
+  syllabusStatistics: ["syllabus-statistics"] as const,
+  progressLogs: ["progress-logs"] as const,
 };
 
 export default queryClient;
