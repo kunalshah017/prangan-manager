@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Save, UserCheck, UserX, TrendingUp, Award, Filter, Edit, X } from 'lucide-react';
+import { Save, UserCheck, UserX, TrendingUp, Award, Edit, X } from 'lucide-react';
 import DoodleBackground from '@/components/DoodleBackground';
 import { CustomButton } from '@/components/ui/custom-button';
 import {
@@ -35,8 +35,6 @@ interface EditModalState {
     originalIndex: number;
 }
 
-type Level = 'ALL' | 'LEVEL_1' | 'LEVEL_2' | 'LEVEL_3' | 'LEVEL_4' | 'PRIMARY_A' | 'PRIMARY_B';
-
 export default function ExamScores() {
     const navigate = useNavigate();
     const { projectId, centerId, semesterId, examId } = useParams<{
@@ -64,7 +62,6 @@ export default function ExamScores() {
 
     const [scoreEntries, setScoreEntries] = useState<ScoreEntry[]>([]);
     const [showStats, setShowStats] = useState(false);
-    const [selectedLevel, setSelectedLevel] = useState<Level>('ALL');
     const [showAbsentStudents, setShowAbsentStudents] = useState(true);
     const [marksUpdatePending, setMarksUpdatePending] = useState(false);
     const [editModal, setEditModal] = useState<EditModalState>({
@@ -91,18 +88,17 @@ export default function ExamScores() {
 
     useEffect(() => {
         if (exam && attendanceData?.attendance && existingScores) {
-            // Include all students (both PRESENT and ABSENT)
-            const allStudents = attendanceData.attendance;
+            // Filter students to only include those matching the exam's level
+            const levelFilteredStudents = attendanceData.attendance.filter(
+                (record: StudentAttendanceRecord) => record.enrollment?.level === exam.level
+            );
 
-            const entries: ScoreEntry[] = allStudents.map((record: StudentAttendanceRecord) => {
+            const entries: ScoreEntry[] = levelFilteredStudents.map((record: StudentAttendanceRecord) => {
                 const student = record.student;
                 const enrollment = record.enrollment;
                 const existingScore = existingScores.find(
                     (s: StudentExamScore) => s.studentId === student?.id
                 );
-
-                // Sync isAbsent from attendance status
-                const isAbsent = record.status === 'ABSENT' || record.status === 'HOLIDAY';
 
                 return {
                     studentId: student?.id || '',
@@ -113,7 +109,7 @@ export default function ExamScores() {
                     speakingScore: existingScore?.speakingScore || 0,
                     readingScore: existingScore?.readingScore || 0,
                     writingScore: existingScore?.writingScore || 0,
-                    isAbsent: isAbsent, // Synced from attendance data
+                    isAbsent: existingScore?.isAbsent || false, // Manual control, not synced
                     existingScoreId: existingScore?.id,
                 };
             });
@@ -124,11 +120,6 @@ export default function ExamScores() {
 
     const filteredEntries = useMemo(() => {
         let filtered = scoreEntries;
-
-        // Filter by level
-        if (selectedLevel !== 'ALL') {
-            filtered = filtered.filter((entry) => entry.studentLevel === selectedLevel);
-        }
 
         // Filter by attendance status
         if (!showAbsentStudents) {
@@ -141,12 +132,7 @@ export default function ExamScores() {
         }
 
         return filtered;
-    }, [scoreEntries, selectedLevel, showAbsentStudents, marksUpdatePending]);
-
-    const availableLevels = useMemo(() => {
-        const levels = new Set(scoreEntries.map((entry) => entry.studentLevel));
-        return ['ALL', ...Array.from(levels).sort()] as Level[];
-    }, [scoreEntries]);
+    }, [scoreEntries, showAbsentStudents, marksUpdatePending]);
 
     const calculateTotal = (entry: ScoreEntry) => {
         if (entry.isAbsent) return 0;
@@ -166,8 +152,6 @@ export default function ExamScores() {
 
     const handleScoreChange = (field: keyof ScoreEntry, value: number | boolean) => {
         if (!tempScores) return;
-        // Prevent changing isAbsent as it's synced from attendance
-        if (field === 'isAbsent') return;
 
         const updated = { ...tempScores, [field]: value };
         setTempScores(updated);
@@ -345,30 +329,6 @@ export default function ExamScores() {
                         </div>
                     )}
 
-                    {/* Level Filter */}
-                    {availableLevels.length > 1 && (
-                        <div className="mb-4 bg-white/80 backdrop-blur-sm rounded-xl shadow-lg p-3 border border-orange-100">
-                            <div className="flex items-center gap-2 mb-2">
-                                <Filter className="w-4 h-4 text-gray-600" />
-                                <label className="text-sm font-medium text-gray-700">Filter by Level:</label>
-                            </div>
-                            <div className="flex gap-2 flex-wrap">
-                                {availableLevels.map((level) => (
-                                    <button
-                                        key={level}
-                                        onClick={() => setSelectedLevel(level)}
-                                        className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${selectedLevel === level
-                                            ? 'bg-orange-500 text-white shadow-md'
-                                            : 'bg-white text-gray-700 hover:bg-orange-50 border border-gray-300'
-                                            }`}
-                                    >
-                                        {level === 'ALL' ? 'All' : level.replace('_', ' ')}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
                     {/* Student Cards - Mobile Friendly */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                         {filteredEntries.map((entry) => (
@@ -455,9 +415,7 @@ export default function ExamScores() {
                             <p className="text-gray-500 text-sm sm:text-base">
                                 {marksUpdatePending
                                     ? 'No students with pending marks updates.'
-                                    : selectedLevel === 'ALL'
-                                        ? 'No students found for this exam date.'
-                                        : `No ${selectedLevel.replace('_', ' ')} students found for this exam date.`}
+                                    : 'No students found for this exam date.'}
                             </p>
                         </div>
                     )}
@@ -479,16 +437,21 @@ export default function ExamScores() {
                         </div>
 
                         <div className="p-4 space-y-4">
-                            {/* Attendance Status Display */}
-                            {tempScores.isAbsent && (
-                                <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2">
-                                    <UserX className="w-5 h-5 text-red-600" />
+                            {/* Attendance Status Toggle */}
+                            <div className={`${tempScores.isAbsent ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'} border rounded-xl p-3`}>
+                                <label className="flex items-center gap-3 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={tempScores.isAbsent}
+                                        onChange={(e) => handleScoreChange('isAbsent', e.target.checked)}
+                                        className="w-5 h-5 text-orange-600 rounded focus:ring-2 focus:ring-orange-500"
+                                    />
                                     <div>
-                                        <p className="text-sm font-medium text-red-800">Student marked as Absent</p>
-                                        <p className="text-xs text-red-600">Attendance synced from attendance records</p>
+                                        <p className="text-sm font-medium text-gray-800">Mark as Absent</p>
+                                        <p className="text-xs text-gray-600">Student did not attend the exam</p>
                                     </div>
-                                </div>
-                            )}
+                                </label>
+                            </div>
 
                             {/* Score Inputs */}
                             <div className="space-y-3">

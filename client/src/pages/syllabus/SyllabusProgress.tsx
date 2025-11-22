@@ -328,8 +328,14 @@ const SyllabusProgress = () => {
                                                     if (day === 0 || day === 6) weekendDayCount++;
                                                 }
 
+                                                // Only show as delayed (red) if topic has NO subtopics
+                                                const isDelayed = weekendDayCount > 6 && !hasSubtopics;
+
                                                 return weekendDayCount > 0 ? (
-                                                    <span className="ml-1 text-blue-600 font-medium">
+                                                    <span className={cn(
+                                                        "ml-1 font-medium",
+                                                        isDelayed ? "text-red-600" : "text-blue-600"
+                                                    )}>
                                                         • Ongoing for {weekendDayCount} day{weekendDayCount > 1 ? 's' : ''}
                                                     </span>
                                                 ) : null;

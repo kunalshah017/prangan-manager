@@ -59,6 +59,7 @@ export const createExamController = async (
       !data.centerId ||
       !data.semesterId ||
       !data.level ||
+      !data.cycle ||
       !data.name ||
       !data.examDate ||
       data.listeningMaxMarks === undefined ||

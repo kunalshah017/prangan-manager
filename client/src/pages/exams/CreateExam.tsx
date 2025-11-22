@@ -6,7 +6,7 @@ import { CustomButton } from '@/components/ui/custom-button';
 import { useCreateExam, useSemester } from '@/hooks';
 import { useAuth } from '@/hooks/useAuth';
 import toast from 'react-hot-toast';
-import type { Level } from '@/types/exam';
+import type { Level, ExamCycle } from '@/types/exam';
 
 const CreateExam = () => {
     const { projectId, centerId, semesterId } = useParams<{
@@ -20,6 +20,7 @@ const CreateExam = () => {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [level, setLevel] = useState<Level>('LEVEL_1');
+    const [cycle, setCycle] = useState<ExamCycle>('SA_1');
     const [examDate, setExamDate] = useState('');
     const [listeningMaxMarks, setListeningMaxMarks] = useState<number>(25);
     const [speakingMaxMarks, setSpeakingMaxMarks] = useState<number>(25);
@@ -89,6 +90,7 @@ const CreateExam = () => {
                 centerId,
                 semesterId,
                 level,
+                cycle,
                 name: name.trim(),
                 description: description.trim() || undefined,
                 examDate,
@@ -170,7 +172,7 @@ const CreateExam = () => {
                             />
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div>
                                 <label htmlFor="level" className="block text-sm font-medium mb-1.5">
                                     Level <span className="text-red-500">*</span>
@@ -188,6 +190,23 @@ const CreateExam = () => {
                                     <option value="LEVEL_2">Level 2</option>
                                     <option value="LEVEL_3">Level 3</option>
                                     <option value="LEVEL_4">Level 4</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label htmlFor="cycle" className="block text-sm font-medium mb-1.5">
+                                    Exam Cycle <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                    id="cycle"
+                                    value={cycle}
+                                    onChange={(e) => setCycle(e.target.value as ExamCycle)}
+                                    className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                    required
+                                >
+                                    <option value="SA_1">SA-1</option>
+                                    <option value="SA_2">SA-2</option>
+                                    <option value="SA_3">SA-3</option>
                                 </select>
                             </div>
 

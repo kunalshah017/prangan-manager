@@ -1276,12 +1276,65 @@ async function createTopicsRecursively(
   }
 }
 
+// Helper function to seed syllabi for a specific center
+async function seedSyllabiForCenter(
+  project: any,
+  center: any,
+  semester: any,
+  syllabi: SyllabusData[]
+) {
+  console.log(`\n📍 Processing center: ${center.name}`);
+  console.log(`   Project: ${project.name}`);
+  console.log(`   Semester: ${semester.name}`);
+
+  for (const syllabusData of syllabi) {
+    console.log(`\n📖 Creating syllabus: ${syllabusData.name}`);
+
+    // Check if syllabus already exists
+    const existingSyllabus = await prisma.syllabus.findFirst({
+      where: {
+        projectId: project.id,
+        centerId: center.id,
+        semesterId: semester.id,
+        level: syllabusData.level,
+        name: syllabusData.name,
+      },
+    });
+
+    if (existingSyllabus) {
+      console.log(`⚠️  Syllabus already exists, skipping...`);
+      continue;
+    }
+
+    // Create the syllabus
+    const syllabus = await prisma.syllabus.create({
+      data: {
+        projectId: project.id,
+        centerId: center.id,
+        semesterId: semester.id,
+        level: syllabusData.level,
+        name: syllabusData.name,
+        description: syllabusData.description,
+        isActive: true,
+      },
+    });
+
+    console.log(`✓ Created syllabus: ${syllabus.name}`);
+    console.log(`  Creating ${syllabusData.topics.length} topics...`);
+
+    // Create all topics for this syllabus
+    await createTopicsRecursively(syllabus.id, syllabusData.topics);
+
+    console.log(`✅ Completed ${syllabusData.name}`);
+  }
+}
+
 // Main seed function
 async function seedSyllabus() {
   console.log("🌱 Starting syllabus seed...\n");
 
   try {
-    // Get the first active project, center, and semester for seeding
+    // Get the first active project
     const project = await prisma.projects.findFirst({
       where: { status: "ACTIVE" },
     });
@@ -1293,79 +1346,78 @@ async function seedSyllabus() {
       return;
     }
 
-    const center = await prisma.centers.findFirst({
-      where: { projectId: project.id },
+    // Get Lavender center
+    const lavenderCenter = await prisma.centers.findFirst({
+      where: {
+        projectId: project.id,
+        name: { contains: "Lavender", mode: "insensitive" },
+      },
     });
 
-    if (!center) {
-      console.error("❌ No center found. Please create a center first.");
+    // Get Tulip center
+    const tulipCenter = await prisma.centers.findFirst({
+      where: {
+        projectId: project.id,
+        name: { contains: "Tulip", mode: "insensitive" },
+      },
+    });
+
+    if (!lavenderCenter && !tulipCenter) {
+      console.error(
+        "❌ Neither Lavender nor Tulip center found. Please create centers first."
+      );
       return;
     }
 
-    const semester = await prisma.semesters.findFirst({
-      where: { centerId: center.id },
-    });
-
-    if (!semester) {
-      console.error("❌ No semester found. Please create a semester first.");
-      return;
-    }
-
-    console.log(`📚 Using context:`);
-    console.log(`   Project: ${project.name}`);
-    console.log(`   Center: ${center.name}`);
-    console.log(`   Semester: ${semester.name}\n`);
-
-    // Array of all syllabi to seed
-    const allSyllabi: SyllabusData[] = [
-      primaryASyllabus,
-      primaryBSyllabus,
-      level1Syllabus,
-      level2Syllabus,
-      level3Syllabus,
-      level4Syllabus,
-    ];
-
-    // Process each syllabus
-    for (const syllabusData of allSyllabi) {
-      console.log(`\n📖 Creating syllabus: ${syllabusData.name}`);
-
-      // Check if syllabus already exists
-      const existingSyllabus = await prisma.syllabus.findFirst({
-        where: {
-          projectId: project.id,
-          centerId: center.id,
-          semesterId: semester.id,
-          level: syllabusData.level,
-          name: syllabusData.name,
-        },
+    // Process Lavender center: Primary B, Level 1, Level 2
+    if (lavenderCenter) {
+      const lavenderSemester = await prisma.semesters.findFirst({
+        where: { centerId: lavenderCenter.id },
       });
 
-      if (existingSyllabus) {
-        console.log(`⚠️  Syllabus already exists, skipping...`);
-        continue;
+      if (lavenderSemester) {
+        const lavenderSyllabi: SyllabusData[] = [
+          primaryBSyllabus,
+          level1Syllabus,
+          level2Syllabus,
+        ];
+
+        await seedSyllabiForCenter(
+          project,
+          lavenderCenter,
+          lavenderSemester,
+          lavenderSyllabi
+        );
+      } else {
+        console.log(`⚠️  No semester found for Lavender center, skipping...`);
       }
+    }
 
-      // Create the syllabus
-      const syllabus = await prisma.syllabus.create({
-        data: {
-          projectId: project.id,
-          centerId: center.id,
-          semesterId: semester.id,
-          level: syllabusData.level,
-          name: syllabusData.name,
-          description: syllabusData.description,
-          isActive: true,
-        },
+    // Process Tulip center: All syllabi (Primary A, B, Level 1, 2, 3, 4)
+    if (tulipCenter) {
+      const tulipSemester = await prisma.semesters.findFirst({
+        where: { centerId: tulipCenter.id },
       });
 
-      console.log(`✓ Created syllabus: ${syllabus.name}`);
-      console.log(`  Creating ${syllabusData.topics.length} topics...`);
+      if (tulipSemester) {
+        const tulipSyllabi: SyllabusData[] = [
+          primaryASyllabus,
+          primaryBSyllabus,
+          level1Syllabus,
+          level2Syllabus,
+          level3Syllabus,
+          level4Syllabus,
+        ];
 
-      // Create all topics for this syllabus
-      await createTopicsRecursively(syllabus.id, syllabusData.topics);
-
-      console.log(`✅ Completed ${syllabusData.name}`);
+        await seedSyllabiForCenter(
+          project,
+          tulipCenter,
+          tulipSemester,
+          tulipSyllabi
+        );
+      } else {
+        console.log(`⚠️  No semester found for Tulip center, skipping...`);
+      }
     }
 
     console.log("\n🎉 Syllabus seeding completed successfully!");

@@ -395,13 +395,16 @@ const Dashboard = () => {
                 return;
             }
 
+            // Check if topic has subtopics
+            const hasSubtopics = topic.subtopics && topic.subtopics.length > 0;
+
             // Get the most recent progress log for main topic
             const topicProgress = Array.isArray(topic.recentProgress) && topic.recentProgress.length > 0
                 ? topic.recentProgress[0]
                 : null;
 
-            // Add main topic if it has progress
-            if (topicProgress?.createdAt) {
+            // Only add main topic if it has progress AND no subtopics
+            if (topicProgress?.createdAt && !hasSubtopics) {
                 const weekendDays = calculateWeekendDays(new Date(topicProgress.createdAt));
                 allItems.push({
                     id: topic.id,
@@ -447,13 +450,13 @@ const Dashboard = () => {
             };
         }
 
-        // For other roles: only show delayed subtopics (>6 days)
-        const delayedSubtopics = allItems.filter(item => item.isSubtopic && item.weekendDays > 6);
+        // For other roles: show delayed topics and subtopics (>6 days)
+        const delayedItems = allItems.filter(item => item.weekendDays > 6);
 
-        if (delayedSubtopics.length > 0) {
+        if (delayedItems.length > 0) {
             return {
                 userRole: 'OTHER',
-                delayedSubtopics,
+                delayedSubtopics: delayedItems,
                 showAll: false,
             };
         }

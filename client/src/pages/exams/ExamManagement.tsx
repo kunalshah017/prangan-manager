@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Plus, Trash2, Edit, ClipboardList, BarChart3, Calendar } from 'lucide-react';
+import { Plus, Trash2, Edit, ClipboardList, BarChart3, Calendar, Filter } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/lib/button-variants';
@@ -12,6 +12,15 @@ import { useExams, useDeleteExam } from '@/hooks';
 import { useAuth } from '@/hooks/useAuth';
 import type { Exam } from '@/types/exam';
 import toast from 'react-hot-toast';
+
+const getCycleDisplay = (cycle: string): string => {
+    const cycleMap: Record<string, string> = {
+        SA_1: 'SA-1',
+        SA_2: 'SA-2',
+        SA_3: 'SA-3',
+    };
+    return cycleMap[cycle] || cycle;
+};
 
 const ExamManagement = () => {
     const { projectId, centerId, semesterId } = useParams<{
@@ -29,6 +38,8 @@ const ExamManagement = () => {
         isActive: boolean;
         deleteType: 'soft' | 'hard' | null;
     } | null>(null);
+    const [selectedLevel, setSelectedLevel] = useState<string>('ALL');
+    const [selectedCycle, setSelectedCycle] = useState<string>('ALL');
 
     // Check if user has permission to create/edit exams (ADMIN and CURRICULUM_MENTOR only)
     const hasManagePermission = useMemo(() => {
@@ -104,6 +115,32 @@ const ExamManagement = () => {
     });
 
     const { mutate: deleteExam, isPending: isDeleting } = useDeleteExam();
+
+    // Filter exams based on selected level and cycle
+    const filteredExams = useMemo(() => {
+        let filtered = exams;
+
+        if (selectedLevel !== 'ALL') {
+            filtered = filtered.filter((exam: Exam) => exam.level === selectedLevel);
+        }
+
+        if (selectedCycle !== 'ALL') {
+            filtered = filtered.filter((exam: Exam) => exam.cycle === selectedCycle);
+        }
+
+        return filtered;
+    }, [exams, selectedLevel, selectedCycle]);
+
+    // Get available levels and cycles from exams
+    const availableLevels = useMemo(() => {
+        const levels = new Set(exams.map((exam: Exam) => exam.level));
+        return ['ALL', ...Array.from(levels).sort()];
+    }, [exams]);
+
+    const availableCycles = useMemo(() => {
+        const cycles = new Set(exams.map((exam: Exam) => exam.cycle));
+        return ['ALL', ...Array.from(cycles).sort()];
+    }, [exams]);
 
     const handleDelete = (id: string, name: string, isActive: boolean) => {
         setConfirmDelete({
@@ -210,9 +247,86 @@ const ExamManagement = () => {
                 </div>
             </div>
 
+            {/* Filters */}
+            {exams.length > 0 && (
+                <div className="mb-4 bg-white/80 backdrop-blur-sm rounded-xl shadow-lg p-3 sm:p-4 border border-orange-100 relative z-10">
+                    <div className="flex items-center gap-2 mb-3">
+                        <Filter className="w-4 h-4 text-gray-600" />
+                        <h3 className="text-sm font-medium text-gray-700">Filter Exams</h3>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* Level Filter */}
+                        <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                                Level
+                            </label>
+                            <div className="flex gap-2 flex-wrap">
+                                {availableLevels.map((level) => (
+                                    <button
+                                        key={level}
+                                        onClick={() => setSelectedLevel(level)}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${selectedLevel === level
+                                            ? 'bg-orange-500 text-white shadow-md'
+                                            : 'bg-white text-gray-700 hover:bg-orange-50 border border-gray-300'
+                                            }`}
+                                    >
+                                        {level === 'ALL' ? 'All Levels' : getLevelDisplay(level)}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Cycle Filter */}
+                        <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                                Exam Cycle
+                            </label>
+                            <div className="flex gap-2 flex-wrap">
+                                {availableCycles.map((cycle) => (
+                                    <button
+                                        key={cycle}
+                                        onClick={() => setSelectedCycle(cycle)}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${selectedCycle === cycle
+                                            ? 'bg-blue-500 text-white shadow-md'
+                                            : 'bg-white text-gray-700 hover:bg-blue-50 border border-gray-300'
+                                            }`}
+                                    >
+                                        {cycle === 'ALL' ? 'All Cycles' : getCycleDisplay(cycle)}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Exams Grid */}
             <div className="relative z-10">
-                {exams.length === 0 ? (
+                {filteredExams.length === 0 && exams.length > 0 ? (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-white/80 rounded-lg border shadow-sm p-6 sm:p-12 text-center"
+                    >
+                        <ClipboardList className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
+                        <h3 className="text-lg sm:text-xl font-semibold mb-2">No Matching Exams</h3>
+                        <p className="text-muted-foreground text-xs sm:text-sm mb-4">
+                            No exams found for the selected filters. Try adjusting your filter criteria.
+                        </p>
+                        <div className="flex gap-2 justify-center">
+                            <CustomButton
+                                onClick={() => {
+                                    setSelectedLevel('ALL');
+                                    setSelectedCycle('ALL');
+                                }}
+                                variant="outline"
+                                className="text-xs sm:text-sm"
+                            >
+                                Clear Filters
+                            </CustomButton>
+                        </div>
+                    </motion.div>
+                ) : exams.length === 0 ? (
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -241,7 +355,7 @@ const ExamManagement = () => {
                     </motion.div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                        {exams.map((exam: Exam, index: number) => (
+                        {filteredExams.map((exam: Exam, index: number) => (
                             <motion.div
                                 key={exam.id}
                                 initial={{ opacity: 0, y: 20 }}
@@ -257,6 +371,9 @@ const ExamManagement = () => {
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium bg-orange-100 text-orange-800">
                                                 {getLevelDisplay(exam.level)}
+                                            </span>
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium bg-blue-100 text-blue-800">
+                                                {getCycleDisplay(exam.cycle)}
                                             </span>
                                             {!exam.isActive && (
                                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium bg-gray-200 text-gray-700">

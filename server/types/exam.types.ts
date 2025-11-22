@@ -4,11 +4,14 @@ import { Level } from "../generated/prisma/index.js";
 // EXAM TYPES
 // ============================================
 
+export type ExamCycle = "SA_1" | "SA_2" | "SA_3";
+
 export interface CreateExamRequest {
   projectId: string;
   centerId: string;
   semesterId: string;
   level: Level;
+  cycle: ExamCycle;
   name: string;
   description?: string;
   examDate: string; // ISO date string
@@ -21,6 +24,8 @@ export interface CreateExamRequest {
 export interface UpdateExamRequest {
   name?: string;
   description?: string;
+  level?: Level;
+  cycle?: ExamCycle;
   examDate?: string; // ISO date string
   listeningMaxMarks?: number;
   speakingMaxMarks?: number;
@@ -34,6 +39,7 @@ export interface GetExamsRequest {
   centerId?: string;
   semesterId?: string;
   level?: Level;
+  cycle?: ExamCycle;
   isActive?: boolean;
   startDate?: string; // Filter exams from this date
   endDate?: string; // Filter exams until this date
@@ -45,6 +51,7 @@ export interface ExamResponse {
   centerId: string;
   semesterId: string;
   level: Level;
+  cycle: ExamCycle;
   name: string;
   description?: string;
   examDate: Date;

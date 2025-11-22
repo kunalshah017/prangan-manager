@@ -6,12 +6,15 @@ export type Level =
   | "PRIMARY_A"
   | "PRIMARY_B";
 
+export type ExamCycle = "SA_1" | "SA_2" | "SA_3";
+
 export interface Exam {
   id: string;
   projectId: string;
   centerId: string;
   semesterId: string;
   level: Level;
+  cycle: ExamCycle;
   name: string;
   description?: string;
   examDate: string;
@@ -78,6 +81,7 @@ export interface CreateExamRequest {
   centerId: string;
   semesterId: string;
   level: Level;
+  cycle: ExamCycle;
   name: string;
   description?: string;
   examDate: string;
@@ -90,6 +94,8 @@ export interface CreateExamRequest {
 export interface UpdateExamRequest {
   name?: string;
   description?: string;
+  level?: Level;
+  cycle?: ExamCycle;
   examDate?: string;
   listeningMaxMarks?: number;
   speakingMaxMarks?: number;

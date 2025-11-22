@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, List, X, ChevronRight, ChevronLeft } from 'lucide-react';
+import { ArrowLeft, List, X, ChevronRight, ChevronLeft, Search } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { books, type Book } from '../../data/books';
 import { cn } from '../../lib/utils';
@@ -18,6 +18,7 @@ const BookReader: React.FC = () => {
     const [numPages, setNumPages] = useState<number>(0);
     const [currentPage, setCurrentPage] = useState<number>(1);
     const [isIndexOpen, setIsIndexOpen] = useState(true);
+    const [searchQuery, setSearchQuery] = useState<string>('');
     const containerRef = useRef<HTMLDivElement>(null);
     const pageRefs = useRef<Record<number, HTMLDivElement>>({});
     const indexListRef = useRef<HTMLDivElement>(null);
@@ -122,6 +123,25 @@ const BookReader: React.FC = () => {
 
     const activeSection = getCurrentSection();
 
+    // Filter structure based on search query
+    const filteredStructure = useMemo(() => {
+        if (!book) return [];
+        if (!searchQuery.trim()) return book.structure;
+
+        const query = searchQuery.toLowerCase();
+        return book.structure.filter(item =>
+            item.title.toLowerCase().includes(query) ||
+            (item.theme && item.theme.toLowerCase().includes(query))
+        );
+    }, [book, searchQuery]);
+
+    // Reset search when index closes
+    useEffect(() => {
+        if (!isIndexOpen) {
+            setSearchQuery('');
+        }
+    }, [isIndexOpen]);
+
     // Scroll to active item when index opens
     useEffect(() => {
         if (isIndexOpen && activeItemRef.current) {
@@ -142,7 +162,11 @@ const BookReader: React.FC = () => {
             {/* Header */}
             <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between z-20 shrink-0">
                 <button
-                    onClick={() => navigate('/library')}
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        navigate('/library', { replace: true });
+                    }}
                     className="p-2 hover:bg-orange-100 rounded-full text-orange-700 transition-colors -ml-2"
                 >
                     <ArrowLeft className="w-5 h-5" />
@@ -298,7 +322,7 @@ const BookReader: React.FC = () => {
                             animate={{ y: 0 }}
                             exit={{ y: '100%' }}
                             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-                            className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl max-h-[75vh] flex flex-col"
+                            className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl h-[75vh] flex flex-col"
                         >
                             {/* Sheet Header */}
                             <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-4 rounded-t-2xl flex items-center justify-between">
@@ -314,6 +338,28 @@ const BookReader: React.FC = () => {
                                 </button>
                             </div>
 
+                            {/* Search Bar */}
+                            <div className="px-4 pt-3 pb-2 bg-white border-b border-gray-100">
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                    <input
+                                        type="text"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        placeholder="Search topics..."
+                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+                                    />
+                                    {searchQuery && (
+                                        <button
+                                            onClick={() => setSearchQuery('')}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full transition-colors"
+                                        >
+                                            <X className="w-3 h-3 text-gray-500" />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
                             {/* Drag Handle */}
                             <div className="absolute top-2 left-1/2 -translate-x-1/2">
                                 <div className="w-12 h-1 bg-gray-300 rounded-full" />
@@ -321,53 +367,83 @@ const BookReader: React.FC = () => {
 
                             {/* Index List */}
                             <div ref={indexListRef} className="flex-1 overflow-y-auto p-4 space-y-2">
-                                {book.structure.map((item, index) => (
-                                    <button
-                                        key={item.id}
-                                        ref={activeSection?.id === item.id ? activeItemRef : null}
-                                        onClick={() => handleSectionClick(item.pageStart)}
-                                        className={cn(
-                                            "w-full text-left px-4 py-3 rounded-lg transition-all flex items-start gap-3 group",
-                                            activeSection?.id === item.id
-                                                ? "bg-orange-100 text-orange-800 font-medium shadow-sm"
-                                                : "text-gray-700 hover:bg-gray-50"
-                                        )}
-                                    >
-                                        <span
-                                            className={cn(
-                                                "mt-0.5 w-7 h-7 flex items-center justify-center rounded-full text-xs shrink-0 font-semibold",
-                                                activeSection?.id === item.id
-                                                    ? "bg-orange-200 text-orange-900"
-                                                    : "bg-gray-100 text-gray-600 group-hover:bg-gray-200"
-                                            )}
+                                <AnimatePresence mode="wait">
+                                    {filteredStructure.length === 0 ? (
+                                        <motion.div
+                                            key="empty"
+                                            initial={{ opacity: 0, scale: 0.95 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0.95 }}
+                                            transition={{ duration: 0.2 }}
+                                            className="flex flex-col items-center justify-center py-12 text-center"
                                         >
-                                            {index + 1}
-                                        </span>
-                                        <div className="flex-1 min-w-0">
-                                            <span className="block font-medium">{item.title}</span>
-                                            {item.theme && (
-                                                <span className="text-xs text-gray-500 block mt-1">
-                                                    {item.theme}
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-2 shrink-0">
-                                            <span
-                                                className={cn(
-                                                    "text-xs font-medium px-2 py-1 rounded",
-                                                    activeSection?.id === item.id
-                                                        ? "bg-orange-200 text-orange-900"
-                                                        : "bg-gray-100 text-gray-600 group-hover:bg-gray-200"
-                                                )}
-                                            >
-                                                {item.pageStart}
-                                            </span>
-                                            {activeSection?.id === item.id && (
-                                                <ChevronRight className="w-4 h-4 text-orange-600 animate-pulse" />
-                                            )}
-                                        </div>
-                                    </button>
-                                ))}
+                                            <Search className="w-12 h-12 text-gray-300 mb-3" />
+                                            <p className="text-gray-500 font-medium">No topics found</p>
+                                            <p className="text-sm text-gray-400 mt-1">Try a different search term</p>
+                                        </motion.div>
+                                    ) : (
+                                        <motion.div
+                                            key="results"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            transition={{ duration: 0.2 }}
+                                            className="space-y-2"
+                                        >
+                                            {filteredStructure.map((item, index) => (
+                                                <motion.button
+                                                    key={item.id}
+                                                    ref={activeSection?.id === item.id ? activeItemRef : null}
+                                                    initial={{ opacity: 0, x: -20 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    transition={{ delay: index * 0.03, duration: 0.2 }}
+                                                    onClick={() => handleSectionClick(item.pageStart)}
+                                                    className={cn(
+                                                        "w-full text-left px-4 py-3 rounded-lg transition-all flex items-start gap-3 group",
+                                                        activeSection?.id === item.id
+                                                            ? "bg-orange-100 text-orange-800 font-medium shadow-sm"
+                                                            : "text-gray-700 hover:bg-gray-50"
+                                                    )}
+                                                >
+                                                    <span
+                                                        className={cn(
+                                                            "mt-0.5 w-7 h-7 flex items-center justify-center rounded-full text-xs shrink-0 font-semibold",
+                                                            activeSection?.id === item.id
+                                                                ? "bg-orange-200 text-orange-900"
+                                                                : "bg-gray-100 text-gray-600 group-hover:bg-gray-200"
+                                                        )}
+                                                    >
+                                                        {index + 1}
+                                                    </span>
+                                                    <div className="flex-1 min-w-0">
+                                                        <span className="block font-medium">{item.title}</span>
+                                                        {item.theme && (
+                                                            <span className="text-xs text-gray-500 block mt-1">
+                                                                {item.theme}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 shrink-0">
+                                                        <span
+                                                            className={cn(
+                                                                "text-xs font-medium px-2 py-1 rounded",
+                                                                activeSection?.id === item.id
+                                                                    ? "bg-orange-200 text-orange-900"
+                                                                    : "bg-gray-100 text-gray-600 group-hover:bg-gray-200"
+                                                            )}
+                                                        >
+                                                            Page: {' '}
+                                                            {item.pageStart}
+                                                        </span>
+                                                        {activeSection?.id === item.id && (
+                                                            <ChevronRight className="w-4 h-4 text-orange-600 animate-pulse" />
+                                                        )}
+                                                    </div>
+                                                </motion.button>
+                                            ))}
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
                             </div>
                         </motion.div>
                     </>

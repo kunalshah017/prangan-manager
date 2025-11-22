@@ -351,6 +351,12 @@ enum SyllabusTopicStatus {
   COMPLETED
 }
 
+enum ExamCycle {
+  SA_1
+  SA_2
+  SA_3
+}
+
 // ============================================
 // EXAM & ASSESSMENT TRACKING MODELS
 // ============================================
@@ -361,6 +367,7 @@ model Exam {
   centerId    String
   semesterId  String
   level       Level    // Level-wise exam
+  cycle       ExamCycle // Exam cycle (SA-1, SA-2, SA-3)
   name        String   // e.g., "SA-1 English Exam", "Mid-Term Mathematics"
   description String?
   examDate    DateTime @db.Date // When the exam is scheduled

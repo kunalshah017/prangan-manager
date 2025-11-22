@@ -5,7 +5,7 @@ import DoodleBackground from '@/components/DoodleBackground';
 import { CustomButton } from '@/components/ui/custom-button';
 import { useExam, useUpdateExam } from '@/hooks';
 import toast from 'react-hot-toast';
-import type { Level } from '@/types/exam';
+import type { Level, ExamCycle } from '@/types/exam';
 
 export default function EditExam() {
     const navigate = useNavigate();
@@ -22,6 +22,7 @@ export default function EditExam() {
         name: '',
         description: '',
         level: '' as Level | '',
+        cycle: '' as ExamCycle | '',
         examDate: '',
         listeningMaxMarks: 0,
         speakingMaxMarks: 0,
@@ -35,6 +36,7 @@ export default function EditExam() {
                 name: exam.name,
                 description: exam.description || '',
                 level: exam.level as Level,
+                cycle: exam.cycle as ExamCycle,
                 examDate: new Date(exam.examDate).toISOString().split('T')[0],
                 listeningMaxMarks: exam.listeningMaxMarks,
                 speakingMaxMarks: exam.speakingMaxMarks,
@@ -73,6 +75,7 @@ export default function EditExam() {
         if (
             !formData.name ||
             !formData.level ||
+            !formData.cycle ||
             !formData.examDate ||
             formData.listeningMaxMarks <= 0 ||
             formData.speakingMaxMarks <= 0 ||
@@ -94,6 +97,8 @@ export default function EditExam() {
                 data: {
                     name: formData.name,
                     description: formData.description || undefined,
+                    level: formData.level as Level,
+                    cycle: formData.cycle as ExamCycle,
                     examDate: new Date(formData.examDate).toISOString(),
                     listeningMaxMarks: formData.listeningMaxMarks,
                     speakingMaxMarks: formData.speakingMaxMarks,
@@ -232,7 +237,7 @@ export default function EditExam() {
                                 </div>
 
                                 {/* Level and Date Row */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
                                     {/* Level */}
                                     <div>
                                         <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
@@ -256,6 +261,29 @@ export default function EditExam() {
                                             <option value="LEVEL_2">Level 2</option>
                                             <option value="LEVEL_3">Level 3</option>
                                             <option value="LEVEL_4">Level 4</option>
+                                        </select>
+                                    </div>
+
+                                    {/* Exam Cycle */}
+                                    <div>
+                                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                                            Exam Cycle *
+                                        </label>
+                                        <select
+                                            value={formData.cycle}
+                                            onChange={(e) =>
+                                                setFormData({
+                                                    ...formData,
+                                                    cycle: e.target.value as ExamCycle,
+                                                })
+                                            }
+                                            className="w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-base border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200"
+                                            required
+                                        >
+                                            <option value="">Select Cycle</option>
+                                            <option value="SA_1">SA-1</option>
+                                            <option value="SA_2">SA-2</option>
+                                            <option value="SA_3">SA-3</option>
                                         </select>
                                     </div>
 
