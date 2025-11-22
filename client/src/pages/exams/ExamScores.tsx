@@ -256,11 +256,6 @@ export default function ExamScores() {
                         <p className="text-xs sm:text-sm text-gray-600">
                             {new Date(exam.examDate).toLocaleDateString()} • {exam.level.replace('_', ' ')}
                         </p>
-                        {!canEditScores && (
-                            <p className="text-xs text-amber-600 mt-1 font-medium">
-                                👁️ View Only - Only Admin and Center Managers can edit scores
-                            </p>
-                        )}
                     </div>
 
                     {/* Action Buttons */}
