@@ -167,7 +167,7 @@ function App() {
                 <Route
                   path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/syllabus"
                   element={
-                    <ProtectedRoute allowedSubRoles={['CURRICULUM_MENTOR']}>
+                    <ProtectedRoute allowAll={true}>
                       <SyllabusManagement />
                     </ProtectedRoute>
                   }
@@ -191,7 +191,7 @@ function App() {
                 <Route
                   path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/syllabus/:syllabusId/progress"
                   element={
-                    <ProtectedRoute>
+                    <ProtectedRoute allowAll={true}>
                       <SyllabusProgress />
                     </ProtectedRoute>
                   }
