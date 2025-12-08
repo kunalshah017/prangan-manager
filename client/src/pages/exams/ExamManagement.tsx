@@ -15,6 +15,7 @@ import toast from 'react-hot-toast';
 
 const getCycleDisplay = (cycle: string): string => {
     const cycleMap: Record<string, string> = {
+        PRE_ASSESSMENT: 'Pre-Assessment',
         SA_1: 'SA-1',
         SA_2: 'SA-2',
         SA_3: 'SA-3',

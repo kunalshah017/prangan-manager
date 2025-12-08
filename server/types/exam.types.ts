@@ -4,7 +4,7 @@ import { Level } from "../generated/prisma/index.js";
 // EXAM TYPES
 // ============================================
 
-export type ExamCycle = "SA_1" | "SA_2" | "SA_3";
+export type ExamCycle = "PRE_ASSESSMENT" | "SA_1" | "SA_2" | "SA_3";
 
 export interface CreateExamRequest {
   projectId: string;

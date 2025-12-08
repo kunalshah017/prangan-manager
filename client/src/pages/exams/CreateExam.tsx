@@ -204,6 +204,7 @@ const CreateExam = () => {
                                     className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                                     required
                                 >
+                                    <option value="PRE_ASSESSMENT">Pre-Assessment</option>
                                     <option value="SA_1">SA-1</option>
                                     <option value="SA_2">SA-2</option>
                                     <option value="SA_3">SA-3</option>

@@ -6,7 +6,7 @@ export type Level =
   | "PRIMARY_A"
   | "PRIMARY_B";
 
-export type ExamCycle = "SA_1" | "SA_2" | "SA_3";
+export type ExamCycle = "PRE_ASSESSMENT" | "SA_1" | "SA_2" | "SA_3";
 
 export interface Exam {
   id: string;

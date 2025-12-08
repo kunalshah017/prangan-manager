@@ -281,6 +281,7 @@ export default function EditExam() {
                                             required
                                         >
                                             <option value="">Select Cycle</option>
+                                            <option value="PRE_ASSESSMENT">Pre-Assessment</option>
                                             <option value="SA_1">SA-1</option>
                                             <option value="SA_2">SA-2</option>
                                             <option value="SA_3">SA-3</option>

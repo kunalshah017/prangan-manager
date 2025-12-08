@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "ExamCycle" ADD VALUE 'PRE_ASSESSMENT';

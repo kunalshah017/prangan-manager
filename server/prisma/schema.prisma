@@ -352,6 +352,7 @@ enum SyllabusTopicStatus {
 }
 
 enum ExamCycle {
+  PRE_ASSESSMENT
   SA_1
   SA_2
   SA_3
