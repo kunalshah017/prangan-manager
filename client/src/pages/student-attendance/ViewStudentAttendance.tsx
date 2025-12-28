@@ -1231,8 +1231,9 @@ export const ViewStudentAttendance = () => {
                     });
 
                     // Calculate column widths dynamically
-                    const baseWidth = 35; // Student Name
-                    const monthColWidth = sortedMonths.length > 3 ? 12 : 15;
+                    // Reduce name width and give more space to remarks to prevent text wrapping
+                    const baseWidth = 28; // Student Name (reduced from 35)
+                    const monthColWidth = sortedMonths.length > 3 ? 10 : 12; // Slightly reduced
                     const columnStyles: any = {
                         0: { cellWidth: baseWidth, halign: 'left' }
                     };
@@ -1244,8 +1245,8 @@ export const ViewStudentAttendance = () => {
                         columnStyles[colIndex + 2] = { cellWidth: monthColWidth, halign: 'center' }; // Avg%
                         colIndex += 3;
                     });
-                    columnStyles[colIndex] = { cellWidth: 15, halign: 'center' }; // Overall Avg%
-                    columnStyles[colIndex + 1] = { cellWidth: 'auto', halign: 'left' }; // Remarks
+                    columnStyles[colIndex] = { cellWidth: 14, halign: 'center' }; // Overall Avg%
+                    columnStyles[colIndex + 1] = { cellWidth: 45, halign: 'left', overflow: 'linebreak' }; // Remarks (fixed width to prevent wrapping)
 
                     // Create summary table with two-row header and borders
                     autoTable(doc, {

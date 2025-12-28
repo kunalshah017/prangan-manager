@@ -848,26 +848,9 @@ export const ViewAttendance = () => {
                     });
                 });
 
-                // Add Summary Page
+                // Add Summary Page(s) - Max 6 months per page
                 const daysDiff = Math.ceil((new Date(toDate).getTime() - new Date(fromDate).getTime()) / (1000 * 60 * 60 * 24));
                 if (daysDiff >= 20) {
-                    doc.addPage();
-
-                    // Add logo
-                    try {
-                        const img = new Image();
-                        img.src = '/images/logo/prangan-logo-light-mode.png';
-                        doc.addImage(img, 'PNG', 240, 5, 40, 20);
-                    } catch (logoError) {
-                        console.warn('Could not load logo:', logoError);
-                    }
-
-                    doc.setFontSize(16);
-                    doc.text('Attendance Summary', 14, 15);
-                    doc.setFontSize(9);
-                    doc.text(`Project: ${projectData?.name || 'Unknown Project'} | Center: ${centerData?.name || 'Unknown Center'} | Semester: ${semesterData?.name || 'Unknown Semester'}`, 14, 22);
-                    doc.text(`Period: ${new Date(fromDate).toLocaleDateString()} to ${new Date(toDate).toLocaleDateString()}`, 14, 27);
-
                     // Calculate stats per user
                     const userStats = new Map<string, {
                         name: string;
@@ -928,22 +911,6 @@ export const ViewAttendance = () => {
                     });
                     const sortedMonths = Array.from(allMonths).sort();
 
-                    // Build summary table with two-row header
-                    const headerRow1: any[] = ['Name'];
-                    const headerRow2: any[] = [''];
-
-                    sortedMonths.forEach(monthKey => {
-                        const [year, month] = monthKey.split('-');
-                        const monthName = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-                        headerRow1.push({ content: monthName, colSpan: 5, styles: { halign: 'center', fillColor: [255, 152, 0] } });
-                        headerRow2.push('Present', 'Absent', 'Not Avail', 'Avg%', 'Rs. Remuner.');
-                    });
-
-                    headerRow1.push('Overall\nAvg%', 'Total\nRs. Remuner.');
-                    headerRow2.push('', '');
-
-                    const summaryBody: any[][] = [];
-
                     // Group by role
                     const roleGroups = new Map<string, typeof userStats>();
                     userStats.forEach((stats, userId) => {
@@ -964,53 +931,18 @@ export const ViewAttendance = () => {
                         return aIndex - bIndex;
                     });
 
-                    sortedRoles.forEach(role => {
-                        // Role header with orange background
-                        const roleHeader = [{ content: role.replace('_', ' '), colSpan: 1 + sortedMonths.length * 5 + 2, styles: { fontStyle: 'bold', fillColor: [255, 152, 0], textColor: [255, 255, 255] } }];
-                        summaryBody.push(roleHeader);
+                    // Helper function for color coding
+                    function getPercentageColor(percentage: number): number[] {
+                        if (percentage >= 90) return [198, 239, 206];
+                        if (percentage >= 80) return [212, 237, 218];
+                        if (percentage >= 70) return [255, 243, 205];
+                        if (percentage >= 60) return [255, 230, 204];
+                        return [248, 215, 218];
+                    }
 
-                        // Users in role
-                        const users = roleGroups.get(role)!;
-                        users.forEach((stats) => {
-                            const row: any[] = [stats.name];
-
-                            sortedMonths.forEach(monthKey => {
-                                const monthStats = stats.monthlyStats.get(monthKey);
-                                if (monthStats) {
-                                    // Average = present / (present + absent) - NOT_AVAILABLE days don't affect percentage
-                                    const attendedDays = monthStats.present + monthStats.absent;
-                                    const avgPercentage = attendedDays > 0 ? ((monthStats.present / attendedDays) * 100).toFixed(1) : '0.0';
-                                    const monthlyRemuneration = monthStats.present * 500;
-
-                                    row.push(
-                                        monthStats.present,
-                                        monthStats.absent,
-                                        monthStats.notAvailable,
-                                        { content: `${avgPercentage}%`, styles: { fontStyle: 'bold', fillColor: getPercentageColor(parseFloat(avgPercentage)) } },
-                                        `Rs. ${monthlyRemuneration}`
-                                    );
-                                } else {
-                                    row.push(0, 0, 0, { content: '0.0%', styles: { fontStyle: 'bold' } }, 'Rs. 0');
-                                }
-                            });
-
-                            // Calculate overall average (present / (present + absent)) - NOT_AVAILABLE days don't affect percentage
-                            const totalAttendedDays = stats.present + stats.absent;
-                            const overallAvg = totalAttendedDays > 0 ? ((stats.present / totalAttendedDays) * 100).toFixed(1) : '0.0';
-                            row.push({ content: `${overallAvg}%`, styles: { fontStyle: 'bold', fillColor: getPercentageColor(parseFloat(overallAvg)) } });
-
-                            const remuneration = stats.present * 500;
-                            row.push(`Rs. ${remuneration}`);
-
-                            summaryBody.push(row);
-                        });
-                    });
-
-                    // Add Total Remuneration Row
-                    const totalRow: any[] = [{ content: 'TOTAL REMUNERATION', styles: { fontStyle: 'bold', fillColor: [255, 243, 205] } }];
+                    // Calculate monthly totals for all months
                     const monthlyTotals = new Map<string, number>();
                     let grandTotal = 0;
-
                     sortedMonths.forEach(monthKey => {
                         let monthTotal = 0;
                         userStats.forEach(stats => {
@@ -1023,52 +955,178 @@ export const ViewAttendance = () => {
                         grandTotal += monthTotal;
                     });
 
-                    sortedMonths.forEach(monthKey => {
-                        const monthTotal = monthlyTotals.get(monthKey) || 0;
-                        totalRow.push(
-                            { content: '', styles: { fillColor: [255, 243, 205] } },
-                            { content: '', styles: { fillColor: [255, 243, 205] } },
-                            { content: '', styles: { fillColor: [255, 243, 205] } },
-                            { content: '', styles: { fillColor: [255, 243, 205] } },
-                            { content: `Rs. ${monthTotal}`, styles: { fontStyle: 'bold', fillColor: [255, 243, 205] } }
-                        );
-                    });
-
-                    totalRow.push(
-                        { content: '', styles: { fillColor: [255, 243, 205] } },
-                        { content: `Rs. ${grandTotal}`, styles: { fontStyle: 'bold', fillColor: [255, 243, 205] } }
-                    );
-                    summaryBody.push(totalRow);
-
-                    // Helper function for color coding
-                    function getPercentageColor(percentage: number): number[] {
-                        if (percentage >= 90) return [198, 239, 206];
-                        if (percentage >= 80) return [212, 237, 218];
-                        if (percentage >= 70) return [255, 243, 205];
-                        if (percentage >= 60) return [255, 230, 204];
-                        return [248, 215, 218];
+                    // Split months into chunks of 6
+                    const MONTHS_PER_PAGE = 6;
+                    const monthChunks: string[][] = [];
+                    for (let i = 0; i < sortedMonths.length; i += MONTHS_PER_PAGE) {
+                        monthChunks.push(sortedMonths.slice(i, i + MONTHS_PER_PAGE));
                     }
 
-                    autoTable(doc, {
-                        head: [headerRow1, headerRow2],
-                        body: summaryBody,
-                        startY: 33,
-                        styles: {
-                            fontSize: 7,
-                            cellPadding: 2,
-                            halign: 'center',
-                            lineWidth: 0.1,
-                            lineColor: [200, 200, 200]
-                        },
-                        headStyles: {
-                            fillColor: [255, 152, 0],
-                            fontStyle: 'bold',
-                            lineWidth: 0.1,
-                            lineColor: [200, 200, 200]
-                        },
-                        columnStyles: {
-                            0: { cellWidth: 35, halign: 'left' }
+                    // Generate a summary page for each chunk
+                    monthChunks.forEach((chunkMonths, chunkIndex) => {
+                        doc.addPage();
+
+                        // Add logo
+                        try {
+                            const img = new Image();
+                            img.src = '/images/logo/prangan-logo-light-mode.png';
+                            doc.addImage(img, 'PNG', 250, 3, 35, 18);
+                        } catch (logoError) {
+                            console.warn('Could not load logo:', logoError);
                         }
+
+                        doc.setFontSize(14);
+                        const pageLabel = monthChunks.length > 1 ? ` (Part ${chunkIndex + 1}/${monthChunks.length})` : '';
+                        doc.text(`Attendance Summary${pageLabel}`, 5, 12);
+                        doc.setFontSize(8);
+                        doc.text(`Project: ${projectData?.name || 'Unknown Project'} | Center: ${centerData?.name || 'Unknown Center'} | Semester: ${semesterData?.name || 'Unknown Semester'}`, 5, 18);
+                        doc.text(`Period: ${new Date(fromDate).toLocaleDateString()} to ${new Date(toDate).toLocaleDateString()}`, 5, 23);
+
+                        // Build header rows for this chunk
+                        const headerRow1: any[] = ['Name'];
+                        const headerRow2: any[] = [''];
+
+                        chunkMonths.forEach(monthKey => {
+                            const [year, month] = monthKey.split('-');
+                            const monthName = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+                            headerRow1.push({ content: monthName, colSpan: 5, styles: { halign: 'center', fillColor: [255, 152, 0] } });
+                            headerRow2.push(
+                                { content: 'P', styles: { fillColor: [198, 239, 206], textColor: [0, 100, 0] } },
+                                { content: 'A', styles: { fillColor: [248, 215, 218], textColor: [150, 0, 0] } },
+                                { content: 'N/A', styles: { fillColor: [255, 243, 205], textColor: [100, 80, 0] } },
+                                'Avg%',
+                                'Rs.'
+                            );
+                        });
+
+                        // Add overall columns only on the last page
+                        const isLastPage = chunkIndex === monthChunks.length - 1;
+                        if (isLastPage) {
+                            headerRow1.push('Overall\nAvg%', 'Total\nRs.');
+                            headerRow2.push('', '');
+                        }
+
+                        const summaryBody: any[][] = [];
+
+                        sortedRoles.forEach(role => {
+                            // Role header with orange background
+                            const colSpan = 1 + chunkMonths.length * 5 + (isLastPage ? 2 : 0);
+                            const roleHeader = [{ content: role.replace('_', ' '), colSpan: colSpan, styles: { fontStyle: 'bold', fillColor: [255, 152, 0], textColor: [255, 255, 255] } }];
+                            summaryBody.push(roleHeader);
+
+                            // Users in role
+                            const users = roleGroups.get(role)!;
+                            users.forEach((stats) => {
+                                const row: any[] = [stats.name];
+
+                                chunkMonths.forEach(monthKey => {
+                                    const monthStats = stats.monthlyStats.get(monthKey);
+                                    if (monthStats) {
+                                        const attendedDays = monthStats.present + monthStats.absent;
+                                        const avgPercentage = attendedDays > 0 ? ((monthStats.present / attendedDays) * 100).toFixed(1) : '0.0';
+                                        const monthlyRemuneration = monthStats.present * 500;
+
+                                        row.push(
+                                            monthStats.present,
+                                            monthStats.absent,
+                                            monthStats.notAvailable,
+                                            { content: `${avgPercentage}%`, styles: { fontStyle: 'bold', fillColor: getPercentageColor(parseFloat(avgPercentage)) } },
+                                            `Rs.${monthlyRemuneration}`
+                                        );
+                                    } else {
+                                        row.push(0, 0, 0, { content: '0.0%', styles: { fontStyle: 'bold' } }, 'Rs.0');
+                                    }
+                                });
+
+                                // Add overall columns only on the last page
+                                if (isLastPage) {
+                                    const totalAttendedDays = stats.present + stats.absent;
+                                    const overallAvg = totalAttendedDays > 0 ? ((stats.present / totalAttendedDays) * 100).toFixed(1) : '0.0';
+                                    row.push({ content: `${overallAvg}%`, styles: { fontStyle: 'bold', fillColor: getPercentageColor(parseFloat(overallAvg)) } });
+
+                                    const remuneration = stats.present * 500;
+                                    row.push(`Rs.${remuneration}`);
+                                }
+
+                                summaryBody.push(row);
+                            });
+                        });
+
+                        // Add Total Remuneration Row
+                        const totalRow: any[] = [{ content: 'TOTAL', styles: { fontStyle: 'bold', fillColor: [255, 243, 205] } }];
+
+                        chunkMonths.forEach(monthKey => {
+                            const monthTotal = monthlyTotals.get(monthKey) || 0;
+                            totalRow.push(
+                                { content: '', styles: { fillColor: [255, 243, 205] } },
+                                { content: '', styles: { fillColor: [255, 243, 205] } },
+                                { content: '', styles: { fillColor: [255, 243, 205] } },
+                                { content: '', styles: { fillColor: [255, 243, 205] } },
+                                { content: `Rs.${monthTotal}`, styles: { fontStyle: 'bold', fillColor: [255, 243, 205] } }
+                            );
+                        });
+
+                        if (isLastPage) {
+                            totalRow.push(
+                                { content: '', styles: { fillColor: [255, 243, 205] } },
+                                { content: `Rs.${grandTotal}`, styles: { fontStyle: 'bold', fillColor: [255, 243, 205] } }
+                            );
+                        }
+                        summaryBody.push(totalRow);
+
+                        // Calculate column widths to fill the page width
+                        const pageWidth = 287; // 297mm - 5mm margins each side
+                        const nameWidth = 20;
+                        const overallAvgWidth = isLastPage ? 14 : 0;
+                        const totalRemunerWidth = isLastPage ? 16 : 0;
+                        const fixedColumnsWidth = nameWidth + overallAvgWidth + totalRemunerWidth;
+
+                        const remainingWidth = pageWidth - fixedColumnsWidth;
+                        // P, A, N/A columns are narrower; Avg% and Rs. columns are wider
+                        const narrowColWidth = 6; // For P, A, N/A
+                        const wideColWidth = (remainingWidth - (narrowColWidth * 3 * chunkMonths.length)) / (2 * chunkMonths.length); // For Avg% and Rs.
+
+                        const summaryColumnStyles: any = {
+                            0: { cellWidth: nameWidth, halign: 'left' }
+                        };
+
+                        let colIdx = 1;
+                        chunkMonths.forEach(() => {
+                            summaryColumnStyles[colIdx] = { cellWidth: narrowColWidth, halign: 'center' }; // P
+                            summaryColumnStyles[colIdx + 1] = { cellWidth: narrowColWidth, halign: 'center' }; // A
+                            summaryColumnStyles[colIdx + 2] = { cellWidth: narrowColWidth, halign: 'center' }; // N/A
+                            summaryColumnStyles[colIdx + 3] = { cellWidth: wideColWidth, halign: 'center' }; // Avg%
+                            summaryColumnStyles[colIdx + 4] = { cellWidth: wideColWidth, halign: 'center' }; // Rs.
+                            colIdx += 5;
+                        });
+
+                        if (isLastPage) {
+                            summaryColumnStyles[colIdx] = { cellWidth: overallAvgWidth, halign: 'center' };
+                            summaryColumnStyles[colIdx + 1] = { cellWidth: totalRemunerWidth, halign: 'center' };
+                        }
+
+                        autoTable(doc, {
+                            head: [headerRow1, headerRow2],
+                            body: summaryBody,
+                            startY: 27,
+                            margin: { left: 5, right: 5 },
+                            tableWidth: 'wrap',
+                            styles: {
+                                fontSize: 6,
+                                cellPadding: 1,
+                                halign: 'center',
+                                lineWidth: 0.1,
+                                lineColor: [200, 200, 200]
+                            },
+                            headStyles: {
+                                fillColor: [255, 152, 0],
+                                fontStyle: 'bold',
+                                fontSize: 6,
+                                lineWidth: 0.1,
+                                lineColor: [200, 200, 200]
+                            },
+                            columnStyles: summaryColumnStyles
+                        });
                     });
                 }
             }
