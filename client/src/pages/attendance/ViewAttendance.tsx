@@ -18,6 +18,7 @@ import { useAttendanceRecords } from "@/hooks/useAttendanceQueries";
 import { useCenter } from "@/hooks/useCenterQueries";
 import { useProject } from "@/hooks/useProjectQueries";
 import { useSemester } from "@/hooks/useSemesterQueries";
+import { useUsers } from "@/hooks/useUserQueries";
 import LoadingButterfly from "@/components/LoadingButterfly";
 import { CustomButton } from "@/components/ui/custom-button";
 import ProtectedComponent from "@/components/ProtectedComponent";
@@ -46,6 +47,19 @@ export const ViewAttendance = () => {
     const { data: semesterData } = useSemester(semesterId!);
     const { data: centerData } = useCenter(centerId!);
     const { data: projectData } = useProject(projectId!);
+
+    // Fetch all users to get reimbursement rates
+    const { data: allUsers = [] } = useUsers();
+
+    // Create a lookup map for user reimbursement rates
+    const userReimbursementRates = useMemo(() => {
+        const rates: Record<string, number> = {};
+        for (const user of allUsers) {
+            const rate = (user as any).reimbursementAmount;
+            rates[user.id] = typeof rate === 'string' ? (Number(rate) || 500) : (typeof rate === 'number' ? rate : 500);
+        }
+        return rates;
+    }, [allUsers]);
 
     // Helper functions for quick date range selection
     const setCurrentMonth = () => {
@@ -860,6 +874,7 @@ export const ViewAttendance = () => {
                         absent: number;
                         notAvailable: number;
                         holidays: number;
+                        reimbursementRate: number;
                         monthlyStats: Map<string, { present: number; absent: number; notAvailable: number; holidays: number; total: number }>;
                     }>();
 
@@ -874,6 +889,7 @@ export const ViewAttendance = () => {
                                 absent: 0,
                                 notAvailable: 0,
                                 holidays: 0,
+                                reimbursementRate: userReimbursementRates[userId] || 500,
                                 monthlyStats: new Map()
                             });
                         }
@@ -940,7 +956,7 @@ export const ViewAttendance = () => {
                         return [248, 215, 218];
                     }
 
-                    // Calculate monthly totals for all months
+                    // Calculate monthly totals for all months using per-user rates
                     const monthlyTotals = new Map<string, number>();
                     let grandTotal = 0;
                     sortedMonths.forEach(monthKey => {
@@ -948,7 +964,7 @@ export const ViewAttendance = () => {
                         userStats.forEach(stats => {
                             const monthStats = stats.monthlyStats.get(monthKey);
                             if (monthStats) {
-                                monthTotal += monthStats.present * 500;
+                                monthTotal += monthStats.present * stats.reimbursementRate;
                             }
                         });
                         monthlyTotals.set(monthKey, monthTotal);
@@ -1024,7 +1040,7 @@ export const ViewAttendance = () => {
                                     if (monthStats) {
                                         const attendedDays = monthStats.present + monthStats.absent;
                                         const avgPercentage = attendedDays > 0 ? ((monthStats.present / attendedDays) * 100).toFixed(1) : '0.0';
-                                        const monthlyRemuneration = monthStats.present * 500;
+                                        const monthlyRemuneration = monthStats.present * stats.reimbursementRate;
 
                                         row.push(
                                             monthStats.present,
@@ -1044,7 +1060,7 @@ export const ViewAttendance = () => {
                                     const overallAvg = totalAttendedDays > 0 ? ((stats.present / totalAttendedDays) * 100).toFixed(1) : '0.0';
                                     row.push({ content: `${overallAvg}%`, styles: { fontStyle: 'bold', fillColor: getPercentageColor(parseFloat(overallAvg)) } });
 
-                                    const remuneration = stats.present * 500;
+                                    const remuneration = stats.present * stats.reimbursementRate;
                                     row.push(`Rs.${remuneration}`);
                                 }
 
@@ -1128,6 +1144,667 @@ export const ViewAttendance = () => {
                             columnStyles: summaryColumnStyles
                         });
                     });
+
+                    // ============================================
+                    // INFOGRAPHICS PAGE - Charts & Visualizations
+                    // ============================================
+                    doc.addPage();
+
+                    // Add logo
+                    try {
+                        const img = new Image();
+                        img.src = '/images/logo/prangan-logo-light-mode.png';
+                        doc.addImage(img, 'PNG', 240, 5, 40, 20);
+                    } catch (logoError) {
+                        console.warn('Could not load logo:', logoError);
+                    }
+
+                    // Page title
+                    doc.setFontSize(16);
+                    doc.setTextColor(0, 0, 0);
+                    doc.text('Attendance Analytics & Insights', 14, 15);
+                    doc.setFontSize(9);
+                    doc.text('Project: ' + (projectData?.name || 'Unknown Project') + ' | Center: ' + (centerData?.name || 'Unknown Center') + ' | Semester: ' + (semesterData?.name || 'Unknown Semester'), 14, 22);
+                    doc.text('Period: ' + new Date(fromDate).toLocaleDateString() + ' to ' + new Date(toDate).toLocaleDateString(), 14, 27);
+
+                    // Calculate overall statistics for charts
+                    let totalPresent = 0;
+                    let totalAbsent = 0;
+                    let totalNotAvailable = 0;
+                    let totalHolidays = 0;
+                    const totalStaff = userStats.size;
+
+                    // Role-wise stats
+                    const roleWiseStats = new Map<string, { present: number; absent: number; notAvailable: number; holidays: number; total: number; count: number }>();
+
+                    // Monthly trend data
+                    const monthlyTrend = new Map<string, { present: number; absent: number; total: number }>();
+
+                    // Performance distribution
+                    const perfDistribution = { excellent: 0, good: 0, satisfactory: 0, needsImprovement: 0, poor: 0 };
+
+                    userStats.forEach((stats) => {
+                        totalPresent += stats.present;
+                        totalAbsent += stats.absent;
+                        totalNotAvailable += stats.notAvailable;
+                        totalHolidays += stats.holidays;
+
+                        // Role-wise
+                        if (!roleWiseStats.has(stats.role)) {
+                            roleWiseStats.set(stats.role, { present: 0, absent: 0, notAvailable: 0, holidays: 0, total: 0, count: 0 });
+                        }
+                        const roleStats = roleWiseStats.get(stats.role)!;
+                        roleStats.present += stats.present;
+                        roleStats.absent += stats.absent;
+                        roleStats.notAvailable += stats.notAvailable;
+                        roleStats.holidays += stats.holidays;
+                        roleStats.total += stats.totalDays;
+                        roleStats.count++;
+
+                        // Monthly trend
+                        stats.monthlyStats.forEach((monthStats, monthKey) => {
+                            if (!monthlyTrend.has(monthKey)) {
+                                monthlyTrend.set(monthKey, { present: 0, absent: 0, total: 0 });
+                            }
+                            const trend = monthlyTrend.get(monthKey)!;
+                            trend.present += monthStats.present;
+                            trend.absent += monthStats.absent;
+                            trend.total += monthStats.total - monthStats.holidays;
+                        });
+
+                        // Performance distribution
+                        const workingDays = stats.totalDays - stats.holidays;
+                        const percentage = workingDays > 0 ? (stats.present / workingDays) * 100 : 0;
+                        if (percentage >= 90) perfDistribution.excellent++;
+                        else if (percentage >= 80) perfDistribution.good++;
+                        else if (percentage >= 70) perfDistribution.satisfactory++;
+                        else if (percentage >= 60) perfDistribution.needsImprovement++;
+                        else perfDistribution.poor++;
+                    });
+
+                    // ====== CHART 1: Staff Performance Distribution Pie Chart (LEFT HALF) ======
+                    const pieX = 70;
+                    const pieY = 95;
+                    const pieRadius = 45;
+
+                    doc.setFontSize(12);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('Staff Performance Distribution', 14, 38);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(9);
+                    doc.setTextColor(100, 100, 100);
+                    doc.text('(Based on attendance percentage)', 14, 46);
+                    doc.setTextColor(0, 0, 0);
+
+                    // Performance categories with colors
+                    const perfCategories = [
+                        { label: 'Excellent (90%+)', count: perfDistribution.excellent, color: [76, 175, 80] as [number, number, number] },
+                        { label: 'Good (80-89%)', count: perfDistribution.good, color: [139, 195, 74] as [number, number, number] },
+                        { label: 'Satisfactory (70-79%)', count: perfDistribution.satisfactory, color: [255, 193, 7] as [number, number, number] },
+                        { label: 'Needs Improvement (60-69%)', count: perfDistribution.needsImprovement, color: [255, 152, 0] as [number, number, number] },
+                        { label: 'Poor (below 60%)', count: perfDistribution.poor, color: [244, 67, 54] as [number, number, number] }
+                    ];
+
+                    // Draw pie chart slices using triangular segments
+                    let currentAngle = -90; // Start from top
+                    perfCategories.forEach((cat) => {
+                        if (cat.count > 0 && totalStaff > 0) {
+                            const sliceAngle = (cat.count / totalStaff) * 360;
+                            const segments = Math.max(10, Math.ceil(sliceAngle / 10));
+
+                            doc.setFillColor(cat.color[0], cat.color[1], cat.color[2]);
+
+                            for (let i = 0; i < segments; i++) {
+                                const startAng = (currentAngle + (sliceAngle * i / segments)) * Math.PI / 180;
+                                const endAng = (currentAngle + (sliceAngle * (i + 1) / segments)) * Math.PI / 180;
+
+                                const x1 = pieX + pieRadius * Math.cos(startAng);
+                                const y1 = pieY + pieRadius * Math.sin(startAng);
+                                const x2 = pieX + pieRadius * Math.cos(endAng);
+                                const y2 = pieY + pieRadius * Math.sin(endAng);
+
+                                doc.triangle(pieX, pieY, x1, y1, x2, y2, 'F');
+                            }
+
+                            currentAngle += sliceAngle;
+                        }
+                    });
+
+                    // Draw pie chart border
+                    doc.setDrawColor(200, 200, 200);
+                    doc.setLineWidth(0.3);
+                    doc.circle(pieX, pieY, pieRadius, 'S');
+
+                    // Pie chart legend (below the pie chart)
+                    doc.setFontSize(8);
+                    const legendY = 148;
+                    const legendX = 14;
+                    perfCategories.forEach((cat, index) => {
+                        const col = index % 2;
+                        const row = Math.floor(index / 2);
+                        const xPos = legendX + (col * 70);
+                        const yPos = legendY + (row * 8);
+
+                        doc.setFillColor(cat.color[0], cat.color[1], cat.color[2]);
+                        doc.rect(xPos, yPos - 3, 6, 5, 'F');
+                        doc.setTextColor(0, 0, 0);
+                        const percentage = totalStaff > 0 ? ((cat.count / totalStaff) * 100).toFixed(0) : '0';
+                        doc.text(cat.label + ': ' + cat.count + ' (' + percentage + '%)', xPos + 8, yPos);
+                    });
+
+                    // Summary stats
+                    doc.setFontSize(9);
+                    doc.setTextColor(60, 60, 60);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('Total Staff: ' + totalStaff, 14, 178);
+                    const totalWorkingRecords = totalPresent + totalAbsent + totalNotAvailable;
+                    const overallAttendanceRate = totalWorkingRecords > 0 ? ((totalPresent / totalWorkingRecords) * 100).toFixed(1) : '0.0';
+                    doc.text('Overall Attendance Rate: ' + overallAttendanceRate + '%', 14, 186);
+                    doc.setFont('helvetica', 'normal');
+
+                    // ====== CHART 2: Role-wise Attendance Bar Chart (RIGHT TOP) ======
+                    const barChartX = 160;
+                    const barChartY = 38;
+                    const barChartWidth = 120;
+                    const barChartHeight = 55;
+
+                    doc.setFontSize(11);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('Role-wise Attendance Rate', barChartX, barChartY);
+                    doc.setFont('helvetica', 'normal');
+
+                    // Draw bar chart axes
+                    doc.setDrawColor(100, 100, 100);
+                    doc.setLineWidth(0.3);
+                    doc.line(barChartX, barChartY + 5, barChartX, barChartY + barChartHeight);
+                    doc.line(barChartX, barChartY + barChartHeight, barChartX + barChartWidth, barChartY + barChartHeight);
+
+                    // Y-axis labels
+                    doc.setFontSize(6);
+                    doc.text('100%', barChartX - 12, barChartY + 8);
+                    doc.text('75%', barChartX - 10, barChartY + 17);
+                    doc.text('50%', barChartX - 10, barChartY + 28);
+                    doc.text('25%', barChartX - 10, barChartY + 39);
+                    doc.text('0%', barChartX - 8, barChartY + barChartHeight);
+
+                    // Draw gridlines
+                    doc.setDrawColor(220, 220, 220);
+                    doc.setLineWidth(0.1);
+                    for (let i = 1; i <= 4; i++) {
+                        const y = barChartY + 5 + ((barChartHeight - 5) * i / 4);
+                        doc.line(barChartX, y, barChartX + barChartWidth, y);
+                    }
+
+                    // Draw bars for each role
+                    const sortedRoleStats = Array.from(roleWiseStats.entries()).sort((a, b) => {
+                        const order = ['CENTER_MANAGER', 'EDUCATOR'];
+                        return order.indexOf(a[0]) - order.indexOf(b[0]);
+                    });
+
+                    const barWidth = barChartWidth / (sortedRoleStats.length + 1);
+                    const barColors = [[33, 150, 243], [255, 152, 0], [76, 175, 80], [156, 39, 176]];
+
+                    sortedRoleStats.forEach(([role, stats], index) => {
+                        // Use same calculation as tables: present / (present + absent)
+                        const attendedDays = stats.present + stats.absent;
+                        const percentage = attendedDays > 0 ? (stats.present / attendedDays) * 100 : 0;
+                        const barHeight = (percentage / 100) * (barChartHeight - 5);
+                        const x = barChartX + 15 + (index * barWidth);
+                        const y = barChartY + barChartHeight - barHeight;
+
+                        const color = barColors[index % barColors.length];
+                        doc.setFillColor(color[0], color[1], color[2]);
+                        doc.rect(x, y, barWidth - 10, barHeight, 'F');
+
+                        // Role label - full name
+                        doc.setFontSize(6);
+                        doc.setTextColor(0, 0, 0);
+                        const roleLabel = role.replace('_', ' ');
+                        doc.text(roleLabel, x, barChartY + barChartHeight + 5);
+
+                        // Staff count and total days for context
+                        doc.setFontSize(5);
+                        doc.text('(' + stats.count + ' staff)', x, barChartY + barChartHeight + 9);
+
+                        // Percentage on top of bar
+                        doc.setFontSize(6);
+                        doc.text(percentage.toFixed(0) + '%', x + 5, y - 2);
+                    });
+
+                    // ====== CHART 3: Monthly Trend Line Chart (RIGHT BOTTOM) ======
+                    const trendChartX = 160;
+                    const trendChartY = 110;
+                    const trendChartWidth = 120;
+                    const trendChartHeight = 50;
+
+                    doc.setFontSize(11);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('Monthly Attendance Trend', trendChartX, trendChartY);
+                    doc.setFont('helvetica', 'normal');
+
+                    // Draw axes
+                    doc.setDrawColor(100, 100, 100);
+                    doc.setLineWidth(0.3);
+                    doc.line(trendChartX, trendChartY + 5, trendChartX, trendChartY + trendChartHeight);
+                    doc.line(trendChartX, trendChartY + trendChartHeight, trendChartX + trendChartWidth, trendChartY + trendChartHeight);
+
+                    // Y-axis labels
+                    doc.setFontSize(6);
+                    doc.text('100%', trendChartX - 12, trendChartY + 8);
+                    doc.text('50%', trendChartX - 10, trendChartY + 28);
+                    doc.text('0%', trendChartX - 8, trendChartY + trendChartHeight);
+
+                    // Draw gridlines
+                    doc.setDrawColor(220, 220, 220);
+                    doc.setLineWidth(0.1);
+                    doc.line(trendChartX, trendChartY + 28, trendChartX + trendChartWidth, trendChartY + 28);
+
+                    // Draw trend line
+                    const sortedTrendData = Array.from(monthlyTrend.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+                    if (sortedTrendData.length > 0) {
+                        const pointSpacing = trendChartWidth / (sortedTrendData.length + 1);
+
+                        // Draw line connecting points
+                        doc.setDrawColor(255, 152, 0);
+                        doc.setLineWidth(0.8);
+
+                        let prevX = 0, prevY = 0;
+                        sortedTrendData.forEach((entry, index) => {
+                            const data = entry[1];
+                            const percentage = data.total > 0 ? (data.present / data.total) * 100 : 0;
+                            const x = trendChartX + 10 + (index * pointSpacing);
+                            const y = trendChartY + trendChartHeight - ((percentage / 100) * (trendChartHeight - 5));
+
+                            if (index > 0) {
+                                doc.line(prevX, prevY, x, y);
+                            }
+
+                            prevX = x;
+                            prevY = y;
+                        });
+
+                        // Draw points and labels
+                        sortedTrendData.forEach(([monthKey, data], index) => {
+                            const percentage = data.total > 0 ? (data.present / data.total) * 100 : 0;
+                            const x = trendChartX + 10 + (index * pointSpacing);
+                            const y = trendChartY + trendChartHeight - ((percentage / 100) * (trendChartHeight - 5));
+
+                            // Draw point
+                            doc.setFillColor(255, 152, 0);
+                            doc.circle(x, y, 2, 'F');
+
+                            // Month label
+                            const [year, month] = monthKey.split('-');
+                            const monthLabel = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleDateString('en-US', { month: 'short' });
+                            doc.setFontSize(5);
+                            doc.setTextColor(0, 0, 0);
+                            doc.text(monthLabel, x - 4, trendChartY + trendChartHeight + 5);
+
+                            // Percentage above point
+                            doc.text(percentage.toFixed(0) + '%', x - 4, y - 3);
+                        });
+                    }
+
+                    // ====== Key Insights Box ======
+                    const insightsY = 170;
+                    doc.setFillColor(255, 248, 225);
+                    doc.roundedRect(14, insightsY, 268, 35, 3, 3, 'F');
+                    doc.setDrawColor(255, 193, 7);
+                    doc.setLineWidth(0.5);
+                    doc.roundedRect(14, insightsY, 268, 35, 3, 3, 'S');
+
+                    doc.setFontSize(10);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setTextColor(133, 100, 4);
+                    doc.text('Key Insights', 20, insightsY + 8);
+
+                    doc.setFontSize(8);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setTextColor(80, 80, 80);
+
+                    const excellentPercent = totalStaff > 0 ? ((perfDistribution.excellent / totalStaff) * 100).toFixed(0) : '0';
+                    const needsAttentionCount = perfDistribution.needsImprovement + perfDistribution.poor;
+                    const needsAttentionPercent = totalStaff > 0 ? ((needsAttentionCount / totalStaff) * 100).toFixed(0) : '0';
+                    // Use grandTotal which is already calculated with per-user rates
+                    const totalRemuneration = grandTotal;
+
+                    // Left column insights
+                    doc.text('- Overall Attendance Rate: ' + overallAttendanceRate + '%', 20, insightsY + 16);
+                    doc.text('- Total Present Days: ' + totalPresent + ' | Absent: ' + totalAbsent + ' | N/A: ' + totalNotAvailable, 20, insightsY + 23);
+                    doc.text('- Total Remuneration: Rs. ' + totalRemuneration.toLocaleString(), 20, insightsY + 30);
+
+                    // Right column insights
+                    doc.text('- Top Performers (90%+): ' + perfDistribution.excellent + ' staff (' + excellentPercent + '%)', 145, insightsY + 16);
+
+                    if (needsAttentionCount > 0) {
+                        doc.setTextColor(204, 85, 0);
+                        doc.text('- Need Attention (below 70%): ' + needsAttentionCount + ' staff (' + needsAttentionPercent + '%)', 145, insightsY + 23);
+                        doc.setTextColor(80, 80, 80);
+                    } else {
+                        doc.setTextColor(76, 175, 80);
+                        doc.text('- All staff above 70% attendance!', 145, insightsY + 23);
+                        doc.setTextColor(80, 80, 80);
+                    }
+
+                    // Best performing role
+                    let bestRole = '';
+                    let bestRolePercentage = 0;
+                    sortedRoleStats.forEach(([role, stats]) => {
+                        const workingDays = stats.total - stats.holidays;
+                        const percentage = workingDays > 0 ? (stats.present / workingDays) * 100 : 0;
+                        if (percentage > bestRolePercentage) {
+                            bestRolePercentage = percentage;
+                            bestRole = role.replace('_', ' ');
+                        }
+                    });
+                    if (bestRole) {
+                        doc.text('- Best Performing Role: ' + bestRole + ' (' + bestRolePercentage.toFixed(1) + '%)', 145, insightsY + 30);
+                    }
+
+                    // ============================================
+                    // PAGE 2: Staff Attendance Heatmap
+                    // ============================================
+                    doc.addPage();
+
+                    // Add logo
+                    try {
+                        const img = new Image();
+                        img.src = '/images/logo/prangan-logo-light-mode.png';
+                        doc.addImage(img, 'PNG', 240, 5, 40, 20);
+                    } catch (logoError) {
+                        console.warn('Could not load logo:', logoError);
+                    }
+
+                    // Page title
+                    doc.setFontSize(14);
+                    doc.setTextColor(0, 0, 0);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('Staff Attendance Heatmap', 14, 15);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(9);
+                    doc.setTextColor(100, 100, 100);
+                    doc.text('Monthly attendance percentage by staff member', 14, 21);
+                    doc.setTextColor(0, 0, 0);
+
+                    // Helper function to calculate average attendance (same as tables)
+                    function calculateOverallAvg(stats: { present: number; absent: number }): number {
+                        const attendedDays = stats.present + stats.absent;
+                        return attendedDays > 0 ? (stats.present / attendedDays) * 100 : 0;
+                    }
+
+                    // Prepare data for heatmap - sort by average attendance descending
+                    const staffList = Array.from(userStats.entries()).sort((a, b) => {
+                        // Calculate average attendance for both
+                        const avgA = calculateOverallAvg(a[1]);
+                        const avgB = calculateOverallAvg(b[1]);
+                        // Sort by average attendance descending
+                        return avgB - avgA;
+                    });
+
+                    // Heatmap dimensions - shifted left for better fit
+                    const heatmapX = 14;
+                    const heatmapY = 35;
+                    const nameColWidth = 50;
+                    const cellWidth = (280 - heatmapX - nameColWidth) / (sortedMonths.length + 1); // +1 for avg column
+                    const cellHeight = Math.min(12, (160 - heatmapY) / (staffList.length + 1)); // +1 for header
+
+                    // Color scale function for heatmap
+                    function getHeatmapColor(percentage: number): [number, number, number] {
+                        if (percentage >= 90) return [76, 175, 80];      // Green
+                        if (percentage >= 80) return [139, 195, 74];     // Light green
+                        if (percentage >= 70) return [255, 235, 59];     // Yellow
+                        if (percentage >= 60) return [255, 193, 7];      // Amber
+                        if (percentage >= 50) return [255, 152, 0];      // Orange
+                        return [244, 67, 54];                             // Red
+                    }
+
+                    // Draw header row (months)
+                    doc.setFontSize(7);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFillColor(255, 152, 0);
+                    doc.rect(heatmapX, heatmapY, nameColWidth + (sortedMonths.length + 1) * cellWidth, cellHeight, 'F');
+                    doc.setTextColor(255, 255, 255);
+                    doc.text('Staff Name', heatmapX + 2, heatmapY + cellHeight - 3);
+
+                    sortedMonths.forEach((monthKey, index) => {
+                        const [year, month] = monthKey.split('-');
+                        const monthLabel = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleDateString('en-US', { month: 'short' });
+                        const x = heatmapX + nameColWidth + (index * cellWidth);
+                        doc.text(monthLabel, x + cellWidth / 2 - 5, heatmapY + cellHeight - 3);
+                    });
+
+                    // Avg column header
+                    doc.text('Avg', heatmapX + nameColWidth + (sortedMonths.length * cellWidth) + 2, heatmapY + cellHeight - 3);
+
+                    // Draw staff rows
+                    doc.setFont('helvetica', 'normal');
+                    let currentRole = '';
+                    staffList.forEach(([_userId, stats], staffIndex) => {
+                        const rowY = heatmapY + cellHeight + (staffIndex * cellHeight);
+
+                        // Add role separator
+                        if (stats.role !== currentRole) {
+                            currentRole = stats.role;
+                        }
+
+                        // Staff name
+                        doc.setFillColor(250, 250, 250);
+                        doc.rect(heatmapX, rowY, nameColWidth, cellHeight, 'F');
+                        doc.setDrawColor(220, 220, 220);
+                        doc.setLineWidth(0.1);
+                        doc.rect(heatmapX, rowY, nameColWidth, cellHeight, 'S');
+                        doc.setTextColor(0, 0, 0);
+                        doc.setFontSize(7);
+                        const displayName = stats.name.length > 20 ? stats.name.substring(0, 18) + '..' : stats.name;
+                        doc.text(displayName, heatmapX + 2, rowY + cellHeight - 3);
+
+                        // Monthly cells - calculate percentage same as tables
+                        let totalPresent = 0;
+                        let totalAbsent = 0;
+                        sortedMonths.forEach((monthKey, monthIndex) => {
+                            const monthStats = stats.monthlyStats.get(monthKey);
+                            const x = heatmapX + nameColWidth + (monthIndex * cellWidth);
+
+                            if (monthStats) {
+                                // Same calculation as tables: present / (present + absent)
+                                const attendedDays = monthStats.present + monthStats.absent;
+                                const percentage = attendedDays > 0 ? (monthStats.present / attendedDays) * 100 : 0;
+                                totalPresent += monthStats.present;
+                                totalAbsent += monthStats.absent;
+
+                                const color = getHeatmapColor(percentage);
+                                doc.setFillColor(color[0], color[1], color[2]);
+                                doc.rect(x, rowY, cellWidth, cellHeight, 'F');
+                                doc.setDrawColor(255, 255, 255);
+                                doc.setLineWidth(0.3);
+                                doc.rect(x, rowY, cellWidth, cellHeight, 'S');
+
+                                // Percentage text
+                                doc.setTextColor(percentage >= 70 ? 0 : 255, percentage >= 70 ? 0 : 255, percentage >= 70 ? 0 : 255);
+                                doc.setFontSize(7);
+                                doc.text(percentage.toFixed(0) + '%', x + cellWidth / 2 - 6, rowY + cellHeight - 3);
+                            } else {
+                                doc.setFillColor(240, 240, 240);
+                                doc.rect(x, rowY, cellWidth, cellHeight, 'F');
+                                doc.setDrawColor(220, 220, 220);
+                                doc.rect(x, rowY, cellWidth, cellHeight, 'S');
+                                doc.setTextColor(150, 150, 150);
+                                doc.text('-', x + cellWidth / 2 - 1, rowY + cellHeight - 3);
+                            }
+                        });
+
+                        // Average column - same calculation as tables: present / (present + absent)
+                        const avgX = heatmapX + nameColWidth + (sortedMonths.length * cellWidth);
+                        const totalAttendedDays = totalPresent + totalAbsent;
+                        const avgPercentage = totalAttendedDays > 0 ? (totalPresent / totalAttendedDays) * 100 : 0;
+                        const avgColor = getHeatmapColor(avgPercentage);
+                        doc.setFillColor(avgColor[0], avgColor[1], avgColor[2]);
+                        doc.rect(avgX, rowY, cellWidth, cellHeight, 'F');
+                        doc.setDrawColor(100, 100, 100);
+                        doc.setLineWidth(0.3);
+                        doc.rect(avgX, rowY, cellWidth, cellHeight, 'S');
+                        doc.setTextColor(avgPercentage >= 70 ? 0 : 255, avgPercentage >= 70 ? 0 : 255, avgPercentage >= 70 ? 0 : 255);
+                        doc.setFont('helvetica', 'bold');
+                        doc.setFontSize(7);
+                        doc.text(avgPercentage.toFixed(0) + '%', avgX + cellWidth / 2 - 6, rowY + cellHeight - 3);
+                        doc.setFont('helvetica', 'normal');
+                    });
+
+                    // Legend for heatmap colors
+                    const legendStartY = heatmapY + cellHeight + (staffList.length * cellHeight) + 15;
+                    doc.setFontSize(8);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setTextColor(0, 0, 0);
+                    doc.text('Color Legend:', 14, legendStartY);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(6);
+
+                    const legendItems = [
+                        { label: '90%+', color: [76, 175, 80] as [number, number, number] },
+                        { label: '80-89%', color: [139, 195, 74] as [number, number, number] },
+                        { label: '70-79%', color: [255, 235, 59] as [number, number, number] },
+                        { label: '60-69%', color: [255, 193, 7] as [number, number, number] },
+                        { label: '50-59%', color: [255, 152, 0] as [number, number, number] },
+                        { label: 'Below 50%', color: [244, 67, 54] as [number, number, number] }
+                    ];
+
+                    legendItems.forEach((item, index) => {
+                        const x = 14 + (index * 45);
+                        doc.setFillColor(item.color[0], item.color[1], item.color[2]);
+                        doc.rect(x, legendStartY + 5, 10, 6, 'F');
+                        doc.setTextColor(0, 0, 0);
+                        doc.text(item.label, x + 12, legendStartY + 10);
+                    });
+
+                    // ============================================
+                    // PAGE 3: Remuneration Chart
+                    // ============================================
+                    doc.addPage();
+
+                    // Add logo
+                    try {
+                        const img = new Image();
+                        img.src = '/images/logo/prangan-logo-light-mode.png';
+                        doc.addImage(img, 'PNG', 240, 5, 40, 20);
+                    } catch (logoError) {
+                        console.warn('Could not load logo:', logoError);
+                    }
+
+                    // Page title
+                    doc.setFontSize(14);
+                    doc.setTextColor(0, 0, 0);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('Remuneration Analysis', 14, 15);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(9);
+                    doc.setTextColor(100, 100, 100);
+                    doc.text('Monthly remuneration breakdown (per-user rates)', 14, 21);
+                    doc.setTextColor(0, 0, 0);
+
+                    // Calculate monthly remuneration using per-user rates
+                    const monthlyRemuneration = new Map<string, { total: number; byStaff: Map<string, number> }>();
+                    let grandTotalRemuneration = 0;
+
+                    sortedMonths.forEach(monthKey => {
+                        monthlyRemuneration.set(monthKey, { total: 0, byStaff: new Map() });
+                    });
+
+                    userStats.forEach((stats, odUserId) => {
+                        stats.monthlyStats.forEach((monthStats, monthKey) => {
+                            const remun = monthStats.present * stats.reimbursementRate;
+                            const monthData = monthlyRemuneration.get(monthKey);
+                            if (monthData) {
+                                monthData.total += remun;
+                                monthData.byStaff.set(odUserId, remun);
+                                grandTotalRemuneration += remun;
+                            }
+                        });
+                    });
+
+                    // ====== Monthly Remuneration Bar Chart (Centered) ======
+                    const remBarChartWidth = 220;
+                    const remBarChartX = (297 - remBarChartWidth) / 2; // Center on landscape page (297mm width)
+                    const remBarChartY = 50;
+                    const remBarChartHeight = 100;
+
+                    doc.setFontSize(12);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('Monthly Remuneration', 297 / 2, remBarChartY - 10, { align: 'center' });
+                    doc.setFont('helvetica', 'normal');
+
+                    // Find max value for scaling
+                    let maxRemuneration = 0;
+                    monthlyRemuneration.forEach((data) => {
+                        if (data.total > maxRemuneration) maxRemuneration = data.total;
+                    });
+
+                    // Draw axes
+                    doc.setDrawColor(100, 100, 100);
+                    doc.setLineWidth(0.3);
+                    doc.line(remBarChartX, remBarChartY, remBarChartX, remBarChartY + remBarChartHeight);
+                    doc.line(remBarChartX, remBarChartY + remBarChartHeight, remBarChartX + remBarChartWidth, remBarChartY + remBarChartHeight);
+
+                    // Y-axis labels
+                    doc.setFontSize(8);
+                    const yStep = maxRemuneration / 4;
+                    for (let i = 0; i <= 4; i++) {
+                        const yVal = maxRemuneration - (i * yStep);
+                        const yPos = remBarChartY + (i * remBarChartHeight / 4);
+                        doc.text('Rs.' + Math.round(yVal / 1000) + 'K', remBarChartX - 20, yPos + 2);
+
+                        // Gridlines
+                        doc.setDrawColor(230, 230, 230);
+                        doc.setLineWidth(0.1);
+                        doc.line(remBarChartX, yPos, remBarChartX + remBarChartWidth, yPos);
+                    }
+
+                    // Draw bars
+                    const remBarWidth = remBarChartWidth / (sortedMonths.length + 1);
+                    const sortedRemunData = Array.from(monthlyRemuneration.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+
+                    sortedRemunData.forEach(([monthKey, data], index) => {
+                        const barHeight = maxRemuneration > 0 ? (data.total / maxRemuneration) * remBarChartHeight : 0;
+                        const barWidth = remBarWidth - 12;
+                        const x = remBarChartX + 10 + (index * remBarWidth);
+                        const y = remBarChartY + remBarChartHeight - barHeight;
+
+                        // Single color bar (orange theme)
+                        doc.setFillColor(255, 152, 0);
+                        doc.rect(x, y, barWidth, barHeight, 'F');
+
+                        // Month label
+                        const [year, month] = monthKey.split('-');
+                        const monthLabel = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleDateString('en-US', { month: 'short' });
+                        doc.setFontSize(8);
+                        doc.setTextColor(0, 0, 0);
+                        doc.text(monthLabel, x + barWidth / 2 - 5, remBarChartY + remBarChartHeight + 8);
+
+                        // Value on top of bar
+                        doc.setFontSize(7);
+                        doc.text('Rs.' + (data.total / 1000).toFixed(1) + 'K', x + barWidth / 2 - 8, y - 3);
+                    });
+
+                    // ====== Grand Total Display ======
+                    const totalBoxY = remBarChartY + remBarChartHeight + 25;
+                    const totalBoxWidth = 140;
+                    const totalBoxX = (297 - totalBoxWidth) / 2;
+
+                    // Draw total box
+                    doc.setFillColor(255, 243, 205);
+                    doc.roundedRect(totalBoxX, totalBoxY, totalBoxWidth, 25, 3, 3, 'F');
+                    doc.setDrawColor(255, 152, 0);
+                    doc.setLineWidth(0.5);
+                    doc.roundedRect(totalBoxX, totalBoxY, totalBoxWidth, 25, 3, 3, 'S');
+
+                    doc.setFontSize(10);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setTextColor(100, 100, 100);
+                    doc.text('Total Remuneration', 297 / 2, totalBoxY + 9, { align: 'center' });
+
+                    doc.setFontSize(16);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setTextColor(76, 175, 80);
+                    doc.text('Rs. ' + grandTotalRemuneration.toLocaleString(), 297 / 2, totalBoxY + 20, { align: 'center' });
                 }
             }
 

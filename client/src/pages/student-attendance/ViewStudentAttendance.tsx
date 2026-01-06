@@ -1347,6 +1347,359 @@ export const ViewStudentAttendance = () => {
                             }
                         }
                     });
+
+                    // ============================================
+                    // INFOGRAPHICS PAGE - Charts & Visualizations
+                    // ============================================
+                    doc.addPage();
+
+                    // Add logo
+                    try {
+                        const img = new Image();
+                        img.src = '/images/logo/prangan-logo-light-mode.png';
+                        doc.addImage(img, 'PNG', 240, 5, 40, 20);
+                    } catch (logoError) {
+                        console.warn('Could not load logo:', logoError);
+                    }
+
+                    // Page title
+                    doc.setFontSize(16);
+                    doc.setTextColor(0, 0, 0);
+                    doc.text('Attendance Analytics & Insights', 14, 15);
+                    doc.setFontSize(9);
+                    doc.text(`Project: ${projectData?.name || 'Unknown Project'} | Center: ${centerData?.name || 'Unknown Center'} | Semester: ${semester?.name || 'Unknown Semester'}`, 14, 22);
+                    doc.text(`Period: ${new Date(fromDate).toLocaleDateString()} to ${new Date(toDate).toLocaleDateString()}`, 14, 27);
+
+                    // Calculate overall statistics for charts
+                    let totalPresent = 0;
+                    let totalAbsent = 0;
+                    let totalHolidays = 0;
+                    const totalStudents = studentStats.size;
+
+                    // Level-wise stats
+                    const levelWiseStats = new Map<string, { present: number; absent: number; holidays: number; total: number; students: number }>();
+
+                    // Monthly trend data
+                    const monthlyTrend = new Map<string, { present: number; absent: number; total: number }>();
+
+                    // Remarks distribution
+                    const remarksDistribution = { excellent: 0, good: 0, satisfactory: 0, needsImprovement: 0, poor: 0 };
+
+                    studentStats.forEach((stats) => {
+                        totalPresent += stats.present;
+                        totalAbsent += stats.absent;
+                        totalHolidays += stats.holidays;
+
+                        // Level-wise
+                        if (!levelWiseStats.has(stats.level)) {
+                            levelWiseStats.set(stats.level, { present: 0, absent: 0, holidays: 0, total: 0, students: 0 });
+                        }
+                        const levelStats = levelWiseStats.get(stats.level)!;
+                        levelStats.present += stats.present;
+                        levelStats.absent += stats.absent;
+                        levelStats.holidays += stats.holidays;
+                        levelStats.total += stats.totalDays;
+                        levelStats.students++;
+
+                        // Monthly trend
+                        stats.monthlyStats.forEach((monthStats, monthKey) => {
+                            if (!monthlyTrend.has(monthKey)) {
+                                monthlyTrend.set(monthKey, { present: 0, absent: 0, total: 0 });
+                            }
+                            const trend = monthlyTrend.get(monthKey)!;
+                            trend.present += monthStats.present;
+                            trend.absent += monthStats.absent;
+                            trend.total += monthStats.total - monthStats.holidays;
+                        });
+
+                        // Remarks distribution
+                        const workingDays = stats.totalDays - stats.holidays;
+                        const percentage = workingDays > 0 ? (stats.present / workingDays) * 100 : 0;
+                        if (percentage >= 90) remarksDistribution.excellent++;
+                        else if (percentage >= 80) remarksDistribution.good++;
+                        else if (percentage >= 70) remarksDistribution.satisfactory++;
+                        else if (percentage >= 60) remarksDistribution.needsImprovement++;
+                        else remarksDistribution.poor++;
+                    });
+
+                    // ====== CHART 1: Student Performance Distribution Pie Chart (LEFT HALF) ======
+                    // This shows the meaningful distribution of students across performance categories
+                    const pieX = 70;
+                    const pieY = 95;
+                    const pieRadius = 45;
+
+                    doc.setFontSize(12);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('Student Performance Distribution', 14, 38);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(9);
+                    doc.setTextColor(100, 100, 100);
+                    doc.text('(Based on attendance percentage)', 14, 46);
+                    doc.setTextColor(0, 0, 0);
+
+                    // Performance categories with colors
+                    const perfCategories = [
+                        { label: 'Excellent (90%+)', count: remarksDistribution.excellent, color: [76, 175, 80] as [number, number, number] },
+                        { label: 'Good (80-89%)', count: remarksDistribution.good, color: [139, 195, 74] as [number, number, number] },
+                        { label: 'Satisfactory (70-79%)', count: remarksDistribution.satisfactory, color: [255, 193, 7] as [number, number, number] },
+                        { label: 'Needs Improvement (60-69%)', count: remarksDistribution.needsImprovement, color: [255, 152, 0] as [number, number, number] },
+                        { label: 'Poor (below 60%)', count: remarksDistribution.poor, color: [244, 67, 54] as [number, number, number] }
+                    ];
+
+                    // Draw pie chart slices using triangular segments
+                    let currentAngle = -90; // Start from top
+                    perfCategories.forEach((cat) => {
+                        if (cat.count > 0 && totalStudents > 0) {
+                            const sliceAngle = (cat.count / totalStudents) * 360;
+                            const segments = Math.max(10, Math.ceil(sliceAngle / 10)); // One triangle per 10 degrees
+
+                            doc.setFillColor(cat.color[0], cat.color[1], cat.color[2]);
+
+                            // Draw slice as multiple small triangles from center
+                            for (let i = 0; i < segments; i++) {
+                                const startAng = (currentAngle + (sliceAngle * i / segments)) * Math.PI / 180;
+                                const endAng = (currentAngle + (sliceAngle * (i + 1) / segments)) * Math.PI / 180;
+
+                                const x1 = pieX + pieRadius * Math.cos(startAng);
+                                const y1 = pieY + pieRadius * Math.sin(startAng);
+                                const x2 = pieX + pieRadius * Math.cos(endAng);
+                                const y2 = pieY + pieRadius * Math.sin(endAng);
+
+                                doc.triangle(pieX, pieY, x1, y1, x2, y2, 'F');
+                            }
+
+                            currentAngle += sliceAngle;
+                        }
+                    });
+
+                    // Draw pie chart border
+                    doc.setDrawColor(200, 200, 200);
+                    doc.setLineWidth(0.3);
+                    doc.circle(pieX, pieY, pieRadius, 'S');
+
+                    // Pie chart legend (below the pie chart)
+                    doc.setFontSize(8);
+                    const legendY = 148;
+                    const legendX = 14;
+                    perfCategories.forEach((cat, index) => {
+                        // Two columns layout for legend
+                        const col = index % 2;
+                        const row = Math.floor(index / 2);
+                        const xPos = legendX + (col * 70);
+                        const yPos = legendY + (row * 8);
+
+                        doc.setFillColor(cat.color[0], cat.color[1], cat.color[2]);
+                        doc.rect(xPos, yPos - 3, 6, 5, 'F');
+                        doc.setTextColor(0, 0, 0);
+                        const percentage = totalStudents > 0 ? ((cat.count / totalStudents) * 100).toFixed(0) : '0';
+                        doc.text(cat.label + ': ' + cat.count + ' (' + percentage + '%)', xPos + 8, yPos);
+                    });
+
+                    // Summary stats
+                    doc.setFontSize(9);
+                    doc.setTextColor(60, 60, 60);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('Total Students: ' + totalStudents, 14, 178);
+                    const totalRecords = totalPresent + totalAbsent;
+                    const overallAttendanceRate = totalRecords > 0 ? ((totalPresent / totalRecords) * 100).toFixed(1) : '0.0';
+                    doc.text('Overall Attendance Rate: ' + overallAttendanceRate + '%', 14, 186);
+                    doc.setFont('helvetica', 'normal');
+
+                    // ====== CHART 2: Level-wise Bar Chart (RIGHT TOP) ======
+                    const barChartX = 160;
+                    const barChartY = 38;
+                    const barChartWidth = 120;
+                    const barChartHeight = 55;
+
+                    doc.setFontSize(11);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('Level-wise Attendance Rate', barChartX, barChartY);
+                    doc.setFont('helvetica', 'normal');
+
+                    // Draw bar chart axes
+                    doc.setDrawColor(100, 100, 100);
+                    doc.setLineWidth(0.3);
+                    doc.line(barChartX, barChartY + 5, barChartX, barChartY + barChartHeight); // Y-axis
+                    doc.line(barChartX, barChartY + barChartHeight, barChartX + barChartWidth, barChartY + barChartHeight); // X-axis
+
+                    // Y-axis labels
+                    doc.setFontSize(6);
+                    doc.text('100%', barChartX - 12, barChartY + 8);
+                    doc.text('75%', barChartX - 10, barChartY + 17);
+                    doc.text('50%', barChartX - 10, barChartY + 28);
+                    doc.text('25%', barChartX - 10, barChartY + 39);
+                    doc.text('0%', barChartX - 8, barChartY + barChartHeight);
+
+                    // Draw gridlines
+                    doc.setDrawColor(220, 220, 220);
+                    doc.setLineWidth(0.1);
+                    for (let i = 1; i <= 4; i++) {
+                        const y = barChartY + 5 + ((barChartHeight - 5) * i / 4);
+                        doc.line(barChartX, y, barChartX + barChartWidth, y);
+                    }
+
+                    // Draw bars for each level
+                    const sortedLevelStats = Array.from(levelWiseStats.entries()).sort((a, b) => {
+                        const order = ['PRIMARY_A', 'PRIMARY_B', 'LEVEL_1', 'LEVEL_2', 'LEVEL_3', 'LEVEL_4'];
+                        return order.indexOf(a[0]) - order.indexOf(b[0]);
+                    });
+
+                    const barWidth = barChartWidth / (sortedLevelStats.length + 1);
+                    const barColors = [
+                        [255, 193, 7], [255, 152, 0], [76, 175, 80], [33, 150, 243], [156, 39, 176], [233, 30, 99]
+                    ];
+
+                    sortedLevelStats.forEach(([level, stats], index) => {
+                        const workingDays = stats.total - stats.holidays;
+                        const percentage = workingDays > 0 ? (stats.present / workingDays) * 100 : 0;
+                        const barHeight = (percentage / 100) * (barChartHeight - 5);
+                        const x = barChartX + 5 + (index * barWidth);
+                        const y = barChartY + barChartHeight - barHeight;
+
+                        const color = barColors[index % barColors.length];
+                        doc.setFillColor(color[0], color[1], color[2]);
+                        doc.rect(x, y, barWidth - 3, barHeight, 'F');
+
+                        // Level label - full names
+                        doc.setFontSize(5);
+                        doc.setTextColor(0, 0, 0);
+                        const levelLabel = level.replace('_', ' ');
+                        doc.text(levelLabel, x, barChartY + barChartHeight + 5);
+
+                        // Percentage on top of bar
+                        doc.setFontSize(5);
+                        doc.text(`${percentage.toFixed(0)}%`, x + 2, y - 1);
+                    });
+
+                    // ====== CHART 3: Monthly Trend Line Chart (RIGHT BOTTOM) ======
+                    const trendChartX = 160;
+                    const trendChartY = 110;
+                    const trendChartWidth = 120;
+                    const trendChartHeight = 50;
+
+                    doc.setFontSize(11);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('Monthly Attendance Trend', trendChartX, trendChartY);
+                    doc.setFont('helvetica', 'normal');
+
+                    // Draw axes
+                    doc.setDrawColor(100, 100, 100);
+                    doc.setLineWidth(0.3);
+                    doc.line(trendChartX, trendChartY + 5, trendChartX, trendChartY + trendChartHeight); // Y-axis
+                    doc.line(trendChartX, trendChartY + trendChartHeight, trendChartX + trendChartWidth, trendChartY + trendChartHeight); // X-axis
+
+                    // Y-axis labels
+                    doc.setFontSize(6);
+                    doc.text('100%', trendChartX - 12, trendChartY + 8);
+                    doc.text('50%', trendChartX - 10, trendChartY + 28);
+                    doc.text('0%', trendChartX - 8, trendChartY + trendChartHeight);
+
+                    // Draw gridlines
+                    doc.setDrawColor(220, 220, 220);
+                    doc.setLineWidth(0.1);
+                    doc.line(trendChartX, trendChartY + 28, trendChartX + trendChartWidth, trendChartY + 28);
+
+                    // Draw trend line
+                    const sortedTrend = Array.from(monthlyTrend.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+                    if (sortedTrend.length > 0) {
+                        const pointSpacing = trendChartWidth / (sortedTrend.length + 1);
+
+                        // Draw line connecting points
+                        doc.setDrawColor(255, 152, 0);
+                        doc.setLineWidth(0.8);
+
+                        let prevX = 0, prevY = 0;
+                        sortedTrend.forEach((entry, index) => {
+                            const data = entry[1];
+                            const percentage = data.total > 0 ? (data.present / data.total) * 100 : 0;
+                            const x = trendChartX + 10 + (index * pointSpacing);
+                            const y = trendChartY + trendChartHeight - ((percentage / 100) * (trendChartHeight - 5));
+
+                            // Draw line from previous point
+                            if (index > 0) {
+                                doc.line(prevX, prevY, x, y);
+                            }
+
+                            prevX = x;
+                            prevY = y;
+                        });
+
+                        // Draw points and labels
+                        sortedTrend.forEach(([monthKey, data], index) => {
+                            const percentage = data.total > 0 ? (data.present / data.total) * 100 : 0;
+                            const x = trendChartX + 10 + (index * pointSpacing);
+                            const y = trendChartY + trendChartHeight - ((percentage / 100) * (trendChartHeight - 5));
+
+                            // Draw point
+                            doc.setFillColor(255, 152, 0);
+                            doc.circle(x, y, 2, 'F');
+
+                            // Month label
+                            const [year, month] = monthKey.split('-');
+                            const monthLabel = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleDateString('en-US', { month: 'short' });
+                            doc.setFontSize(5);
+                            doc.setTextColor(0, 0, 0);
+                            doc.text(monthLabel, x - 4, trendChartY + trendChartHeight + 5);
+
+                            // Percentage above point
+                            doc.text(`${percentage.toFixed(0)}%`, x - 4, y - 3);
+                        });
+                    }
+
+                    // ====== Key Insights Box ======
+                    const insightsY = 170;
+                    doc.setFillColor(255, 248, 225);
+                    doc.roundedRect(14, insightsY, 268, 35, 3, 3, 'F');
+                    doc.setDrawColor(255, 193, 7);
+                    doc.setLineWidth(0.5);
+                    doc.roundedRect(14, insightsY, 268, 35, 3, 3, 'S');
+
+                    doc.setFontSize(10);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setTextColor(133, 100, 4);
+                    doc.text('Key Insights', 20, insightsY + 8);
+
+                    doc.setFontSize(8);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setTextColor(80, 80, 80);
+
+                    const overallPercentage = (totalPresent + totalAbsent) > 0 ? ((totalPresent / (totalPresent + totalAbsent)) * 100).toFixed(1) : '0.0';
+                    const excellentPercent = totalStudents > 0 ? ((remarksDistribution.excellent / totalStudents) * 100).toFixed(0) : '0';
+                    const needsAttentionCount = remarksDistribution.needsImprovement + remarksDistribution.poor;
+                    const needsAttentionPercent = totalStudents > 0 ? ((needsAttentionCount / totalStudents) * 100).toFixed(0) : '0';
+
+                    // Left column insights
+                    doc.text('- Overall Attendance Rate: ' + overallPercentage + '%', 20, insightsY + 16);
+                    doc.text('- Total Working Days (excluding holidays): ' + (totalPresent + totalAbsent), 20, insightsY + 23);
+                    doc.text('- Total Holidays in Period: ' + (totalHolidays > 0 ? Math.round(totalHolidays / totalStudents) : 0) + ' days', 20, insightsY + 30);
+
+                    // Right column insights
+                    doc.text('- Top Performers (90%+): ' + remarksDistribution.excellent + ' students (' + excellentPercent + '%)', 145, insightsY + 16);
+
+                    if (needsAttentionCount > 0) {
+                        doc.setTextColor(204, 85, 0);
+                        doc.text('- Need Attention (below 70%): ' + needsAttentionCount + ' students (' + needsAttentionPercent + '%)', 145, insightsY + 23);
+                        doc.setTextColor(80, 80, 80);
+                    } else {
+                        doc.setTextColor(76, 175, 80);
+                        doc.text('- All students above 70% attendance!', 145, insightsY + 23);
+                        doc.setTextColor(80, 80, 80);
+                    }
+
+                    // Best performing level
+                    let bestLevel = '';
+                    let bestPercentage = 0;
+                    sortedLevelStats.forEach(([level, stats]) => {
+                        const workingDays = stats.total - stats.holidays;
+                        const percentage = workingDays > 0 ? (stats.present / workingDays) * 100 : 0;
+                        if (percentage > bestPercentage) {
+                            bestPercentage = percentage;
+                            bestLevel = level.replace('_', ' ');
+                        }
+                    });
+                    if (bestLevel) {
+                        doc.text('- Best Performing: ' + bestLevel + ' (' + bestPercentage.toFixed(1) + '%)', 145, insightsY + 30);
+                    }
                 }
             }
 
