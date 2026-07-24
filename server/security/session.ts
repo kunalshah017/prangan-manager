@@ -4,7 +4,10 @@ type Environment = NodeJS.ProcessEnv;
 
 export const SESSION_COOKIE_NAME = "prangan_session";
 export const CSRF_COOKIE_NAME = "prangan_csrf";
-const AZURE_PRODUCTION_CLIENT_ORIGIN = "https://prangan-manager.vercel.app";
+const AZURE_PRODUCTION_CLIENT_ORIGINS = [
+  "https://manager.pranganfoundation.org",
+  "https://prangan-manager.vercel.app",
+] as const;
 
 const isProductionEnvironment = (environment: Environment): boolean =>
   environment.NODE_ENV === "production" ||
@@ -18,7 +21,7 @@ export const getAllowedClientOrigin = (
   }
 
   if (environment.WEBSITE_SITE_NAME || environment.WEBSITE_HOSTNAME) {
-    return AZURE_PRODUCTION_CLIENT_ORIGIN;
+    return AZURE_PRODUCTION_CLIENT_ORIGINS[0];
   }
 
   if (environment.NODE_ENV === "production") {
@@ -26,6 +29,20 @@ export const getAllowedClientOrigin = (
   }
 
   return "http://localhost:5173";
+};
+
+export const getAllowedClientOrigins = (
+  environment: Environment = process.env,
+): string[] => {
+  if (environment.CLIENT_ORIGIN) {
+    return [environment.CLIENT_ORIGIN];
+  }
+
+  if (environment.WEBSITE_SITE_NAME || environment.WEBSITE_HOSTNAME) {
+    return [...AZURE_PRODUCTION_CLIENT_ORIGINS];
+  }
+
+  return [getAllowedClientOrigin(environment)];
 };
 
 export const getSessionCookieOptions = (

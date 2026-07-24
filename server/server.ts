@@ -15,7 +15,7 @@ import cookie from "@fastify/cookie";
 import { createCsrfToken, requireCsrfToken } from "./security/csrf.js";
 import {
   CSRF_COOKIE_NAME,
-  getAllowedClientOrigin,
+  getAllowedClientOrigins,
   getCsrfCookieOptions,
 } from "./security/session.js";
 
@@ -25,11 +25,11 @@ dotenv.config();
 // Create Fastify instance
 const fastify: FastifyInstance = Fastify();
 
-const clientOrigin = getAllowedClientOrigin();
+const clientOrigins = getAllowedClientOrigins();
 
 fastify.register(cookie);
 fastify.register(import("@fastify/cors"), {
-  origin: clientOrigin,
+  origin: clientOrigins,
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "X-CSRF-Token"],

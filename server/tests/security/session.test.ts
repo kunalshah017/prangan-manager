@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   createSessionToken,
   getAllowedClientOrigin,
+  getAllowedClientOrigins,
   getSessionCookieOptions,
   readSessionToken,
 } from "../../security/session.js";
@@ -27,7 +28,21 @@ test("production sessions require an explicit client origin", () => {
   );
   assert.equal(
     getAllowedClientOrigin({ WEBSITE_SITE_NAME: "prangan-manager-api" }),
-    "https://prangan-manager.vercel.app",
+    "https://manager.pranganfoundation.org",
+  );
+  assert.deepEqual(
+    getAllowedClientOrigins({ WEBSITE_SITE_NAME: "prangan-manager-api" }),
+    [
+      "https://manager.pranganfoundation.org",
+      "https://prangan-manager.vercel.app",
+    ],
+  );
+  assert.deepEqual(
+    getAllowedClientOrigins({
+      NODE_ENV: "production",
+      CLIENT_ORIGIN: "https://app.prangan.example",
+    }),
+    ["https://app.prangan.example"],
   );
 });
 
