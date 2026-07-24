@@ -57,6 +57,27 @@ test("semester transition activation is transactional and leaves its source unto
   );
 });
 
+test("all interactive transactions inherit a production-safe timeout", async () => {
+  const [prismaClient, attendanceService] = await Promise.all([
+    readFile(serverFile("lib/prisma.ts"), "utf8"),
+    readFile(serverFile("service/attendance.service.ts"), "utf8"),
+  ]);
+
+  assert.match(
+    prismaClient,
+    /INTERACTIVE_TRANSACTION_TIMEOUT_MS\s*=\s*30_000/,
+  );
+  assert.match(
+    prismaClient,
+    /transactionOptions:\s*\{[\s\S]*maxWait:\s*10_000[\s\S]*timeout:\s*INTERACTIVE_TRANSACTION_TIMEOUT_MS/,
+  );
+  assert.doesNotMatch(
+    attendanceService,
+    /timeout:\s*8000/,
+    "bulk attendance must not override the shared timeout with a shorter limit",
+  );
+});
+
 test("activation queues one deduplicated email per transition user inside its transaction", async () => {
   const [service, controller, emailTemplate] = await Promise.all([
     readFile(

@@ -272,7 +272,7 @@ Authorization: Bearer <admin_jwt_token>
 **Required Fields:**
 
 - `userId` (string): ID of the user to verify
-- `status` (string): APPROVED, REJECTED, or PENDING
+- `status` (string): APPROVED or REJECTED
 - `role` (string): USER or ADMIN
 - `email` (string): User's email address
 - `name` (string): User's full name
@@ -303,7 +303,7 @@ Authorization: Bearer <admin_jwt_token>
 
 ```json
 {
-  "message": "User verification completed successfully and notification email sent",
+  "message": "User verification completed successfully and notification email queued.",
   "user": {
     "id": "user_id",
     "email": "user@example.com",
@@ -358,6 +358,10 @@ Authorization: Bearer <admin_jwt_token>
   ]
 }
 ```
+
+Registration decision emails are stored in the durable email outbox in the
+same transaction as the decision. Delivery happens asynchronously with retry
+and deduplication.
 
 #### GET /api/v1/users/registration-requests
 

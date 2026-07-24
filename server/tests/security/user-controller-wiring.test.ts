@@ -54,7 +54,10 @@ test("detail and update responses choose owner or admin-safe contracts", async (
     updateSource,
     /authUser\.id === userId[\s\S]*getUserById\(userId\)[\s\S]*getAdminUserById\(userId\)/,
   );
-  assert.match(verificationSource, /getAdminUserById\(updatedUser\.id\)/);
+  assert.match(
+    verificationSource,
+    /getAdminUserById\(\s*transactionResult\.userUpdate\.id/,
+  );
 });
 
 test("general user updates use the strict profile extractor and never replace assignments", async () => {
@@ -117,7 +120,7 @@ test("verification notifications use persisted user identity", async () => {
   assert.match(verificationSource, /prisma\.user\.findUnique/);
   assert.match(
     verificationSource,
-    /select:\s*\{\s*email: true,\s*name: true\s*\}/,
+    /select:\s*\{\s*email: true,\s*name: true,\s*status: true\s*\}/,
   );
   assert.doesNotMatch(verificationSource, /data\.name/);
   assert.doesNotMatch(verificationSource, /data\.email/);

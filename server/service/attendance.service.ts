@@ -340,67 +340,62 @@ export const markBulkAttendance = async (
     }
 
     // Use a single database transaction with batched operations for maximum efficiency
-    const result = await prisma.$transaction(
-      async (tx) => {
-        let successCount = 0;
+    const result = await prisma.$transaction(async (tx) => {
+      let successCount = 0;
 
-        // Process attendances in smaller batches to avoid memory issues
-        const batchSize = 10;
-        for (let i = 0; i < validAttendances.length; i += batchSize) {
-          const batch = validAttendances.slice(i, i + batchSize);
+      // Process attendances in smaller batches to avoid memory issues
+      const batchSize = 10;
+      for (let i = 0; i < validAttendances.length; i += batchSize) {
+        const batch = validAttendances.slice(i, i + batchSize);
 
-          // Process each item in the batch
-          for (const attendanceData of batch) {
-            // Use upsert for each record - this is still faster than individual transactions
-            await tx.userAttendance.upsert({
-              where: {
-                userId_date_projectId_centerId_semesterId: {
-                  userId: attendanceData.userId,
-                  date: requestDate,
-                  projectId,
-                  centerId,
-                  semesterId,
-                },
-              },
-              update: {
-                status: attendanceData.status,
-                roleAssignmentId: attendanceData.roleAssignmentId,
-                notes: attendanceData.notes || null,
-                holidayReason:
-                  attendanceData.status === AttendanceStatus.HOLIDAY
-                    ? attendanceData.holidayReason
-                    : null,
-                markedBy,
-                markedAt: now,
-                updatedAt: now,
-              },
-              create: {
+        // Process each item in the batch
+        for (const attendanceData of batch) {
+          // Use upsert for each record - this is still faster than individual transactions
+          await tx.userAttendance.upsert({
+            where: {
+              userId_date_projectId_centerId_semesterId: {
                 userId: attendanceData.userId,
                 date: requestDate,
-                status: attendanceData.status,
-                roleAssignmentId: attendanceData.roleAssignmentId,
                 projectId,
                 centerId,
                 semesterId,
-                notes: attendanceData.notes || null,
-                holidayReason:
-                  attendanceData.status === AttendanceStatus.HOLIDAY
-                    ? attendanceData.holidayReason
-                    : null,
-                markedBy,
-                markedAt: now,
               },
-            });
-            successCount++;
-          }
+            },
+            update: {
+              status: attendanceData.status,
+              roleAssignmentId: attendanceData.roleAssignmentId,
+              notes: attendanceData.notes || null,
+              holidayReason:
+                attendanceData.status === AttendanceStatus.HOLIDAY
+                  ? attendanceData.holidayReason
+                  : null,
+              markedBy,
+              markedAt: now,
+              updatedAt: now,
+            },
+            create: {
+              userId: attendanceData.userId,
+              date: requestDate,
+              status: attendanceData.status,
+              roleAssignmentId: attendanceData.roleAssignmentId,
+              projectId,
+              centerId,
+              semesterId,
+              notes: attendanceData.notes || null,
+              holidayReason:
+                attendanceData.status === AttendanceStatus.HOLIDAY
+                  ? attendanceData.holidayReason
+                  : null,
+              markedBy,
+              markedAt: now,
+            },
+          });
+          successCount++;
         }
+      }
 
-        return successCount;
-      },
-      {
-        timeout: 8000, // Set timeout to 8 seconds (less than Vercel's 10s limit)
-      },
-    );
+      return successCount;
+    });
 
     return {
       message: `Bulk attendance marking completed. Processed ${result}/${attendances.length} records.`,

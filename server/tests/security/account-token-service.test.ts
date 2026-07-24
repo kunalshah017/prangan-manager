@@ -3,10 +3,44 @@ import test from "node:test";
 
 import { AccountTokenType } from "../../generated/prisma/index.js";
 import { prisma } from "../../lib/prisma.js";
-import {
+import * as accountTokenService from "../../service/account-token.service.js";
+
+const {
   consumeAccountTokenAndSetPassword,
   createAccountToken,
-} from "../../service/account-token.service.js";
+} = accountTokenService;
+
+test("internal token creation returns its operation ID without persisting the raw token", async () => {
+  const createRecord = (
+    accountTokenService as typeof accountTokenService & {
+      createAccountTokenRecordInTransaction?: (
+        transaction: any,
+        userId: string,
+        type: AccountTokenType,
+      ) => Promise<{ id: string; rawToken: string }>;
+    }
+  ).createAccountTokenRecordInTransaction;
+  assert.equal(typeof createRecord, "function");
+
+  let persistedHash = "";
+  const result = await createRecord!(
+    {
+      accountToken: {
+        updateMany: async () => ({ count: 0 }),
+        create: async ({ data }: any) => {
+          persistedHash = data.tokenHash;
+          return { id: "token-1", ...data };
+        },
+      },
+    },
+    "user-1",
+    AccountTokenType.PASSWORD_RESET,
+  );
+
+  assert.equal(result.id, "token-1");
+  assert.notEqual(result.rawToken, persistedHash);
+  assert.match(persistedHash, /^[a-f0-9]{64}$/);
+});
 
 test("issuing an account token invalidates prior unused tokens of the same type", async () => {
   const originalTransaction = prisma.$transaction;

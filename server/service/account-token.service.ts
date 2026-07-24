@@ -9,18 +9,18 @@ import {
 
 const ACCOUNT_TOKEN_LIFETIME_MS = 60 * 60 * 1000;
 
-export const createAccountTokenInTransaction = async (
+export const createAccountTokenRecordInTransaction = async (
   transaction: Prisma.TransactionClient,
   userId: string,
   type: AccountTokenType,
-): Promise<string> => {
+): Promise<{ id: string; rawToken: string }> => {
   const rawToken = createRawAccountToken();
 
   await transaction.accountToken.updateMany({
     where: { userId, type, usedAt: null },
     data: { usedAt: new Date() },
   });
-  await transaction.accountToken.create({
+  const token = await transaction.accountToken.create({
     data: {
       userId,
       type,
@@ -29,8 +29,17 @@ export const createAccountTokenInTransaction = async (
     },
   });
 
-  return rawToken;
+  return { id: token.id, rawToken };
 };
+
+export const createAccountTokenInTransaction = async (
+  transaction: Prisma.TransactionClient,
+  userId: string,
+  type: AccountTokenType,
+): Promise<string> =>
+  (
+    await createAccountTokenRecordInTransaction(transaction, userId, type)
+  ).rawToken;
 
 export const createAccountToken = async (
   userId: string,
