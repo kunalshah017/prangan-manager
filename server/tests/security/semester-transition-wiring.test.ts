@@ -52,6 +52,32 @@ test("semester transition activation is transactional and leaves its source unto
   );
 });
 
+test("activation queues one deduplicated email per transition user inside its transaction", async () => {
+  const [service, controller, emailTemplate] = await Promise.all([
+    readFile(
+      serverFile("service/semester-transition.service.ts"),
+      "utf8",
+    ),
+    readFile(
+      serverFile("controllers/semester-transition.controller.ts"),
+      "utf8",
+    ),
+    readFile(
+      serverFile("email/semester-activation-email.ts"),
+      "utf8",
+    ),
+  ]);
+
+  assert.match(service, /buildSemesterActivationEmailJobs/);
+  assert.match(emailTemplate, /semester-activation:/);
+  assert.match(service, /enqueueEmail\(emailJob,\s*transaction\)/);
+  assert.match(service, /queuedEmailCount/);
+  assert.match(service, /email:\s*true/);
+  assert.match(service, /academicLevel\s*\.name/);
+  assert.match(controller, /queuedEmailCount/);
+  assert.doesNotMatch(service, /await sendEmail/);
+});
+
 test("new semesters accept a source and initialize a draft transition", async () => {
   const [input, controller, service] = await Promise.all([
     readFile(serverFile("security/semester-input.ts"), "utf8"),

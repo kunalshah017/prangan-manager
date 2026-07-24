@@ -115,12 +115,16 @@ export const activateSemesterSetupController = asyncHandle(
     const admin = requireAdmin(request, reply);
     if (!admin) return;
     try {
-      const semester = await activateSemesterTransition(
+      const { semester, queuedEmailCount } = await activateSemesterTransition(
         (request.params as { id: string }).id,
         admin.id,
       );
       return successHandle(
-        { message: "Semester activated.", semester },
+        {
+          message: "Semester activated.",
+          semester,
+          queuedEmailCount,
+        },
         reply,
         200,
       );

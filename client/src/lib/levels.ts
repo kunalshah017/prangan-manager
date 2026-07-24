@@ -31,3 +31,20 @@ export const sortByJourneyOrder = <T extends ManagedLevel>(levels: T[]): T[] =>
     (left, right) =>
       academicLevel(left).journeyOrder - academicLevel(right).journeyOrder,
   );
+
+const nameCollator = new Intl.Collator("en", {
+  sensitivity: "base",
+  numeric: true,
+});
+
+export const sortByJourneyOrderThenName = <T>(
+  records: readonly T[],
+  getLevel: (record: T) => AcademicLevel | null | undefined,
+  getName: (record: T) => string,
+): T[] =>
+  [...records].sort((left, right) => {
+    const levelOrder =
+      (getLevel(left)?.journeyOrder ?? Number.POSITIVE_INFINITY) -
+      (getLevel(right)?.journeyOrder ?? Number.POSITIVE_INFINITY);
+    return levelOrder || nameCollator.compare(getName(left), getName(right));
+  });

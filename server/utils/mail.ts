@@ -19,7 +19,12 @@ const createTransporter = () => {
 export const sendEmail = async (
   to: string | string[],
   subject: string,
-  html: string
+  html: string,
+  options?: {
+    fromName?: string;
+    messageId?: string;
+    text?: string;
+  },
 ) => {
   try {
     // Validate required environment variables
@@ -38,12 +43,17 @@ export const sendEmail = async (
 
     const mailOptions = {
       from: {
-        name: process.env.EMAIL_FROM_NAME || "Prangan Foundation",
+        name:
+          options?.fromName ||
+          process.env.EMAIL_FROM_NAME ||
+          "Prangan Foundation",
         address: process.env.EMAIL_FROM_ADDRESS || process.env.EMAIL_USER!,
       },
       to: to,
       subject: subject,
       html: html,
+      text: options?.text,
+      messageId: options?.messageId,
     };
 
     const info = await transporter.sendMail(mailOptions);

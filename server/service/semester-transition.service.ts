@@ -7,6 +7,8 @@ import {
   UserStatus,
   type Prisma,
 } from "../generated/prisma/index.js";
+import { buildSemesterActivationEmailJobs } from "../email/semester-activation-email.js";
+import { composePersonName } from "../lib/person-name.js";
 import { prisma } from "../lib/prisma.js";
 import {
   selectLatestAssessment,
@@ -16,6 +18,7 @@ import type {
   StaffTransitionDecision,
   StudentTransitionDecision,
 } from "../security/semester-transition-input.js";
+import { enqueueEmail } from "./email-queue.service.js";
 
 type Transaction = Prisma.TransactionClient;
 
@@ -623,7 +626,7 @@ export const activateSemesterTransition = async (
       include: {
         semester: {
           include: {
-            center: { select: { projectId: true } },
+            center: { select: { projectId: true, name: true } },
             levels: {
               where: { isActive: true },
               include: { academicLevel: true },
@@ -635,7 +638,7 @@ export const activateSemesterTransition = async (
     if (!transition)
       throw new SemesterTransitionError("Semester setup not found.", 404);
     if (transition.status === SemesterTransitionStatus.COMPLETED) {
-      return transition.semester;
+      return { semester: transition.semester, queuedEmailCount: 0 };
     }
 
     const students = transition.studentPlan as StudentTransitionDecision[];
@@ -789,6 +792,68 @@ export const activateSemesterTransition = async (
       }
     }
 
+    const staffUsers = staff.length
+      ? await transaction.user.findMany({
+          where: {
+            id: { in: staff.map((decision) => decision.userId) },
+            status: UserStatus.APPROVED,
+          },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            firstName: true,
+            middleName: true,
+            lastName: true,
+          },
+        })
+      : [];
+    if (staffUsers.length !== staff.length) {
+      throw new SemesterTransitionError(
+        "A staff member is no longer approved for assignment.",
+        409,
+      );
+    }
+    const staffUserById = new Map(staffUsers.map((user) => [user.id, user]));
+    const emailJobs = buildSemesterActivationEmailJobs({
+      semesterId,
+      semesterName: transition.semester.name,
+      centerName: transition.semester.center.name,
+      users: staff.map((decision) => {
+        const user = staffUserById.get(decision.userId)!;
+        return {
+          userId: user.id,
+          email: user.email,
+          name: user.firstName
+            ? composePersonName({
+                firstName: user.firstName,
+                middleName: user.middleName,
+                lastName: user.lastName,
+              })
+            : user.name,
+          decision: decision.decision,
+          assignments: decision.assignments.map((assignment) => ({
+            subRole: assignment.subRole,
+            ...(assignment.semesterLevelId && {
+              levelName:
+                targetLevelById.get(assignment.semesterLevelId)?.academicLevel
+                  .name,
+            }),
+            ...(assignment.committedDays && {
+              committedDays: assignment.committedDays,
+            }),
+          })),
+          dailyRate:
+            typeof decision.dailyRate === "number"
+              ? decision.dailyRate
+              : null,
+        };
+      }),
+    });
+    for (const emailJob of emailJobs) {
+      await enqueueEmail(emailJob, transaction);
+    }
+
     const semester = await transaction.semesters.update({
       where: { id: semesterId },
       data: { status: SemesterStatus.ACTIVE },
@@ -800,7 +865,7 @@ export const activateSemesterTransition = async (
         updatedBy,
       },
     });
-    return semester;
+    return { semester, queuedEmailCount: emailJobs.length };
   });
 
 export const getCenterSemesterTransitionSummaries = async (

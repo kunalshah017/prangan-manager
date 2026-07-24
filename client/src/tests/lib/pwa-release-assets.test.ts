@@ -13,15 +13,15 @@ const pngDimensions = async (name: string) => {
   };
 };
 
-describe("PWA 2.1.1 release assets", () => {
+describe("PWA 2.1.2 release assets", () => {
   it("publishes the release version and rotates the application cache", async () => {
     const [packageJson, worker] = await Promise.all([
       readFile(new URL("../../../package.json", import.meta.url), "utf8"),
       readFile(publicFile("sw.js"), "utf8"),
     ]);
 
-    expect(JSON.parse(packageJson).version).toBe("2.1.1");
-    expect(worker).toContain('const CACHE_VERSION = "v5";');
+    expect(JSON.parse(packageJson).version).toBe("2.1.2");
+    expect(worker).toContain('const CACHE_VERSION = "v6";');
   });
 
   it("declares real any-purpose and maskable square icons", async () => {

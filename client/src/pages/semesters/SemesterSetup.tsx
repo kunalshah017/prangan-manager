@@ -22,6 +22,7 @@ import {
 } from "@/hooks/useSemesterTransitionQueries";
 import { useUsers } from "@/hooks/useUserQueries";
 import { buttonVariants } from "@/lib/button-variants";
+import { sortByJourneyOrderThenName } from "@/lib/levels";
 import { cn } from "@/lib/utils";
 import type {
   RoleAssignment,
@@ -96,10 +97,18 @@ const SemesterSetup = () => {
   }, [setupQuery.data]);
 
   const levels = setupQuery.data?.semester.levels ?? [];
-  const filteredStudents = students.filter((decision) =>
-    displayName(decision.student)
-      .toLowerCase()
-      .includes(studentSearch.trim().toLowerCase()),
+  const filteredStudents = useMemo(
+    () =>
+      sortByJourneyOrderThenName(
+        students.filter((decision) =>
+          displayName(decision.student)
+            .toLowerCase()
+            .includes(studentSearch.trim().toLowerCase()),
+        ),
+        (decision) => decision.sourceLevel,
+        (decision) => displayName(decision.student),
+      ),
+    [studentSearch, students],
   );
   const filteredStaff = staff.filter((decision) =>
     displayName(decision.user)
@@ -290,8 +299,12 @@ const SemesterSetup = () => {
   };
 
   const activateSemester = async () => {
-    await activate.mutateAsync();
-    toast.success("Semester activated.");
+    const { queuedEmailCount } = await activate.mutateAsync();
+    toast.success(
+      queuedEmailCount === 1
+        ? "Semester activated. 1 staff email queued."
+        : `Semester activated. ${queuedEmailCount} staff emails queued.`,
+    );
     navigate(
       `/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard`,
     );

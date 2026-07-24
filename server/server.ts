@@ -18,12 +18,14 @@ import {
   getAllowedClientOrigins,
   getCsrfCookieOptions,
 } from "./security/session.js";
+import { startEmailWorker } from "./service/email-worker.js";
 
 // Load environment variables from .env file
 dotenv.config();
 
 // Create Fastify instance
 const fastify: FastifyInstance = Fastify();
+let emailWorker: ReturnType<typeof startEmailWorker> | undefined;
 
 const clientOrigins = getAllowedClientOrigins();
 
@@ -72,6 +74,7 @@ const start = async (): Promise<void> => {
 
     await fastify.ready();
     await fastify.listen({ port, host });
+    emailWorker = startEmailWorker();
     console.log(`Server is running on http://${host}:${port}`);
     console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
   } catch (err) {
@@ -82,12 +85,14 @@ const start = async (): Promise<void> => {
 
 process.on("SIGINT", async () => {
   fastify.log.info("Received SIGINT, shutting down gracefully...");
+  await emailWorker?.stop();
   await fastify.close();
   process.exit(0);
 });
 
 process.on("SIGTERM", async () => {
   fastify.log.info("Received SIGTERM, shutting down gracefully...");
+  await emailWorker?.stop();
   await fastify.close();
   process.exit(0);
 });

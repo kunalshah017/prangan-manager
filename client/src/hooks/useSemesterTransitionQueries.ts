@@ -82,13 +82,19 @@ export const useActivateSemester = (semesterId: string) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async () => {
-      const response = await api.post<{ semester: Semester }>(
+      const response = await api.post<{
+        semester: Semester;
+        queuedEmailCount: number;
+      }>(
         `/semesters/${semesterId}/setup/activate`,
         {},
       );
-      return response.semester;
+      return {
+        semester: response.semester,
+        queuedEmailCount: response.queuedEmailCount,
+      };
     },
-    onSuccess: (semester) => {
+    onSuccess: ({ semester }) => {
       queryClient.setQueryData(["semesters", semesterId], semester);
       queryClient.invalidateQueries({ queryKey: ["semesters"] });
       queryClient.invalidateQueries({ queryKey: setupKey(semesterId) });

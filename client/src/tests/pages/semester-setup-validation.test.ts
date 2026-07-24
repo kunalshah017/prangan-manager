@@ -22,4 +22,29 @@ describe("semester setup readiness", () => {
     expect(source).toContain("requiresTargetLevel");
     expect(source).toContain("min-h-11");
   });
+
+  it("orders student progression by current level sequence before student name", async () => {
+    const source = await readFile(pageUrl, "utf8");
+
+    expect(source).toContain("sortByJourneyOrderThenName");
+    expect(source).toContain("(decision) => decision.sourceLevel");
+    expect(source).toContain("(decision) => displayName(decision.student)");
+  });
+
+  it("reports asynchronously queued staff emails after activation", async () => {
+    const [page, hook] = await Promise.all([
+      readFile(pageUrl, "utf8"),
+      readFile(
+        new URL(
+          "../../hooks/useSemesterTransitionQueries.ts",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    ]);
+
+    expect(hook).toContain("queuedEmailCount");
+    expect(page).toContain("queuedEmailCount");
+    expect(page).toMatch(/email.*queued/i);
+  });
 });
