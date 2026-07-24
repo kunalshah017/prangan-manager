@@ -25,11 +25,18 @@ test("production sessions require an explicit client origin", () => {
     }),
     "https://app.prangan.example",
   );
+  assert.equal(
+    getAllowedClientOrigin({ WEBSITE_SITE_NAME: "prangan-manager-api" }),
+    "https://prangan-manager.vercel.app",
+  );
 });
 
 test("session cookies are HttpOnly and secure for production cross-origin clients", () => {
   const development = getSessionCookieOptions({ NODE_ENV: "development" });
   const production = getSessionCookieOptions({ NODE_ENV: "production" });
+  const azure = getSessionCookieOptions({
+    WEBSITE_SITE_NAME: "prangan-manager-api",
+  });
 
   assert.equal(development.httpOnly, true);
   assert.equal(development.secure, false);
@@ -37,6 +44,8 @@ test("session cookies are HttpOnly and secure for production cross-origin client
   assert.equal(production.httpOnly, true);
   assert.equal(production.secure, true);
   assert.equal(production.sameSite, "none");
+  assert.equal(azure.secure, true);
+  assert.equal(azure.sameSite, "none");
 });
 
 test("CSRF validation requires a timing-safe exact token match", () => {

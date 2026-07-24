@@ -78,6 +78,7 @@ import { parseRemunerationPeriodInput } from "../security/remuneration-input.js"
 import {
   CSRF_COOKIE_NAME,
   createSessionToken,
+  getAllowedClientOrigin,
   getCsrfCookieOptions,
   getSessionCookieOptions,
   SESSION_COOKIE_NAME,
@@ -886,7 +887,7 @@ export const verifyUser = asyncHandle(
             EMAIL_TEMPLATES.VERIFICATION_SUCCESS.getTemplate({
               name: updatedUser.name,
               email: updatedUser.email,
-              activationUrl: `${process.env.CLIENT_ORIGIN || "http://localhost:5173"}/activate?token=${encodeURIComponent(activationToken || "")}`,
+              activationUrl: `${getAllowedClientOrigin()}/activate?token=${encodeURIComponent(activationToken || "")}`,
               roleAssignmentDetails: roleAssignmentDetails,
             }),
           );
@@ -983,7 +984,7 @@ export const requestPasswordReset = asyncHandle(
           "Reset your Prangan password",
           EMAIL_TEMPLATES.PASSWORD_RESET.getTemplate({
             name: user.name,
-            resetUrl: `${process.env.CLIENT_ORIGIN || "http://localhost:5173"}/reset-password?token=${encodeURIComponent(token)}`,
+            resetUrl: `${getAllowedClientOrigin()}/reset-password?token=${encodeURIComponent(token)}`,
           }),
         );
       } catch (error) {
