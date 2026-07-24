@@ -229,7 +229,7 @@ export const getExamsController = async (
 
     // Parse isActive from string to boolean if it exists
     // Query params come as strings, so we need to convert
-    const parsedFilters: GetExamsRequest = {
+    let parsedFilters: GetExamsRequest = {
       ...filters,
       ...(parsedCycle.data !== undefined && { cycle: parsedCycle.data }),
       ...(filters.isActive !== undefined && {
@@ -237,12 +237,26 @@ export const getExamsController = async (
       }),
     };
 
-    const scope = {
+    let scope: ExamScope = {
       projectId: parsedFilters.projectId,
       centerId: parsedFilters.centerId,
       semesterId: parsedFilters.semesterId,
-      level: parsedFilters.level,
     };
+    if (
+      parsedFilters.semesterId &&
+      (parsedFilters.semesterLevelId || parsedFilters.level)
+    ) {
+      const semesterLevel = await resolveSemesterLevelInput({
+        semesterId: parsedFilters.semesterId,
+        semesterLevelId: parsedFilters.semesterLevelId,
+        level: parsedFilters.level,
+      });
+      scope = { ...scope, semesterLevelId: semesterLevel.id };
+      parsedFilters = {
+        ...parsedFilters,
+        semesterLevelId: semesterLevel.id,
+      };
+    }
     if (request.user.role !== Role.ADMIN && !hasCompleteExamScope(scope)) {
       return forbidden(reply);
     }

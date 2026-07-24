@@ -90,7 +90,7 @@ export default function Dashboard() {
     });
     const syllabiQuery = useSyllabi({
         ...context,
-        semesterLevelId: dashboardModel.assignedLevel,
+        semesterLevelId: dashboardModel.assignedSemesterLevelId,
         isActive: true,
         enabled: dashboardModel.visibility.curriculum,
     });
@@ -101,7 +101,7 @@ export default function Dashboard() {
     });
     const examsQuery = useExams({
         ...context,
-        semesterLevelId: dashboardModel.assignedLevel,
+        semesterLevelId: dashboardModel.assignedSemesterLevelId,
         isActive: true,
         enabled: dashboardModel.visibility.exams,
     });

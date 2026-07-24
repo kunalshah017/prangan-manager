@@ -13,9 +13,22 @@ export default function ExamManagement() {
   const [semesterLevelId, setSemesterLevelId] = useState("ALL"); const [search, setSearch] = useState("");
   const hasManagePermission = can(user, "exams.manage", { projectId, centerId, semesterId }); const isAdmin = user?.role === "ADMIN";
   const canReadExams = can(user, "exams.read", { projectId, centerId, semesterId });
-  const educatorLevel = user?.roleAssignments?.find((assignment) => assignment.subRole === "EDUCATOR" && assignment.isActive && assignment.semesterId === semesterId)?.semesterLevelId;
-  const legacyEducatorFilter = { ...(educatorLevel ? { level: educatorLevel } : {}) }; // retained only for Release-B compatibility
-  void legacyEducatorFilter;
+  const educatorLevel = useMemo(() => {
+    if (!user || user.role === "ADMIN") return undefined;
+    const assignments = user.roleAssignments?.filter(
+      (assignment) =>
+        assignment.isActive &&
+        assignment.projectId === projectId &&
+        assignment.centerId === centerId &&
+        assignment.semesterId === semesterId,
+    );
+    const hasPrivilegedRole = assignments?.some((assignment) =>
+      ["CENTER_MANAGER", "CURRICULUM_MENTOR"].includes(assignment.subRole),
+    );
+    if (hasPrivilegedRole) return undefined;
+    return assignments?.find((assignment) => assignment.subRole === "EDUCATOR")
+      ?.semesterLevelId;
+  }, [user, projectId, centerId, semesterId]);
   const examQuery = useExams({ projectId, centerId, semesterId, ...(educatorLevel ? { semesterLevelId: educatorLevel } : {}), enabled: canReadExams });
   const semesterLevelsQuery = useSemesterLevels(semesterId ?? "");
   const exams = useMemo(() => (examQuery.data ?? []).filter((exam) => (semesterLevelId === "ALL" || exam.semesterLevelId === semesterLevelId) && exam.name.toLowerCase().includes(search.toLowerCase())), [examQuery.data, search, semesterLevelId]);

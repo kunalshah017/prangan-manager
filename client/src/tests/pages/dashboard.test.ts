@@ -18,6 +18,12 @@ describe("semester dashboard", () => {
       "enabled: dashboardModel.visibility.staffAttendance",
     );
     expect(dashboard).toContain("level: dashboardModel.assignedLevel");
+    expect(dashboard).toContain(
+      "semesterLevelId: dashboardModel.assignedSemesterLevelId",
+    );
+    expect(dashboard).not.toContain(
+      "semesterLevelId: dashboardModel.assignedLevel",
+    );
     expect(dashboard).toContain("useSyllabusStatistics");
     expect(dashboard).toContain("useExams");
     expect(dashboard).toContain("enabled: dashboardModel.visibility.exams");

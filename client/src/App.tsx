@@ -10,7 +10,6 @@ import PWAInstallPrompt from '@/components/PWAInstallPrompt'
 import { ConfirmationModal } from '@/components/ui'
 import { queryClient } from '@/lib/query-client'
 import { initializeAuth } from '@/stores/authStore'
-import { Analytics } from '@vercel/analytics/react';
 
 // Layouts
 const Layout = lazy(() => import('./components/Layout'))
@@ -115,7 +114,6 @@ function App() {
 
   return (
     <>
-      <Analytics />
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <Suspense fallback={<PageLoading />}>

@@ -53,6 +53,19 @@ test("exam controllers resolve exact authorization before exam and score service
   }
 });
 
+test("exam listing resolves a canonical semester level before authorization", async () => {
+  const source = await readSource();
+  const block = controllerBlock(source, "getExamsController");
+
+  assertPrecedes(
+    block,
+    "resolveSemesterLevelInput(",
+    "authorizeExamScope(",
+    "exam list canonical scope",
+  );
+  assert.match(block, /semesterLevelId:\s*semesterLevel\.id/);
+});
+
 test("exam ID controllers load persisted scope before authorization and ID services", async () => {
   const source = await readSource();
 

@@ -1,10 +1,17 @@
 // Service worker for PWA functionality with proper cache management
-const CACHE_VERSION = "v4";
+const CACHE_VERSION = "v5";
 const STATIC_CACHE = `prangan-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `prangan-runtime-${CACHE_VERSION}`;
 const PDF_CACHE = "prangan-pdfs-v2"; // Incremented version for new caching strategy
 const PDF_CACHE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
 const MAX_PDF_SIZE = 50 * 1024 * 1024; // 50MB max for caching
+
+const offlineResponse = () =>
+  new Response("Temporarily unavailable while offline.", {
+    status: 503,
+    statusText: "Service Unavailable",
+    headers: { "Content-Type": "text/plain; charset=utf-8" },
+  });
 
 // Essential files to cache for offline functionality
 const urlsToCache = [
@@ -118,9 +125,12 @@ self.addEventListener("fetch", (event) => {
         })
         .catch(() => {
           // Fallback to cached version or offline page
-          return caches.match(request).then((cachedResponse) => {
-            return cachedResponse || caches.match("/");
-          });
+          return caches
+            .match(request)
+            .then(
+              async (cachedResponse) =>
+                cachedResponse || (await caches.match("/")) || offlineResponse(),
+            );
         }),
     );
     return;
@@ -153,15 +163,17 @@ self.addEventListener("fetch", (event) => {
         }
 
         // Not in cache, fetch from network
-        return fetch(request).then((response) => {
-          if (response.status === 200) {
-            const responseClone = response.clone();
-            caches
-              .open(RUNTIME_CACHE)
-              .then((cache) => cache.put(request, responseClone));
-          }
-          return response;
-        });
+        return fetch(request)
+          .then((response) => {
+            if (response.status === 200) {
+              const responseClone = response.clone();
+              caches
+                .open(RUNTIME_CACHE)
+                .then((cache) => cache.put(request, responseClone));
+            }
+            return response;
+          })
+          .catch(offlineResponse);
       }),
     );
     return;
@@ -179,9 +191,11 @@ self.addEventListener("fetch", (event) => {
         }
         return response;
       })
-      .catch(() => {
-        return caches.match(request);
-      }),
+      .catch(() =>
+        caches
+          .match(request)
+          .then((cachedResponse) => cachedResponse || offlineResponse()),
+      ),
   );
 });
 

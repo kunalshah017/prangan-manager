@@ -22,5 +22,7 @@ describe("PWA recovery UI", () => {
     expect(cacheModal).toContain("toast.");
     expect(app).toContain("prangan:pwa-update");
     expect(app).toContain("ConfirmationModal");
+    expect(app).not.toContain("@vercel/analytics");
+    expect(app).not.toContain("<Analytics");
   });
 });

@@ -95,9 +95,15 @@ describe("exam workspace redesign", () => {
     expect(source).toContain("hasManagePermission");
     expect(source).toContain("isAdmin");
     expect(source).toContain("educatorLevel");
+    expect(source).toContain("assignment.projectId === projectId");
+    expect(source).toContain("assignment.centerId === centerId");
+    expect(source).toContain("assignment.semesterId === semesterId");
+    expect(source).toContain('"CENTER_MANAGER", "CURRICULUM_MENTOR"');
+    expect(source).toContain("if (hasPrivilegedRole) return undefined");
     expect(source).toContain(
-      "...(educatorLevel ? { level: educatorLevel } : {})",
+      "...(educatorLevel ? { semesterLevelId: educatorLevel } : {})",
     );
+    expect(source).not.toContain("legacyEducatorFilter");
     expect(source).toContain("aria-label={`Edit ${exam.name}`}");
   });
 

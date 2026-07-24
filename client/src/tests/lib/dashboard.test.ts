@@ -77,6 +77,8 @@ describe("buildDashboardModel", () => {
   it("gives center managers student and staff operations without administration", () => {
     const model = buildDashboardModel(user("CENTER_MANAGER"), context);
 
+    expect(model.assignedLevel).toBeUndefined();
+    expect(model.assignedSemesterLevelId).toBeUndefined();
     expect(model.visibility).toEqual({
       students: true,
       studentAttendance: true,

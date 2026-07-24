@@ -44,6 +44,7 @@ const loadWorker = async (cacheNames: string[] = []) => {
       fetch: fetchMock,
       location: { origin },
       URL,
+      Response,
       console: { log: vi.fn() },
     }),
     { filename: "public/sw.js" },
@@ -204,12 +205,37 @@ describe("public service worker policy", () => {
     expect(respondWith).toHaveBeenCalledOnce();
     await responsePromise;
     expect(fetchMock).toHaveBeenCalledOnce();
-    expect(caches.open).toHaveBeenCalledWith("prangan-runtime-v4");
+    expect(caches.open).toHaveBeenCalledWith("prangan-runtime-v5");
     expect(runtimeCache.put).toHaveBeenCalledOnce();
   });
 
+  it.each([
+    ["navigation", { mode: "navigate", destination: "document" }],
+    ["asset", { destination: "script" }],
+    ["ordinary request", {}],
+  ])(
+    "returns a concrete offline response when a %s network request fails",
+    async (_name, overrides) => {
+      const { listeners, fetchMock } = await loadWorker();
+      fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      let responsePromise: Promise<Response> | undefined;
+      const respondWith = vi.fn((value: Promise<Response>) => {
+        responsePromise = value;
+      });
+
+      listeners.get("fetch")?.({
+        request: workerRequest(overrides),
+        respondWith,
+      });
+
+      const response = await responsePromise;
+      expect(response).toBeInstanceOf(Response);
+      expect(response?.status).toBe(503);
+    },
+  );
+
   it("deletes only prior namespaced caches during activation", async () => {
-    const currentCaches = ["prangan-static-v4", "prangan-runtime-v4"];
+    const currentCaches = ["prangan-static-v5", "prangan-runtime-v5"];
     const priorCaches = [
       "prangan-static",
       "prangan-runtime",
@@ -274,7 +300,7 @@ describe("public service worker policy", () => {
   it("uses versioned app caches and only removes prior app cache versions", async () => {
     const source = await readWorker();
 
-    expect(source).toContain('const CACHE_VERSION = "v4";');
+    expect(source).toContain('const CACHE_VERSION = "v5";');
     expect(source).toContain(
       "const STATIC_CACHE = `prangan-static-${CACHE_VERSION}`;",
     );
