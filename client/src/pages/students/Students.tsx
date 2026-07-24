@@ -1,555 +1,235 @@
-import { useState, useMemo } from 'react';
-import { motion } from 'framer-motion';
-import { Link, useParams } from 'react-router-dom';
-import { Plus, Edit, User, Calendar, Phone, GraduationCap, MessageCircle, Search, AlertCircle } from 'lucide-react';
-import { useStudentsBySemester } from '@/hooks/useStudentQueries';
-import LoadingButterfly from '@/components/LoadingButterfly';
-import { CustomButton } from '@/components/ui/custom-button';
-import { ProfilePicture } from '@/components/ui';
-import ProtectedComponent from '@/components/ProtectedComponent';
-import WhatsAppIcon from '@/components/ui/WhatsAppIcon';
-import type { Student } from '@/types/api';
+import { useDeferredValue, useMemo, useState } from "react";
+import {
+  ArrowUpRight,
+  CalendarDays,
+  ChevronDown,
+  GraduationCap,
+  Pencil,
+  Phone,
+  Plus,
+  RefreshCw,
+  Search,
+  UserRound,
+} from "lucide-react";
+import { Link, useParams } from "react-router-dom";
 
-type TabType = 'active' | 'pending';
+import ProtectedComponent from "@/components/ProtectedComponent";
+import { ProfilePicture } from "@/components/ui";
+import WhatsAppIcon from "@/components/ui/WhatsAppIcon";
+import { WorkspacePage, WorkspacePageHeader } from "@/components/workspace/WorkspacePage";
+import { useAuth } from "@/hooks/useAuth";
+import { useStudentsBySemester } from "@/hooks/useStudentQueries";
+import { useSemesterLevels } from "@/hooks/useAcademicLevelQueries";
+import { can } from "@/lib/access";
+import { buttonVariants } from "@/lib/button-variants";
+import {
+  getMissingStudentDetails,
+  getStudentProfileCompletion,
+} from "@/lib/student-profile";
+import { cn } from "@/lib/utils";
+import { levelName } from "@/lib/levels";
+import type { Student } from "@/types/api";
 
-const Students = () => {
-    const { projectId, centerId, semesterId } = useParams();
-    const { data: students, isLoading, error } = useStudentsBySemester(semesterId!);
-    const [searchQuery, setSearchQuery] = useState<string>('');
-    const [activeTab, setActiveTab] = useState<TabType>('active');
+type RosterView = "all" | "incomplete";
+type LevelFilter = "ALL" | string;
 
-    // Build the base URL for student routes
-    const baseStudentUrl = `/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/students`;
+const formatDate = (value: string) =>
+  new Date(value).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 
-    // Categorize students - identify those with pending details
-    const pendingStudents = useMemo(() => {
-        // Helper function to check if a field is pending/empty
-        const isPendingField = (value: string | undefined | null): boolean => {
-            return !value || value.trim() === '';
-        };
-
-        // Helper function to get pending details for a student
-        const getPendingDetails = (student: Student): string[] => {
-            const pending: string[] = [];
-
-            if (isPendingField(student.profileImageUrl)) pending.push('Profile Image');
-            if (isPendingField(student.dob)) pending.push('Date of Birth');
-            if (isPendingField(student.phoneNumber)) pending.push('Phone Number');
-            if (isPendingField(student.address)) pending.push('Address');
-            if (isPendingField(student.schoolName)) pending.push('School Name');
-            if (isPendingField(student.fatherName)) pending.push('Father Name');
-            if (isPendingField(student.motherName)) pending.push('Mother Name');
-            if (isPendingField(student.fatherOccupation)) pending.push('Father Occupation');
-            if (isPendingField(student.motherOccupation)) pending.push('Mother Occupation');
-            if (isPendingField(student.familyIncome)) pending.push('Family Income');
-            if (isPendingField(student.futureProfession)) pending.push('Future Profession');
-
-            return pending;
-        };
-
-        if (!students) return [];
-
-        // Only return students with pending details
-        return students.filter(student => {
-            const pendingDetails = getPendingDetails(student);
-            return pendingDetails.length > 0;
-        });
-    }, [students]);
-
-    // Apply search filter and sorting based on active tab
-    const filteredStudents = useMemo(() => {
-        const levelOrder = ['PRIMARY_A', 'PRIMARY_B', 'LEVEL_1', 'LEVEL_2', 'LEVEL_3', 'LEVEL_4'];
-        const studentsToFilter = activeTab === 'active' ? (students || []) : pendingStudents;
-
-        return studentsToFilter
-            .filter((student: Student) =>
-                student.name.toLowerCase().includes(searchQuery.toLowerCase())
-            )
-            .sort((a: Student, b: Student) => {
-                // First sort by level order
-                const aLevelIndex = levelOrder.indexOf(a.level || '');
-                const bLevelIndex = levelOrder.indexOf(b.level || '');
-
-                // If levels are different, sort by level order
-                if (aLevelIndex !== bLevelIndex) {
-                    // Handle cases where level is not in our predefined order (put them at the end)
-                    if (aLevelIndex === -1) return 1;
-                    if (bLevelIndex === -1) return -1;
-                    return aLevelIndex - bLevelIndex;
-                }
-
-                // If levels are the same, sort by name alphabetically
-                return a.name.localeCompare(b.name);
-            });
-    }, [activeTab, students, pendingStudents, searchQuery]);
-
-    const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        });
-    };
-
-    const getLevelDisplay = (level: string) => {
-        const levelMap: Record<string, string> = {
-            'LEVEL_1': 'Level 1',
-            'LEVEL_2': 'Level 2',
-            'LEVEL_3': 'Level 3',
-            'LEVEL_4': 'Level 4',
-            'PRIMARY_A': 'Primary A',
-            'PRIMARY_B': 'Primary B'
-        };
-        return levelMap[level] || level;
-    };
-
-    const handlePhoneCall = (phoneNumber: string) => {
-        window.open(`tel:${phoneNumber}`, '_self');
-    };
-
-    const handleWhatsApp = (phoneNumber: string) => {
-        // Format phone number for WhatsApp (remove spaces, dashes, etc.)
-        const cleanNumber = phoneNumber.replace(/[^\d+]/g, '');
-        // Add country code if not present (assuming India +91)
-        const formattedNumber = cleanNumber.startsWith('+') ? cleanNumber : `+91${cleanNumber}`;
-        window.open(`https://wa.me/${formattedNumber.replace('+', '')}`, '_blank');
-    };
-
-    if (isLoading) {
-        return (
-            <div className="flex justify-center items-center min-h-[400px]">
-                <LoadingButterfly size="md" />
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-700">Failed to load students. Please try again.</p>
-            </div>
-        );
-    }
-
-    return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-semibold text-gray-900">Students</h1>
-                    <p className="text-gray-600">Manage student information and records</p>
-                </div>
-                <ProtectedComponent allowedSubRoles={['CENTER_MANAGER']} >
-                    <Link to={`${baseStudentUrl}/new`}>
-                        <CustomButton className="bg-orange-600 hover:bg-orange-700 text-white">
-                            <Plus className="w-4 h-4 mr-2" />
-                            Add Student
-                        </CustomButton>
-                    </Link>
-                </ProtectedComponent>
-            </div>
-
-            {/* Tabs */}
-            <div className="bg-white rounded-lg border border-gray-200">
-                <div className="flex border-b border-gray-200">
-                    <button
-                        onClick={() => setActiveTab('active')}
-                        className={`flex-1 px-6 py-3 text-sm font-medium transition-colors ${activeTab === 'active'
-                            ? 'text-orange-600 border-b-2 border-orange-600 bg-orange-50/50'
-                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                            }`}
-                    >
-                        All Students
-                        <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-700">
-                            {students?.length || 0}
-                        </span>
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('pending')}
-                        className={`flex-1 px-6 py-3 text-sm font-medium transition-colors ${activeTab === 'pending'
-                            ? 'text-orange-600 border-b-2 border-orange-600 bg-orange-50/50'
-                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                            }`}
-                    >
-                        Pending Details
-                        <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-orange-100 text-orange-700">
-                            {pendingStudents.length}
-                        </span>
-                    </button>
-                </div>
-            </div>
-
-            {/* Search Bar */}
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <input
-                        type="text"
-                        placeholder="Search students by name..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
-                    />
-                </div>
-                {searchQuery && (
-                    <div className="mt-2 text-sm text-gray-600">
-                        Found {filteredStudents.length} student{filteredStudents.length !== 1 ? 's' : ''}
-                        {filteredStudents.length > 0 && ` matching "${searchQuery}"`}
-                    </div>
-                )}
-            </div>
-
-            {/* Students Grid or Pending Details List */}
-            {filteredStudents.length > 0 ? (
-                activeTab === 'pending' ? (
-                    // Pending Details View - Compact List
-                    <div className="space-y-3">
-                        {filteredStudents.map((student: Student, index: number) => {
-                            const getPendingDetailsForStudent = (s: Student): string[] => {
-                                const pending: string[] = [];
-                                const isPending = (value: string | undefined | null) => !value || value.trim() === '';
-
-                                if (isPending(s.profileImageUrl)) pending.push('Profile Image');
-                                if (isPending(s.dob)) pending.push('DOB');
-                                if (isPending(s.phoneNumber)) pending.push('Phone');
-                                if (isPending(s.address)) pending.push('Address');
-                                if (isPending(s.schoolName)) pending.push('School');
-                                if (isPending(s.fatherName)) pending.push('Father Name');
-                                if (isPending(s.motherName)) pending.push('Mother Name');
-                                if (isPending(s.fatherOccupation)) pending.push('Father Occ.');
-                                if (isPending(s.motherOccupation)) pending.push('Mother Occ.');
-                                if (isPending(s.familyIncome)) pending.push('Family Income');
-                                if (isPending(s.futureProfession)) pending.push('Future Profession');
-
-                                return pending;
-                            };
-
-                            const pendingDetails = getPendingDetailsForStudent(student);
-
-                            return (
-                                <motion.div
-                                    key={student.id}
-                                    initial={{ opacity: 0, x: -20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ duration: 0.2, delay: index * 0.05 }}
-                                    className="bg-white rounded-lg border border-orange-200 p-4 hover:shadow-md transition-shadow"
-                                >
-                                    {/* Mobile Layout */}
-                                    <div className="flex flex-col gap-4 md:hidden">
-                                        {/* Student Info */}
-                                        <div className="flex items-center gap-3">
-                                            <ProfilePicture
-                                                imageUrl={student.profileImageUrl}
-                                                name={student.name}
-                                                size="w-12 h-12"
-                                                colorScheme="orange"
-                                                className="border-2 border-orange-100 flex-shrink-0"
-                                            />
-                                            <div className="flex-1 min-w-0">
-                                                <h3 className="text-base font-medium text-gray-900 truncate">
-                                                    {student.name}
-                                                </h3>
-                                                {student.level && (
-                                                    <div className="flex items-center text-xs text-gray-500 mt-0.5">
-                                                        <GraduationCap className="w-3 h-3 mr-1" />
-                                                        {getLevelDisplay(student.level)}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Pending Details */}
-                                        <div className="flex flex-wrap gap-1">
-                                            {pendingDetails.map((detail, idx) => (
-                                                <span
-                                                    key={idx}
-                                                    className="inline-flex items-center px-2 py-1 text-xs font-medium bg-orange-100 text-orange-800 rounded"
-                                                >
-                                                    <AlertCircle className="w-3 h-3 mr-1" />
-                                                    {detail}
-                                                </span>
-                                            ))}
-                                        </div>
-
-                                        {/* Edit Button */}
-                                        <ProtectedComponent allowedSubRoles={['CENTER_MANAGER']}>
-                                            <Link
-                                                to={`${baseStudentUrl}/${student.id}/edit`}
-                                            >
-                                                <CustomButton
-                                                    size="sm"
-                                                    variant="outline"
-                                                    className="w-full border-orange-300 text-orange-700 hover:bg-orange-50"
-                                                >
-                                                    <Edit className="w-4 h-4 mr-1" />
-                                                    Edit Student Details
-                                                </CustomButton>
-                                            </Link>
-                                        </ProtectedComponent>
-                                    </div>
-
-                                    {/* Desktop Layout */}
-                                    <div className="hidden md:flex items-center justify-between gap-4">
-                                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                                            <ProfilePicture
-                                                imageUrl={student.profileImageUrl}
-                                                name={student.name}
-                                                size="w-12 h-12"
-                                                colorScheme="orange"
-                                                className="border-2 border-orange-100 flex-shrink-0"
-                                            />
-                                            <div className="flex-1 min-w-0">
-                                                <h3 className="text-base font-medium text-gray-900 truncate">
-                                                    {student.name}
-                                                </h3>
-                                                {student.level && (
-                                                    <div className="flex items-center text-xs text-gray-500 mt-0.5">
-                                                        <GraduationCap className="w-3 h-3 mr-1" />
-                                                        {getLevelDisplay(student.level)}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex flex-wrap gap-1 max-w-md">
-                                                {pendingDetails.map((detail, idx) => (
-                                                    <span
-                                                        key={idx}
-                                                        className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-orange-100 text-orange-800 rounded"
-                                                    >
-                                                        <AlertCircle className="w-3 h-3 mr-1" />
-                                                        {detail}
-                                                    </span>
-                                                ))}
-                                            </div>
-
-                                            <ProtectedComponent allowedSubRoles={['CENTER_MANAGER']}>
-                                                <Link
-                                                    to={`${baseStudentUrl}/${student.id}/edit`}
-                                                    className="flex-shrink-0"
-                                                >
-                                                    <CustomButton
-                                                        size="sm"
-                                                        variant="outline"
-                                                        className="border-orange-300 text-orange-700 hover:bg-orange-50"
-                                                    >
-                                                        <Edit className="w-3 h-3 mr-1" />
-                                                        Edit
-                                                    </CustomButton>
-                                                </Link>
-                                            </ProtectedComponent>
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            );
-                        })}
-                    </div>
-                ) : (
-                    // Active Students View - Card Grid
-                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                        {filteredStudents.map((student, index) => (
-                            <motion.div
-                                key={student.id}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.3, delay: index * 0.1 }}
-                                className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
-                            >
-                                <div className="p-6">
-                                    {/* Profile Image and Name */}
-                                    <div className="flex items-start space-x-4 mb-4">
-                                        <ProfilePicture
-                                            imageUrl={student.profileImageUrl}
-                                            name={student.name}
-                                            size="w-16 h-16"
-                                            colorScheme="orange"
-                                            className="border-2 border-orange-100"
-                                        />
-                                        <div className="flex-1 min-w-0">
-                                            <h3 className="text-lg font-medium text-gray-900 truncate">
-                                                {student.name}
-                                            </h3>
-                                            {student.futureProfession && (
-                                                <div className="text-sm font-semibold text-orange-600 mt-0.5">
-                                                    Future: {student.futureProfession}
-                                                </div>
-                                            )}
-                                            <div className="flex items-center mt-1">
-                                                <GraduationCap className="w-4 h-4 text-gray-400 mr-1" />
-                                                <span className="text-sm text-gray-600">
-                                                    {student.level ? getLevelDisplay(student.level) : 'No Level Assigned'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Student Details */}
-                                    <div className="space-y-2 mb-4">
-                                        {student.dob && (
-                                            <div className="flex items-center text-sm text-gray-600">
-                                                <Calendar className="w-4 h-4 mr-2" />
-                                                <span>Born: {formatDate(student.dob)}</span>
-                                            </div>
-                                        )}
-                                        {/* Phone Numbers */}
-                                        {(student.phoneNumber || student.whatsappNumber || student.alternateNumber) && (
-                                            <div className="space-y-2">
-                                                {student.phoneNumber && (
-                                                    <div className="flex items-center justify-between text-sm text-gray-600">
-                                                        <div className="flex items-center">
-                                                            <Phone className="w-4 h-4 mr-2" />
-                                                            <span>Phone: {student.phoneNumber}</span>
-                                                        </div>
-                                                        <div className="flex space-x-1">
-                                                            <button
-                                                                onClick={() => student.phoneNumber && handlePhoneCall(student.phoneNumber)}
-                                                                className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
-                                                                title="Call this number"
-                                                            >
-                                                                <Phone className="w-4 h-4" />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => student.phoneNumber && handleWhatsApp(student.phoneNumber)}
-                                                                className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
-                                                                title="WhatsApp this number"
-                                                            >
-                                                                <WhatsAppIcon size={16} />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                {student.whatsappNumber && (
-                                                    <div className="flex items-center justify-between text-sm text-gray-600">
-                                                        <div className="flex items-center">
-                                                            <MessageCircle className="w-4 h-4 mr-2" />
-                                                            <span>WhatsApp: {student.whatsappNumber}</span>
-                                                        </div>
-                                                        <div className="flex space-x-1">
-                                                            <button
-                                                                onClick={() => student.whatsappNumber && handlePhoneCall(student.whatsappNumber)}
-                                                                className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
-                                                                title="Call this number"
-                                                            >
-                                                                <Phone className="w-4 h-4" />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => student.whatsappNumber && handleWhatsApp(student.whatsappNumber)}
-                                                                className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
-                                                                title="WhatsApp this number"
-                                                            >
-                                                                <WhatsAppIcon size={16} />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                {student.alternateNumber && (
-                                                    <div className="flex items-center justify-between text-sm text-gray-600">
-                                                        <div className="flex items-center">
-                                                            <Phone className="w-4 h-4 mr-2" />
-                                                            <span>Alt: {student.alternateNumber}</span>
-                                                        </div>
-                                                        <div className="flex space-x-1">
-                                                            <button
-                                                                onClick={() => student.alternateNumber && handlePhoneCall(student.alternateNumber)}
-                                                                className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
-                                                                title="Call this number"
-                                                            >
-                                                                <Phone className="w-4 h-4" />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => student.alternateNumber && handleWhatsApp(student.alternateNumber)}
-                                                                className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
-                                                                title="WhatsApp this number"
-                                                            >
-                                                                <WhatsAppIcon size={16} />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                        {student.schoolName && (
-                                            <div className="flex items-center text-sm text-gray-600">
-                                                <GraduationCap className="w-4 h-4 mr-2" />
-                                                <span>School: {student.schoolName}</span>
-                                            </div>
-                                        )}
-                                        {(student.fatherName || student.motherName) && (
-                                            <div className="text-sm text-gray-600">
-                                                <div className="flex items-center">
-                                                    <User className="w-4 h-4 mr-2" />
-                                                    <span>Family:</span>
-                                                </div>
-                                                <div className="ml-6 space-y-1">
-                                                    {student.fatherName && (
-                                                        <div>Father: {student.fatherName}</div>
-                                                    )}
-                                                    {student.motherName && (
-                                                        <div>Mother: {student.motherName}</div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Actions */}
-                                    <div className="flex space-x-2 pt-4 border-t border-gray-100">
-                                        <ProtectedComponent allowedSubRoles={['CENTER_MANAGER']}>
-                                            <Link
-                                                to={`${baseStudentUrl}/${student.id}/edit`}
-                                                className="flex-1"
-                                            >
-                                                <CustomButton
-                                                    variant="outline"
-                                                    className="w-full text-sm"
-                                                >
-                                                    <Edit className="w-4 h-4 mr-1" />
-                                                    Edit Student
-                                                </CustomButton>
-                                            </Link>
-                                        </ProtectedComponent>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </div>
-                )
-            ) : (
-                <div className="text-center py-12">
-                    <User className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    {searchQuery ? (
-                        <>
-                            <h3 className="text-lg font-medium text-gray-900 mb-2">No students found</h3>
-                            <p className="text-gray-600 mb-4">
-                                No students match your search for "{searchQuery}". Try a different search term.
-                            </p>
-                            <CustomButton
-                                variant="outline"
-                                onClick={() => setSearchQuery('')}
-                                className="mb-4"
-                            >
-                                Clear Search
-                            </CustomButton>
-                        </>
-                    ) : (
-                        <>
-                            <h3 className="text-lg font-medium text-gray-900 mb-2">No students found</h3>
-                            <p className="text-gray-600 mb-4">Get started by adding your first student.</p>
-                        </>
-                    )}
-                    <ProtectedComponent allowedSubRoles={['CENTER_MANAGER']}>
-                        <Link to={`${baseStudentUrl}/new`}>
-                            <CustomButton className="bg-orange-600 hover:bg-orange-700 text-white">
-                                <Plus className="w-4 h-4 mr-2" />
-                                Add Student
-                            </CustomButton>
-                        </Link>
-                    </ProtectedComponent>
-                </div>
-            )}
-        </div>
-    );
+const whatsAppHref = (value: string) => {
+  const digits = value.replace(/\D/g, "");
+  return `https://wa.me/${digits.startsWith("91") ? digits : `91${digits}`}`;
 };
 
-export default Students;
+export default function Students() {
+  const { projectId, centerId, semesterId } = useParams();
+  const { user } = useAuth();
+  const context = { projectId, centerId, semesterId };
+  const canReadStudents = can(user, "students.read", context);
+  const studentQuery = useStudentsBySemester(semesterId || "", { enabled: canReadStudents });
+  const semesterLevelsQuery = useSemesterLevels(semesterId || "");
+  const [view, setView] = useState<RosterView>("all");
+  const [levelFilter, setLevelFilter] = useState<LevelFilter>("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
+  const deferredSearch = useDeferredValue(searchQuery.trim().toLocaleLowerCase());
+  const baseStudentUrl = `/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/students`;
+
+  const students = useMemo(() => studentQuery.data || [], [studentQuery.data]);
+  const semesterLevels = useMemo(() => semesterLevelsQuery.data || [], [semesterLevelsQuery.data]);
+  const incompleteCount = useMemo(
+    () => students.filter((student) => getMissingStudentDetails(student).length > 0).length,
+    [students],
+  );
+
+  const filteredStudents = useMemo(() => {
+    const journeyOrder = new Map(semesterLevels.map((level) => [level.id, level.academicLevel.journeyOrder]));
+    const source = [...(students || [])];
+    return source
+      .filter((student) => view === "all" || getMissingStudentDetails(student).length > 0)
+      .filter((student) => levelFilter === "ALL" || student.semesterLevelId === levelFilter)
+      .filter((student) => !deferredSearch || student.name.toLocaleLowerCase().includes(deferredSearch) || student.schoolName?.toLocaleLowerCase().includes(deferredSearch))
+      .sort((first, second) => {
+        const levelDifference = (journeyOrder.get(first.semesterLevelId || "") ?? Number.MAX_SAFE_INTEGER) - (journeyOrder.get(second.semesterLevelId || "") ?? Number.MAX_SAFE_INTEGER);
+        return levelDifference || first.name.localeCompare(second.name);
+      });
+  }, [deferredSearch, levelFilter, semesterLevels, students, view]);
+
+  if (studentQuery.isLoading) return <StudentsSkeleton />;
+
+  if (studentQuery.error) {
+    return (
+      <div className="mx-auto flex min-h-[55dvh] w-full max-w-2xl items-center justify-center px-4" aria-live="polite">
+        <div className="w-full rounded-lg border border-border bg-card p-6 text-center shadow-sm sm:p-8">
+          <RefreshCw className="mx-auto h-8 w-8 text-destructive" aria-hidden="true" />
+          <h1 className="mt-4 text-2xl font-semibold text-foreground">Students could not be loaded</h1>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">Check your connection and try loading this semester roster again.</p>
+          <button type="button" onClick={() => void studentQuery.refetch()} className={cn(buttonVariants(), "mt-6 min-h-11 gap-2")}><RefreshCw className="h-4 w-4" aria-hidden="true" />Try again</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <WorkspacePage>
+      <section>
+        <WorkspacePageHeader
+          title="Students"
+          description="Review the semester roster, contact families, and complete student profiles."
+          action={
+            <ProtectedComponent permission="students.manage" context={context}>
+              <Link to={`${baseStudentUrl}/new`} className={cn(buttonVariants(), "min-h-11 w-full gap-2 sm:w-auto")}><Plus className="h-4 w-4" aria-hidden="true" />Add student</Link>
+            </ProtectedComponent>
+          }
+        />
+
+        <div className="mb-6 mt-6 grid gap-4 rounded-lg border border-border bg-card p-4 shadow-sm lg:grid-cols-[auto_minmax(16rem,1fr)_13rem] lg:items-end">
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Roster view</p>
+            <div className="inline-flex min-h-11 w-full rounded-md border border-border bg-muted p-1 sm:w-auto" role="tablist" aria-label="Student roster view">
+              <RosterTab active={view === "all"} onClick={() => setView("all")} label="All students" count={students.length} />
+              <RosterTab active={view === "incomplete"} onClick={() => setView("incomplete")} label="Needs details" count={incompleteCount} />
+            </div>
+          </div>
+          <label className="grid gap-2 text-sm font-medium text-foreground" htmlFor="student-search">
+            Search roster
+            <span className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <input id="student-search" type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} className="min-h-11 w-full rounded-md border border-input bg-background pl-10 pr-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" placeholder="Name or school" />
+            </span>
+          </label>
+          <label className="grid gap-2 text-sm font-medium text-foreground" htmlFor="student-level-filter">
+            Level
+            <select id="student-level-filter" value={levelFilter} onChange={(event) => setLevelFilter(event.target.value as LevelFilter)} className="min-h-11 rounded-md border border-input bg-background px-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+              <option value="ALL">All levels</option>
+              {semesterLevels.map((level) => <option key={level.id} value={level.id}>{levelName(level)}</option>)}
+            </select>
+          </label>
+        </div>
+
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3" aria-live="polite">
+          <p className="text-sm text-muted-foreground">Showing <strong className="font-semibold text-foreground">{filteredStudents.length}</strong> of {students.length} students</p>
+          {(searchQuery || levelFilter !== "ALL" || view !== "all") && (
+            <button type="button" onClick={() => { setSearchQuery(""); setLevelFilter("ALL"); setView("all"); }} className="min-h-11 rounded-md px-3 text-sm font-medium text-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Clear filters</button>
+          )}
+        </div>
+
+        {filteredStudents.length > 0 ? (
+          <div className="grid gap-4 lg:grid-cols-2">
+            {filteredStudents.map((student) => (
+              <StudentRosterCard key={student.id} student={student} editHref={`${baseStudentUrl}/${student.id}/edit`} context={context} />
+            ))}
+          </div>
+        ) : (
+          <EmptyRoster filtered={students.length > 0} onClear={() => { setSearchQuery(""); setLevelFilter("ALL"); setView("all"); }} addHref={`${baseStudentUrl}/new`} context={context} />
+        )}
+      </section>
+    </WorkspacePage>
+  );
+}
+
+function RosterTab({ active, onClick, label, count }: { active: boolean; onClick: () => void; label: string; count: number }) {
+  return <button type="button" role="tab" aria-selected={active} onClick={onClick} className={cn("flex min-h-9 flex-1 items-center justify-center gap-2 rounded px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex-none", active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}><span>{label}</span><span className="rounded-full bg-muted px-1.5 py-0.5 text-xs tabular-nums">{count}</span></button>;
+}
+
+function CallAction({ student }: { student: Student }) {
+  const number = student.phoneNumber || student.alternateNumber;
+  if (!number) return null;
+
+  if (!(student.phoneNumber && student.alternateNumber)) {
+    return <a href={`tel:${number}`} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Call ${student.name}`}><Phone className="h-4 w-4" aria-hidden="true" />Call</a>;
+  }
+
+  return (
+    <details className="group relative">
+      <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md border border-border px-3 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+        <Phone className="h-4 w-4" aria-hidden="true" />Call<ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden="true" />
+      </summary>
+      <div className="absolute bottom-full left-0 z-20 mb-2 w-60 overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg">
+        <p className="px-3 py-2 text-xs font-semibold uppercase text-muted-foreground">Choose a number</p>
+        <a href={`tel:${student.phoneNumber}`} className="flex min-h-11 items-center justify-between gap-3 rounded px-3 py-2 text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Call ${student.name} on primary number`}><span className="font-medium">Primary number</span><span className="text-xs text-muted-foreground">{student.phoneNumber}</span></a>
+        <a href={`tel:${student.alternateNumber}`} className="flex min-h-11 items-center justify-between gap-3 rounded px-3 py-2 text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Call ${student.name} on alternate number`}><span className="font-medium">Alternate number</span><span className="text-xs text-muted-foreground">{student.alternateNumber}</span></a>
+      </div>
+    </details>
+  );
+}
+
+function StudentRosterCard({ student, editHref, context }: { student: Student; editHref: string; context: { projectId?: string; centerId?: string; semesterId?: string } }) {
+  const missing = getMissingStudentDetails(student);
+  const completion = getStudentProfileCompletion(student);
+  return (
+    <article className="rounded-lg border border-border bg-card p-4 shadow-sm transition-[border-color,box-shadow] hover:border-primary/30 hover:shadow-md sm:p-5 motion-reduce:transition-none">
+      <div className="flex items-start gap-4">
+        <ProfilePicture imageUrl={student.profileImageUrl} name={student.name} size="lg" colorScheme="orange" className="shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0"><h2 className="truncate text-lg font-semibold text-foreground">{student.name}</h2><p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground"><GraduationCap className="h-4 w-4" aria-hidden="true" />{levelName(student.semesterLevel, student.level) || "Level not assigned"}</p></div>
+            {missing.length > 0 && <span className="rounded-full bg-warning/15 px-2.5 py-1 text-xs font-semibold text-warning-foreground">{completion}% complete</span>}
+          </div>
+          <div className="mt-3 grid gap-1.5 text-sm text-muted-foreground sm:grid-cols-2">
+            {student.dob && <p className="flex items-center gap-2"><CalendarDays className="h-4 w-4" aria-hidden="true" />{formatDate(student.dob)}</p>}
+            {student.schoolName && <p className="flex items-center gap-2 truncate"><GraduationCap className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="truncate">{student.schoolName}</span></p>}
+          </div>
+        </div>
+      </div>
+
+      {missing.length > 0 && (
+        <div className="mt-4">
+          <div className="mb-1.5 flex items-center justify-between text-xs"><span className="font-semibold text-muted-foreground">Profile completeness</span><span className="tabular-nums text-muted-foreground">{missing.length} missing</span></div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-label={`Profile completeness ${completion}%`}><div className="h-full rounded-full bg-primary" style={{ width: `${completion}%` }} /></div>
+          <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">Missing: {missing.slice(0, 4).join(", ")}{missing.length > 4 ? ` +${missing.length - 4} more` : ""}</p>
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
+        <CallAction student={student} />
+        {(student.whatsappNumber || student.phoneNumber) && <a href={whatsAppHref(student.whatsappNumber || student.phoneNumber!)} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`WhatsApp ${student.name}`}><WhatsAppIcon size={16} />WhatsApp</a>}
+        <ProtectedComponent permission="students.manage" context={context}>
+          <Link to={editHref} aria-label={`Edit ${student.name}`} className="ml-auto inline-flex min-h-11 items-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><Pencil className="h-4 w-4" aria-hidden="true" />Edit <ArrowUpRight className="h-4 w-4" aria-hidden="true" /></Link>
+        </ProtectedComponent>
+      </div>
+    </article>
+  );
+}
+
+function EmptyRoster({ filtered, onClear, addHref, context }: { filtered: boolean; onClear: () => void; addHref: string; context: { projectId?: string; centerId?: string; semesterId?: string } }) {
+  return (
+    <div className="rounded-lg border border-dashed border-border bg-card px-6 py-14 text-center" aria-live="polite">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">{filtered ? <Search className="h-6 w-6" aria-hidden="true" /> : <UserRound className="h-6 w-6" aria-hidden="true" />}</div>
+      <h2 className="mt-5 text-xl font-semibold text-foreground">{filtered ? "No matching students" : "No students in this semester"}</h2>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">{filtered ? "Clear or adjust the filters to return to the full roster." : "Add the first student to begin the semester roster."}</p>
+      <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+        {filtered && <button type="button" onClick={onClear} className={cn(buttonVariants({ variant: "outline" }), "min-h-11")}>Clear filters</button>}
+        {!filtered && <ProtectedComponent permission="students.manage" context={context}><Link to={addHref} className={cn(buttonVariants(), "min-h-11 gap-2")}><Plus className="h-4 w-4" aria-hidden="true" />Add student</Link></ProtectedComponent>}
+      </div>
+    </div>
+  );
+}
+
+function StudentsSkeleton() {
+  return <div className="mx-auto w-full max-w-6xl animate-pulse space-y-6 py-4 motion-reduce:animate-none" aria-live="polite" aria-busy="true"><div className="space-y-3 border-b border-border pb-6"><div className="h-10 w-48 rounded bg-muted" /><div className="h-5 w-96 max-w-full rounded bg-muted" /></div><div className="h-28 rounded-lg border border-border bg-card" /><div className="grid gap-4 lg:grid-cols-2">{[0, 1, 2, 3].map((item) => <div key={item} className="h-64 rounded-lg border border-border bg-card" />)}</div><span className="sr-only">Loading students</span></div>;
+}

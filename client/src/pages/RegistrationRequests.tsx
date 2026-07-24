@@ -42,14 +42,12 @@ const RegistrationRequests = () => {
         setIsModalOpen(false);
     };
 
-    const handleApprove = async (user: User, roleAssignments?: RoleAssignment[]) => {
+    const handleApprove = async (user: User, role: 'USER' | 'ADMIN', roleAssignments?: RoleAssignment[]) => {
         try {
             await verifyUser.mutateAsync({
                 userId: user.id,
                 status: 'APPROVED',
-                role: roleAssignments ? 'USER' : 'ADMIN',
-                email: user.email,
-                name: user.name,
+                role,
                 roleAssignments,
             });
             toast.success(`${user.name} has been approved successfully!`);
@@ -66,8 +64,6 @@ const RegistrationRequests = () => {
                 userId: user.id,
                 status: 'REJECTED',
                 role: user.role || 'USER',
-                email: user.email,
-                name: user.name,
                 rejectionReason,
             });
             toast.success(`${user.name}'s request has been rejected.`);
@@ -75,16 +71,6 @@ const RegistrationRequests = () => {
             console.error('Failed to reject user:', error);
             toast.error('Failed to reject user. Please try again.');
             throw error;
-        }
-    };
-
-    const quickReject = async (user: User) => {
-        const defaultReason = "Application does not meet the minimum requirements.";
-        try {
-            await handleReject(user, defaultReason);
-        } catch (error) {
-            // Error already handled in handleReject
-            console.error('Quick reject failed:', error);
         }
     };
 
@@ -213,7 +199,7 @@ const RegistrationRequests = () => {
                                                         {isOperationPending ? 'Loading...' : 'Configure & Approve'}
                                                     </button>
                                                     <button
-                                                        onClick={() => quickReject(request)}
+                                                        onClick={() => openApprovalModal(request)}
                                                         disabled={isOperationPending}
                                                         className={cn(
                                                             buttonVariants({ variant: 'outline', size: 'sm' }),
@@ -298,7 +284,7 @@ const RegistrationRequests = () => {
                                                                 {isOperationPending ? 'Loading...' : 'Configure'}
                                                             </button>
                                                             <button
-                                                                onClick={() => quickReject(request)}
+                                                                onClick={() => openApprovalModal(request)}
                                                                 disabled={isOperationPending}
                                                                 className={cn(
                                                                     buttonVariants({ variant: 'outline', size: 'sm' }),

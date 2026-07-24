@@ -1,4 +1,13 @@
-import { Level, SyllabusTopicStatus } from "../generated/prisma/index.js";
+import {
+  AssessmentCycle,
+  Level,
+  SyllabusTopicStatus,
+} from "../generated/prisma/index.js";
+
+export type CurriculumAssessmentCycle = Exclude<
+  AssessmentCycle,
+  "PRE_ASSESSMENT"
+>;
 
 // ============================================
 // SYLLABUS TYPES
@@ -8,12 +17,15 @@ export interface CreateSyllabusRequest {
   projectId: string;
   centerId: string;
   semesterId: string;
-  level: Level;
+  semesterLevelId?: string;
+  level?: Level;
   name: string;
   description?: string;
 }
 
 export interface UpdateSyllabusRequest {
+  semesterLevelId?: string;
+  level?: Level;
   name?: string;
   description?: string;
   isActive?: boolean;
@@ -23,6 +35,7 @@ export interface GetSyllabusRequest {
   projectId?: string;
   centerId?: string;
   semesterId?: string;
+  semesterLevelId?: string;
   level?: Level;
   isActive?: boolean;
 }
@@ -32,6 +45,7 @@ export interface SyllabusResponse {
   projectId: string;
   centerId: string;
   semesterId: string;
+  semesterLevelId: string;
   level: Level;
   name: string;
   description?: string;
@@ -49,6 +63,15 @@ export interface SyllabusResponse {
   semester?: {
     id: string;
     name: string;
+  };
+  semesterLevel?: {
+    id: string;
+    academicLevel: {
+      id: string;
+      code: string;
+      name: string;
+      journeyOrder: number;
+    };
   };
   topics?: SyllabusTopicResponse[];
   stats?: {
@@ -68,7 +91,7 @@ export interface CreateSyllabusTopicRequest {
   parentId?: string;
   serialNumber: string;
   title: string;
-  cycle?: string;
+  cycle: CurriculumAssessmentCycle;
   orderIndex: number;
   metadata?: Record<string, any>;
 }
@@ -76,7 +99,7 @@ export interface CreateSyllabusTopicRequest {
 export interface UpdateSyllabusTopicRequest {
   serialNumber?: string;
   title?: string;
-  cycle?: string;
+  cycle?: CurriculumAssessmentCycle;
   status?: SyllabusTopicStatus;
   orderIndex?: number;
   metadata?: Record<string, any>;
@@ -88,7 +111,7 @@ export interface BulkCreateTopicsRequest {
     parentId?: string;
     serialNumber: string;
     title: string;
-    cycle?: string;
+    cycle: CurriculumAssessmentCycle;
     orderIndex: number;
     metadata?: Record<string, any>;
   }[];
@@ -109,7 +132,7 @@ export interface ReorderTopicsRequest {
 export interface GetSyllabusTopicsRequest {
   syllabusId?: string;
   parentId?: string | null;
-  cycle?: string;
+  cycle?: CurriculumAssessmentCycle;
   status?: SyllabusTopicStatus;
   includeSubtopics?: boolean;
 }
@@ -120,7 +143,7 @@ export interface SyllabusTopicResponse {
   parentId?: string;
   serialNumber: string;
   title: string;
-  cycle?: string;
+  cycle: CurriculumAssessmentCycle;
   status: SyllabusTopicStatus;
   orderIndex: number;
   metadata?: Record<string, any>;
@@ -172,7 +195,7 @@ export interface ProgressLogResponse {
     serialNumber: string;
     syllabusId: string;
   };
-  user: {
+  updatedByUser: {
     id: string;
     name: string;
     email: string;
@@ -188,7 +211,8 @@ export interface ImportSyllabusFromTemplateRequest {
   projectId: string;
   centerId: string;
   semesterId: string;
-  level: Level;
+  semesterLevelId?: string;
+  level?: Level;
   templateName: string; // e.g., "PRIMARY_A", "LEVEL_1"
   syllabusName?: string;
   description?: string;
@@ -200,12 +224,12 @@ export interface SyllabusTemplate {
   topics: {
     serialNumber: string;
     title: string;
-    cycle?: string;
+    cycle: CurriculumAssessmentCycle;
     orderIndex: number;
     subtopics?: {
       serialNumber: string;
       title: string;
-      cycle?: string;
+      cycle: CurriculumAssessmentCycle;
       orderIndex: number;
     }[];
   }[];
@@ -220,6 +244,7 @@ export interface SyllabusStatisticsRequest {
   projectId?: string;
   centerId?: string;
   semesterId?: string;
+  semesterLevelId?: string;
   level?: Level;
 }
 
@@ -233,7 +258,7 @@ export interface SyllabusStatisticsResponse {
   };
   completionPercentage: number;
   cycleBreakdown?: {
-    cycle: string;
+    cycle: CurriculumAssessmentCycle;
     total: number;
     pending: number;
     ongoing: number;

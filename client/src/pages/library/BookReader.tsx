@@ -5,19 +5,29 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { books, type Book } from '../../data/books';
 import { cn } from '../../lib/utils';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { fetchPDFWithCache } from '../../lib/pdf-storage';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 // Configure PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+const PAGE_WINDOW_RADIUS = 2;
+const PDF_OPTIONS = {
+    cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
+    cMapPacked: true,
+    standardFontDataUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/standard_fonts/`,
+    verbosity: 0,
+    disableAutoFetch: false,
+    disableStream: false,
+    useWorkerFetch: true,
+    isEvalSupported: false,
+};
 
 const BookReader: React.FC = () => {
     const { bookId } = useParams<{ bookId: string }>();
     const navigate = useNavigate();
     const [book, setBook] = useState<Book | null>(null);
-    const [pdfUrl, setPdfUrl] = useState<string>('');
     const [numPages, setNumPages] = useState<number>(0);
     const [currentPage, setCurrentPage] = useState<number>(1);
-    const [isIndexOpen, setIsIndexOpen] = useState(true);
+    const [isIndexOpen, setIsIndexOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState<string>('');
     const containerRef = useRef<HTMLDivElement>(null);
     const pageRefs = useRef<Record<number, HTMLDivElement>>({});
@@ -26,18 +36,6 @@ const BookReader: React.FC = () => {
 
     // PDF offset from book data
     const PDF_OFFSET = book?.pdfOffset || 0;
-
-    // Memoize PDF options to prevent unnecessary reloads
-    const pdfOptions = useMemo(() => ({
-        cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
-        cMapPacked: true,
-        standardFontDataUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/standard_fonts/`,
-        verbosity: 0,
-        disableAutoFetch: false, // Allow fetching pages as needed
-        disableStream: false, // Enable streaming for better performance
-        useWorkerFetch: true, // Use worker for fetching
-        isEvalSupported: false, // Disable eval for security
-    }), []);
 
     // Calculate viewport width for responsive scaling
     const getPageWidth = useCallback(() => {
@@ -51,60 +49,43 @@ const BookReader: React.FC = () => {
         const foundBook = books.find(b => b.id === bookId);
         if (foundBook) {
             setBook(foundBook);
-            // Load PDF from IndexedDB cache
-            fetchPDFWithCache(foundBook.pdfUrl)
-                .then((blobUrl) => {
-                    setPdfUrl(blobUrl);
-                })
-                .catch((err) => {
-                    console.error('[BookReader] Failed to load PDF:', err);
-                    // Fallback to direct URL
-                    setPdfUrl(foundBook.pdfUrl);
-                });
         } else {
             navigate('/library');
         }
 
     }, [bookId, navigate]);
 
-    // Cleanup blob URL on unmount
-    useEffect(() => {
-        return () => {
-            if (pdfUrl && pdfUrl.startsWith('blob:')) {
-                URL.revokeObjectURL(pdfUrl);
-            }
-        };
-    }, [pdfUrl]);
-
     const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
         // Subtract the offset pages from total
         setNumPages(numPages - PDF_OFFSET);
     };
 
-    const handleSectionClick = (pageStart: number) => {
-        setCurrentPage(pageStart);
-        setIsIndexOpen(false);
+    const jumpToPage = useCallback((pageNumber: number) => {
+        const boundedPage = Math.min(Math.max(pageNumber, 1), numPages);
+        setCurrentPage(boundedPage);
 
-        // Scroll to the page
-        setTimeout(() => {
-            const pageElement = pageRefs.current[pageStart];
-            if (pageElement) {
-                pageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-        }, 100);
+        requestAnimationFrame(() => {
+            pageRefs.current[boundedPage]?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+            });
+        });
+    }, [numPages]);
+
+    const handleSectionClick = (pageStart: number) => {
+        jumpToPage(pageStart);
+        setIsIndexOpen(false);
     };
 
     const handlePrevPage = () => {
         if (currentPage > 1) {
-            setCurrentPage(currentPage - 1);
-            handleSectionClick(currentPage - 1);
+            jumpToPage(currentPage - 1);
         }
     };
 
     const handleNextPage = () => {
         if (currentPage < numPages) {
-            setCurrentPage(currentPage + 1);
-            handleSectionClick(currentPage + 1);
+            jumpToPage(currentPage + 1);
         }
     };
 
@@ -122,6 +103,19 @@ const BookReader: React.FC = () => {
     }, [book, currentPage]);
 
     const activeSection = getCurrentSection();
+
+    const allPageNumbers = useMemo(
+        () => Array.from({ length: numPages }, (_, index) => index + 1),
+        [numPages],
+    );
+
+    const visiblePageNumbers = useMemo(() => {
+        const start = Math.max(1, currentPage - PAGE_WINDOW_RADIUS);
+        const end = Math.min(numPages, currentPage + PAGE_WINDOW_RADIUS);
+        return new Set(
+            Array.from({ length: Math.max(0, end - start + 1) }, (_, index) => start + index),
+        );
+    }, [currentPage, numPages]);
 
     // Filter structure based on search query
     const filteredStructure = useMemo(() => {
@@ -162,6 +156,7 @@ const BookReader: React.FC = () => {
             {/* Header */}
             <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between z-20 shrink-0">
                 <button
+                    aria-label="Back to Library"
                     onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -183,25 +178,34 @@ const BookReader: React.FC = () => {
                 className="flex-1 overflow-y-auto bg-gray-200 py-6 relative"
                 onScroll={(e) => {
                     // Update current page based on scroll position
-                    const scrollTop = e.currentTarget.scrollTop;
-                    const pages = Object.entries(pageRefs.current);
+                    const viewerTop = e.currentTarget.getBoundingClientRect().top;
+                    const readingLine = viewerTop + Math.min(240, e.currentTarget.clientHeight * 0.35);
+                    let nearestPage = currentPage;
+                    let nearestDistance = Number.POSITIVE_INFINITY;
 
-                    for (let i = pages.length - 1; i >= 0; i--) {
-                        const [pageNum, element] = pages[i];
-                        if (element && element.offsetTop <= scrollTop + 200) {
-                            setCurrentPage(Number(pageNum));
+                    for (const [pageNum, element] of Object.entries(pageRefs.current)) {
+                        if (!element?.isConnected) continue;
+                        const rect = element.getBoundingClientRect();
+                        if (rect.top <= readingLine && rect.bottom > readingLine) {
+                            nearestPage = Number(pageNum);
                             break;
                         }
+                        const distance = Math.abs(rect.top - readingLine);
+                        if (distance < nearestDistance) {
+                            nearestDistance = distance;
+                            nearestPage = Number(pageNum);
+                        }
                     }
+
+                    if (nearestPage !== currentPage) setCurrentPage(nearestPage);
                 }}
             >
                 <div className="flex flex-col items-center gap-6 pb-20 min-h-full px-2 sm:px-4">
-                    {pdfUrl ? (
-                        <Document
-                            key={pdfUrl}
-                            file={pdfUrl}
+                    <Document
+                            file={book.pdfUrl}
                             onLoadSuccess={onDocumentLoadSuccess}
-                            options={pdfOptions}
+                            options={PDF_OPTIONS}
+                            className="flex w-full flex-col items-center gap-6"
                             loading={
                                 <div className="flex items-center justify-center min-h-[400px]">
                                     <div className="text-center">
@@ -218,44 +222,40 @@ const BookReader: React.FC = () => {
                                 </div>
                             }
                         >
-                            {Array.from(new Array(numPages), (_el, index) => {
-                                const bookPageNum = index + 1;
+                            {allPageNumbers.map((bookPageNum) => {
                                 const pdfPageNum = bookPageNum + PDF_OFFSET;
                                 return (
                                     <div
                                         key={`page_${bookPageNum}`}
                                         ref={(el) => {
                                             if (el) pageRefs.current[bookPageNum] = el;
+                                            else delete pageRefs.current[bookPageNum];
                                         }}
-                                        className="bg-white shadow-lg rounded-lg overflow-hidden w-full max-w-[800px] mb-6"
+                                        data-book-page={bookPageNum}
+                                        className="aspect-[581/782] w-full max-w-[800px] overflow-hidden rounded-lg bg-white shadow-lg"
                                     >
-                                        <Page
-                                            pageNumber={pdfPageNum}
-                                            width={getPageWidth()}
-                                            renderTextLayer={false}
-                                            renderAnnotationLayer={false}
-                                            renderMode="canvas"
-                                            loading={null}
-                                            className="w-full"
-                                        />
+                                        {visiblePageNumbers.has(bookPageNum) && (
+                                            <Page
+                                                pageNumber={pdfPageNum}
+                                                width={getPageWidth()}
+                                                renderTextLayer={false}
+                                                renderAnnotationLayer={false}
+                                                renderMode="canvas"
+                                                loading={null}
+                                                className="w-full"
+                                            />
+                                        )}
                                     </div>
                                 );
                             })}
                         </Document>
-                    ) : (
-                        <div className="flex items-center justify-center min-h-[400px]">
-                            <div className="text-center">
-                                <div className="w-16 h-16 border-4 border-orange-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                                <p className="text-gray-600">Loading book...</p>
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
 
             {/* Bottom Navigation Bar */}
             <div className="bg-white border-t border-gray-200 px-4 py-3 flex items-center justify-between z-20 shrink-0">
                 <button
+                    aria-label="Previous page"
                     onClick={handlePrevPage}
                     disabled={currentPage <= 1}
                     className={cn(
@@ -280,6 +280,7 @@ const BookReader: React.FC = () => {
                 </div>
 
                 <button
+                    aria-label="Next page"
                     onClick={handleNextPage}
                     disabled={currentPage >= numPages}
                     className={cn(
@@ -295,6 +296,7 @@ const BookReader: React.FC = () => {
 
             {/* Floating Index Button */}
             <button
+                aria-label="Open table of contents"
                 onClick={() => setIsIndexOpen(true)}
                 className="fixed bottom-20 right-4 sm:right-6 bg-orange-600 hover:bg-orange-700 text-white p-4 rounded-full shadow-lg transition-all z-30 flex items-center gap-2"
             >
@@ -331,6 +333,7 @@ const BookReader: React.FC = () => {
                                     <h2 className="font-bold text-gray-900 text-lg">Table of Contents</h2>
                                 </div>
                                 <button
+                                    aria-label="Close table of contents"
                                     onClick={() => setIsIndexOpen(false)}
                                     className="p-2 hover:bg-gray-100 rounded-full transition-colors"
                                 >

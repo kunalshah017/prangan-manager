@@ -1,968 +1,559 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
-import { motion } from 'framer-motion';
-import { cn } from '@/lib/utils';
-import { buttonVariants } from '@/lib/button-variants';
-import DoodleBackground from '@/components/DoodleBackground';
-import LoadingButterfly from '@/components/LoadingButterfly';
-import Modal from '@/components/ui/modal';
-import { CustomButton } from '@/components/ui/custom-button';
+import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, ArrowLeft, Save } from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
+import toast from "react-hot-toast";
+
+import LoadingButterfly from "@/components/LoadingButterfly";
 import {
-    useSyllabus,
-    useUpdateSyllabus,
-    useSyllabusTopics,
-    useCreateSyllabusTopic,
-    useUpdateSyllabusTopic,
-    useDeleteSyllabusTopic,
-} from '@/hooks';
-import { useAuth } from '@/hooks/useAuth';
-import toast from 'react-hot-toast';
-import type { SyllabusTopic } from '@/types/api';
+  TopicEditor,
+  type TopicEditorSubtopic,
+  type TopicEditorTopic,
+} from "@/components/syllabus/TopicEditor";
+import Modal from "@/components/ui/modal";
+import {
+  WorkspacePage,
+  WorkspacePageHeader,
+} from "@/components/workspace/WorkspacePage";
+import {
+  useBulkCreateTopics,
+  useDeleteSyllabusTopic,
+  useSyllabus,
+  useSyllabusTopics,
+  useUpdateSyllabus,
+  useUpdateSyllabusTopic,
+} from "@/hooks";
+import { useAuth } from "@/hooks/useAuth";
+import { can } from "@/lib/access";
+import { levelName } from "@/lib/levels";
+import type { SyllabusTopic } from "@/types/api";
 
-interface TopicEdit {
-    id: string;
-    syllabusTopicId?: string; // Existing topic ID (if editing)
-    serialNumber: string;
-    title: string;
-    cycle?: string;
-    subtopics: SubtopicEdit[];
-    isExpanded?: boolean;
-    isNew?: boolean;
-    isDeleted?: boolean;
-    isModified?: boolean;
-}
+const toEditorTopics = (items: SyllabusTopic[]): TopicEditorTopic[] =>
+  items
+    .filter((topic) => !topic.parentId)
+    .map((topic) => {
+      const subtopics = topic.subtopics?.length
+        ? topic.subtopics
+        : items.filter((candidate) => candidate.parentId === topic.id);
 
-interface SubtopicEdit {
-    id: string;
-    syllabusTopicId?: string; // Existing subtopic ID
-    serialNumber: string;
-    title: string;
-    cycle?: string;
-    isNew?: boolean;
-    isDeleted?: boolean;
-    isModified?: boolean;
-}
+      return {
+        id: `existing-${topic.id}`,
+        syllabusTopicId: topic.id,
+        serialNumber: topic.serialNumber,
+        title: topic.title,
+        cycle: topic.cycle,
+        isExpanded: false,
+        subtopics: subtopics.map((subtopic) => ({
+          id: `existing-${subtopic.id}`,
+          syllabusTopicId: subtopic.id,
+          serialNumber: subtopic.serialNumber,
+          title: subtopic.title,
+          cycle: subtopic.cycle,
+        })),
+      };
+    });
+
+type RemovalRequest =
+  | { type: "topic"; topicId: string; title: string; subtopicCount: number }
+  | {
+      type: "subtopic";
+      topicId: string;
+      subtopicId: string;
+      title: string;
+      subtopicCount: 0;
+    };
 
 const EditSyllabus = () => {
-    const { projectId, centerId, semesterId, syllabusId } = useParams<{
-        projectId: string;
-        centerId: string;
-        semesterId: string;
-        syllabusId: string;
-    }>();
-    const navigate = useNavigate();
-    const { user } = useAuth();
+  const { projectId, centerId, semesterId, syllabusId } = useParams<{
+    projectId: string;
+    centerId: string;
+    semesterId: string;
+    syllabusId: string;
+  }>();
+  const navigate = useNavigate();
+  const { user, isLoading: isAuthLoading } = useAuth();
+  const workspace = { projectId, centerId, semesterId };
+  const hasEditPermission = can(user, "curriculum.manage", workspace);
+  const listPath = `/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/syllabus`;
 
-    // Check if user has permission (ADMIN or CURRICULUM_MENTOR)
-    const hasEditPermission = useMemo(() => {
-        if (!user) return false;
-        if (user.role === 'ADMIN') return true;
+  const syllabusQuery = useSyllabus(syllabusId || "", {
+    includeStats: false,
+    includeTopics: false,
+    enabled: hasEditPermission,
+  });
+  const topicsQuery = useSyllabusTopics({
+    syllabusId: syllabusId || "",
+    includeSubtopics: true,
+    enabled: hasEditPermission,
+  });
+  const updateSyllabus = useUpdateSyllabus();
+  const updateTopic = useUpdateSyllabusTopic();
+  const deleteTopic = useDeleteSyllabusTopic();
+  const bulkCreateTopics = useBulkCreateTopics();
 
-        return user.roleAssignments?.some(
-            assignment =>
-                assignment.subRole === 'CURRICULUM_MENTOR' &&
-                assignment.isActive &&
-                assignment.projectId === projectId &&
-                assignment.centerId === centerId &&
-                assignment.semesterId === semesterId
-        );
-    }, [user, projectId, centerId, semesterId]);
+  const initializedSyllabusId = useRef<string | null>(null);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [topics, setTopics] = useState<TopicEditorTopic[]>([]);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [removalRequest, setRemovalRequest] =
+    useState<RemovalRequest | null>(null);
 
-    // Fetch syllabus data
-    const { data: syllabus, isLoading: isFetchingData } = useSyllabus(syllabusId || '', {
-        includeStats: false,
-        includeTopics: false,
+  useEffect(() => {
+    if (
+      syllabusQuery.data &&
+      topicsQuery.data &&
+      initializedSyllabusId.current !== syllabusQuery.data.id
+    ) {
+      setName(syllabusQuery.data.name);
+      setDescription(syllabusQuery.data.description || "");
+      setTopics(toEditorTopics(topicsQuery.data));
+      initializedSyllabusId.current = syllabusQuery.data.id;
+    }
+  }, [syllabusQuery.data, topicsQuery.data]);
+
+  const isPending =
+    updateSyllabus.isPending ||
+    updateTopic.isPending ||
+    deleteTopic.isPending ||
+    bulkCreateTopics.isPending;
+
+  const requestTopicRemoval = (topic: TopicEditorTopic) =>
+    setRemovalRequest({
+      type: "topic",
+      topicId: topic.id,
+      title: topic.title || `Topic ${topic.serialNumber}`,
+      subtopicCount: topic.subtopics.filter((subtopic) => !subtopic.isDeleted)
+        .length,
     });
 
-    // Fetch topics
-    const { data: existingTopics, isLoading: isLoadingTopics } = useSyllabusTopics({
-        syllabusId: syllabusId || '',
-        includeSubtopics: true,
+  const requestSubtopicRemoval = (
+    topic: TopicEditorTopic,
+    subtopic: TopicEditorSubtopic,
+  ) =>
+    setRemovalRequest({
+      type: "subtopic",
+      topicId: topic.id,
+      subtopicId: subtopic.id,
+      title: subtopic.title || `Subtopic ${subtopic.serialNumber}`,
+      subtopicCount: 0,
     });
 
-    const [formData, setFormData] = useState({
-        name: '',
-        description: '',
-    });
+  const confirmRemoval = () => {
+    if (!removalRequest) return;
 
-    const [topics, setTopics] = useState<TopicEdit[]>([]);
-    const [hasChanges, setHasChanges] = useState(false);
-    const [confirmDelete, setConfirmDelete] = useState<{
-        isOpen: boolean;
-        type: 'topic' | 'subtopic';
-        topicId: string;
-        subtopicId?: string;
-        title: string;
-        hasSubtopics?: boolean;
-        subtopicCount?: number;
-    } | null>(null);
+    setTopics((current) =>
+      current
+        .map((topic) => {
+          if (topic.id !== removalRequest.topicId) return topic;
+          if (removalRequest.type === "topic") {
+            return topic.syllabusTopicId
+              ? { ...topic, isDeleted: true }
+              : null;
+          }
 
-    // Populate form when data loads
-    useEffect(() => {
-        if (syllabus) {
-            setFormData({
-                name: syllabus.name,
-                description: syllabus.description || '',
-            });
-        }
-    }, [syllabus]);
-
-    // Populate topics when loaded
-    useEffect(() => {
-        if (existingTopics && existingTopics.length > 0) {
-            const parentTopics = existingTopics.filter((t: SyllabusTopic) => !t.parentId);
-            const topicsWithSubtopics: TopicEdit[] = parentTopics.map((topic: SyllabusTopic) => {
-                const subtopicsData = existingTopics.filter((t: SyllabusTopic) => t.parentId === topic.id);
-                return {
-                    id: `existing-${topic.id}`,
-                    syllabusTopicId: topic.id,
-                    serialNumber: topic.serialNumber,
-                    title: topic.title,
-                    cycle: topic.cycle || '',
-                    isExpanded: false,
-                    subtopics: subtopicsData.map((sub: SyllabusTopic) => ({
-                        id: `existing-sub-${sub.id}`,
-                        syllabusTopicId: sub.id,
-                        serialNumber: sub.serialNumber,
-                        title: sub.title,
-                        cycle: sub.cycle || '',
-                    })),
-                };
-            });
-            setTopics(topicsWithSubtopics);
-        }
-    }, [existingTopics]);
-
-    const { mutate: updateSyllabus, isPending: isUpdatingSyllabus } = useUpdateSyllabus();
-    const { mutate: createTopic, isPending: isCreatingTopic } = useCreateSyllabusTopic();
-    const { mutate: updateTopic, isPending: isUpdatingTopic } = useUpdateSyllabusTopic();
-    const { mutate: deleteTopic, isPending: isDeletingTopic } = useDeleteSyllabusTopic();
-
-    const isPending = isUpdatingSyllabus || isCreatingTopic || isUpdatingTopic || isDeletingTopic;
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-
-        if (!formData.name.trim()) {
-            toast.error('Syllabus name is required');
-            return;
-        }
-
-        if (!syllabusId) {
-            toast.error('Syllabus ID is missing');
-            return;
-        }
-
-        // Step 1: Update syllabus details
-        await new Promise<void>((resolve, reject) => {
-            updateSyllabus(
-                {
-                    id: syllabusId,
-                    data: {
-                        name: formData.name.trim(),
-                        description: formData.description.trim() || undefined,
-                    },
-                },
-                {
-                    onSuccess: () => resolve(),
-                    onError: (error: unknown) => {
-                        const err = error as { message?: string };
-                        toast.error(err?.message || 'Failed to update syllabus');
-                        reject();
-                    },
-                }
-            );
-        });
-
-        // Step 2: Handle topic changes if any
-        if (hasChanges) {
-            await handleTopicChanges();
-        } else {
-            toast.success('Syllabus updated successfully');
-            navigate(
-                `/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/syllabus`
-            );
-        }
-    };
-
-    const handleTopicChanges = async () => {
-        let successCount = 0;
-        let failCount = 0;
-
-        // 1. Delete marked topics
-        const topicsToDelete = topics.filter((t) => t.isDeleted && t.syllabusTopicId);
-        for (const topic of topicsToDelete) {
-            try {
-                await new Promise<void>((resolve, reject) => {
-                    deleteTopic(topic.syllabusTopicId!, {
-                        onSuccess: () => {
-                            successCount++;
-                            resolve();
-                        },
-                        onError: () => {
-                            failCount++;
-                            reject();
-                        },
-                    });
-                });
-            } catch {
-                // Continue with next
-            }
-        }
-
-        // 2. Update modified topics
-        const topicsToUpdate = topics.filter((t) => t.isModified && !t.isDeleted && t.syllabusTopicId);
-        for (const topic of topicsToUpdate) {
-            try {
-                await new Promise<void>((resolve, reject) => {
-                    updateTopic(
-                        {
-                            id: topic.syllabusTopicId!,
-                            data: {
-                                serialNumber: topic.serialNumber,
-                                title: topic.title,
-                                cycle: topic.cycle || undefined,
-                            },
-                        },
-                        {
-                            onSuccess: () => {
-                                successCount++;
-                                resolve();
-                            },
-                            onError: () => {
-                                failCount++;
-                                reject();
-                            },
-                        }
-                    );
-                });
-            } catch {
-                // Continue with next
-            }
-        }
-
-        // 3. Create new topics and their subtopics
-        const topicsToCreate = topics.filter((t) => t.isNew && !t.isDeleted);
-        for (const [index, topic] of topicsToCreate.entries()) {
-            try {
-                const createdTopic = await new Promise<{ id: string }>((resolve, reject) => {
-                    createTopic(
-                        {
-                            syllabusId: syllabusId!,
-                            serialNumber: topic.serialNumber,
-                            title: topic.title,
-                            cycle: topic.cycle || undefined,
-                            orderIndex: index + 1,
-                        },
-                        {
-                            onSuccess: (data) => {
-                                successCount++;
-                                resolve(data);
-                            },
-                            onError: () => {
-                                failCount++;
-                                reject();
-                            },
-                        }
-                    );
-                });
-
-                // Create subtopics for this new topic
-                for (const [subIndex, subtopic] of topic.subtopics.entries()) {
-                    if (!subtopic.isDeleted) {
-                        try {
-                            await new Promise<void>((resolve, reject) => {
-                                createTopic(
-                                    {
-                                        syllabusId: syllabusId!,
-                                        parentId: createdTopic.id,
-                                        serialNumber: subtopic.serialNumber,
-                                        title: subtopic.title,
-                                        cycle: subtopic.cycle || undefined,
-                                        orderIndex: subIndex + 1,
-                                    },
-                                    {
-                                        onSuccess: () => resolve(),
-                                        onError: () => {
-                                            failCount++;
-                                            reject();
-                                        },
-                                    }
-                                );
-                            });
-                        } catch {
-                            // Continue with next subtopic
-                        }
-                    }
-                }
-            } catch {
-                // Continue with next topic
-            }
-        }
-
-        // 4. Handle subtopics of existing topics
-        for (const topic of topics.filter((t) => !t.isNew && !t.isDeleted && t.syllabusTopicId)) {
-            // Delete marked subtopics
-            const subtopicsToDelete = topic.subtopics.filter((s) => s.isDeleted && s.syllabusTopicId);
-            for (const subtopic of subtopicsToDelete) {
-                try {
-                    await new Promise<void>((resolve, reject) => {
-                        deleteTopic(subtopic.syllabusTopicId!, {
-                            onSuccess: () => {
-                                successCount++;
-                                resolve();
-                            },
-                            onError: () => {
-                                failCount++;
-                                reject();
-                            },
-                        });
-                    });
-                } catch {
-                    // Continue
-                }
-            }
-
-            // Update modified subtopics
-            const subtopicsToUpdate = topic.subtopics.filter((s) => s.isModified && !s.isDeleted && s.syllabusTopicId);
-            for (const subtopic of subtopicsToUpdate) {
-                try {
-                    await new Promise<void>((resolve, reject) => {
-                        updateTopic(
-                            {
-                                id: subtopic.syllabusTopicId!,
-                                data: {
-                                    serialNumber: subtopic.serialNumber,
-                                    title: subtopic.title,
-                                    cycle: subtopic.cycle || undefined,
-                                },
-                            },
-                            {
-                                onSuccess: () => {
-                                    successCount++;
-                                    resolve();
-                                },
-                                onError: () => {
-                                    failCount++;
-                                    reject();
-                                },
-                            }
-                        );
-                    });
-                } catch {
-                    // Continue
-                }
-            }
-
-            // Create new subtopics
-            const subtopicsToCreate = topic.subtopics.filter((s) => s.isNew && !s.isDeleted);
-            for (const [subIndex, subtopic] of subtopicsToCreate.entries()) {
-                try {
-                    await new Promise<void>((resolve, reject) => {
-                        createTopic(
-                            {
-                                syllabusId: syllabusId!,
-                                parentId: topic.syllabusTopicId!,
-                                serialNumber: subtopic.serialNumber,
-                                title: subtopic.title,
-                                cycle: subtopic.cycle || undefined,
-                                orderIndex: subIndex + 1,
-                            },
-                            {
-                                onSuccess: () => resolve(),
-                                onError: () => {
-                                    failCount++;
-                                    reject();
-                                },
-                            }
-                        );
-                    });
-                } catch {
-                    // Continue
-                }
-            }
-        }
-
-        if (successCount > 0) {
-            toast.success(`Syllabus and ${successCount} topic(s) updated successfully!`);
-        }
-        if (failCount > 0) {
-            toast.error(`Failed to update ${failCount} topic(s)`);
-        }
-
-        navigate(
-            `/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/syllabus`
-        );
-    };
-
-    // Topic management functions
-    const addTopic = () => {
-        const newTopic: TopicEdit = {
-            id: `new-${Date.now()}`,
-            serialNumber: (topics.filter((t) => !t.isDeleted).length + 1).toString(),
-            title: '',
-            cycle: '',
-            subtopics: [],
-            isExpanded: true,
-            isNew: true,
-        };
-        setTopics([...topics, newTopic]);
-        setHasChanges(true);
-    };
-
-    const removeTopic = (topicId: string) => {
-        const topic = topics.find((t) => t.id === topicId);
-        if (!topic) return;
-
-        const subtopicCount = topic.subtopics.filter((s) => !s.isDeleted).length;
-
-        setConfirmDelete({
-            isOpen: true,
-            type: 'topic',
-            topicId,
-            title: topic.title,
-            hasSubtopics: subtopicCount > 0,
-            subtopicCount,
-        });
-    };
-
-    const confirmRemoveTopic = () => {
-        if (!confirmDelete || confirmDelete.type !== 'topic') return;
-
-        const { topicId } = confirmDelete;
-        const topic = topics.find((t) => t.id === topicId);
-
-        if (topic?.syllabusTopicId) {
-            // Mark existing topic as deleted
-            setTopics(
-                topics.map((t) =>
-                    t.id === topicId ? { ...t, isDeleted: true } : t
-                )
-            );
-        } else {
-            // Remove new topic completely
-            setTopics(topics.filter((t) => t.id !== topicId));
-        }
-        setHasChanges(true);
-        setConfirmDelete(null);
-    };
-
-    const updateTopicField = (topicId: string, field: string, value: string) => {
-        setTopics(
-            topics.map((t) => {
-                if (t.id === topicId) {
-                    return { ...t, [field]: value, isModified: !t.isNew };
-                }
-                return t;
-            })
-        );
-        setHasChanges(true);
-    };
-
-    const toggleTopicExpand = (topicId: string) => {
-        setTopics(
-            topics.map((t) =>
-                t.id === topicId ? { ...t, isExpanded: !t.isExpanded } : t
-            )
-        );
-    };
-
-    const addSubtopic = (topicId: string) => {
-        setTopics(
-            topics.map((t) => {
-                if (t.id === topicId) {
-                    const newSubtopic: SubtopicEdit = {
-                        id: `new-sub-${Date.now()}`,
-                        serialNumber: `${t.serialNumber}.${t.subtopics.filter((s) => !s.isDeleted).length + 1}`,
-                        title: '',
-                        cycle: t.cycle || '',
-                        isNew: true,
-                    };
-                    return {
-                        ...t,
-                        subtopics: [...t.subtopics, newSubtopic],
-                        isExpanded: true,
-                    };
-                }
-                return t;
-            })
-        );
-        setHasChanges(true);
-    };
-
-    const removeSubtopic = (topicId: string, subtopicId: string) => {
-        const topic = topics.find((t) => t.id === topicId);
-        const subtopic = topic?.subtopics.find((s) => s.id === subtopicId);
-        if (!subtopic) return;
-
-        setConfirmDelete({
-            isOpen: true,
-            type: 'subtopic',
-            topicId,
-            subtopicId,
-            title: subtopic.title,
-        });
-    };
-
-    const confirmRemoveSubtopic = () => {
-        if (!confirmDelete || confirmDelete.type !== 'subtopic' || !confirmDelete.subtopicId) return;
-
-        const { topicId, subtopicId } = confirmDelete;
-
-        setTopics(
-            topics.map((t) => {
-                if (t.id === topicId) {
-                    const subtopic = t.subtopics.find((s) => s.id === subtopicId);
-                    if (subtopic?.syllabusTopicId) {
-                        // Mark existing subtopic as deleted
-                        return {
-                            ...t,
-                            subtopics: t.subtopics.map((s) =>
-                                s.id === subtopicId ? { ...s, isDeleted: true } : s
-                            ),
-                        };
-                    } else {
-                        // Remove new subtopic completely
-                        return {
-                            ...t,
-                            subtopics: t.subtopics.filter((s) => s.id !== subtopicId),
-                        };
-                    }
-                }
-                return t;
-            })
-        );
-        setHasChanges(true);
-        setConfirmDelete(null);
-    };
-
-    const updateSubtopicField = (
-        topicId: string,
-        subtopicId: string,
-        field: string,
-        value: string
-    ) => {
-        setTopics(
-            topics.map((t) => {
-                if (t.id === topicId) {
-                    return {
-                        ...t,
-                        subtopics: t.subtopics.map((s) => {
-                            if (s.id === subtopicId) {
-                                return { ...s, [field]: value, isModified: !s.isNew };
-                            }
-                            return s;
-                        }),
-                    };
-                }
-                return t;
-            })
-        );
-        setHasChanges(true);
-    };
-
-    const handleCancel = () => {
-        navigate(
-            `/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/syllabus`
-        );
-    };
-
-    if (isFetchingData || isLoadingTopics) {
-        return (
-            <div className="flex items-center justify-center min-h-[60dvh]">
-                <LoadingButterfly size="md" />
-            </div>
-        );
-    }
-
-    if (!hasEditPermission) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[60dvh] relative">
-                <DoodleBackground numElements={8} />
-                <div className="bg-white/80 rounded-lg border shadow-md p-8 max-w-md text-center relative z-10">
-                    <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
-                    <p className="text-muted-foreground mb-4">
-                        You need to be an Admin or Curriculum Mentor to edit syllabi.
-                    </p>
-                    <button
-                        onClick={() => navigate(-1)}
-                        className={cn(buttonVariants({ variant: 'default' }))}
-                    >
-                        Go Back
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    if (!syllabus) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[60dvh] relative">
-                <DoodleBackground numElements={8} />
-                <div className="bg-white/80 rounded-lg border shadow-md p-8 max-w-md text-center relative z-10">
-                    <h2 className="text-xl font-semibold mb-2">Syllabus Not Found</h2>
-                    <p className="text-muted-foreground mb-4">
-                        The syllabus you're trying to edit doesn't exist.
-                    </p>
-                    <button
-                        onClick={() => navigate(-1)}
-                        className={cn(buttonVariants({ variant: 'default' }))}
-                    >
-                        Go Back
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="w-full relative p-2 sm:p-0">
-            <DoodleBackground numElements={10} />
-
-            {/* Header */}
-            <div className="mb-4 sm:mb-6 relative z-10">
-                <button
-                    onClick={handleCancel}
-                    className={cn(
-                        buttonVariants({ variant: 'ghost', size: 'sm' }),
-                        'mb-3 -ml-2 text-xs sm:text-sm'
-                    )}
-                >
-                    <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
-                    <span className="hidden sm:inline">Back to Syllabus Management</span>
-                    <span className="sm:hidden">Back</span>
-                </button>
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">Edit Syllabus</h1>
-                <p className="text-muted-foreground text-xs sm:text-sm mt-1">
-                    Update syllabus information for {getLevelDisplay(syllabus.level)}
-                </p>
-            </div>
-
-            {/* Form */}
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white/80 rounded-lg border shadow-sm p-3 sm:p-6 max-w-2xl relative z-10"
-            >
-                <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
-                    {/* Level Display (Read-only) */}
-                    <div className="space-y-1.5 sm:space-y-2">
-                        <label className="text-xs sm:text-sm font-medium">Level</label>
-                        <div className="px-2 sm:px-3 py-1.5 sm:py-2 bg-gray-100 rounded-md text-xs sm:text-sm">
-                            {getLevelDisplay(syllabus.level)}
-                        </div>
-                        <p className="text-[10px] sm:text-xs text-muted-foreground">
-                            Level cannot be changed after creation
-                        </p>
-                    </div>
-
-                    {/* Name */}
-                    <div className="space-y-1.5 sm:space-y-2">
-                        <label htmlFor="name" className="text-xs sm:text-sm font-medium">
-                            Syllabus Name <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                            id="name"
-                            type="text"
-                            placeholder="e.g., English SA-1 Syllabus"
-                            value={formData.name}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                                setFormData({ ...formData, name: e.target.value })
-                            }
-                            required
-                            disabled={isPending}
-                            className="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-gray-100"
-                        />
-                    </div>
-
-                    {/* Description */}
-                    <div className="space-y-1.5 sm:space-y-2">
-                        <label htmlFor="description" className="text-xs sm:text-sm font-medium">
-                            Description
-                        </label>
-                        <textarea
-                            id="description"
-                            placeholder="Brief description of this syllabus"
-                            value={formData.description}
-                            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                                setFormData({ ...formData, description: e.target.value })
-                            }
-                            rows={3}
-                            disabled={isPending}
-                            className="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-gray-100 resize-none"
-                        />
-                    </div>
-
-                    {/* Topics Management */}
-                    <div className="space-y-3 pt-3 sm:pt-4 border-t">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-base sm:text-lg font-semibold">Topics & Subtopics</h3>
-                            <span className="text-xs sm:text-sm text-muted-foreground">
-                                {topics.filter((t) => !t.isDeleted).length} topic(s)
-                            </span>
-                        </div>
-
-                        {/* Info Banner */}
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3 text-xs text-blue-800">
-                            <p className="font-medium mb-1">💡 Quick Tips:</p>
-                            <ul className="list-disc list-inside space-y-0.5 text-[10px] sm:text-xs">
-                                <li>Click chevron to expand topics</li>
-                                <li>Changes save when you click "Save Changes"</li>
-                                <li>Deleted items marked but not removed until save</li>
-                            </ul>
-                        </div>
-
-                        {/* Topics List */}
-                        <div className="space-y-3 max-h-[45vh] sm:max-h-[50vh] overflow-y-auto pr-1">
-                            {topics
-                                .filter((t) => !t.isDeleted)
-                                .map((topic) => (
-                                    <div key={topic.id} className="border rounded-lg p-2 sm:p-3 bg-gray-50">
-                                        {/* Topic Header */}
-                                        <div className="space-y-2">
-                                            <div className="flex gap-1.5 sm:gap-2 items-start">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => toggleTopicExpand(topic.id)}
-                                                    className="p-1 hover:bg-gray-200 rounded flex-shrink-0 mt-0.5"
-                                                    disabled={isPending}
-                                                >
-                                                    {topic.isExpanded ? (
-                                                        <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                                                    ) : (
-                                                        <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                                                    )}
-                                                </button>
-                                                <div className="flex-1 space-y-2">
-                                                    <div className="flex gap-1.5 sm:gap-2">
-                                                        <input
-                                                            type="text"
-                                                            value={topic.serialNumber}
-                                                            onChange={(e) =>
-                                                                updateTopicField(topic.id, 'serialNumber', e.target.value)
-                                                            }
-                                                            placeholder="#"
-                                                            disabled={isPending}
-                                                            className="w-10 sm:w-12 px-1.5 py-1 text-xs sm:text-sm border rounded disabled:bg-gray-100 focus:ring-2 focus:ring-orange-500"
-                                                        />
-                                                        <input
-                                                            type="text"
-                                                            value={topic.title}
-                                                            onChange={(e) =>
-                                                                updateTopicField(topic.id, 'title', e.target.value)
-                                                            }
-                                                            placeholder="Topic title"
-                                                            disabled={isPending}
-                                                            className="flex-1 min-w-0 px-2 py-1 text-xs sm:text-sm border rounded disabled:bg-gray-100 focus:ring-2 focus:ring-orange-500"
-                                                        />
-                                                    </div>
-                                                    <div className="flex gap-1.5 sm:gap-2">
-                                                        <input
-                                                            type="text"
-                                                            value={topic.cycle || ''}
-                                                            onChange={(e) =>
-                                                                updateTopicField(topic.id, 'cycle', e.target.value)
-                                                            }
-                                                            placeholder="Cycle (SA-1)"
-                                                            disabled={isPending}
-                                                            className="flex-1 px-2 py-1 text-xs sm:text-sm border rounded disabled:bg-gray-100 focus:ring-2 focus:ring-orange-500"
-                                                        />
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => addSubtopic(topic.id)}
-                                                            disabled={isPending}
-                                                            className="p-1.5 sm:p-2 hover:bg-green-100 rounded text-green-600 border border-green-200 disabled:opacity-50 flex-shrink-0"
-                                                            title="Add subtopic"
-                                                        >
-                                                            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => removeTopic(topic.id)}
-                                                            disabled={isPending}
-                                                            className="p-1.5 sm:p-2 hover:bg-red-100 rounded text-red-600 border border-red-200 disabled:opacity-50 flex-shrink-0"
-                                                        >
-                                                            <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Subtopics */}
-                                            {topic.isExpanded &&
-                                                topic.subtopics.filter((s) => !s.isDeleted).length > 0 && (
-                                                    <div className="ml-6 sm:ml-8 space-y-2 mt-2 pt-2 border-t border-gray-200">
-                                                        {topic.subtopics
-                                                            .filter((s) => !s.isDeleted)
-                                                            .map((subtopic) => (
-                                                                <div key={subtopic.id} className="space-y-2">
-                                                                    <div className="flex gap-1.5 sm:gap-2">
-                                                                        <input
-                                                                            type="text"
-                                                                            value={subtopic.serialNumber}
-                                                                            onChange={(e) =>
-                                                                                updateSubtopicField(
-                                                                                    topic.id,
-                                                                                    subtopic.id,
-                                                                                    'serialNumber',
-                                                                                    e.target.value
-                                                                                )
-                                                                            }
-                                                                            placeholder="1.1"
-                                                                            disabled={isPending}
-                                                                            className="w-10 sm:w-12 px-1.5 py-1 text-xs sm:text-sm border rounded bg-white disabled:bg-gray-100 focus:ring-2 focus:ring-orange-500"
-                                                                        />
-                                                                        <input
-                                                                            type="text"
-                                                                            value={subtopic.title}
-                                                                            onChange={(e) =>
-                                                                                updateSubtopicField(
-                                                                                    topic.id,
-                                                                                    subtopic.id,
-                                                                                    'title',
-                                                                                    e.target.value
-                                                                                )
-                                                                            }
-                                                                            placeholder="Subtopic title"
-                                                                            disabled={isPending}
-                                                                            className="flex-1 min-w-0 px-2 py-1 text-xs sm:text-sm border rounded bg-white disabled:bg-gray-100 focus:ring-2 focus:ring-orange-500"
-                                                                        />
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() =>
-                                                                                removeSubtopic(topic.id, subtopic.id)
-                                                                            }
-                                                                            disabled={isPending}
-                                                                            className="p-1.5 hover:bg-red-100 rounded text-red-600 disabled:opacity-50 flex-shrink-0"
-                                                                        >
-                                                                            <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                                                                        </button>
-                                                                    </div>
-                                                                    <input
-                                                                        type="text"
-                                                                        value={subtopic.cycle || ''}
-                                                                        onChange={(e) =>
-                                                                            updateSubtopicField(
-                                                                                topic.id,
-                                                                                subtopic.id,
-                                                                                'cycle',
-                                                                                e.target.value
-                                                                            )
-                                                                        }
-                                                                        placeholder="Cycle (optional)"
-                                                                        disabled={isPending}
-                                                                        className="w-full px-2 py-1 text-xs sm:text-sm border rounded bg-white disabled:bg-gray-100 focus:ring-2 focus:ring-orange-500"
-                                                                    />
-                                                                </div>
-                                                            ))}
-                                                    </div>
-                                                )}
-                                        </div>
-                                    </div>
-                                ))}
-                        </div>
-
-                        {/* Add Topic Button */}
-                        <button
-                            type="button"
-                            onClick={addTopic}
-                            disabled={isPending}
-                            className={cn(
-                                buttonVariants({ variant: 'outline', size: 'sm' }),
-                                'w-full border-dashed disabled:opacity-50 text-xs sm:text-sm'
-                            )}
-                        >
-                            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-2" />
-                            Add Topic
-                        </button>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-3 sm:pt-4 border-t">
-                        <CustomButton
-                            type="submit"
-                            isLoading={isPending}
-                            loadingMessage="Saving..."
-                            className="bg-orange-600 hover:bg-orange-700 text-white text-xs sm:text-sm w-full sm:w-auto"
-                        >
-                            Save Changes
-                        </CustomButton>
-                        <button
-                            type="button"
-                            onClick={handleCancel}
-                            disabled={isPending}
-                            className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'w-full sm:w-auto text-xs sm:text-sm')}
-                        >
-                            Cancel
-                        </button>
-                    </div>
-                </form>
-            </motion.div>
-
-            {/* Delete Confirmation Modal */}
-            {confirmDelete && (
-                <Modal
-                    isOpen={confirmDelete.isOpen}
-                    onClose={() => setConfirmDelete(null)}
-                    title={`Confirm Delete ${confirmDelete.type === 'topic' ? 'Topic' : 'Subtopic'}`}
-                    className="max-w-md"
-                >
-                    <div className="space-y-4">
-                        <p className="text-sm text-gray-700">
-                            Are you sure you want to delete{' '}
-                            {confirmDelete.type === 'topic' ? 'the topic' : 'the subtopic'}{' '}
-                            <strong>{confirmDelete.title}</strong>?
-                        </p>
-
-                        {confirmDelete.type === 'topic' && confirmDelete.hasSubtopics && (
-                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-                                <p className="text-sm text-orange-800">
-                                    <strong>Note:</strong> This topic has {confirmDelete.subtopicCount} subtopic(s).
-                                    All subtopics will also be deleted.
-                                </p>
-                            </div>
-                        )}
-
-                        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                            <p className="text-sm text-red-800">
-                                <strong>Warning:</strong> This action cannot be undone{confirmDelete.type === 'topic' && ' and all related progress data will be removed'}.
-                            </p>
-                        </div>
-
-                        <div className="flex gap-2 justify-end">
-                            <CustomButton
-                                onClick={() => setConfirmDelete(null)}
-                                variant="outline"
-                                className="text-sm"
-                            >
-                                Cancel
-                            </CustomButton>
-                            <CustomButton
-                                onClick={confirmDelete.type === 'topic' ? confirmRemoveTopic : confirmRemoveSubtopic}
-                                className="bg-red-600 hover:bg-red-700 text-white text-sm"
-                            >
-                                Delete
-                            </CustomButton>
-                        </div>
-                    </div>
-                </Modal>
-            )}
-        </div>
+          return {
+            ...topic,
+            subtopics: topic.subtopics
+              .map((subtopic) => {
+                if (subtopic.id !== removalRequest.subtopicId) return subtopic;
+                return subtopic.syllabusTopicId
+                  ? { ...subtopic, isDeleted: true }
+                  : null;
+              })
+              .filter(
+                (subtopic): subtopic is TopicEditorSubtopic =>
+                  subtopic !== null,
+              ),
+          };
+        })
+        .filter((topic): topic is TopicEditorTopic => topic !== null),
     );
+    setRemovalRequest(null);
+  };
+
+  const recoverPersistedTopics = async () => {
+    const [nextSyllabus, nextTopics] = await Promise.all([
+      syllabusQuery.refetch(),
+      topicsQuery.refetch(),
+    ]);
+    if (nextSyllabus.data) {
+      setName(nextSyllabus.data.name);
+      setDescription(nextSyllabus.data.description || "");
+    }
+    if (nextTopics.data) setTopics(toEditorTopics(nextTopics.data));
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSubmitError(null);
+    if (!syllabusId) {
+      setSubmitError("The curriculum ID is missing.");
+      return;
+    }
+
+    const visibleTopics = topics.filter((topic) => !topic.isDeleted);
+    if (
+      visibleTopics.some(
+        (topic) =>
+          !topic.title.trim() ||
+          topic.subtopics.some(
+            (subtopic) => !subtopic.isDeleted && !subtopic.title.trim(),
+          ),
+      )
+    ) {
+      setSubmitError("Add a title for every topic and subtopic before saving.");
+      return;
+    }
+
+    try {
+      await updateSyllabus.mutateAsync({
+        id: syllabusId,
+        data: {
+          name: name.trim(),
+          description: description.trim() || undefined,
+        },
+      });
+
+      const existingUpdates = visibleTopics.flatMap((topic, topicIndex) => {
+        const rootUpdate =
+          topic.syllabusTopicId && topic.isModified
+            ? [
+                updateTopic.mutateAsync({
+                  id: topic.syllabusTopicId,
+                  data: {
+                    serialNumber: topic.serialNumber,
+                    title: topic.title.trim(),
+                    cycle: topic.cycle,
+                    orderIndex: topicIndex + 1,
+                  },
+                }),
+              ]
+            : [];
+        const subtopicUpdates = topic.subtopics
+          .filter(
+            (subtopic) =>
+              !subtopic.isDeleted &&
+              subtopic.syllabusTopicId &&
+              subtopic.isModified,
+          )
+          .map((subtopic, subtopicIndex) =>
+            updateTopic.mutateAsync({
+              id: subtopic.syllabusTopicId!,
+              data: {
+                serialNumber: subtopic.serialNumber,
+                title: subtopic.title.trim(),
+                cycle: subtopic.cycle,
+                orderIndex: subtopicIndex + 1,
+              },
+            }),
+          );
+        return [...rootUpdate, ...subtopicUpdates];
+      });
+      await Promise.all(existingUpdates);
+
+      const newRoots = visibleTopics.filter((topic) => !topic.syllabusTopicId);
+      const createdRoots = newRoots.length
+        ? await bulkCreateTopics.mutateAsync({
+            syllabusId,
+            topics: newRoots.map((topic) => ({
+              serialNumber: topic.serialNumber,
+              title: topic.title.trim(),
+              cycle: topic.cycle,
+              orderIndex: visibleTopics.indexOf(topic) + 1,
+            })),
+          })
+        : [];
+      const createdRootIds = new Map(
+        newRoots.map((topic, index) => [topic.id, createdRoots[index]?.id]),
+      );
+
+      const newSubtopics = visibleTopics.flatMap((topic) => {
+        const parentId = topic.syllabusTopicId || createdRootIds.get(topic.id);
+        if (!parentId) {
+          throw new Error("A parent topic ID is missing for a new subtopic.");
+        }
+        return topic.subtopics
+          .filter(
+            (subtopic) => !subtopic.isDeleted && !subtopic.syllabusTopicId,
+          )
+          .map((subtopic, subtopicIndex) => ({
+            parentId,
+            serialNumber: subtopic.serialNumber,
+            title: subtopic.title.trim(),
+            cycle: subtopic.cycle,
+            orderIndex: subtopicIndex + 1,
+          }));
+      });
+      if (newSubtopics.length > 0) {
+        await bulkCreateTopics.mutateAsync({
+          syllabusId,
+          topics: newSubtopics,
+        });
+      }
+
+      const deletedIds = topics.flatMap((topic) => {
+        if (topic.isDeleted && topic.syllabusTopicId) {
+          return [topic.syllabusTopicId];
+        }
+        if (topic.isDeleted) return [];
+        return topic.subtopics
+          .filter(
+            (subtopic) => subtopic.isDeleted && subtopic.syllabusTopicId,
+          )
+          .map((subtopic) => subtopic.syllabusTopicId!);
+      });
+      await Promise.all(deletedIds.map((id) => deleteTopic.mutateAsync(id)));
+
+      toast.success("Curriculum updated successfully");
+      navigate(listPath);
+    } catch (error) {
+      await recoverPersistedTopics();
+      setSubmitError(
+        error instanceof Error && error.message
+          ? `${error.message} The saved curriculum has been reloaded.`
+          : "Some changes could not be saved. The persisted curriculum has been reloaded.",
+      );
+    }
+  };
+
+  const isLoading =
+    isAuthLoading || syllabusQuery.isLoading || topicsQuery.isLoading;
+  if (isLoading) {
+    return (
+      <WorkspacePage>
+        <div className="flex min-h-[55dvh] items-center justify-center" aria-label="Loading curriculum editor">
+          <LoadingButterfly size="md" />
+        </div>
+      </WorkspacePage>
+    );
+  }
+
+  if (syllabusQuery.isError || topicsQuery.isError) {
+    return (
+      <WorkspacePage>
+        <StatePanel
+          title="Curriculum could not be loaded"
+          description="Check your connection and try loading the curriculum again."
+          actionLabel="Try again"
+          onAction={() =>
+            void Promise.all([syllabusQuery.refetch(), topicsQuery.refetch()])
+          }
+        />
+      </WorkspacePage>
+    );
+  }
+
+  if (!hasEditPermission) {
+    return (
+      <WorkspacePage>
+        <StatePanel
+          title="Curriculum editing is unavailable"
+          description="Only curriculum mentors and administrators can edit this curriculum."
+          actionLabel="Back to curriculum"
+          onAction={() => navigate(listPath)}
+        />
+      </WorkspacePage>
+    );
+  }
+
+  if (!syllabusQuery.data) {
+    return (
+      <WorkspacePage>
+        <StatePanel
+          title="Curriculum not found"
+          description="This curriculum may have been removed or you may no longer have access."
+          actionLabel="Back to curriculum"
+          onAction={() => navigate(listPath)}
+        />
+      </WorkspacePage>
+    );
+  }
+
+  const syllabus = syllabusQuery.data;
+
+  return (
+    <WorkspacePage className="min-w-0 space-y-6">
+      <WorkspacePageHeader
+        title="Edit curriculum"
+        badge={levelName(syllabus.semesterLevel, syllabus.level)}
+        description="Update curriculum details and preserve topic progress across all assessment cycles."
+        action={
+          <button
+            type="button"
+            onClick={() => navigate(listPath)}
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-border bg-background px-4 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-auto"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Back to curriculum
+          </button>
+        }
+      />
+
+      <form onSubmit={handleSubmit} className="min-w-0 space-y-6">
+        <section aria-labelledby="edit-details-title" className="space-y-5 rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6">
+          <div>
+            <h2 id="edit-details-title" className="text-xl font-semibold text-foreground">
+              Curriculum details
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              The level is fixed after creation.
+            </p>
+          </div>
+          <div className="grid min-w-0 gap-5 sm:grid-cols-2">
+            <FormField label="Level" htmlFor="level-display">
+              <span className="sr-only">includeInactiveCurrent</span>
+              <output
+                id="level-display"
+                className="flex min-h-11 items-center rounded-md border border-border bg-muted/50 px-3 text-sm text-foreground"
+              >
+                {levelName(syllabus.semesterLevel, syllabus.level)}
+              </output>
+            </FormField>
+            <FormField label="Curriculum name" htmlFor="name">
+              <input
+                id="name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                required
+                disabled={isPending}
+                className="min-h-11 w-full min-w-0 rounded-md border border-input bg-background px-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              />
+            </FormField>
+          </div>
+          <FormField label="Description" htmlFor="description">
+            <textarea
+              id="description"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              rows={3}
+              disabled={isPending}
+              className="w-full min-w-0 resize-y rounded-md border border-input bg-background px-3 py-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            />
+          </FormField>
+        </section>
+
+        <section className="min-w-0 rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6">
+          <TopicEditor
+            topics={topics}
+            onChange={setTopics}
+            disabled={isPending}
+            idPrefix="edit-curriculum"
+            onRequestRemoveTopic={requestTopicRemoval}
+            onRequestRemoveSubtopic={requestSubtopicRemoval}
+          />
+        </section>
+
+        {submitError && (
+          <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+            {submitError}
+          </div>
+        )}
+
+        <div className="sticky bottom-0 z-20 -mx-2 flex flex-col-reverse gap-2 border-t border-border bg-background/95 px-2 py-4 backdrop-blur sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={() => navigate(listPath)}
+            disabled={isPending}
+            className="inline-flex min-h-11 items-center justify-center rounded-md border border-border bg-background px-4 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isPending || !name.trim()}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-primary px-5 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Save className="h-4 w-4" aria-hidden="true" />
+            {isPending ? "Saving changes..." : "Save changes"}
+          </button>
+        </div>
+      </form>
+
+      {removalRequest && (
+        <Modal
+          isOpen
+          onClose={() => setRemovalRequest(null)}
+          title={`Remove ${removalRequest.type}`}
+          className="max-w-md"
+        >
+          <div className="space-y-4">
+            <p className="text-sm leading-6 text-foreground">
+              Remove <strong>{removalRequest.title}</strong> when you save these changes?
+            </p>
+            {removalRequest.type === "topic" && removalRequest.subtopicCount > 0 && (
+              <p className="rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-warning-foreground">
+                Its {removalRequest.subtopicCount} subtopics and related progress will also be removed.
+              </p>
+            )}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setRemovalRequest(null)}
+                className="min-h-11 rounded-md border border-border px-4 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Keep item
+              </button>
+              <button
+                type="button"
+                onClick={confirmRemoval}
+                className="min-h-11 rounded-md bg-destructive px-4 text-sm font-medium text-destructive-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive"
+              >
+                Remove item
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </WorkspacePage>
+  );
 };
 
-// Helper function to display level names
-const getLevelDisplay = (level: string) => {
-    const levelMap: Record<string, string> = {
-        LEVEL_1: 'Level 1',
-        LEVEL_2: 'Level 2',
-        LEVEL_3: 'Level 3',
-        LEVEL_4: 'Level 4',
-        PRIMARY_A: 'Primary A',
-        PRIMARY_B: 'Primary B',
-    };
-    return levelMap[level] || level;
-};
+function FormField({
+  label,
+  htmlFor,
+  children,
+}: {
+  label: string;
+  htmlFor: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid min-w-0 gap-2">
+      <label htmlFor={htmlFor} className="text-sm font-medium text-foreground">
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function StatePanel({
+  title,
+  description,
+  actionLabel,
+  onAction,
+}: {
+  title: string;
+  description: string;
+  actionLabel: string;
+  onAction: () => void;
+}) {
+  return (
+    <div className="flex min-h-[55dvh] items-center justify-center">
+      <div className="w-full max-w-lg rounded-lg border border-border bg-card p-7 text-center shadow-sm">
+        <AlertTriangle className="mx-auto h-6 w-6 text-destructive" aria-hidden="true" />
+        <h1 className="mt-4 text-xl font-semibold text-foreground">{title}</h1>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
+        <button
+          type="button"
+          onClick={onAction}
+          className="mt-5 inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {actionLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default EditSyllabus;

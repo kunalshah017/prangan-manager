@@ -1,8 +1,5 @@
-import {
-  PrismaClient,
-  Level,
-  SyllabusTopicStatus,
-} from "../generated/prisma/index.js";
+import { Level, SyllabusTopicStatus } from "../generated/prisma/index.js";
+import { prisma } from "../lib/prisma.js";
 import {
   CreateSyllabusRequest,
   UpdateSyllabusRequest,
@@ -21,8 +18,7 @@ import {
   SyllabusStatisticsRequest,
   SyllabusStatisticsResponse,
 } from "../types/syllabus.types.js";
-
-const prisma = new PrismaClient();
+import { resolveSemesterLevelInput } from "./semester-level.service.js";
 
 // ============================================
 // SYLLABUS CRUD OPERATIONS
@@ -32,9 +28,10 @@ const prisma = new PrismaClient();
  * Create a new syllabus
  */
 export const createSyllabus = async (
-  data: CreateSyllabusRequest
+  data: CreateSyllabusRequest,
 ): Promise<SyllabusResponse> => {
-  const { projectId, centerId, semesterId, level, name, description } = data;
+  const { projectId, centerId, semesterId, name, description } = data;
+  const semesterLevel = await resolveSemesterLevelInput(data);
 
   // Check if syllabus with same context already exists
   const existing = await prisma.syllabus.findFirst({
@@ -42,14 +39,14 @@ export const createSyllabus = async (
       projectId,
       centerId,
       semesterId,
-      level,
+      semesterLevelId: semesterLevel.id,
       name,
     },
   });
 
   if (existing) {
     throw new Error(
-      `Syllabus with name "${name}" already exists for this context`
+      `Syllabus with name "${name}" already exists for this context`,
     );
   }
 
@@ -58,7 +55,8 @@ export const createSyllabus = async (
       projectId,
       centerId,
       semesterId,
-      level,
+      semesterLevelId: semesterLevel.id,
+      level: semesterLevel.academicLevel.code as Level,
       name,
       description,
     },
@@ -72,6 +70,7 @@ export const createSyllabus = async (
       semester: {
         select: { id: true, name: true },
       },
+      semesterLevel: { include: { academicLevel: true } },
     },
   });
 
@@ -84,7 +83,7 @@ export const createSyllabus = async (
 export const getSyllabusById = async (
   id: string,
   includeTopics = false,
-  includeStats = false
+  includeStats = false,
 ): Promise<SyllabusResponse | null> => {
   const syllabus = await prisma.syllabus.findUnique({
     where: { id },
@@ -98,6 +97,7 @@ export const getSyllabusById = async (
       semester: {
         select: { id: true, name: true },
       },
+      semesterLevel: { include: { academicLevel: true } },
       topics: includeTopics
         ? {
             orderBy: { orderIndex: "asc" },
@@ -140,15 +140,17 @@ export const getSyllabusById = async (
  * Get all syllabi with filtering
  */
 export const getSyllabi = async (
-  filters: GetSyllabusRequest
+  filters: GetSyllabusRequest,
 ): Promise<SyllabusResponse[]> => {
-  const { projectId, centerId, semesterId, level, isActive } = filters;
+  const { projectId, centerId, semesterId, semesterLevelId, level, isActive } =
+    filters;
 
   const syllabi = await prisma.syllabus.findMany({
     where: {
       ...(projectId && { projectId }),
       ...(centerId && { centerId }),
       ...(semesterId && { semesterId }),
+      ...(semesterLevelId && { semesterLevelId }),
       ...(level && { level }),
       ...(isActive !== undefined && { isActive }),
     },
@@ -162,6 +164,7 @@ export const getSyllabi = async (
       semester: {
         select: { id: true, name: true },
       },
+      semesterLevel: { include: { academicLevel: true } },
       _count: {
         select: { topics: true },
       },
@@ -188,7 +191,7 @@ export const getSyllabi = async (
             stats.find((s) => s.status === "COMPLETED")?._count || 0,
         },
       };
-    })
+    }),
   );
 
   return syllabusWithStats as SyllabusResponse[];
@@ -199,11 +202,27 @@ export const getSyllabi = async (
  */
 export const updateSyllabus = async (
   id: string,
-  data: UpdateSyllabusRequest
+  data: UpdateSyllabusRequest,
 ): Promise<SyllabusResponse> => {
+  const current = await prisma.syllabus.findUnique({ where: { id } });
+  if (!current) throw new Error("Syllabus not found");
+  const semesterLevel =
+    data.semesterLevelId || data.level
+      ? await resolveSemesterLevelInput({
+          semesterId: current.semesterId,
+          semesterLevelId: data.semesterLevelId ?? current.semesterLevelId,
+          level: data.level ?? current.level,
+        })
+      : null;
   const syllabus = await prisma.syllabus.update({
     where: { id },
-    data,
+    data: {
+      ...data,
+      ...(semesterLevel && {
+        semesterLevelId: semesterLevel.id,
+        level: semesterLevel.academicLevel.code as Level,
+      }),
+    },
     include: {
       project: {
         select: { id: true, name: true },
@@ -214,6 +233,7 @@ export const updateSyllabus = async (
       semester: {
         select: { id: true, name: true },
       },
+      semesterLevel: { include: { academicLevel: true } },
     },
   });
 
@@ -239,6 +259,96 @@ export const hardDeleteSyllabus = async (id: string): Promise<void> => {
   });
 };
 
+const verifySyllabusScope = async <
+  T extends {
+    semesterId: string;
+    semesterLevelId: string | null;
+    level: Level;
+  },
+>(
+  scope: T | null,
+): Promise<(T & { semesterLevelId: string }) | null> => {
+  if (!scope) return null;
+  const semesterLevel = await resolveSemesterLevelInput(scope);
+  return { ...scope, semesterLevelId: semesterLevel.id };
+};
+
+export const getSyllabusScope = async (id: string) => {
+  const scope = await prisma.syllabus.findUnique({
+    where: { id },
+    select: {
+      projectId: true,
+      centerId: true,
+      semesterId: true,
+      semesterLevelId: true,
+      level: true,
+    },
+  });
+  return verifySyllabusScope(scope);
+};
+
+export const getTopicScope = async (id: string) => {
+  const topic = await prisma.syllabusTopic.findUnique({
+    where: { id },
+    select: {
+      syllabus: {
+        select: {
+          projectId: true,
+          centerId: true,
+          semesterId: true,
+          semesterLevelId: true,
+          level: true,
+        },
+      },
+    },
+  });
+
+  return verifySyllabusScope(topic?.syllabus ?? null);
+};
+
+export const getTopicSyllabusId = async (id: string) => {
+  const topic = await prisma.syllabusTopic.findUnique({
+    where: { id },
+    select: { syllabusId: true },
+  });
+
+  return topic?.syllabusId ?? null;
+};
+
+export const getReorderSyllabusScope = async (topicIds: string[]) => {
+  if (new Set(topicIds).size !== topicIds.length) return null;
+
+  const topics = await prisma.syllabusTopic.findMany({
+    where: { id: { in: topicIds } },
+    select: {
+      id: true,
+      syllabusId: true,
+      syllabus: {
+        select: {
+          projectId: true,
+          centerId: true,
+          semesterId: true,
+          semesterLevelId: true,
+          level: true,
+        },
+      },
+    },
+  });
+  if (topics.length !== topicIds.length || topics.length === 0) return null;
+
+  const scope = topics[0].syllabus;
+  return topics.every(
+    (topic) =>
+      topic.syllabusId === topics[0].syllabusId &&
+      topic.syllabus.projectId === scope.projectId &&
+      topic.syllabus.centerId === scope.centerId &&
+      topic.syllabus.semesterId === scope.semesterId &&
+      topic.syllabus.semesterLevelId === scope.semesterLevelId,
+  )
+    ? verifySyllabusScope(scope)
+    : null;
+};
+
 // ============================================
 // SYLLABUS TOPIC CRUD OPERATIONS
 // ============================================
@@ -247,7 +357,7 @@ export const hardDeleteSyllabus = async (id: string): Promise<void> => {
  * Create a new topic
  */
 export const createSyllabusTopic = async (
-  data: CreateSyllabusTopicRequest
+  data: CreateSyllabusTopicRequest,
 ): Promise<SyllabusTopicResponse> => {
   const {
     syllabusId,
@@ -258,6 +368,22 @@ export const createSyllabusTopic = async (
     orderIndex,
     metadata,
   } = data;
+
+  const syllabus = await getSyllabusScope(syllabusId);
+  if (!syllabus) {
+    throw new Error("Syllabus not found");
+  }
+
+  if (parentId !== undefined) {
+    const parent = await prisma.syllabusTopic.findUnique({
+      where: { id: parentId },
+      select: { id: true, syllabusId: true },
+    });
+
+    if (!parent || parent.syllabusId !== syllabusId) {
+      throw new Error("Parent topic must belong to the same syllabus");
+    }
+  }
 
   const topic = await prisma.syllabusTopic.create({
     data: {
@@ -284,9 +410,38 @@ export const createSyllabusTopic = async (
  * Bulk create topics
  */
 export const bulkCreateTopics = async (
-  data: BulkCreateTopicsRequest
+  data: BulkCreateTopicsRequest,
 ): Promise<SyllabusTopicResponse[]> => {
   const { syllabusId, topics } = data;
+
+  const syllabus = await getSyllabusScope(syllabusId);
+  if (!syllabus) {
+    throw new Error("Syllabus not found");
+  }
+
+  const parentIds = [
+    ...new Set(
+      topics
+        .map((topic) => topic.parentId)
+        .filter((parentId): parentId is string => parentId !== undefined),
+    ),
+  ];
+
+  if (parentIds.length > 0) {
+    const parents = await prisma.syllabusTopic.findMany({
+      where: { id: { in: parentIds } },
+      select: { id: true, syllabusId: true },
+    });
+    const parentsById = new Map(parents.map((parent) => [parent.id, parent]));
+
+    if (
+      parentIds.some(
+        (parentId) => parentsById.get(parentId)?.syllabusId !== syllabusId,
+      )
+    ) {
+      throw new Error("Parent topic must belong to the same syllabus");
+    }
+  }
 
   // Create all topics in a transaction
   const createdTopics = await prisma.$transaction(
@@ -307,8 +462,8 @@ export const bulkCreateTopics = async (
             select: { id: true, title: true, serialNumber: true },
           },
         },
-      })
-    )
+      }),
+    ),
   );
 
   return createdTopics as SyllabusTopicResponse[];
@@ -319,7 +474,7 @@ export const bulkCreateTopics = async (
  */
 export const getTopicById = async (
   id: string,
-  includeSubtopics = false
+  includeSubtopics = false,
 ): Promise<SyllabusTopicResponse | null> => {
   const topic = await prisma.syllabusTopic.findUnique({
     where: { id },
@@ -366,14 +521,16 @@ export const getTopicById = async (
  * Get topics with filtering
  */
 export const getTopics = async (
-  filters: GetSyllabusTopicsRequest
+  filters: GetSyllabusTopicsRequest,
 ): Promise<SyllabusTopicResponse[]> => {
   const { syllabusId, parentId, cycle, status, includeSubtopics } = filters;
 
   const topics = await prisma.syllabusTopic.findMany({
     where: {
       ...(syllabusId && { syllabusId }),
-      ...(parentId !== undefined && { parentId }),
+      ...(parentId !== undefined && {
+        parentId: parentId === "" ? null : parentId,
+      }),
       ...(cycle && { cycle }),
       ...(status && { status }),
     },
@@ -437,7 +594,7 @@ export const getTopics = async (
  */
 export const updateTopic = async (
   id: string,
-  data: UpdateSyllabusTopicRequest
+  data: UpdateSyllabusTopicRequest,
 ): Promise<SyllabusTopicResponse> => {
   const topic = await prisma.syllabusTopic.update({
     where: { id },
@@ -458,7 +615,7 @@ export const updateTopic = async (
 export const updateTopicStatus = async (
   topicId: string,
   data: UpdateTopicStatusRequest,
-  userId: string
+  userId: string,
 ): Promise<SyllabusTopicResponse> => {
   const { status, notes } = data;
 
@@ -500,9 +657,24 @@ export const updateTopicStatus = async (
  * Reorder topics
  */
 export const reorderTopics = async (
-  data: ReorderTopicsRequest
+  data: ReorderTopicsRequest,
 ): Promise<void> => {
   const { topics } = data;
+
+  const topicIds = topics.map((topic) => topic.id);
+  if (new Set(topicIds).size !== topicIds.length) {
+    throw new Error("Topics must belong to one syllabus");
+  }
+
+  const persistedTopics = await prisma.syllabusTopic.findMany({
+    where: { id: { in: topicIds } },
+    select: { id: true, syllabusId: true },
+  });
+  const syllabusIds = new Set(persistedTopics.map((topic) => topic.syllabusId));
+
+  if (persistedTopics.length !== topicIds.length || syllabusIds.size > 1) {
+    throw new Error("Topics must belong to one syllabus");
+  }
 
   // Update all topics in a transaction
   await prisma.$transaction(
@@ -510,8 +682,8 @@ export const reorderTopics = async (
       prisma.syllabusTopic.update({
         where: { id: topic.id },
         data: { orderIndex: topic.orderIndex },
-      })
-    )
+      }),
+    ),
   );
 };
 
@@ -528,11 +700,18 @@ export const deleteTopic = async (id: string): Promise<void> => {
 // PROGRESS LOG OPERATIONS
 // ============================================
 
+const parseProgressLogDate = (value: string, endOfDay = false): Date =>
+  new Date(
+    value.includes("T")
+      ? value
+      : `${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z`,
+  );
+
 /**
  * Get progress logs with filtering
  */
 export const getProgressLogs = async (
-  filters: GetProgressLogsRequest
+  filters: GetProgressLogsRequest,
 ): Promise<ProgressLogResponse[]> => {
   const { topicId, syllabusId, startDate, endDate, updatedBy } = filters;
 
@@ -545,13 +724,12 @@ export const getProgressLogs = async (
         },
       }),
       ...(updatedBy && { updatedBy }),
-      ...(startDate &&
-        endDate && {
-          createdAt: {
-            gte: new Date(startDate),
-            lte: new Date(endDate),
-          },
-        }),
+      ...((startDate || endDate) && {
+        createdAt: {
+          ...(startDate && { gte: parseProgressLogDate(startDate) }),
+          ...(endDate && { lte: parseProgressLogDate(endDate, true) }),
+        },
+      }),
     },
     include: {
       topic: {
@@ -574,7 +752,10 @@ export const getProgressLogs = async (
     orderBy: { createdAt: "desc" },
   });
 
-  return logs as ProgressLogResponse[];
+  return logs.map(({ user, ...log }) => ({
+    ...log,
+    updatedByUser: user,
+  })) as ProgressLogResponse[];
 };
 
 // ============================================
@@ -585,9 +766,16 @@ export const getProgressLogs = async (
  * Get syllabus statistics
  */
 export const getSyllabusStatistics = async (
-  filters: SyllabusStatisticsRequest
+  filters: SyllabusStatisticsRequest,
 ): Promise<SyllabusStatisticsResponse> => {
-  const { syllabusId, projectId, centerId, semesterId, level } = filters;
+  const {
+    syllabusId,
+    projectId,
+    centerId,
+    semesterId,
+    semesterLevelId,
+    level,
+  } = filters;
 
   // Get all syllabi matching the filters
   const syllabi = await prisma.syllabus.findMany({
@@ -596,6 +784,7 @@ export const getSyllabusStatistics = async (
       ...(projectId && { projectId }),
       ...(centerId && { centerId }),
       ...(semesterId && { semesterId }),
+      ...(semesterLevelId && { semesterLevelId }),
       ...(level && { level }),
       isActive: true,
     },
@@ -687,23 +876,31 @@ export const getSyllabusStatistics = async (
  */
 export const importSyllabusFromTemplate = async (
   data: ImportSyllabusFromTemplateRequest,
-  userId: string
+  userId: string,
 ): Promise<SyllabusResponse> => {
   const {
     projectId,
     centerId,
     semesterId,
+    semesterLevelId,
     level,
     templateName,
     syllabusName,
     description,
   } = data;
 
+  const semesterLevel = await resolveSemesterLevelInput({
+    semesterId,
+    semesterLevelId,
+    level,
+  });
+  const templateLevelCode = semesterLevel.academicLevel.code as Level;
+
   // TODO: Load template data from a file or database
   // For now, this is a placeholder that would need to be implemented
   // with actual template data
 
   throw new Error(
-    "Template import not yet implemented. Please create syllabus manually or use bulk create."
+    `Template ${templateName || templateLevelCode} import not yet implemented. Please create syllabus manually or use bulk create.`,
   );
 };

@@ -136,6 +136,7 @@ const RejectionReasonModal: React.FC<RejectionReasonModalProps> = ({
                         isLoading={isRejecting}
                         loadingMessage="Rejecting..."
                         disabled={isRejecting || !rejectionReason.trim()}
+                        className="bg-destructive text-white hover:text-white hover:bg-destructive/90"
                     >
                         Confirm Rejection
                     </CustomButton>

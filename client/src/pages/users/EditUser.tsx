@@ -9,7 +9,7 @@ import {
     AlertCircle
 } from 'lucide-react';
 import { useUser, useUpdateUser } from '@/hooks/useUserQueries';
-import { ProfilePicture, CustomButton, RoleAssignmentForm } from '@/components/ui';
+import { ProfilePicture, CustomButton, PersonNameFields, RoleAssignmentForm, type PersonNameField } from '@/components/ui';
 import LoadingButterfly from '@/components/LoadingButterfly';
 import type { RoleAssignment } from '@/types/api';
 
@@ -21,7 +21,9 @@ const EditUser = () => {
 
     // Form state
     const [formData, setFormData] = useState({
-        name: '',
+        firstName: '',
+        middleName: '',
+        lastName: '',
         email: '',
         phone: '',
         qualification: '',
@@ -42,7 +44,9 @@ const EditUser = () => {
     useEffect(() => {
         if (user) {
             setFormData({
-                name: user.name || '',
+                firstName: user.firstName || '',
+                middleName: user.middleName || '',
+                lastName: user.lastName || '',
                 email: user.email || '',
                 phone: user.phone || '',
                 qualification: user.qualification || '',
@@ -58,6 +62,8 @@ const EditUser = () => {
                     projectId: assignment.projectId || '',
                     centerId: assignment.centerId || '',
                     semesterId: assignment.semesterId || '',
+                    semesterLevelId: assignment.semesterLevelId,
+                    semesterLevel: assignment.semesterLevel,
                     level: assignment.level,
                     committedDays: assignment.committedDays
                 })));
@@ -68,8 +74,8 @@ const EditUser = () => {
     const validateForm = () => {
         const newErrors: Record<string, string> = {};
 
-        if (!formData.name.trim()) {
-            newErrors.name = 'Name is required';
+        if (!formData.firstName.trim()) {
+            newErrors.firstName = 'First name is required';
         }
 
         if (!formData.email.trim()) {
@@ -82,8 +88,16 @@ const EditUser = () => {
         return Object.keys(newErrors).length === 0 && isAssignmentValid;
     };
 
+    const handleNameChange = (field: PersonNameField, value: string) => {
+        setFormData(prev => ({ ...prev, [field]: value }));
+        if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
+    };
+
     const handleInputChange = (field: string, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
+        if (field === 'role' && value === 'ADMIN') {
+            setRoleAssignments([]);
+        }
         // Clear error when user starts typing
         if (errors[field]) {
             setErrors(prev => ({ ...prev, [field]: '' }));
@@ -102,9 +116,12 @@ const EditUser = () => {
                 userId: userId!,
                 userData: {
                     ...formData,
+                    firstName: formData.firstName.trim(),
+                    middleName: formData.middleName.trim() || null,
+                    lastName: formData.lastName.trim() || null,
                     dob: formData.dob ? new Date(formData.dob).toISOString() : null
                 },
-                roleAssignments
+                roleAssignments: formData.role === 'ADMIN' ? [] : roleAssignments
             });
 
             navigate('/users');
@@ -189,23 +206,16 @@ const EditUser = () => {
                     </div>
                     <div className="p-6 space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Name */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Full Name *
-                                </label>
-                                <input
-                                    type="text"
-                                    value={formData.name}
-                                    onChange={(e) => handleInputChange('name', e.target.value)}
-                                    className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors ${errors.name ? 'border-red-300' : 'border-gray-300'
-                                        }`}
-                                    placeholder="Enter full name"
-                                />
-                                {errors.name && (
-                                    <p className="mt-1 text-sm text-red-600">{errors.name}</p>
-                                )}
-                            </div>
+                            <PersonNameFields
+                                idPrefix="edit-user"
+                                firstName={formData.firstName}
+                                middleName={formData.middleName}
+                                lastName={formData.lastName}
+                                onChange={handleNameChange}
+                                errors={{ firstName: errors.firstName }}
+                                disabled={updateUserMutation.isPending}
+                                className="md:col-span-2"
+                            />
 
                             {/* Email */}
                             <div>

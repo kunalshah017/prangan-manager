@@ -1,7 +1,22 @@
-import { PrismaClient } from "../generated/prisma/index.js";
-import { UserStatus, Level, Role } from "../generated/prisma/index.js";
-
-const prisma = new PrismaClient();
+import {
+  UserStatus,
+  Level,
+  Role,
+  SubRole,
+  Prisma,
+  CommittedDays,
+} from "../generated/prisma/index.js";
+import { prisma } from "../lib/prisma.js";
+import {
+  adminUserDetailSelect,
+  adminUserSelect,
+  contextStaffSelect,
+  currentUserSelect,
+  remunerationUserSelect,
+} from "../security/user-selects.js";
+import { AcademicLevelServiceError } from "./academic-level.service.js";
+import { resolveSemesterLevelInput } from "./semester-level.service.js";
+import { validateRemunerationPeriods } from "../lib/remuneration-periods.js";
 
 export const createUser = async (userData: any) => {
   try {
@@ -31,36 +46,7 @@ export const getUserById = async (id: string) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        profileImageUrl: true,
-        role: true,
-        status: true,
-        phone: true,
-        qualification: true,
-        address: true,
-        dob: true,
-        reimbursementAmount: true,
-        bankAccountNumber: true,
-        bankAccountName: true,
-        bankIfsc: true,
-        bankName: true,
-        bankBranch: true,
-        ...({ upiId: true } as any),
-        createdAt: true,
-        updatedAt: true,
-        roleAssignments: {
-          where: { isActive: true },
-          include: {
-            project: { select: { id: true, name: true } },
-            center: { select: { id: true, name: true } },
-            semester: { select: { id: true, name: true } },
-          },
-          orderBy: { assignedAt: "desc" },
-        },
-      },
+      select: currentUserSelect,
     });
     return user;
   } catch (error: unknown) {
@@ -69,11 +55,325 @@ export const getUserById = async (id: string) => {
   }
 };
 
+export const getAdminUserById = async (id: string) => {
+  try {
+    return await prisma.user.findUnique({
+      where: { id },
+      select: adminUserDetailSelect,
+    });
+  } catch (error: unknown) {
+    console.error("Error fetching admin user detail:", error);
+    return "Failed to fetch user";
+  }
+};
+
+export const getRemunerationUsers = async ({
+  projectId,
+  centerId,
+  semesterId,
+}: {
+  projectId: string;
+  centerId: string;
+  semesterId: string;
+}) => {
+  try {
+    const users = await prisma.user.findMany({
+      where: {
+        OR: [
+          {
+            status: UserStatus.APPROVED,
+            roleAssignments: {
+              some: {
+                isActive: true,
+                subRole: { in: [SubRole.EDUCATOR, SubRole.CENTER_MANAGER] },
+                projectId,
+                centerId,
+                semesterId,
+              },
+            },
+          },
+          {
+            attendance: {
+              some: {
+                projectId,
+                centerId,
+                semesterId,
+                roleAssignment: {
+                  subRole: { in: [SubRole.EDUCATOR, SubRole.CENTER_MANAGER] },
+                },
+              },
+            },
+          },
+        ],
+      },
+      select: remunerationUserSelect(semesterId),
+      orderBy: { name: "asc" },
+    });
+    return users.map(({ remunerationRates, remunerationPeriods, ...user }) => ({
+      ...user,
+      remunerationPeriods: remunerationPeriods.map((period) => ({
+        ...period,
+        amountPerDay: Number(period.amountPerDay),
+        effectiveFrom: period.effectiveFrom.toISOString().slice(0, 10),
+        effectiveTo: period.effectiveTo?.toISOString().slice(0, 10) ?? null,
+      })),
+      dailyRate:
+        remunerationPeriods.length > 0
+          ? Number(remunerationPeriods[remunerationPeriods.length - 1].amountPerDay)
+          : remunerationRates.length > 0
+          ? Number(remunerationRates[0].dailyRate)
+          : null,
+    }));
+  } catch (error: unknown) {
+    console.error("Error fetching remuneration users:", error);
+    return "Failed to fetch remuneration users";
+  }
+};
+
+const previousUtcDate = (date: string) => {
+  const value = new Date(`${date}T00:00:00.000Z`);
+  value.setUTCDate(value.getUTCDate() - 1);
+  return value;
+};
+
+export const setSemesterRemunerationPeriod = async ({
+  projectId,
+  centerId,
+  semesterId,
+  userId,
+  amountPerDay,
+  effectiveFrom,
+  actorId,
+}: {
+  projectId: string;
+  centerId: string;
+  semesterId: string;
+  userId: string;
+  amountPerDay: number;
+  effectiveFrom: string;
+  actorId: string;
+}) => {
+  const semester = await prisma.semesters.findFirst({
+    where: { id: semesterId, centerId, center: { projectId } },
+    select: { startDate: true, endDate: true },
+  });
+  if (!semester) return "Semester not found in this scope.";
+
+  const eligible = await prisma.userRoleAssignments.findFirst({
+    where: {
+      userId,
+      projectId,
+      centerId,
+      semesterId,
+      subRole: { in: [SubRole.EDUCATOR, SubRole.CENTER_MANAGER] },
+    },
+    select: { id: true },
+  });
+  if (!eligible) return "This person is not eligible for remuneration.";
+
+  const semesterStart = semester.startDate.toISOString().slice(0, 10);
+  const semesterEnd = semester.endDate.toISOString().slice(0, 10);
+  const validationErrors = validateRemunerationPeriods(
+    [{ amountPerDay, effectiveFrom, effectiveTo: null }],
+    semesterStart,
+    semesterEnd,
+  );
+  if (validationErrors.length > 0) return validationErrors[0];
+
+  try {
+    return await prisma.$transaction(
+      async (tx) => {
+        const existing = await tx.semesterRemunerationPeriod.findMany({
+          where: { userId, semesterId },
+          orderBy: { effectiveFrom: "asc" },
+        });
+        const sameDate = existing.find(
+          (period) =>
+            period.effectiveFrom.toISOString().slice(0, 10) === effectiveFrom,
+        );
+        if (sameDate) {
+          await tx.semesterRemunerationPeriod.update({
+            where: { id: sameDate.id },
+            data: { amountPerDay, updatedBy: actorId },
+          });
+        } else {
+          const earlier = existing.filter(
+            (period) =>
+              period.effectiveFrom.toISOString().slice(0, 10) < effectiveFrom,
+          );
+          const before = earlier[earlier.length - 1];
+          const after = existing.find(
+            (period) =>
+              period.effectiveFrom.toISOString().slice(0, 10) > effectiveFrom,
+          );
+          if (before) {
+            await tx.semesterRemunerationPeriod.update({
+              where: { id: before.id },
+              data: { effectiveTo: previousUtcDate(effectiveFrom), updatedBy: actorId },
+            });
+          }
+          await tx.semesterRemunerationPeriod.create({
+            data: {
+              userId,
+              semesterId,
+              amountPerDay,
+              effectiveFrom: new Date(`${effectiveFrom}T00:00:00.000Z`),
+              effectiveTo: after
+                ? previousUtcDate(after.effectiveFrom.toISOString().slice(0, 10))
+                : null,
+              createdBy: actorId,
+              updatedBy: actorId,
+            },
+          });
+        }
+        return tx.semesterRemunerationPeriod.findMany({
+          where: { userId, semesterId },
+          orderBy: { effectiveFrom: "asc" },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  } catch (error: unknown) {
+    console.error("Error updating remuneration schedule:", error);
+    return "The remuneration schedule changed. Refresh and try again.";
+  }
+};
+
+export const updateSemesterRemunerationRates = async ({
+  semesterId,
+  rates,
+}: {
+  semesterId: string;
+  rates: Array<{ userId: string; dailyRate: number }>;
+}) => {
+  try {
+    return await prisma.$transaction(
+      rates.map((rate) =>
+        prisma.semesterRemunerationRate.upsert({
+          where: {
+            userId_semesterId: { userId: rate.userId, semesterId },
+          },
+          create: {
+            userId: rate.userId,
+            semesterId,
+            dailyRate: rate.dailyRate,
+          },
+          update: { dailyRate: rate.dailyRate },
+        }),
+      ),
+    );
+  } catch (error: unknown) {
+    console.error("Error updating semester remuneration rates:", error);
+    return "Failed to update remuneration rates";
+  }
+};
+
+export const getContextStaff = async ({
+  projectId,
+  centerId,
+  semesterId,
+}: {
+  projectId: string;
+  centerId: string;
+  semesterId: string;
+}) => {
+  try {
+    return await prisma.user.findMany({
+      where: {
+        status: UserStatus.APPROVED,
+        roleAssignments: {
+          some: {
+            isActive: true,
+            projectId,
+            centerId,
+            semesterId,
+          },
+        },
+      },
+      select: contextStaffSelect({ projectId, centerId, semesterId }),
+      orderBy: { name: "asc" },
+    });
+  } catch (error: unknown) {
+    console.error("Error fetching context staff:", error);
+    return "Failed to fetch context staff";
+  }
+};
+
+export const getSemesterUsers = async ({
+  projectId,
+  centerId,
+  semesterId,
+}: {
+  projectId: string;
+  centerId: string;
+  semesterId: string;
+}) => {
+  try {
+    const users = await prisma.user.findMany({
+      where: {
+        status: UserStatus.APPROVED,
+        OR: [
+          { roleAssignments: { some: { projectId, centerId, semesterId } } },
+          { attendance: { some: { projectId, centerId, semesterId } } },
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        firstName: true,
+        middleName: true,
+        lastName: true,
+        email: true,
+        profileImageUrl: true,
+        roleAssignments: {
+          where: { projectId, centerId, semesterId },
+          select: {
+            id: true,
+            subRole: true,
+            projectId: true,
+            centerId: true,
+            semesterId: true,
+            semesterLevelId: true,
+            level: true,
+            committedDays: true,
+            isActive: true,
+            semesterLevel: { include: { academicLevel: true } },
+          },
+          orderBy: { assignedAt: "asc" },
+        },
+        remunerationPeriods: {
+          where: { semesterId },
+          select: {
+            id: true,
+            amountPerDay: true,
+            effectiveFrom: true,
+            effectiveTo: true,
+          },
+          orderBy: { effectiveFrom: "asc" },
+        },
+      },
+      orderBy: { name: "asc" },
+    });
+    return users.map((user) => ({
+      ...user,
+      remunerationPeriods: user.remunerationPeriods.map((period) => ({
+        ...period,
+        amountPerDay: Number(period.amountPerDay),
+        effectiveFrom: period.effectiveFrom.toISOString().slice(0, 10),
+        effectiveTo: period.effectiveTo?.toISOString().slice(0, 10) ?? null,
+      })),
+    }));
+  } catch (error: unknown) {
+    console.error("Error fetching semester users:", error);
+    return "Failed to fetch semester users";
+  }
+};
+
 export const updateUser = async (
   id: string,
   status: UserStatus,
   role: Role,
-  password: string
+  password: string,
 ) => {
   try {
     const user = await prisma.user.update({
@@ -101,7 +401,7 @@ export const updateUserBankDetails = async (
     bankName?: string | null;
     bankBranch?: string | null;
     upiId?: string | null;
-  }
+  },
 ) => {
   try {
     const user = await prisma.user.update({
@@ -131,6 +431,9 @@ export const getUnverifiedUsers = async () => {
         id: true,
         email: true,
         name: true,
+        firstName: true,
+        middleName: true,
+        lastName: true,
         profileImageUrl: true,
         role: true,
         phone: true,
@@ -191,12 +494,16 @@ export const getAllStudents = async () => {
   }
 };
 
-export const getStudentById = async (id: string) => {
+export const getStudentById = async (
+  id: string,
+  visibleEnrollmentScopes?: readonly EnrollmentScope[],
+) => {
   try {
+    const enrollmentWhere = getVisibleEnrollmentWhere(visibleEnrollmentScopes);
     const student = await prisma.students.findUnique({
       where: { id },
       include: {
-        enrollments: true,
+        enrollments: enrollmentWhere ? { where: enrollmentWhere } : true,
       },
     });
     return student;
@@ -252,11 +559,16 @@ export const updateStudent = async (id: string, studentData: any) => {
 
 export const deleteStudent = async (id: string) => {
   try {
+    const enrollmentCount = await prisma.studentEnrollments.count({
+      where: { studentId: id },
+    });
+
+    if (enrollmentCount > 0) {
+      return "Cannot delete student while enrollments exist";
+    }
+
     await prisma.students.delete({
       where: { id },
-      include: {
-        enrollments: true,
-      },
     });
     return true;
   } catch (error: unknown) {
@@ -278,6 +590,7 @@ export const getStudentsByLevel = async (level: Level) => {
         center: true,
         project: true,
         semester: true,
+        semesterLevel: { include: { academicLevel: true } },
       },
       orderBy: {
         student: { name: "asc" },
@@ -287,6 +600,25 @@ export const getStudentsByLevel = async (level: Level) => {
   } catch (error: unknown) {
     console.error("Error fetching students by level:", error);
     return "Failed to fetch students by level - Please run 'prisma generate' first";
+  }
+};
+
+export const getStudentsBySemesterLevel = async (semesterLevelId: string) => {
+  try {
+    return await prisma.studentEnrollments.findMany({
+      where: { semesterLevelId, isActive: true },
+      include: {
+        student: true,
+        center: true,
+        project: true,
+        semester: true,
+        semesterLevel: { include: { academicLevel: true } },
+      },
+      orderBy: { student: { name: "asc" } },
+    });
+  } catch (error: unknown) {
+    console.error("Error fetching students by semester level:", error);
+    return "Failed to fetch students by semester level";
   }
 };
 
@@ -364,25 +696,166 @@ export const getStudentsBySemester = async (semesterId: string) => {
   }
 };
 
+export type EnrollmentScope = {
+  projectId: string;
+  centerId: string;
+  semesterId: string;
+  semesterLevelId: string;
+  level: Level;
+};
+
+const hydrateVerifiedSemesterLevelScope = async <
+  T extends {
+    semesterId: string | null;
+    semesterLevelId: string | null;
+    level: Level | null;
+  },
+>(
+  scope: T,
+): Promise<T & { semesterLevelId: string }> => {
+  const semesterLevel = await resolveSemesterLevelInput(scope);
+  return { ...scope, semesterLevelId: semesterLevel.id };
+};
+
+const getVisibleEnrollmentWhere = (
+  visibleEnrollmentScopes?: readonly EnrollmentScope[],
+): Prisma.StudentEnrollmentsWhereInput | undefined =>
+  visibleEnrollmentScopes === undefined
+    ? undefined
+    : {
+        isActive: true,
+        OR: visibleEnrollmentScopes.map((scope) => ({
+          projectId: scope.projectId,
+          centerId: scope.centerId,
+          semesterId: scope.semesterId,
+          semesterLevelId: scope.semesterLevelId,
+        })),
+      };
+
+export const getEnrollmentScope = async (
+  enrollmentId: string,
+): Promise<EnrollmentScope | null> => {
+  const enrollment = await prisma.studentEnrollments.findUnique({
+    where: { id: enrollmentId },
+    select: {
+      projectId: true,
+      centerId: true,
+      semesterId: true,
+      semesterLevelId: true,
+      level: true,
+    },
+  });
+
+  return enrollment
+    ? ((await hydrateVerifiedSemesterLevelScope(enrollment)) as EnrollmentScope)
+    : null;
+};
+
+export const getStudentActiveEnrollmentScopes = async (
+  studentId: string,
+): Promise<EnrollmentScope[]> => {
+  const enrollments = await prisma.studentEnrollments.findMany({
+    where: { studentId, isActive: true },
+    select: {
+      projectId: true,
+      centerId: true,
+      semesterId: true,
+      semesterLevelId: true,
+      level: true,
+    },
+  });
+  return Promise.all(
+    enrollments.map((enrollment) =>
+      hydrateVerifiedSemesterLevelScope(enrollment),
+    ),
+  );
+};
+
+export const validateEnrollmentHierarchy = async ({
+  projectId,
+  centerId,
+  semesterId,
+}: Pick<EnrollmentScope, "projectId" | "centerId" | "semesterId">): Promise<
+  true | string
+> => {
+  const center = await prisma.centers.findUnique({
+    where: { id: centerId },
+    select: { projectId: true },
+  });
+
+  if (!center) {
+    return "Center not found";
+  }
+
+  if (center.projectId !== projectId) {
+    return "Center does not belong to project";
+  }
+
+  const semester = await prisma.semesters.findUnique({
+    where: { id: semesterId },
+    select: { centerId: true },
+  });
+
+  if (!semester) {
+    return "Semester not found";
+  }
+
+  if (semester.centerId !== centerId) {
+    return "Semester does not belong to center";
+  }
+
+  return true;
+};
+
+export const resolveEffectiveEnrollmentContext = async (
+  enrollmentId: string,
+  patch: Partial<EnrollmentScope>,
+): Promise<EnrollmentScope | string> => {
+  const enrollment = await getEnrollmentScope(enrollmentId);
+
+  if (!enrollment) {
+    return "Enrollment not found";
+  }
+
+  const context = { ...enrollment, ...patch };
+  const validation = await validateEnrollmentHierarchy(context);
+
+  return validation === true ? context : validation;
+};
+
 export const enrollStudent = async (enrollmentData: {
   studentId: string;
   centerId: string;
   semesterId: string;
   projectId: string;
-  level: Level;
+  semesterLevelId?: string;
+  level?: Level;
 }) => {
   try {
+    const validation = await validateEnrollmentHierarchy(enrollmentData);
+    if (validation !== true) {
+      return validation;
+    }
+
+    const semesterLevel = await resolveSemesterLevelInput(enrollmentData);
+
     const enrollment = await (prisma as any).studentEnrollments.create({
-      data: enrollmentData,
+      data: {
+        ...enrollmentData,
+        semesterLevelId: semesterLevel.id,
+        level: semesterLevel.academicLevel.code as Level,
+      },
       include: {
         student: true,
         center: true,
         project: true,
         semester: true,
+        semesterLevel: { include: { academicLevel: true } },
       },
     });
     return enrollment;
   } catch (error: unknown) {
+    if (error instanceof AcademicLevelServiceError) throw error;
     console.error("Error enrolling student:", error);
     return "Failed to enroll student - Please run 'prisma generate' first";
   }
@@ -394,14 +867,31 @@ export const createEnrollment = async (
   centerId: string,
   semesterId: string,
   projectId: string,
-  level: Level
+  level?: Level,
+  semesterLevelId?: string,
 ) => {
   try {
+    const validation = await validateEnrollmentHierarchy({
+      projectId,
+      centerId,
+      semesterId,
+    });
+    if (validation !== true) {
+      return validation;
+    }
+
+    const semesterLevel = await resolveSemesterLevelInput({
+      semesterId,
+      semesterLevelId,
+      level,
+    });
+
     return await prisma.$transaction(async (tx) => {
       // Deactivate any current active enrollments
       await (tx as any).studentEnrollments.updateMany({
         where: {
           studentId,
+          semesterId,
           isActive: true,
         },
         data: {
@@ -416,8 +906,9 @@ export const createEnrollment = async (
           studentId,
           centerId,
           semesterId,
+          semesterLevelId: semesterLevel.id,
           projectId,
-          level,
+          level: semesterLevel.academicLevel.code as Level,
           isActive: true,
         },
         include: {
@@ -425,22 +916,31 @@ export const createEnrollment = async (
           center: true,
           project: true,
           semester: true,
+          semesterLevel: { include: { academicLevel: true } },
         },
       });
 
       return newEnrollment;
     });
   } catch (error: unknown) {
+    if (error instanceof AcademicLevelServiceError) throw error;
     console.error("Error creating enrollment:", error);
     return "Failed to create enrollment - Please run 'prisma generate' first";
   }
 };
 
-// Get all enrollments for a student (active and inactive)
-export const getStudentEnrollments = async (studentId: string) => {
+// Get visible enrollments for a student.
+export const getStudentEnrollments = async (
+  studentId: string,
+  visibleEnrollmentScopes?: readonly EnrollmentScope[],
+) => {
   try {
-    const enrollments = await (prisma as any).studentEnrollments.findMany({
-      where: { studentId },
+    const enrollmentWhere = getVisibleEnrollmentWhere(visibleEnrollmentScopes);
+    const enrollments = await prisma.studentEnrollments.findMany({
+      where: {
+        studentId,
+        ...(enrollmentWhere ?? {}),
+      },
       include: {
         student: true,
         center: true,
@@ -463,14 +963,34 @@ export const updateEnrollment = async (
     centerId?: string;
     semesterId?: string;
     projectId?: string;
+    semesterLevelId?: string;
     level?: Level;
     isActive?: boolean;
-  }
+  },
 ) => {
   try {
+    const context = await resolveEffectiveEnrollmentContext(enrollmentId, data);
+    if (typeof context === "string") {
+      return context;
+    }
+
+    const semesterLevel = await resolveSemesterLevelInput({
+      semesterId: context.semesterId,
+      semesterLevelId: data.semesterLevelId ?? context.semesterLevelId,
+      level: data.level ?? context.level,
+    });
+    const updateData = {
+      projectId: context.projectId,
+      centerId: context.centerId,
+      semesterId: context.semesterId,
+      semesterLevelId: semesterLevel.id,
+      level: semesterLevel.academicLevel.code as Level,
+      isActive: data.isActive,
+    };
+
     return await prisma.$transaction(async (tx) => {
       // If setting this enrollment to active, deactivate others for the same student
-      if (data.isActive === true) {
+      if (updateData.isActive === true) {
         const enrollment = await (tx as any).studentEnrollments.findUnique({
           where: { id: enrollmentId },
           select: { studentId: true },
@@ -494,18 +1014,20 @@ export const updateEnrollment = async (
       // Update the enrollment
       const updatedEnrollment = await (tx as any).studentEnrollments.update({
         where: { id: enrollmentId },
-        data,
+        data: updateData,
         include: {
           student: true,
           center: true,
           project: true,
           semester: true,
+          semesterLevel: { include: { academicLevel: true } },
         },
       });
 
       return updatedEnrollment;
     });
   } catch (error: unknown) {
+    if (error instanceof AcademicLevelServiceError) throw error;
     console.error("Error updating enrollment:", error);
     return "Failed to update enrollment - Please run 'prisma generate' first";
   }
@@ -525,6 +1047,41 @@ export const deleteEnrollment = async (enrollmentId: string) => {
 };
 
 // User Role Assignment Management Functions
+
+type RoleAssignmentInput = {
+  userId?: string;
+  subRole: SubRole;
+  projectId?: string | null;
+  centerId?: string | null;
+  semesterId?: string | null;
+  semesterLevelId?: string | null;
+  level?: Level | null;
+  committedDays?: any;
+  isActive?: boolean;
+};
+
+const normalizeRoleAssignment = async <T extends RoleAssignmentInput>(
+  assignment: T,
+) => {
+  if (assignment.semesterLevelId && !assignment.semesterId) {
+    await resolveSemesterLevelInput(assignment);
+  }
+
+  if (assignment.subRole !== SubRole.EDUCATOR) {
+    return { ...assignment, semesterLevelId: null, level: null };
+  }
+
+  if (!assignment.semesterLevelId && !assignment.level) {
+    return { ...assignment, semesterLevelId: null, level: null };
+  }
+
+  const semesterLevel = await resolveSemesterLevelInput(assignment);
+  return {
+    ...assignment,
+    semesterLevelId: semesterLevel.id,
+    level: semesterLevel.academicLevel.code as Level,
+  };
+};
 
 // Validation helper functions
 export const validateRoleAssignmentHierarchy = async (assignmentData: {
@@ -604,11 +1161,12 @@ export const validateRoleAssignmentHierarchy = async (assignmentData: {
 
 export const createUserRoleAssignment = async (assignmentData: {
   userId: string;
-  subRole: any; // SubRole enum
+  subRole: SubRole;
   projectId?: string;
   centerId?: string;
   semesterId?: string;
-  level?: any; // Level enum
+  semesterLevelId?: string;
+  level?: Level;
   committedDays?: any; // CommittedDays enum
 }) => {
   try {
@@ -623,17 +1181,20 @@ export const createUserRoleAssignment = async (assignmentData: {
       return `Validation error: ${validation.error}`;
     }
 
+    const normalizedAssignment = await normalizeRoleAssignment(assignmentData);
     const assignment = await (prisma as any).userRoleAssignments.create({
-      data: assignmentData,
+      data: normalizedAssignment,
       include: {
         user: { select: { id: true, name: true, email: true } },
         project: { select: { id: true, name: true } },
         center: { select: { id: true, name: true } },
         semester: { select: { id: true, name: true } },
+        semesterLevel: { include: { academicLevel: true } },
       },
     });
     return assignment;
   } catch (error: unknown) {
+    if (error instanceof AcademicLevelServiceError) return error.message;
     console.error("Error creating user role assignment:", error);
     return "Failed to create user role assignment - Please run 'prisma generate' first";
   }
@@ -647,6 +1208,7 @@ export const getUserRoleAssignments = async (userId: string) => {
         project: { select: { id: true, name: true } },
         center: { select: { id: true, name: true } },
         semester: { select: { id: true, name: true } },
+        semesterLevel: { include: { academicLevel: true } },
       },
       orderBy: { assignedAt: "desc" },
     });
@@ -657,23 +1219,71 @@ export const getUserRoleAssignments = async (userId: string) => {
   }
 };
 
+export const getActiveUserScopeAssignments = async (userId: string) => {
+  try {
+    const assignments = await prisma.userRoleAssignments.findMany({
+      where: { userId, isActive: true },
+      select: {
+        subRole: true,
+        projectId: true,
+        centerId: true,
+        semesterId: true,
+        semesterLevelId: true,
+        level: true,
+        isActive: true,
+      },
+    });
+    return Promise.all(
+      assignments.map(async (assignment) => {
+        if (
+          assignment.subRole !== SubRole.EDUCATOR ||
+          (!assignment.semesterLevelId && !assignment.level)
+        ) {
+          return assignment;
+        }
+        return hydrateVerifiedSemesterLevelScope(assignment);
+      }),
+    );
+  } catch (error: unknown) {
+    console.error("Error fetching active user scope assignments:", error);
+    return "Failed to fetch active user scope assignments";
+  }
+};
+
 export const updateUserRoleAssignment = async (
   assignmentId: string,
-  updateData: any
+  updateData: any,
 ) => {
   try {
+    const current = await prisma.userRoleAssignments.findUnique({
+      where: { id: assignmentId },
+    });
+    if (!current) return "User role assignment not found";
+
+    const effectiveAssignment = { ...current, ...updateData };
+    const validation = await validateRoleAssignmentHierarchy({
+      projectId: effectiveAssignment.projectId ?? undefined,
+      centerId: effectiveAssignment.centerId ?? undefined,
+      semesterId: effectiveAssignment.semesterId ?? undefined,
+    });
+    if (!validation.isValid) return `Validation error: ${validation.error}`;
+
+    const normalizedAssignment =
+      await normalizeRoleAssignment(effectiveAssignment);
     const assignment = await (prisma as any).userRoleAssignments.update({
       where: { id: assignmentId },
-      data: updateData,
+      data: normalizedAssignment,
       include: {
         user: { select: { id: true, name: true, email: true } },
         project: { select: { id: true, name: true } },
         center: { select: { id: true, name: true } },
         semester: { select: { id: true, name: true } },
+        semesterLevel: { include: { academicLevel: true } },
       },
     });
     return assignment;
   } catch (error: unknown) {
+    if (error instanceof AcademicLevelServiceError) return error.message;
     console.error("Error updating user role assignment:", error);
     return "Failed to update user role assignment - Please run 'prisma generate' first";
   }
@@ -695,16 +1305,7 @@ export const deleteUserRoleAssignment = async (assignmentId: string) => {
 export const getAllUsersWithAssignments = async () => {
   try {
     const users = await prisma.user.findMany({
-      include: {
-        roleAssignments: {
-          where: { isActive: true },
-          include: {
-            project: { select: { id: true, name: true } },
-            center: { select: { id: true, name: true } },
-            semester: { select: { id: true, name: true } },
-          },
-        },
-      },
+      select: adminUserSelect,
       orderBy: { createdAt: "desc" },
     });
     return users;
@@ -717,13 +1318,14 @@ export const getAllUsersWithAssignments = async () => {
 export const bulkUpdateUserAssignments = async (
   userId: string,
   newAssignments: Array<{
-    subRole: any;
+    subRole: SubRole;
     projectId?: string;
     centerId?: string;
     semesterId?: string;
-    level?: any;
+    semesterLevelId?: string;
+    level?: Level;
     committedDays?: any;
-  }>
+  }>,
 ): Promise<any> => {
   try {
     // Validate all assignments before processing
@@ -739,23 +1341,27 @@ export const bulkUpdateUserAssignments = async (
       }
     }
 
+    const normalizedAssignments = await Promise.all(
+      newAssignments.map(normalizeRoleAssignment),
+    );
+
     // Check for exact duplicates in the new assignments array
     const assignmentKeys = new Set();
-    for (const assignment of newAssignments) {
+    for (const assignment of normalizedAssignments) {
       const key = `${assignment.subRole}-${assignment.projectId || "null"}-${
         assignment.centerId || "null"
-      }-${assignment.semesterId || "null"}`;
+      }-${assignment.semesterId || "null"}-${assignment.semesterLevelId || "null"}`;
       if (assignmentKeys.has(key)) {
         console.warn(
-          `Duplicate assignment detected and will be skipped: ${key}`
+          `Duplicate assignment detected and will be skipped: ${key}`,
         );
         // Remove duplicates by filtering the array
         const filteredAssignments = [];
         const seenKeys = new Set();
-        for (const assign of newAssignments) {
+        for (const assign of normalizedAssignments) {
           const assignKey = `${assign.subRole}-${assign.projectId || "null"}-${
             assign.centerId || "null"
-          }-${assign.semesterId || "null"}`;
+          }-${assign.semesterId || "null"}-${assign.semesterLevelId || "null"}`;
           if (!seenKeys.has(assignKey)) {
             seenKeys.add(assignKey);
             filteredAssignments.push(assign);
@@ -767,15 +1373,57 @@ export const bulkUpdateUserAssignments = async (
     }
 
     return await prisma.$transaction(async (tx) => {
-      // Deactivate all current assignments
-      await (tx as any).userRoleAssignments.updateMany({
-        where: { userId, isActive: true },
-        data: { isActive: false },
-      });
+      const assignmentKey = (assignment: {
+        subRole: SubRole;
+        projectId?: string | null;
+        centerId?: string | null;
+        semesterId?: string | null;
+        semesterLevelId?: string | null;
+        committedDays?: unknown;
+      }) =>
+        [
+          assignment.subRole,
+          assignment.projectId ?? "",
+          assignment.centerId ?? "",
+          assignment.semesterId ?? "",
+          assignment.semesterLevelId ?? "",
+          assignment.committedDays ?? "",
+        ].join("|");
 
-      // Create new assignments
-      const createdAssignments = [];
-      for (const assignment of newAssignments) {
+      const existingAssignments = await (
+        tx as any
+      ).userRoleAssignments.findMany({
+        where: { userId, isActive: true },
+      });
+      const existingByKey = new Map(
+        existingAssignments.map((assignment: any) => [
+          assignmentKey(assignment),
+          assignment,
+        ]),
+      );
+      const requestedKeys = new Set(
+        normalizedAssignments.map(assignmentKey),
+      );
+      const removedIds = existingAssignments
+        .filter(
+          (assignment: any) => !requestedKeys.has(assignmentKey(assignment)),
+        )
+        .map((assignment: any) => assignment.id);
+
+      if (removedIds.length > 0) {
+        await (tx as any).userRoleAssignments.updateMany({
+          where: { id: { in: removedIds } },
+          data: { isActive: false },
+        });
+      }
+
+      const reconciledAssignments = [];
+      for (const assignment of normalizedAssignments) {
+        const existing = existingByKey.get(assignmentKey(assignment));
+        if (existing) {
+          reconciledAssignments.push(existing);
+          continue;
+        }
         const created = await (tx as any).userRoleAssignments.create({
           data: {
             userId,
@@ -785,24 +1433,77 @@ export const bulkUpdateUserAssignments = async (
             project: { select: { id: true, name: true } },
             center: { select: { id: true, name: true } },
             semester: { select: { id: true, name: true } },
+            semesterLevel: { include: { academicLevel: true } },
           },
         });
-        createdAssignments.push(created);
+        reconciledAssignments.push(created);
       }
-
-      return createdAssignments;
+      return reconciledAssignments;
     });
   } catch (error: unknown) {
+    if (error instanceof AcademicLevelServiceError) return error.message;
     console.error("Error bulk updating user assignments:", error);
     return "Failed to bulk update user assignments - Please run 'prisma generate' first";
   }
+};
+
+export const updateSemesterUserAssignments = async ({
+  userId,
+  projectId,
+  centerId,
+  semesterId,
+  assignments,
+}: {
+  userId: string;
+  projectId: string;
+  centerId: string;
+  semesterId: string;
+  assignments: Array<{
+    subRole: SubRole;
+    semesterLevelId?: string;
+    committedDays?: CommittedDays;
+  }>;
+}) => {
+  const outsideScope = await prisma.userRoleAssignments.findMany({
+    where: {
+      userId,
+      isActive: true,
+      NOT: { projectId, centerId, semesterId },
+    },
+    select: {
+      subRole: true,
+      projectId: true,
+      centerId: true,
+      semesterId: true,
+      semesterLevelId: true,
+      level: true,
+      committedDays: true,
+    },
+  });
+  return bulkUpdateUserAssignments(userId, [
+    ...outsideScope.map((assignment) => ({
+      ...assignment,
+      projectId: assignment.projectId ?? undefined,
+      centerId: assignment.centerId ?? undefined,
+      semesterId: assignment.semesterId ?? undefined,
+      semesterLevelId: assignment.semesterLevelId ?? undefined,
+      level: assignment.level ?? undefined,
+      committedDays: assignment.committedDays ?? undefined,
+    })),
+    ...assignments.map((assignment) => ({
+      ...assignment,
+      projectId,
+      centerId,
+      semesterId,
+    })),
+  ]);
 };
 
 // Role-based access functions for projects, centers, semesters
 
 export const getUserAccessibleProjects = async (
   userId: string,
-  role: string
+  role: string,
 ) => {
   try {
     if (role === "ADMIN") {
@@ -837,7 +1538,7 @@ export const getUserAccessibleProjects = async (
 export const getUserAccessibleCenters = async (
   userId: string,
   role: string,
-  projectId?: string
+  projectId?: string,
 ) => {
   try {
     if (role === "ADMIN") {
@@ -890,7 +1591,7 @@ export const getUserAccessibleCenters = async (
 export const getUserAccessibleSemesters = async (
   userId: string,
   role: string,
-  centerId?: string
+  centerId?: string,
 ) => {
   try {
     if (role === "ADMIN") {
@@ -903,6 +1604,11 @@ export const getUserAccessibleSemesters = async (
             include: {
               project: { select: { id: true, name: true } },
             },
+          },
+          levels: {
+            where: { isActive: true },
+            include: { academicLevel: true },
+            orderBy: { academicLevel: { journeyOrder: "asc" } },
           },
         },
         orderBy: { createdAt: "desc" },
@@ -931,6 +1637,11 @@ export const getUserAccessibleSemesters = async (
                   project: { select: { id: true, name: true } },
                 },
               },
+              levels: {
+                where: { isActive: true },
+                include: { academicLevel: true },
+                orderBy: { academicLevel: { journeyOrder: "asc" } },
+              },
             },
           },
         },
@@ -955,8 +1666,9 @@ export const getUserAccessibleStudents = async (
     projectId?: string;
     centerId?: string;
     semesterId?: string;
-    level?: string;
-  }
+    semesterLevelId?: string;
+    level?: Level;
+  },
 ) => {
   try {
     if (role === "ADMIN") {
@@ -966,6 +1678,8 @@ export const getUserAccessibleStudents = async (
       if (filters?.projectId) whereClause.projectId = filters.projectId;
       if (filters?.centerId) whereClause.centerId = filters.centerId;
       if (filters?.semesterId) whereClause.semesterId = filters.semesterId;
+      if (filters?.semesterLevelId)
+        whereClause.semesterLevelId = filters.semesterLevelId;
       if (filters?.level) whereClause.level = filters.level;
 
       const enrollments = await (prisma as any).studentEnrollments.findMany({
@@ -975,6 +1689,7 @@ export const getUserAccessibleStudents = async (
           center: true,
           project: true,
           semester: true,
+          semesterLevel: { include: { academicLevel: true } },
         },
         orderBy: {
           student: { name: "asc" },
@@ -983,27 +1698,49 @@ export const getUserAccessibleStudents = async (
       return enrollments;
     } else {
       // USER role - get only students from centers/projects/semesters they're assigned to
-      const userAssignments = await (
-        prisma as any
-      ).userRoleAssignments.findMany({
+      const userAssignments = await prisma.userRoleAssignments.findMany({
         where: { userId, isActive: true },
-        select: { projectId: true, centerId: true, semesterId: true },
+        select: {
+          subRole: true,
+          projectId: true,
+          centerId: true,
+          semesterId: true,
+          semesterLevelId: true,
+          level: true,
+        },
       });
 
-      if (userAssignments.length === 0) {
+      const orConditions: Prisma.StudentEnrollmentsWhereInput[] =
+        userAssignments.flatMap((assignment) => {
+          if (
+            !assignment.projectId ||
+            !assignment.centerId ||
+            !assignment.semesterId ||
+            (assignment.subRole === SubRole.EDUCATOR &&
+              !assignment.semesterLevelId)
+          ) {
+            return [];
+          }
+
+          const educatorSemesterLevelId = assignment.semesterLevelId;
+          return [
+            {
+              isActive: true,
+              projectId: assignment.projectId,
+              centerId: assignment.centerId,
+              semesterId: assignment.semesterId,
+              ...(assignment.subRole === SubRole.EDUCATOR
+                ? { semesterLevelId: educatorSemesterLevelId! }
+                : {}),
+            },
+          ];
+        });
+
+      if (orConditions.length === 0) {
         return [];
       }
 
-      // Build OR conditions for each assignment context
-      const orConditions = userAssignments.map((assignment: any) => {
-        const condition: any = { isActive: true };
-        if (assignment.projectId) condition.projectId = assignment.projectId;
-        if (assignment.centerId) condition.centerId = assignment.centerId;
-        if (assignment.semesterId) condition.semesterId = assignment.semesterId;
-        return condition;
-      });
-
-      let whereClause: any = {
+      const whereClause: Prisma.StudentEnrollmentsWhereInput = {
         OR: orConditions,
       };
 
@@ -1011,6 +1748,8 @@ export const getUserAccessibleStudents = async (
       if (filters?.projectId) whereClause.projectId = filters.projectId;
       if (filters?.centerId) whereClause.centerId = filters.centerId;
       if (filters?.semesterId) whereClause.semesterId = filters.semesterId;
+      if (filters?.semesterLevelId)
+        whereClause.semesterLevelId = filters.semesterLevelId;
       if (filters?.level) whereClause.level = filters.level;
 
       const enrollments = await (prisma as any).studentEnrollments.findMany({
@@ -1020,6 +1759,7 @@ export const getUserAccessibleStudents = async (
           center: true,
           project: true,
           semester: true,
+          semesterLevel: { include: { academicLevel: true } },
         },
         orderBy: {
           student: { name: "asc" },

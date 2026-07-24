@@ -34,16 +34,16 @@ export const useCenter = (id: string) => {
   });
 };
 
-export const useCentersByProject = (projectId: string) => {
+export const useCentersByProject = (projectId: string, enabled = true) => {
   return useQuery({
     queryKey: queryKeys.centersByProject(projectId),
     queryFn: async (): Promise<Center[]> => {
       const response = await api.get<CentersResponse>(
-        `/centers/project/${projectId}`
+        `/centers/project/${projectId}`,
       );
       return response.centers;
     },
-    enabled: !!projectId,
+    enabled: !!projectId && enabled,
     staleTime: 5 * 60 * 1000, // Centers data stays fresh for 5 minutes
   });
 };
@@ -54,7 +54,7 @@ export const useCreateCenter = () => {
 
   return useMutation({
     mutationFn: async (
-      centerData: CreateCenterRequest
+      centerData: CreateCenterRequest,
     ): Promise<CreateCenterResponse> => {
       return api.post<CreateCenterResponse>("/centers/create", centerData);
     },
@@ -81,7 +81,7 @@ export const useUpdateCenter = () => {
     }): Promise<Center> => {
       const response = await api.put<UpdateCenterResponse>(
         `/centers/${id}`,
-        data
+        data,
       );
       return response.center;
     },

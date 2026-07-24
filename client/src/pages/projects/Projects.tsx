@@ -1,279 +1,177 @@
-import { Plus, Clock, GanttChart, Edit } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useEffect, useRef } from 'react';
+import { Plus, FolderOpen, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/lib/button-variants';
 import DoodleBackground from '@/components/DoodleBackground';
-import LoadingButterfly from '@/components/LoadingButterfly';
+import { WorkspaceCard } from '@/components/workspace/WorkspaceCard';
 import { useProjects } from '@/hooks/useProjectQueries';
-import { useCentersByProject } from '@/hooks/useCenterQueries';
-import { useSemestersByCenter } from '@/hooks/useSemesterQueries';
 import { useAuth } from '@/hooks/useAuth';
+import { projectCardDestination } from '@/lib/workspace-hierarchy';
 
 const Projects = () => {
-    const navigate = useNavigate();
     const { isAdmin } = useAuth();
 
     // Fetch projects using TanStack Query
     const { data: projects, isLoading, error, refetch } = useProjects();
 
-    // Gate auto-navigation to only run once per session using sessionStorage
-    const autoNavHandledRef = useRef<boolean>(
-        typeof window !== 'undefined' && sessionStorage.getItem('pm:autoNavHandled') === '1'
-    );
-    const autoNavEnabled = !autoNavHandledRef.current;
-
-    // Prefetch centers and semesters here to enable smart redirects (only if auto-nav is enabled)
-    const singleProjectId = autoNavEnabled && projects && projects.length === 1 ? projects[0].id : '';
-    const { data: centers, isLoading: centersLoading } = useCentersByProject(singleProjectId);
-    const singleCenterId = autoNavEnabled && centers && centers.length === 1 ? centers[0].id : '';
-    const { data: semesters, isLoading: semestersLoading } = useSemestersByCenter(singleCenterId);
-
-    // Auto-redirect logic when there's exactly one at each level
-    const hasRedirectedRef = useRef(false);
-
-    useEffect(() => {
-        if (hasRedirectedRef.current) return;
-        if (!autoNavEnabled) return; // only once per session
-        if (isLoading || !projects) return;
-
-        // If multiple projects, stay on this page.
-        if (projects.length > 1) return;
-
-        const projectId = projects[0]?.id;
-        // Wait for centers of the single project
-        if (centersLoading || !centers) return;
-
-        if (centers.length === 0) {
-            // Navigate to centers list for this project (empty list state will show)
-            hasRedirectedRef.current = true;
-            autoNavHandledRef.current = true;
-            sessionStorage.setItem('pm:autoNavHandled', '1');
-            navigate(`/projects/${projectId}/centers`, { replace: true });
-            return;
-        }
-
-        if (centers.length > 1) {
-            hasRedirectedRef.current = true;
-            autoNavHandledRef.current = true;
-            sessionStorage.setItem('pm:autoNavHandled', '1');
-            navigate(`/projects/${projectId}/centers`, { replace: true });
-            return;
-        }
-
-        // Exactly one center; check semesters next
-        const centerId = centers[0]?.id;
-        if (semestersLoading || !semesters) return;
-
-        if (semesters.length === 0) {
-            hasRedirectedRef.current = true;
-            autoNavHandledRef.current = true;
-            sessionStorage.setItem('pm:autoNavHandled', '1');
-            navigate(`/projects/${projectId}/centers/${centerId}/semesters`, { replace: true });
-            return;
-        }
-
-        if (semesters.length > 1) {
-            hasRedirectedRef.current = true;
-            autoNavHandledRef.current = true;
-            sessionStorage.setItem('pm:autoNavHandled', '1');
-            navigate(`/projects/${projectId}/centers/${centerId}/semesters`, { replace: true });
-            return;
-        }
-
-        // Exactly one semester; go to dashboard
-        const semesterId = semesters[0]?.id;
-        if (projectId && centerId && semesterId) {
-            hasRedirectedRef.current = true;
-            autoNavHandledRef.current = true;
-            sessionStorage.setItem('pm:autoNavHandled', '1');
-            navigate(
-                `/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard`,
-                { replace: true }
-            );
-        }
-    }, [isLoading, projects, centersLoading, centers, semestersLoading, semesters, navigate, autoNavEnabled]);
-
-    const handleProjectClick = (projectId: string) => {
-        // Navigate to centers for this project
-        navigate(`/projects/${projectId}/centers`);
-    };
-
     // Show loading state
     if (isLoading) {
         return (
-            <>
-                <DoodleBackground numElements={12} />
-                <div className="flex flex-col items-center justify-center min-h-[400px] relative z-1">
-                    <LoadingButterfly size="md" />
+            <div className="relative w-full" aria-live="polite" aria-busy="true">
+                <div className="mx-auto w-full max-w-6xl animate-pulse py-2 motion-reduce:animate-none">
+                    <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+                        <div className="space-y-3">
+                            <div className="h-9 w-44 rounded-md bg-muted" />
+                            <div className="h-5 w-80 max-w-full rounded bg-muted" />
+                        </div>
+                        <div className="h-11 w-36 rounded-md bg-muted" />
+                    </div>
+                    <div className="grid gap-5 lg:grid-cols-2">
+                        {[0, 1].map((item) => (
+                            <div key={item} className="h-64 rounded-lg border border-border bg-card sm:h-60" />
+                        ))}
+                    </div>
                 </div>
-            </>
+                <span className="sr-only">Loading projects</span>
+            </div>
         );
     }
 
     // Show error state
     if (error) {
         return (
-            <>
-                <DoodleBackground numElements={12} />
-                <div className="flex flex-col items-center justify-center min-h-[400px] relative z-1">
-                    <div className="h-16 w-16 rounded-full bg-red-100 flex items-center justify-center mb-4">
-                        <span className="text-red-600 text-2xl">⚠️</span>
+            <div className="mx-auto flex min-h-[55dvh] w-full max-w-2xl items-center justify-center px-4" aria-live="polite">
+                <div className="w-full rounded-lg border border-border bg-card p-6 text-center shadow-sm sm:p-8">
+                    <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+                        <RefreshCw className="h-5 w-5" aria-hidden="true" />
                     </div>
-                    <h2 className="text-xl font-semibold text-gray-900 mb-2">Failed to load projects</h2>
-                    <p className="text-gray-600 mb-4">{error.message}</p>
+                    <h1 className="text-2xl font-semibold text-foreground">Projects could not be loaded</h1>
+                    <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+                        Check your connection and try again. Your project access has not changed.
+                    </p>
                     <button
                         onClick={() => refetch()}
-                        className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
+                        className={cn(buttonVariants(), 'mt-6 min-h-11 gap-2')}
                     >
+                        <RefreshCw className="h-4 w-4" aria-hidden="true" />
                         Try Again
                     </button>
                 </div>
-            </>
+            </div>
         );
     }
 
     // Sort projects by updatedAt in descending order (most recent first)
-    const projectList = (projects || []).sort((a, b) =>
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    const projectList = [...(projects || [])].sort((firstProject, secondProject) =>
+        new Date(secondProject.updatedAt).getTime() - new Date(firstProject.updatedAt).getTime()
     );
 
-    // If there's exactly one project, and we're resolving centers/semesters, keep a brief loading state
-    const resolvingSinglePath =
-        autoNavEnabled && !!projects && projects.length === 1 && (centersLoading || (centers && centers.length === 1 && semestersLoading));
-
-    if (resolvingSinglePath) {
-        return (
-            <>
-                <DoodleBackground numElements={12} />
-                <div className="flex flex-col items-center justify-center min-h-[400px] relative z-1">
-                    <LoadingButterfly size="md" />
-                </div>
-            </>
-        );
-    }
-
     return (
-        <>
-            <DoodleBackground numElements={12} />
-            <div className="flex flex-col space-y-4 w-full relative z-1">
-                {/* Search and filters bar */}
-                <div className="flex gap-3 sm:flex-row sm:items-center sm:gap-4 pb-6 w-full justify-between">
-                    <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
-                    <div className="flex gap-2 sm:w-auto justify-end">
-                        {isAdmin() && (
-                            <Link
-                                to="/projects/new"
-                                className={cn(
-                                    buttonVariants({ size: "default" }),
-                                    "flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white w-full sm:w-auto"
-                                )}
-                            >
-                                <Plus className="h-4 w-4" />
-                                <span>New Project</span>
-                            </Link>
-                        )}
+        <div className="relative w-full">
+            <DoodleBackground animated={false} numElements={6} />
+            <section className="relative z-10 mx-auto w-full max-w-6xl py-2 sm:py-4">
+                <header className="mb-7 flex flex-col gap-5 border-b border-border pb-6 sm:mb-8 sm:flex-row sm:items-end sm:justify-between sm:pb-7">
+                    <div className="max-w-2xl">
+                        <h1 className="text-3xl font-semibold text-foreground sm:text-4xl">Projects</h1>
+                        <p className="mt-3 text-base leading-7 text-muted-foreground">
+                            Choose a project to continue to its centers and current work.
+                        </p>
                     </div>
-                </div>
-
-                {/* Project grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {/* Project cards */}
-                    {projectList.map((project) => (
-                        <div
-                            key={project.id}
-                            className="flex flex-col overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm transition-all hover:shadow-md cursor-pointer"
-                            onClick={() => handleProjectClick(project.id)}
+                    {isAdmin() && (
+                        <Link
+                            to="/projects/new"
+                            className={cn(buttonVariants({ size: 'default' }), 'min-h-11 w-full gap-2 sm:w-auto')}
                         >
-                            {/* Project Banner */}
-                            <div className="w-full h-32 overflow-hidden">
-                                <img
-                                    src={project.imageUrl || "/images/default_project_banner.jpg"}
-                                    alt={`${project.name} Banner`}
-                                    className="w-full h-full object-cover object-center bg-gray-200"
-                                />
-                            </div>
+                            <Plus className="h-4 w-4" aria-hidden="true" />
+                            New project
+                        </Link>
+                    )}
+                </header>
 
-                            <div className="p-6">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="font-medium">{project.name}</h3>
-                                    <div className="flex items-center">
+                {isAdmin() && (
+                    <Link
+                        to="/administration"
+                        className="group mb-5 flex min-h-20 items-center gap-3 rounded-lg border border-primary/20 bg-primary/[0.04] p-3 shadow-sm transition-colors hover:border-primary/35 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-4 sm:p-4"
+                    >
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                            <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-semibold text-foreground">Administration</span>
+                            <span className="mt-0.5 hidden text-xs leading-5 text-muted-foreground sm:block">
+                                Manage people, requests, academic levels, and projects.
+                            </span>
+                        </span>
+                        <span className="shrink-0 text-sm font-semibold text-primary">
+                            <span className="sm:hidden">Open</span>
+                            <span className="hidden sm:inline">Open administration</span>
+                        </span>
+                    </Link>
+                )}
+
+                {projectList.length > 0 && (
+                    <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                        {projectList.map((project) => (
+                            <WorkspaceCard
+                                key={project.id}
+                                title={project.name}
+                                entityLabel="Project"
+                                mediaSrc={project.imageUrl || "/images/default_project_banner.jpg"}
+                                mediaAlt={`${project.name} project`}
+                                href={projectCardDestination(project.id)}
+                                openLabel="Open workspace"
+                                detail={
+                                    <p className="line-clamp-2">
+                                        {project.description || 'Open this project to view its centers and current work.'}
+                                    </p>
+                                }
+                                updatedAt={new Date(project.updatedAt).toLocaleDateString()}
+                                status={
+                                    <span className="inline-flex items-center rounded-full border border-border bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground">
                                         <span
                                             className={cn(
-                                                "inline-flex h-2 w-2 rounded-full mr-2",
-                                                (project.status || 'ACTIVE') === 'ACTIVE' ? "bg-green-500" : "bg-yellow-500"
+                                                'mr-2 inline-flex h-2 w-2 rounded-full',
+                                                (project.status || 'ACTIVE') === 'ACTIVE' ? 'bg-emerald-500' : 'bg-amber-500'
                                             )}
+                                            aria-hidden="true"
                                         />
-                                        <span className="text-xs text-muted-foreground">
-                                            {(project.status || 'ACTIVE') === 'ACTIVE' ? 'Active' : 'Inactive'}
-                                        </span>
-                                    </div>
-                                </div>
-                                <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
-                                    {project.description}
-                                </p>
-                                <div className="mt-4 flex items-center justify-between">
-                                    <div className="flex items-center text-xs text-muted-foreground">
-                                        <Clock className="mr-1 h-3 w-3" />
-                                        <span>Updated {new Date(project.updatedAt).toLocaleDateString()}</span>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        {isAdmin() && (
-                                            <Link
-                                                to={`/projects/${project.id}/edit`}
-                                                className={cn(
-                                                    buttonVariants({ variant: 'outline', size: 'sm' }),
-                                                    'h-8 px-2'
-                                                )}
-                                                onClick={e => e.stopPropagation()}
-                                                title="Edit Project"
-                                            >
-                                                <Edit className="h-3 w-3" />
-                                            </Link>
-                                        )}
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleProjectClick(project.id);
-                                            }}
-                                            className={cn(
-                                                buttonVariants({ size: 'sm' }),
-                                                'h-8 px-3 bg-orange-600 hover:bg-orange-700 text-white'
-                                            )}
-                                        >
-                                            Centers
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+                                        {(project.status || 'ACTIVE') === 'ACTIVE' ? 'Active' : 'Inactive'}
+                                    </span>
+                                }
+                                editHref={isAdmin() ? `/projects/${project.id}/edit` : undefined}
+                                editLabel={isAdmin() ? `Edit ${project.name}` : undefined}
+                            />
+                        ))}
+                    </div>
+                )}
 
-                {/* No projects found message */}
                 {projectList.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-10">
-                        <GanttChart className="h-12 w-12 text-muted-foreground opacity-50 mb-4" />
-                        <h3 className="font-medium text-lg">No projects found</h3>
-                        <p className="text-sm text-muted-foreground">
-                            {isAdmin() ? "Get started by creating your first project" : "No projects available to view"}
+                    <div className="rounded-lg border border-dashed border-border bg-card px-6 py-14 text-center" aria-live="polite">
+                        <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                            {isAdmin() ? <FolderOpen className="h-6 w-6" aria-hidden="true" /> : <ShieldCheck className="h-6 w-6" aria-hidden="true" />}
+                        </div>
+                        <h2 className="text-xl font-semibold text-foreground">
+                            {isAdmin() ? 'Create your first project' : 'No project access yet'}
+                        </h2>
+                        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+                            {isAdmin()
+                                ? 'Set up a project, then add its centers and semesters.'
+                                : 'Ask an administrator to assign you to a project workspace.'}
                         </p>
                         {isAdmin() && (
                             <Link
                                 to="/projects/new"
-                                className={cn(
-                                    buttonVariants({ size: "default" }),
-                                    "mt-4 bg-orange-600 hover:bg-orange-700 text-white"
-                                )}
+                                className={cn(buttonVariants(), 'mt-6 min-h-11 gap-2')}
                             >
-                                <Plus className="h-4 w-4 mr-2" />
-                                Create Project
+                                <Plus className="h-4 w-4" aria-hidden="true" />
+                                Create project
                             </Link>
                         )}
                     </div>
                 )}
-            </div></>
+            </section>
+        </div>
     );
 };
 
-export default Projects; 
+export default Projects;

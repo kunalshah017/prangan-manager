@@ -1,34 +1,31 @@
 // API Configuration and base client
 import type { StudentsBySemesterResponse } from "@/types/api";
+import { ApiError } from "./api-error";
+import { getCsrfToken } from "./csrf";
+import { getSessionGeneration, handleUnauthorizedResponse } from "./session";
+import { clearBrowserSession } from "./session-runtime";
+
+export { ApiError } from "./api-error";
 
 const API_BASE_URL =
   process.env.NODE_ENV === "production"
     ? import.meta.env.VITE_API_BASE_URL
     : import.meta.env.VITE_API_BASE_URL || "http://localhost:4000/api/v1";
 
-// Custom error class for API errors
-export class ApiError extends Error {
-  status: number;
-  response?: unknown;
-
-  constructor(message: string, status: number, response?: unknown) {
-    super(message);
-    this.name = "ApiError";
-    this.status = status;
-    this.response = response;
-  }
-}
-
 // Base fetch wrapper with authentication and error handling
 export async function apiRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> {
-  const token = localStorage.getItem("prangan_auth_token");
+  const requestGeneration = getSessionGeneration();
+  const unsafeMethod = ["POST", "PUT", "PATCH", "DELETE"].includes(
+    (options.method || "GET").toUpperCase(),
+  );
+  const csrfToken = unsafeMethod ? await getCsrfToken(API_BASE_URL) : null;
 
   // Only set Content-Type if there's a body to send
   const headers: HeadersInit = {
-    ...(token && { Authorization: `Bearer ${token}` }),
+    ...(csrfToken && { "X-CSRF-Token": csrfToken }),
     ...(options.headers as Record<string, string>),
   };
 
@@ -40,6 +37,7 @@ export async function apiRequest<T>(
   const config: RequestInit = {
     ...options,
     headers,
+    credentials: "include",
   };
 
   const url = `${API_BASE_URL}${endpoint}`;
@@ -49,10 +47,16 @@ export async function apiRequest<T>(
 
     // Handle different HTTP status codes
     if (response.status === 401) {
-      // Unauthorized - clear auth data
-      localStorage.removeItem("prangan_auth_token");
-      localStorage.removeItem("prangan_user");
-      window.location.href = "/login";
+      if (endpoint !== "/users/me") {
+        handleUnauthorizedResponse({
+          requestGeneration,
+          currentGeneration: getSessionGeneration(),
+          clearSession: clearBrowserSession,
+          redirectToLogin: () => {
+            window.location.href = "/login";
+          },
+        });
+      }
 
       // Try to get the API error message
       let errorMessage = "Unauthorized";
@@ -114,7 +118,7 @@ export async function apiRequest<T>(
     // Network or other errors
     throw new ApiError(
       error instanceof Error ? error.message : "Network error occurred",
-      0
+      0,
     );
   }
 }
@@ -148,15 +152,12 @@ export const api = {
   students: {
     getBySemester: (semesterId: string) =>
       apiRequest<StudentsBySemesterResponse>(
-        `/users/students/semester/${semesterId}`
+        `/users/students/semester/${semesterId}`,
       ),
   },
 
   // Base URL for direct fetch usage
   baseURL: API_BASE_URL,
-
-  // Token getter for direct fetch usage
-  getToken: () => localStorage.getItem("prangan_auth_token"),
 };
 
 export default api;

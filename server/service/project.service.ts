@@ -1,8 +1,6 @@
-import { PrismaClient } from "../generated/prisma/index.js";
+import { prisma } from "../lib/prisma.js";
 
 import type { Project } from "../types/project.types.js";
-
-const prisma = new PrismaClient();
 
 export const CreateProject = async (projectData: Partial<Project>) => {
   try {
@@ -28,7 +26,7 @@ export const getProjects = async () => {
 
 export const updateProject = async (
   id: string,
-  projectData: Partial<Project>
+  projectData: Partial<Project>,
 ) => {
   try {
     const project = await prisma.projects.update({
@@ -44,25 +42,31 @@ export const updateProject = async (
 
 export const deleteProject = async (id: string) => {
   try {
-    // First, delete all semesters related to centers of this project
-    await prisma.semesters.deleteMany({
-      where: {
-        center: {
-          projectId: id,
-        },
-      },
-    });
-
-    // Then, delete all centers related to this project
-    await prisma.centers.deleteMany({
+    const enrollmentCount = await prisma.studentEnrollments.count({
       where: { projectId: id },
     });
 
-    // Finally, delete the project
-    const project = await prisma.projects.delete({
-      where: { id },
+    if (enrollmentCount > 0) {
+      return "Cannot delete project while enrollments exist";
+    }
+
+    return await prisma.$transaction(async (tx) => {
+      await tx.semesters.deleteMany({
+        where: {
+          center: {
+            projectId: id,
+          },
+        },
+      });
+
+      await tx.centers.deleteMany({
+        where: { projectId: id },
+      });
+
+      return tx.projects.delete({
+        where: { id },
+      });
     });
-    return project;
   } catch (error: unknown) {
     console.error("Error deleting project:", error);
     return "Failed to delete project";
@@ -82,4 +86,13 @@ export const getProjectById = async (id: string) => {
     console.error("Error fetching project by ID:", error);
     return "Failed to fetch project";
   }
+};
+
+export const getProjectScope = async (id: string) => {
+  const project = await prisma.projects.findUnique({
+    where: { id },
+    select: { id: true },
+  });
+
+  return project ? { projectId: project.id } : null;
 };

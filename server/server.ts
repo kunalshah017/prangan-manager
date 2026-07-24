@@ -10,6 +10,14 @@ import attendanceRoutes from "./routes/attendance.routes.js";
 import studentAttendanceRoutes from "./routes/student-attendance.routes.js";
 import syllabusRoutes from "./routes/syllabus.routes.js";
 import examRoutes from "./routes/exam.routes.js";
+import { academicLevelRoutes } from "./routes/academic-level.routes.js";
+import cookie from "@fastify/cookie";
+import { createCsrfToken, requireCsrfToken } from "./security/csrf.js";
+import {
+  CSRF_COOKIE_NAME,
+  getAllowedClientOrigin,
+  getCsrfCookieOptions,
+} from "./security/session.js";
 
 // Load environment variables from .env file
 dotenv.config();
@@ -17,11 +25,22 @@ dotenv.config();
 // Create Fastify instance
 const fastify: FastifyInstance = Fastify();
 
-// Register CORS plugin to allow all origins for development
+const clientOrigin = getAllowedClientOrigin();
+
+fastify.register(cookie);
 fastify.register(import("@fastify/cors"), {
-  origin: true, // Allow all origins
-  credentials: true, // Allow credentials
+  origin: clientOrigin,
+  credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "X-CSRF-Token"],
+});
+
+fastify.addHook("preHandler", requireCsrfToken);
+
+fastify.get("/api/v1/auth/csrf", async (_request, reply) => {
+  const csrfToken = createCsrfToken();
+  reply.setCookie(CSRF_COOKIE_NAME, csrfToken, getCsrfCookieOptions());
+  return { csrfToken };
 });
 
 // Health check endpoint
@@ -44,42 +63,36 @@ fastify.register(studentAttendanceRoutes, {
 });
 fastify.register(syllabusRoutes, { prefix: "/api/v1/syllabus" });
 fastify.register(examRoutes, { prefix: "/api/v1/exams" });
+fastify.register(academicLevelRoutes, { prefix: "/api/v1" });
 
-// Start the server for local development and Azure (but not Vercel)
-// Vercel uses serverless functions, so we skip server startup there
-const isVercel = process.env.VERCEL === "1";
+const start = async (): Promise<void> => {
+  try {
+    const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+    const host = process.env.HOST || "0.0.0.0";
 
-if (!isVercel) {
-  const start = async (): Promise<void> => {
-    try {
-      const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
-      const host = process.env.HOST || "0.0.0.0";
+    await fastify.ready();
+    await fastify.listen({ port, host });
+    console.log(`Server is running on http://${host}:${port}`);
+    console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
+  } catch (err) {
+    fastify.log.error(err);
+    process.exit(1);
+  }
+};
 
-      await fastify.listen({ port, host });
-      console.log(`Server is running on http://${host}:${port}`);
-      console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
-    } catch (err) {
-      fastify.log.error(err);
-      process.exit(1);
-    }
-  };
+process.on("SIGINT", async () => {
+  fastify.log.info("Received SIGINT, shutting down gracefully...");
+  await fastify.close();
+  process.exit(0);
+});
 
-  // Handle graceful shutdown
-  process.on("SIGINT", async () => {
-    fastify.log.info("Received SIGINT, shutting down gracefully...");
-    await fastify.close();
-    process.exit(0);
-  });
+process.on("SIGTERM", async () => {
+  fastify.log.info("Received SIGTERM, shutting down gracefully...");
+  await fastify.close();
+  process.exit(0);
+});
 
-  process.on("SIGTERM", async () => {
-    fastify.log.info("Received SIGTERM, shutting down gracefully...");
-    await fastify.close();
-    process.exit(0);
-  });
+start();
 
-  // Start the server
-  start();
-}
-
-// Export the Fastify instance for Azure and other deployments
+// Export the Fastify instance for route integration tests.
 export default fastify;

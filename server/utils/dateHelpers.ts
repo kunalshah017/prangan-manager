@@ -10,7 +10,7 @@
  */
 export const convertToDateTime = (
   dateInput: string | Date | undefined,
-  isEndDate: boolean = false
+  isEndDate: boolean = false,
 ): Date | undefined => {
   if (!dateInput) return undefined;
 
@@ -38,7 +38,7 @@ export const convertToDateTime = (
  * @returns ISO string or null if date is invalid
  */
 export const formatDateForResponse = (
-  date: Date | null | undefined
+  date: Date | null | undefined,
 ): string | null => {
   if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
     return null;
@@ -57,8 +57,13 @@ export const isValidDateFormat = (dateString: string): boolean => {
     return false;
   }
 
-  const date = new Date(dateString);
-  return !isNaN(date.getTime());
+  const [year, month, day] = dateString.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
 };
 
 /**

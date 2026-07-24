@@ -23,17 +23,20 @@ jobs:
         with:
           node-version: "22.x"
 
-      - name: npm install and build
+      - name: Install, build, and package runtime artifact
         working-directory: ./server
         run: |
-          npm install
+          npm ci
           npm run build
+          npm prune --omit=dev
+          mkdir deploy
+          cp -R dist node_modules package.json web.config deploy/
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: ./server
+          path: ./server/deploy
 
   deploy:
     runs-on: ubuntu-latest

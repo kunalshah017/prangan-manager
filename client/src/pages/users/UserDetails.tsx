@@ -21,6 +21,7 @@ import {
     Award,
     Edit
 } from 'lucide-react';
+import { levelName } from '@/lib/levels';
 import {
     XAxis,
     YAxis,
@@ -123,6 +124,7 @@ const UserDetails = () => {
                 holidayDays: 0,
                 attendancePercentage: 0,
                 totalRemuneration: 0,
+                missingRemunerationRates: 0,
                 monthlyData: [],
                 committedDaysAnalysis: [],
                 averageMonthlyAttendance: 0,
@@ -140,8 +142,12 @@ const UserDetails = () => {
 
         const attendancePercentage = totalDays > 0 ? parseFloat(((presentDays / (totalDays - holidayDays)) * 100).toFixed(1)) : 0;
 
-        // Calculate remuneration (using current reimbursement amount per present day for educators/center managers)
-        const reimbursementRate = user?.reimbursementAmount || 500;
+        const remunerationRates = new Map(
+            (user?.remunerationRates || []).map(rate => [
+                rate.semesterId,
+                Number(rate.dailyRate),
+            ]),
+        );
 
         // Monthly breakdown - using logic similar to Renumeration.tsx
         const monthlyMap = new Map<string, {
@@ -189,14 +195,22 @@ const UserDetails = () => {
             }
         });
 
-        // Second pass: calculate remuneration per month (only for EDUCATOR/CENTER_MANAGER roles)
+        let missingRemunerationRates = 0;
+        // Calculate each present day against the immutable rate for its semester.
         for (const [monthKey, monthData] of monthlyMap.entries()) {
             const monthAttendance = attendance.filter(record =>
                 record.date?.substring(0, 7) === monthKey &&
                 record.status === 'PRESENT' &&
                 (record.roleAssignment?.subRole === 'EDUCATOR' || record.roleAssignment?.subRole === 'CENTER_MANAGER')
             );
-            monthData.remuneration = monthAttendance.length * reimbursementRate;
+            monthData.remuneration = monthAttendance.reduce((total, record) => {
+                const dailyRate = remunerationRates.get(record.semesterId);
+                if (dailyRate === undefined || !Number.isFinite(dailyRate)) {
+                    missingRemunerationRates++;
+                    return total;
+                }
+                return total + dailyRate;
+            }, 0);
         }
 
         const monthlyData = Array.from(monthlyMap.values()).map(month => ({
@@ -325,6 +339,7 @@ const UserDetails = () => {
             holidayDays,
             attendancePercentage,
             totalRemuneration: calculatedTotalRemuneration, // Use sum of monthly remuneration for consistency
+            missingRemunerationRates,
             monthlyData,
             committedDaysAnalysis,
             averageMonthlyAttendance,
@@ -332,7 +347,7 @@ const UserDetails = () => {
             worstMonth,
             recentTrend
         };
-    }, [attendanceData?.attendances, user?.reimbursementAmount, user?.roleAssignments]);
+    }, [attendanceData?.attendances, user?.remunerationRates, user?.roleAssignments]);
 
     if (userLoading || attendanceLoading) {
         return (
@@ -509,9 +524,9 @@ const UserDetails = () => {
                                                     )}
                                                 </div>
 
-                                                {assignment.level && assignment.subRole === 'EDUCATOR' && (
+                                                {(assignment.semesterLevel || assignment.level) && assignment.subRole === 'EDUCATOR' && (
                                                     <p className="text-xs text-gray-600 mt-1">
-                                                        Level: {assignment.level.replace('_', ' ')}
+                                                        Level: {levelName(assignment.semesterLevel, assignment.level)}
                                                     </p>
                                                 )}
                                                 {assignment.committedDays && (assignment.subRole === 'CENTER_MANAGER' || assignment.subRole === 'EDUCATOR') && (
@@ -607,7 +622,9 @@ const UserDetails = () => {
                                     ₹{analytics.totalRemuneration.toLocaleString('en-IN')}
                                 </p>
                                 <p className="text-xs text-gray-500">
-                                    @ ₹{(user.reimbursementAmount || 500).toLocaleString('en-IN')}/day
+                                    {analytics.missingRemunerationRates > 0
+                                        ? `${analytics.missingRemunerationRates} present day rate${analytics.missingRemunerationRates === 1 ? '' : 's'} not set`
+                                        : 'Semester-specific rates'}
                                 </p>
                             </div>
                         </div>

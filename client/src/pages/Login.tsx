@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, LogIn } from 'lucide-react';
 import toast from 'react-hot-toast';
 import DoodleBackground from '@/components/DoodleBackground';
 import { CustomButton } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
+import { readLoginPrefill } from '@/lib/login-params';
 
 const Login = () => {
   const [searchParams] = useSearchParams();
@@ -15,27 +16,15 @@ const Login = () => {
   const { login, isLoading, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
-  // Check for URL parameters and prefill inputs
+  // Prefill email from approval links.
   useEffect(() => {
-    const emailParam = searchParams.get('email');
-    const passwordParam = searchParams.get('password');
+    const { email: emailParam } = readLoginPrefill(searchParams);
 
     if (emailParam) {
       setEmail(emailParam);
-    }
-    if (passwordParam) {
-      setPassword(passwordParam);
-      // Show password when prefilled from URL
-      setShowPassword(true);
-    }
-
-    // Clear URL parameters after prefilling for security
-    if (emailParam || passwordParam) {
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.delete('email');
-      newSearchParams.delete('password');
 
-      // Replace the current URL without the sensitive parameters
       navigate(
         { search: newSearchParams.toString() },
         { replace: true }
@@ -64,13 +53,15 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-[100dvh] min-w-screen bg-background overflow-hidden relative">
+    <main className="min-h-[100dvh] bg-orange-50/60 px-4 py-5 sm:px-6 sm:py-8">
       <DoodleBackground numElements={10} />
-
-      <div className="container relative z-10 flex min-h-[100dvh] min-w-full items-center justify-center px-4 py-16">
-        <div className="mx-auto w-full max-w-md flex flex-col items-center">
-          <div className="flex flex-col items-center space-y-4 text-center">
-            <Link to="/" className="inline-block mb-2">
+      <div className="relative z-10 mx-auto flex min-h-[calc(100dvh-2.5rem)] w-full max-w-md flex-col justify-center">
+        <Link to="/" className="mb-8 inline-flex min-h-11 items-center gap-2 self-start text-sm font-semibold text-orange-800 hover:text-orange-950">
+          <ArrowLeft className="h-4 w-4" /> Back to welcome
+        </Link>
+        <section className="border border-orange-100 bg-white p-5 shadow-sm sm:p-8">
+          <div className="flex flex-col items-start space-y-5">
+            <Link to="/" className="flex items-center gap-3">
               <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -79,21 +70,19 @@ const Login = () => {
                 <img
                   src="/images/logo/prangan-logo-light-mode.png"
                   alt="Prangan Logo"
-                  className="h-16"
+                  className="h-12"
                 />
               </motion.div>
+              <span className="border-l border-orange-200 pl-3 text-sm font-medium text-gray-600">Prangan Manager workspace</span>
             </Link>
 
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Sign in to your account
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Enter your email below to sign in to your account
-            </p>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight text-gray-950">Sign in</h1>
+              <p className="mt-2 text-sm leading-6 text-gray-600">Use your approved account email to continue.</p>
+            </div>
           </div>
-
           <motion.div
-            className="mt-8 grid gap-6 p-6 bg-white/80 rounded-lg border shadow-md w-full"
+            className="mt-8 grid gap-6"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
@@ -114,7 +103,7 @@ const Login = () => {
                     disabled={isLoading}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="h-12 w-full rounded-md border border-input bg-white px-3 text-base placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     required
                   />
                 </div>
@@ -123,9 +112,9 @@ const Login = () => {
                     <label htmlFor="password" className="text-sm font-medium">
                       Password
                     </label>
-                    {/* <Link to="/forgot-password" className="text-sm text-orange-600 hover:text-orange-700">
+                    <Link to="/reset-password" className="text-sm text-orange-600 hover:text-orange-700">
                       Forgot password?
-                    </Link> */}
+                    </Link>
                   </div>
                   <div className="relative">
                     <input
@@ -136,14 +125,15 @@ const Login = () => {
                       disabled={isLoading}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="h-12 w-full rounded-md border border-input bg-white px-3 pr-12 text-base placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       required
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 flex items-center justify-center w-10 h-10 text-gray-500 hover:text-gray-700 focus:outline-none"
+                      className="absolute inset-y-0 right-0 flex h-12 w-12 items-center justify-center text-gray-500 hover:text-orange-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
                       disabled={isLoading}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
                     >
                       {showPassword ? (
                         <EyeOff className="h-4 w-4" />
@@ -157,9 +147,9 @@ const Login = () => {
                   type="submit"
                   isLoading={isLoading}
                   loadingMessage="Signing in..."
-                  className="bg-orange-600 hover:bg-orange-700 text-white w-full"
+                  className="h-12 w-full bg-orange-600 text-base text-white hover:bg-orange-700"
                 >
-                  Sign In
+                  <LogIn className="mr-2 h-5 w-5" /> Sign in
                 </CustomButton>
               </div>
             </form>
@@ -171,9 +161,9 @@ const Login = () => {
               </Link>
             </div>
           </motion.div>
-        </div>
+        </section>
       </div>
-    </div>
+    </main>
   );
 };
 

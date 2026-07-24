@@ -11,6 +11,8 @@ interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
 }
 
+type NavigatorWithStandalone = Navigator & { standalone?: boolean };
+
 declare global {
   interface WindowEventMap {
     beforeinstallprompt: BeforeInstallPromptEvent;
@@ -26,11 +28,11 @@ const PWAInstallPrompt: React.FC = () => {
     // Check if user has already dismissed or installed the app
     const hasBeenPrompted = localStorage.getItem('pwa-install-prompted');
     const hasBeenInstalled = localStorage.getItem('pwa-installed');
-    
+
     // Check if app is already installed
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-    const isInWebApp = (window.navigator as any).standalone === true;
-    
+    const isInWebApp = (window.navigator as NavigatorWithStandalone).standalone === true;
+
     if (hasBeenInstalled || isStandalone || isInWebApp) {
       setIsInstalled(true);
       return;
@@ -42,7 +44,7 @@ const PWAInstallPrompt: React.FC = () => {
       e.preventDefault();
       // Stash the event so it can be triggered later
       setDeferredPrompt(e);
-      
+
       // Show our custom prompt only if user hasn't been prompted before
       if (!hasBeenPrompted) {
         setShowPrompt(true);
@@ -74,7 +76,7 @@ const PWAInstallPrompt: React.FC = () => {
 
     // Wait for the user to respond to the prompt
     const { outcome } = await deferredPrompt.userChoice;
-    
+
     if (outcome === 'accepted') {
       console.log('User accepted the install prompt');
       localStorage.setItem('pwa-installed', 'true');
@@ -84,7 +86,7 @@ const PWAInstallPrompt: React.FC = () => {
 
     // Mark that user has been prompted
     localStorage.setItem('pwa-install-prompted', 'true');
-    
+
     // Hide our custom prompt
     setShowPrompt(false);
     setDeferredPrompt(null);
@@ -149,7 +151,7 @@ const PWAInstallPrompt: React.FC = () => {
               <div className="p-4">
                 <div className="flex items-start space-x-3 mb-4">
                   <img
-                    src="/icon.png"
+                    src="/pwa-icon-192.png"
                     alt="Prangan Manager"
                     className="w-12 h-12 rounded-lg border border-gray-200"
                   />
@@ -204,4 +206,4 @@ const PWAInstallPrompt: React.FC = () => {
   );
 };
 
-export default PWAInstallPrompt; 
+export default PWAInstallPrompt;

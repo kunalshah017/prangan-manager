@@ -10,6 +10,8 @@ interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
 }
 
+type NavigatorWithStandalone = Navigator & { standalone?: boolean };
+
 const PWAInstallButton: React.FC = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
@@ -17,9 +19,9 @@ const PWAInstallButton: React.FC = () => {
   useEffect(() => {
     // Check if app is already installed
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-    const isInWebApp = (window.navigator as any).standalone === true;
+    const isInWebApp = (window.navigator as NavigatorWithStandalone).standalone === true;
     const hasBeenInstalled = localStorage.getItem('pwa-installed');
-    
+
     if (hasBeenInstalled || isStandalone || isInWebApp) {
       setIsInstalled(true);
       return;
@@ -52,12 +54,12 @@ const PWAInstallButton: React.FC = () => {
     try {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
-      
+
       if (outcome === 'accepted') {
         localStorage.setItem('pwa-installed', 'true');
         setIsInstalled(true);
       }
-      
+
       setDeferredPrompt(null);
     } catch (error) {
       console.error('Error showing install prompt:', error);
@@ -71,12 +73,13 @@ const PWAInstallButton: React.FC = () => {
 
   return (
     <button
+      type="button"
       onClick={handleInstallClick}
-      className="flex items-center space-x-2 px-3 py-2 text-sm text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+      className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       title="Install Prangan Manager App"
     >
-      <Smartphone className="w-4 h-4" />
-      <span className="hidden sm:inline">Install App</span>
+      <Smartphone className="h-4 w-4" aria-hidden="true" />
+      <span>Install app</span>
     </button>
   );
 };

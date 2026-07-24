@@ -1,13 +1,23 @@
 // Service worker for PWA functionality with proper cache management
-const CACHE_NAME = `prangan-manager-v${Date.now()}`;
-const STATIC_CACHE = "prangan-static";
-const RUNTIME_CACHE = "prangan-runtime";
+const CACHE_VERSION = "v4";
+const STATIC_CACHE = `prangan-static-${CACHE_VERSION}`;
+const RUNTIME_CACHE = `prangan-runtime-${CACHE_VERSION}`;
 const PDF_CACHE = "prangan-pdfs-v2"; // Incremented version for new caching strategy
 const PDF_CACHE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
 const MAX_PDF_SIZE = 50 * 1024 * 1024; // 50MB max for caching
 
 // Essential files to cache for offline functionality
-const urlsToCache = ["/", "/manifest.json", "/favicon.ico", "/icon.png"];
+const urlsToCache = [
+  "/",
+  "/manifest.json",
+  "/favicon.ico",
+  "/icon.png",
+  "/pwa-icon-192.png",
+  "/pwa-icon-512.png",
+  "/pwa-maskable-192.png",
+  "/pwa-maskable-512.png",
+  "/apple-touch-icon.png",
+];
 
 // Install event - cache essential resources
 self.addEventListener("install", (event) => {
@@ -18,11 +28,7 @@ self.addEventListener("install", (event) => {
       .then((cache) => {
         console.log("[SW] Caching essential resources");
         return cache.addAll(urlsToCache);
-      })
-      .then(() => {
-        // Skip waiting to activate immediately
-        return self.skipWaiting();
-      })
+      }),
   );
 });
 
@@ -35,22 +41,24 @@ self.addEventListener("activate", (event) => {
       .then((cacheNames) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
-            // Delete old caches that don't match current version
-            if (
+            const isPriorAppCache =
               cacheName !== STATIC_CACHE &&
               cacheName !== RUNTIME_CACHE &&
-              cacheName !== PDF_CACHE
-            ) {
+              cacheName !== PDF_CACHE &&
+              (cacheName.startsWith("prangan-static") ||
+                cacheName.startsWith("prangan-runtime"));
+
+            if (isPriorAppCache) {
               console.log("[SW] Deleting old cache:", cacheName);
               return caches.delete(cacheName);
             }
-          })
+          }),
         );
       })
       .then(() => {
         // Take control of all clients immediately
         return self.clients.claim();
-      })
+      }),
   );
 });
 
@@ -74,6 +82,26 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // API responses may contain authenticated or account-specific data.
+  if (url.pathname === "/api" || url.pathname.startsWith("/api/")) {
+    return;
+  }
+
+  // Vite development modules must always come from the dev server. Caching them
+  // can combine an old React dispatcher with a newer renderer after HMR/restarts.
+  if (
+    url.pathname === "/@vite/client" ||
+    url.pathname.startsWith("/src/") ||
+    url.pathname.startsWith("/node_modules/.vite/")
+  ) {
+    return;
+  }
+
+  // Never cache requests carrying credentials, regardless of path.
+  if (request.headers.has("Authorization")) {
+    return;
+  }
+
   // Handle navigation requests (HTML pages)
   if (request.mode === "navigate") {
     event.respondWith(
@@ -93,7 +121,7 @@ self.addEventListener("fetch", (event) => {
           return caches.match(request).then((cachedResponse) => {
             return cachedResponse || caches.match("/");
           });
-        })
+        }),
     );
     return;
   }
@@ -134,7 +162,7 @@ self.addEventListener("fetch", (event) => {
           }
           return response;
         });
-      })
+      }),
     );
     return;
   }
@@ -153,7 +181,7 @@ self.addEventListener("fetch", (event) => {
       })
       .catch(() => {
         return caches.match(request);
-      })
+      }),
   );
 });
 

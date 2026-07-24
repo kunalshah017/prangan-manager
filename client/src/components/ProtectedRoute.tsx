@@ -1,7 +1,6 @@
-import { useEffect } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { hasPermission } from '@/lib/permissions';
+import { can, hasPermission, type Permission, type WorkspaceContext } from '@/lib/permissions';
 import DoodleBackground from '@/components/DoodleBackground';
 import LoadingScreen from '@/components/LoadingScreen';
 import type { User } from '@/types/api';
@@ -12,6 +11,8 @@ interface ProtectedRouteProps {
     allowedSubRoles?: NonNullable<User['roleAssignments']>[number]['subRole'][];
     requireAdmin?: boolean; // shorthand for admin-only access
     allowAll?: boolean; // shorthand for allowing all authenticated users
+    permission?: Permission;
+    context?: WorkspaceContext;
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
@@ -19,15 +20,18 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     allowedRoles = [],
     allowedSubRoles = [],
     requireAdmin = false,
-    allowAll = false
+    allowAll = false,
+    permission,
+    context,
 }) => {
-    const { isAuthenticated, user, isLoading } = useAuth();
+    const { isAuthenticated, user, isLoading } = useAuth({ probeSession: true });
     const location = useLocation();
-
-    useEffect(() => {
-        // Check authentication status on mount
-        // The auth store should already be initialized from localStorage
-    }, []);
+    const params = useParams();
+    const workspaceContext: WorkspaceContext = context ?? {
+        projectId: params.projectId,
+        centerId: params.centerId,
+        semesterId: params.semesterId,
+    };
 
     // Show loading state while checking authentication
     if (isLoading) {
@@ -43,7 +47,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
     // Check if user has required permissions
     // Note: ADMIN users have access to all routes by default
-    if (!hasPermission(user, allowedRoles, allowedSubRoles, requireAdmin, allowAll)) {
+    const isAllowed = permission
+        ? can(user, permission, workspaceContext)
+        : hasPermission(user, allowedRoles, allowedSubRoles, requireAdmin, allowAll);
+
+    if (!isAllowed) {
         return (
             <div className="min-h-[100dvh] w-full bg-background overflow-hidden relative flex items-center justify-center">
                 <DoodleBackground numElements={10} />
@@ -56,10 +64,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
                         You don't have permission to access this page.
                     </p>
                     <button
-                        onClick={() => window.history.back()}
+                        onClick={() => window.location.assign('/projects')}
                         className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
                     >
-                        Go Back
+                        Go to projects
                     </button>
                 </div>
             </div>

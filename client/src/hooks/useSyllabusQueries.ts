@@ -20,6 +20,7 @@ import type {
   ProgressLogsResponse,
   MessageResponse,
 } from "@/types/api";
+import type { CurriculumAssessmentCycle } from "@/types/api";
 
 // ============================================
 // SYLLABUS QUERIES
@@ -29,7 +30,8 @@ export const useSyllabi = (filters?: {
   projectId?: string;
   centerId?: string;
   semesterId?: string;
-  level?: string;
+  semesterLevelId?: string;
+  enabled?: boolean;
   isActive?: boolean;
 }) => {
   return useQuery({
@@ -39,22 +41,30 @@ export const useSyllabi = (filters?: {
       if (filters?.projectId) params.append("projectId", filters.projectId);
       if (filters?.centerId) params.append("centerId", filters.centerId);
       if (filters?.semesterId) params.append("semesterId", filters.semesterId);
-      if (filters?.level) params.append("level", filters.level);
+      if (filters?.semesterLevelId)
+        params.append("semesterLevelId", filters.semesterLevelId);
       if (filters?.isActive !== undefined)
         params.append("isActive", String(filters.isActive));
 
       const response = await api.get<SyllabiResponse>(
-        `/syllabus?${params.toString()}`
+        `/syllabus?${params.toString()}`,
       );
       return response.data;
     },
+    enabled:
+      filters?.enabled ??
+      Boolean(filters?.projectId && filters?.centerId && filters?.semesterId),
     staleTime: 2 * 60 * 1000,
   });
 };
 
 export const useSyllabus = (
   id: string,
-  options?: { includeTopics?: boolean; includeStats?: boolean }
+  options?: {
+    includeTopics?: boolean;
+    includeStats?: boolean;
+    enabled?: boolean;
+  },
 ) => {
   return useQuery({
     queryKey: [...queryKeys.syllabus(id), options],
@@ -66,11 +76,11 @@ export const useSyllabus = (
         params.append("includeStats", String(options.includeStats));
 
       const response = await api.get<SyllabusResponse>(
-        `/syllabus/${id}?${params.toString()}`
+        `/syllabus/${id}?${params.toString()}`,
       );
       return response.data;
     },
-    enabled: !!id,
+    enabled: options?.enabled ?? !!id,
   });
 };
 
@@ -125,7 +135,7 @@ export const useDeleteSyllabus = () => {
       hard?: boolean;
     }): Promise<void> => {
       await api.delete<MessageResponse>(
-        `/syllabus/${id}${hard ? "?hard=true" : ""}`
+        `/syllabus/${id}${hard ? "?hard=true" : ""}`,
       );
     },
     onSuccess: () => {
@@ -138,38 +148,50 @@ export const useDeleteSyllabus = () => {
 // TOPIC QUERIES
 // ============================================
 
-export const useSyllabusTopics = (filters?: {
+type SyllabusTopicFilters = {
   syllabusId?: string;
   parentId?: string | null;
-  cycle?: string;
+  cycle?: CurriculumAssessmentCycle;
   status?: string;
   includeSubtopics?: boolean;
-}) => {
+  enabled?: boolean;
+};
+
+export const buildSyllabusTopicSearchParams = (
+  filters?: SyllabusTopicFilters,
+) => {
+  const params = new URLSearchParams();
+  if (filters?.syllabusId) params.append("syllabusId", filters.syllabusId);
+  if (typeof filters?.parentId === "string" && filters.parentId.length > 0) {
+    params.append("parentId", filters.parentId);
+  }
+  if (filters?.cycle) params.append("cycle", filters.cycle);
+  if (filters?.status) params.append("status", filters.status);
+  if (filters?.includeSubtopics) {
+    params.append("includeSubtopics", String(filters.includeSubtopics));
+  }
+  return params;
+};
+
+export const useSyllabusTopics = (filters?: SyllabusTopicFilters) => {
   return useQuery({
     queryKey: [...queryKeys.syllabusTopics, filters],
     queryFn: async (): Promise<SyllabusTopic[]> => {
-      const params = new URLSearchParams();
-      if (filters?.syllabusId) params.append("syllabusId", filters.syllabusId);
-      if (filters?.parentId !== undefined)
-        params.append("parentId", filters.parentId || "");
-      if (filters?.cycle) params.append("cycle", filters.cycle);
-      if (filters?.status) params.append("status", filters.status);
-      if (filters?.includeSubtopics)
-        params.append("includeSubtopics", String(filters.includeSubtopics));
+      const params = buildSyllabusTopicSearchParams(filters);
 
       const response = await api.get<SyllabusTopicsResponse>(
-        `/syllabus/topics?${params.toString()}`
+        `/syllabus/topics?${params.toString()}`,
       );
       return response.data;
     },
-    enabled: !!filters?.syllabusId,
+    enabled: filters?.enabled ?? !!filters?.syllabusId,
     staleTime: 1 * 60 * 1000,
   });
 };
 
 export const useSyllabusTopic = (
   id: string,
-  includeSubtopics: boolean = false
+  includeSubtopics: boolean = false,
 ) => {
   return useQuery({
     queryKey: [...queryKeys.syllabusTopic(id), { includeSubtopics }],
@@ -179,7 +201,7 @@ export const useSyllabusTopic = (
         params.append("includeSubtopics", String(includeSubtopics));
 
       const response = await api.get<SyllabusTopicResponse>(
-        `/syllabus/topics/${id}?${params.toString()}`
+        `/syllabus/topics/${id}?${params.toString()}`,
       );
       return response.data;
     },
@@ -196,11 +218,11 @@ export const useCreateSyllabusTopic = () => {
 
   return useMutation({
     mutationFn: async (
-      data: CreateSyllabusTopicRequest
+      data: CreateSyllabusTopicRequest,
     ): Promise<SyllabusTopic> => {
       const response = await api.post<SyllabusTopicResponse>(
         "/syllabus/topics",
-        data
+        data,
       );
       return response.data;
     },
@@ -218,11 +240,11 @@ export const useBulkCreateTopics = () => {
 
   return useMutation({
     mutationFn: async (
-      data: BulkCreateTopicsRequest
+      data: BulkCreateTopicsRequest,
     ): Promise<SyllabusTopic[]> => {
       const response = await api.post<SyllabusTopicsResponse>(
         "/syllabus/topics/bulk",
-        data
+        data,
       );
       return response.data;
     },
@@ -250,7 +272,7 @@ export const useUpdateSyllabusTopic = () => {
     }): Promise<SyllabusTopic> => {
       const response = await api.put<SyllabusTopicResponse>(
         `/syllabus/topics/${id}`,
-        data
+        data,
       );
       return response.data;
     },
@@ -277,7 +299,7 @@ export const useUpdateTopicStatus = () => {
     }): Promise<SyllabusTopic> => {
       const response = await api.patch<SyllabusTopicResponse>(
         `/syllabus/topics/${id}/status`,
-        data
+        data,
       );
       return response.data;
     },
@@ -316,6 +338,7 @@ export const useSyllabusStatistics = (filters?: {
   centerId?: string;
   semesterId?: string;
   level?: string;
+  enabled?: boolean;
 }) => {
   return useQuery({
     queryKey: [...queryKeys.syllabusStatistics, filters],
@@ -328,10 +351,11 @@ export const useSyllabusStatistics = (filters?: {
       if (filters?.level) params.append("level", filters.level);
 
       const response = await api.get<SyllabusStatisticsResponse>(
-        `/syllabus/statistics?${params.toString()}`
+        `/syllabus/statistics?${params.toString()}`,
       );
       return response.data;
     },
+    enabled: filters?.enabled ?? true,
     staleTime: 1 * 60 * 1000,
   });
 };
@@ -354,7 +378,7 @@ export const useProgressLogs = (filters?: {
       if (filters?.updatedBy) params.append("updatedBy", filters.updatedBy);
 
       const response = await api.get<ProgressLogsResponse>(
-        `/syllabus/progress-logs?${params.toString()}`
+        `/syllabus/progress-logs?${params.toString()}`,
       );
       return response.data;
     },

@@ -1,73 +1,61 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, RefreshCw } from 'lucide-react';
+import toast from 'react-hot-toast';
+
+import { ProjectFormLayout } from '@/components/projects/ProjectFormLayout';
+import { ConfirmationModal } from '@/components/ui/confirmation-modal';
+import { useDeleteProject, useProject, useUpdateProject } from '@/hooks/useProjectQueries';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/lib/button-variants';
-import { useNavigate, useParams } from 'react-router-dom';
-import { Trash2 } from 'lucide-react';
-import toast from 'react-hot-toast';
-import DoodleBackground from '@/components/DoodleBackground';
-import LoadingButterfly from '@/components/LoadingButterfly';
-import { CustomButton } from '@/components/ui/button';
-import { ConfirmationModal } from '@/components/ui/confirmation-modal';
-import ImageUpload from '@/components/ui/image-upload';
-import { useProject, useUpdateProject, useDeleteProject } from '@/hooks/useProjectQueries';
-import { useAuth } from '@/hooks/useAuth';
 import type { UpdateProjectRequest } from '@/types/api';
 
 const EditProject = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { isAdmin } = useAuth();
-
-    // Form state
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [status, setStatus] = useState<'ACTIVE' | 'INACTIVE'>('ACTIVE');
-    const [projectType, setProjectType] = useState('Educational Project');
     const [imageUrl, setImageUrl] = useState('');
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-    // API hooks
-    const { data: project, isLoading: isProjectLoading, error: projectError } = useProject(id!);
+    const { data: project, isLoading, error, refetch } = useProject(id || '');
     const updateProjectMutation = useUpdateProject();
     const deleteProjectMutation = useDeleteProject();
 
-    // Check if user is admin - redirect if not
     useEffect(() => {
-        if (!isAdmin()) {
-            navigate('/projects');
-        }
-    }, [isAdmin, navigate]);
-
-    // Load project data into form when available
-    useEffect(() => {
-        if (project) {
-            setName(project.name);
-            setDescription(project.description);
-            setStatus(project.status || 'ACTIVE');
-            setProjectType('Educational Project'); // Always set to Educational Project
-            setImageUrl(project.imageUrl || '');
-        }
+        if (!project) return;
+        setName(project.name);
+        setDescription(project.description);
+        setStatus(project.status || 'ACTIVE');
+        setImageUrl(project.imageUrl || '');
     }, [project]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
         if (!id) return;
 
-        try {
-            const updateData: UpdateProjectRequest = {
-                name,
-                description,
-                status,
-                projectType: 'Educational Project',
-                imageUrl: imageUrl || undefined,
-            };
+        const trimmedName = name.trim();
+        const trimmedDescription = description.trim();
+        if (!trimmedName || !trimmedDescription) {
+            toast.error('Enter a project name and description.');
+            return;
+        }
 
+        const updateData: UpdateProjectRequest = {
+            name: trimmedName,
+            description: trimmedDescription,
+            status,
+            projectType: 'Educational Project',
+            imageUrl: imageUrl || null,
+        };
+
+        try {
             await updateProjectMutation.mutateAsync({ id, data: updateData });
-            toast.success('Project updated successfully!');
+            toast.success('Project changes saved.');
             navigate('/projects');
-        } catch (error) {
-            console.error('Failed to update project:', error);
-            toast.error('Failed to update project. Please try again.');
+        } catch {
+            toast.error('Unable to save project changes. Try again.');
         }
     };
 
@@ -76,153 +64,92 @@ const EditProject = () => {
 
         try {
             await deleteProjectMutation.mutateAsync(id);
-            toast.success('Project deleted successfully!');
+            toast.success('Project deleted.');
             navigate('/projects');
-        } catch (error) {
-            console.error('Failed to delete project:', error);
-            toast.error('Failed to delete project. Please try again.');
+        } catch {
+            toast.error('Unable to delete this project. Remove dependent records first and try again.');
         }
     };
 
-    // Show loading state
-    if (isProjectLoading) {
+    if (isLoading) {
         return (
-            <>
-                <DoodleBackground numElements={8} />
-                <div className="flex flex-col items-center justify-center min-h-[400px] relative z-1">
-                    <LoadingButterfly size="md" />
+            <div className="mx-auto w-full max-w-6xl animate-pulse py-4 motion-reduce:animate-none" aria-live="polite" aria-busy="true">
+                <div className="mb-7 h-11 w-36 rounded-md bg-muted" />
+                <div className="mb-8 space-y-3 border-b border-border pb-6">
+                    <div className="h-9 w-56 rounded-md bg-muted" />
+                    <div className="h-5 w-96 max-w-full rounded bg-muted" />
                 </div>
-            </>
+                <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
+                    <div className="h-[34rem] rounded-lg border border-border bg-card" />
+                    <div className="space-y-5">
+                        <div className="h-48 rounded-lg border border-border bg-card" />
+                        <div className="h-72 rounded-lg border border-border bg-card" />
+                    </div>
+                </div>
+                <span className="sr-only">Loading project</span>
+            </div>
         );
     }
 
-    // Show error state or project not found
-    if (projectError || !project) {
+    if (error || !project) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] w-full relative">
-                <DoodleBackground numElements={6} />
-                <div className="text-center relative z-10">
-                    <h1 className="text-2xl font-bold mb-2">Project Not Found</h1>
-                    <p className="text-muted-foreground mb-4">
-                        {projectError?.message || "The project you're looking for doesn't exist."}
+            <div className="mx-auto flex min-h-[55dvh] w-full max-w-2xl items-center justify-center px-4" aria-live="polite">
+                <div className="w-full rounded-lg border border-border bg-card p-6 text-center shadow-sm sm:p-8">
+                    <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+                        <RefreshCw className="h-5 w-5" aria-hidden="true" />
+                    </div>
+                    <h1 className="text-2xl font-semibold text-foreground">Project could not be loaded</h1>
+                    <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+                        The project may no longer exist, or the request could not be completed.
                     </p>
+                    <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+                        <Link to="/projects" className={cn(buttonVariants({ variant: 'outline' }), 'min-h-11 gap-2')}>
+                            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                            Back to projects
+                        </Link>
+                        <button type="button" onClick={() => refetch()} className={cn(buttonVariants(), 'min-h-11 gap-2')}>
+                            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                            Try again
+                        </button>
+                    </div>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] w-full relative">
-            <DoodleBackground numElements={8} />
-
-            {/* Delete Confirmation Modal */}
+        <>
             <ConfirmationModal
                 isOpen={showDeleteConfirm}
                 onClose={() => setShowDeleteConfirm(false)}
                 onConfirm={handleDelete}
-                title="Delete Project"
-                message={`Are you sure you want to delete "${project.name}"? This action cannot be undone & will delete all associated centers and semesters.`}
-                confirmText="Delete Project"
+                title="Delete project"
+                message={`Delete "${project.name}"? This cannot be undone and will remove its centers and semesters when no protected enrollment history remains.`}
+                confirmText="Delete project"
                 cancelText="Cancel"
                 isLoading={deleteProjectMutation.isPending}
-                loadingMessage="Deleting..."
+                loadingMessage="Deleting project..."
                 variant="danger"
             />
 
-            <div className="w-full max-w-lg bg-white/80 rounded-lg border shadow-md p-6 relative z-10">
-                <div className="flex items-center justify-between mb-2">
-                    <h1 className="text-2xl font-bold">Edit Project</h1>
-                    <button
-                        onClick={() => setShowDeleteConfirm(true)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                        title="Delete Project"
-                    >
-                        <Trash2 className="h-5 w-5" />
-                    </button>
-                </div>
-                <p className="text-muted-foreground mb-6 text-sm">Update the project details below.</p>
-
-                <form onSubmit={handleSubmit} className="space-y-5">
-                    <div>
-                        <label htmlFor="name" className="block text-sm font-medium mb-1">Project Name</label>
-                        <input
-                            id="name"
-                            type="text"
-                            value={name}
-                            onChange={e => setName(e.target.value)}
-                            required
-                            className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                            placeholder="Enter project name"
-                        />
-                    </div>
-
-                    <div>
-                        <label htmlFor="description" className="block text-sm font-medium mb-1">Description</label>
-                        <textarea
-                            id="description"
-                            value={description}
-                            onChange={e => setDescription(e.target.value)}
-                            required
-                            className="w-full min-h-[200px] rounded-md border border-input bg-background px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                            placeholder="Describe the project"
-                        />
-                    </div>
-
-                    <div>
-                        <label htmlFor="status" className="block text-sm font-medium mb-1">Status</label>
-                        <select
-                            id="status"
-                            value={status}
-                            onChange={e => setStatus(e.target.value as 'ACTIVE' | 'INACTIVE')}
-                            className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                        >
-                            <option value="ACTIVE">Active</option>
-                            <option value="INACTIVE">Inactive</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label htmlFor="type" className="block text-sm font-medium mb-1">Project Type</label>
-                        <select
-                            id="type"
-                            value={projectType}
-                            onChange={e => setProjectType(e.target.value)}
-                            disabled
-                            className="w-full h-10 rounded-md border border-input bg-gray-50 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-not-allowed opacity-60"
-                        >
-                            <option value="Educational Project">Educational Project</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <ImageUpload
-                            label="Project Image"
-                            value={imageUrl}
-                            onChange={setImageUrl}
-                            placeholder="Click to upload project banner image"
-                        />
-                    </div>
-
-                    <div className="flex gap-2 justify-end">
-                        <button
-                            type="button"
-                            onClick={() => navigate('/projects')}
-                            className={cn(buttonVariants({ variant: 'outline' }), 'min-w-[100px]')}
-                        >
-                            Cancel
-                        </button>
-                        <CustomButton
-                            type="submit"
-                            isLoading={updateProjectMutation.isPending}
-                            loadingMessage="Updating..."
-                            className="bg-orange-600 hover:bg-orange-700 text-white min-w-[120px]"
-                        >
-                            Update Project
-                        </CustomButton>
-                    </div>
-                </form>
-            </div>
-        </div>
+            <ProjectFormLayout
+                mode="edit"
+                name={name}
+                description={description}
+                status={status}
+                imageUrl={imageUrl}
+                isPending={updateProjectMutation.isPending}
+                onNameChange={setName}
+                onDescriptionChange={setDescription}
+                onStatusChange={setStatus}
+                onImageChange={setImageUrl}
+                onImageRemove={() => setImageUrl('')}
+                onSubmit={handleSubmit}
+                onCancel={() => navigate('/projects')}
+                onDelete={() => setShowDeleteConfirm(true)}
+                isDeletePending={deleteProjectMutation.isPending}
+            />
+        </>
     );
 };
 

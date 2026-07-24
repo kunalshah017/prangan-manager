@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-client";
+import {
+  establishAuthenticatedSession,
+  shouldFetchCurrentUser,
+} from "@/lib/session";
+import { useAuthStore } from "@/stores/authStore";
 import type {
   LoginRequest,
   LoginResponse,
@@ -19,16 +24,15 @@ export const useLogin = () => {
       return api.post<LoginResponse>("/users/login", credentials);
     },
     onSuccess: (data) => {
-      // Store the token
-      localStorage.setItem("prangan_auth_token", data.token);
-
-      // Invalidate and refetch current user - this will trigger auth store sync
-      queryClient.invalidateQueries({ queryKey: queryKeys.currentUser });
+      establishAuthenticatedSession({
+        user: data.user,
+        storage: localStorage,
+        queryClient,
+        setAuth: useAuthStore.getState().setAuth,
+      });
     },
     onError: () => {
-      // Clear any existing auth data on error
-      localStorage.removeItem("prangan_auth_token");
-      localStorage.removeItem("prangan_user");
+      useAuthStore.getState().clearAuth();
     },
   });
 };
@@ -36,37 +40,37 @@ export const useLogin = () => {
 export const useRegister = () => {
   return useMutation({
     mutationFn: async (
-      userData: RegisterRequest
+      userData: RegisterRequest,
     ): Promise<RegisterResponse> => {
       return api.post<RegisterResponse>("/users/register", userData);
     },
   });
 };
 
-export const useCurrentUser = () => {
+export const useCurrentUser = (probeSession: boolean) => {
+  const { hasProbedSession, hasSessionHint } = useAuthStore();
+
   return useQuery({
     queryKey: queryKeys.currentUser,
     queryFn: async (): Promise<User> => {
       const response = await api.get<UserDetailsResponse>("/users/me");
       return response.user;
     },
-    enabled: !!localStorage.getItem("prangan_auth_token"), // Only fetch if token exists
+    enabled: shouldFetchCurrentUser(
+      probeSession,
+      hasSessionHint,
+      hasProbedSession,
+    ),
     retry: false, // Don't retry auth requests
     staleTime: 5 * 60 * 1000, // User data stays fresh for 5 minutes
   });
 };
 
 export const useLogout = () => {
-  const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async () => {
-      // Clear local storage
-      localStorage.removeItem("prangan_auth_token");
-      localStorage.removeItem("prangan_user");
-
-      // Clear all queries from cache
-      queryClient.clear();
+      await api.post("/users/logout");
+      useAuthStore.getState().clearAuth();
     },
   });
 };
@@ -88,6 +92,37 @@ export const useUpdateBankDetails = () => {
     onSuccess: () => {
       // Refresh current user so UI picks up new fields
       queryClient.invalidateQueries({ queryKey: queryKeys.currentUser });
+    },
+  });
+};
+
+export const useUpdateMyProfile = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      firstName?: string;
+      middleName?: string | null;
+      lastName?: string | null;
+      email?: string;
+      phone?: string;
+      qualification?: string;
+      address?: string;
+      dob?: string | null;
+      profileImageUrl?: string | null;
+    }): Promise<{ message: string; user: User }> => {
+      const user = useAuthStore.getState().user;
+      if (!user)
+        throw new Error("You must be signed in to update your profile.");
+
+      return api.put<{ message: string; user: User }>(
+        `/users/${user.id}`,
+        data,
+      );
+    },
+    onSuccess: (response) => {
+      queryClient.setQueryData(queryKeys.currentUser, response.user);
+      useAuthStore.getState().setUser(response.user);
     },
   });
 };

@@ -1,410 +1,132 @@
-import { useState, useMemo } from 'react';
-import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
-import { Search, Users as UsersIcon, UserCheck, Crown, User as UserIcon, MapPin, Calendar, GraduationCap, Edit, Eye } from 'lucide-react';
-import { useUsers } from '@/hooks/useUserQueries';
-import { useProjects } from '@/hooks/useProjectQueries';
-import { useCenters } from '@/hooks/useCenterQueries';
-import { useSemesters } from '@/hooks/useSemesterQueries';
-import LoadingButterfly from '@/components/LoadingButterfly';
-import { ProfilePicture } from '@/components/ui';
-import type { User } from '@/types/api';
+import { useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+  CheckCircle2,
+  Eye,
+  FileCheck2,
+  Filter,
+  Pencil,
+  Search,
+  ShieldCheck,
+  UsersRound,
+  UserX,
+  XCircle,
+} from "lucide-react";
+import toast from "react-hot-toast";
+
+import LoadingButterfly from "@/components/LoadingButterfly";
+import UserApprovalModal from "@/components/ui/user-approval-modal";
+import { ConfirmationModal, ProfilePicture } from "@/components/ui";
+import { WorkspacePage, WorkspacePageHeader } from "@/components/workspace/WorkspacePage";
+import { useCenters } from "@/hooks/useCenterQueries";
+import { useSemesters } from "@/hooks/useSemesterQueries";
+import { useRegistrationRequests, useRevokeUserAccess, useUsers, useVerifyUser } from "@/hooks/useUserQueries";
+import { levelName } from "@/lib/levels";
+import { cn } from "@/lib/utils";
+import type { RoleAssignment, User } from "@/types/api";
+
+type WorkspaceView = "people" | "requests";
+
+const isActiveAssignment = (assignment: NonNullable<User["roleAssignments"]>[number]) => assignment.isActive;
+
+const UserStatus = ({ status, role }: { status: User["status"]; role?: User["role"] }) => (
+  <div className="flex flex-wrap gap-2">
+    <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold", status === "APPROVED" ? "bg-success/15 text-success" : "bg-warning/15 text-warning-foreground")}>
+      {status === "APPROVED" ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> : <FileCheck2 className="h-3.5 w-3.5" aria-hidden="true" />}
+      {status === "APPROVED" ? "Active" : "Pending"}
+    </span>
+    {role && <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">{role === "ADMIN" ? "Administrator" : "Volunteer"}</span>}
+  </div>
+);
+
+const AssignmentSummary = ({ user }: { user: User }) => {
+  const assignments = user.roleAssignments?.filter(isActiveAssignment) ?? [];
+  if (!assignments.length) return <p className="text-sm text-muted-foreground">No active assignments</p>;
+
+  return <div className="flex flex-wrap gap-2">{assignments.slice(0, 3).map((assignment) => <span key={assignment.id} className="rounded-md bg-muted px-2 py-1 text-xs font-medium text-foreground">{assignment.subRole.replaceAll("_", " ")}{assignment.subRole === "EDUCATOR" && (assignment.semesterLevel || assignment.level) ? ` · ${levelName(assignment.semesterLevel, assignment.level)}` : ""}</span>)}{assignments.length > 3 && <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">+{assignments.length - 3} more</span>}</div>;
+};
 
 const Users = () => {
-    const navigate = useNavigate();
-    const { data: users, isLoading, error } = useUsers();
-    const { data: projects = [] } = useProjects();
-    const { data: centers = [] } = useCenters();
-    const { data: semesters = [] } = useSemesters();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view: WorkspaceView = searchParams.get("view") === "requests" ? "requests" : "people";
+  const { data: users = [], isLoading: usersLoading, error: usersError, refetch: refetchUsers } = useUsers();
+  const { data: requests = [], isLoading: requestsLoading, error: requestsError, refetch: refetchRequests } = useRegistrationRequests();
+  const { data: centers = [] } = useCenters();
+  const { data: semesters = [] } = useSemesters();
+  const verifyUser = useVerifyUser();
+  const revokeUserAccess = useRevokeUserAccess();
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"ALL" | User["role"]>("ALL");
+  const [centerFilter, setCenterFilter] = useState("ALL");
+  const [semesterFilter, setSemesterFilter] = useState("ALL");
+  const [selectedRequest, setSelectedRequest] = useState<User | null>(null);
+  const [userToRevoke, setUserToRevoke] = useState<User | null>(null);
 
-    const [searchQuery, setSearchQuery] = useState<string>('');
-    const [roleFilter, setRoleFilter] = useState<string>('ALL');
-    const [centerFilter, setCenterFilter] = useState<string>('ALL');
-    const [semesterFilter, setSemesterFilter] = useState<string>('ALL');
+  const approvedUsers = useMemo(() => users.filter((user) => user.status === "APPROVED"), [users]);
+  const filteredPeople = useMemo(() => approvedUsers.filter((user) => {
+    const query = search.trim().toLowerCase();
+    const matchesSearch = !query || user.name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query);
+    const matchesRole = roleFilter === "ALL" || user.role === roleFilter;
+    const assignments = user.roleAssignments?.filter(isActiveAssignment) ?? [];
+    return matchesSearch && matchesRole && (centerFilter === "ALL" || assignments.some((assignment) => assignment.centerId === centerFilter)) && (semesterFilter === "ALL" || assignments.some((assignment) => assignment.semesterId === semesterFilter));
+  }).sort((first, second) => first.name.localeCompare(second.name)), [approvedUsers, centerFilter, roleFilter, search, semesterFilter]);
+  const filteredRequests = useMemo(() => requests.filter((request) => {
+    const query = search.trim().toLowerCase();
+    return !query || request.name.toLowerCase().includes(query) || request.email.toLowerCase().includes(query) || request.phone?.toLowerCase().includes(query);
+  }).sort((first, second) => new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime()), [requests, search]);
 
-    // Define role order for sorting (Admin first, then User)
-    const roleOrder = ['ADMIN', 'USER'];
-
-    // Create lookup maps for quick access
-    const projectsMap = useMemo(() => {
-        return new Map(projects.map(p => [p.id, p]));
-    }, [projects]);
-
-    const centersMap = useMemo(() => {
-        return new Map(centers.map(c => [c.id, c]));
-    }, [centers]);
-
-    const semestersMap = useMemo(() => {
-        return new Map(semesters.map(s => [s.id, s]));
-    }, [semesters]);
-
-    // Filter and sort users (only show approved users)
-    const filteredUsers = users?.filter(user => {
-        // Only show approved users
-        if (user.status !== 'APPROVED') return false;
-
-        const matchesSearch = user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            user.email.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesRole = roleFilter === 'ALL' || user.role === roleFilter;
-
-        // Filter by center assignment
-        const matchesCenter = centerFilter === 'ALL' ||
-            user.roleAssignments?.some(assignment =>
-                assignment.isActive && assignment.centerId === centerFilter
-            );
-
-        // Filter by semester assignment
-        const matchesSemester = semesterFilter === 'ALL' ||
-            user.roleAssignments?.some(assignment =>
-                assignment.isActive && assignment.semesterId === semesterFilter
-            );
-
-        return matchesSearch && matchesRole && matchesCenter && matchesSemester;
-    }).sort((a, b) => {
-        // First sort by role (Admin first)
-        const aRoleIndex = roleOrder.indexOf(a.role);
-        const bRoleIndex = roleOrder.indexOf(b.role);
-        if (aRoleIndex !== bRoleIndex) {
-            return aRoleIndex - bRoleIndex;
-        }
-
-        // Then sort by name alphabetically
-        return a.name.localeCompare(b.name);
-    }) || [];
-
-    const getStatusBadge = () => {
-        // Since we only show approved users, we can simplify this
-        return (
-            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border bg-green-100 text-green-800 border-green-200">
-                <UserCheck className="w-3 h-3 mr-1" />
-                APPROVED
-            </span>
-        );
-    };
-
-    const getRoleBadge = (role: string) => {
-        return (
-            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${role === 'ADMIN'
-                ? 'bg-purple-100 text-purple-800 border-purple-200'
-                : 'bg-blue-100 text-blue-800 border-blue-200'
-                }`}>
-                {role === 'ADMIN' && <Crown className="w-3 h-3 mr-1" />}
-                {role === 'USER' && <UserIcon className="w-3 h-3 mr-1" />}
-                {role}
-            </span>
-        );
-    };
-
-    const formatRoleAssignments = (roleAssignments?: User['roleAssignments']) => {
-        if (!roleAssignments || roleAssignments.length === 0) {
-            return <span className="text-gray-500 text-xs sm:text-sm">No assignments</span>;
-        }
-
-        const activeAssignments = roleAssignments.filter(assignment => assignment.isActive);
-
-        if (activeAssignments.length === 0) {
-            return <span className="text-gray-500 text-xs sm:text-sm">No active assignments</span>;
-        }
-
-        return (
-            <div className="space-y-2">
-                {activeAssignments.slice(0, 2).map((assignment) => {
-                    const project = assignment.projectId ? projectsMap.get(assignment.projectId) : null;
-                    const center = assignment.centerId ? centersMap.get(assignment.centerId) : null;
-                    const semester = assignment.semesterId ? semestersMap.get(assignment.semesterId) : null;
-
-                    return (
-                        <div key={assignment.id} className="text-xs sm:text-sm text-gray-600 p-2 bg-orange-50 rounded-md border border-orange-100">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 mb-1">
-                                <span className="font-medium text-gray-800">{assignment.subRole.replace(/_/g, ' ')}</span>
-                                {/* Only show level for EDUCATOR role */}
-                                {assignment.subRole === 'EDUCATOR' && assignment.level && (
-                                    <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-medium self-start sm:self-auto">
-                                        {assignment.level.replace(/_/g, ' ')}
-                                    </span>
-                                )}
-                            </div>
-
-                            {/* Show project, center, and semester information */}
-                            <div className="space-y-1 text-xs text-gray-600">
-                                {project && (
-                                    <div className="flex items-center">
-                                        <span className="text-gray-500 mr-1">📁</span>
-                                        <span>{project.name}</span>
-                                    </div>
-                                )}
-                                {center && (
-                                    <div className="flex items-center">
-                                        <span className="text-gray-500 mr-1">📍</span>
-                                        <span>{center.name}</span>
-                                    </div>
-                                )}
-                                {semester && (
-                                    <div className="flex items-center">
-                                        <span className="text-gray-500 mr-1">📅</span>
-                                        <span>{semester.name}</span>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Only show committed days for CENTER_MANAGER and EDUCATOR roles */}
-                            {(assignment.subRole === 'CENTER_MANAGER' || assignment.subRole === 'EDUCATOR') && assignment.committedDays && (
-                                <div className="flex items-center mt-1 text-xs text-gray-600">
-                                    <Calendar className="w-3 h-3 mr-1" />
-                                    <span>{assignment.committedDays}</span>
-                                </div>
-                            )}
-                        </div>
-                    );
-                })}
-                {activeAssignments.length > 2 && (
-                    <div className="text-xs text-gray-500 mt-1 font-medium">
-                        +{activeAssignments.length - 2} more assignment{activeAssignments.length - 2 > 1 ? 's' : ''}
-                    </div>
-                )}
-            </div>
-        );
-    }; if (isLoading) {
-        return (
-            <div className="flex justify-center items-center min-h-[400px]">
-                <LoadingButterfly size="md" />
-            </div>
-        );
+  const isLoading = usersLoading || requestsLoading;
+  const error = usersError || requestsError;
+  const visibleUsers = view === "people" ? filteredPeople : filteredRequests;
+  const hasFilters = !!search || roleFilter !== "ALL" || centerFilter !== "ALL" || semesterFilter !== "ALL";
+  const setView = (nextView: WorkspaceView) => setSearchParams(nextView === "requests" ? { view: "requests" } : {});
+  const clearFilters = () => { setSearch(""); setRoleFilter("ALL"); setCenterFilter("ALL"); setSemesterFilter("ALL"); };
+  const handleApprove = async (user: User, selectedRole: "USER" | "ADMIN", roleAssignments?: RoleAssignment[]) => {
+    try {
+      await verifyUser.mutateAsync({ userId: user.id, status: "APPROVED", role: selectedRole, roleAssignments });
+      toast.success(`${user.name} is now active.`);
+    } catch { toast.error("Unable to approve this request. Try again."); throw new Error("Approval failed"); }
+  };
+  const handleRevokeAccess = async () => {
+    if (!userToRevoke) return;
+    try {
+      await revokeUserAccess.mutateAsync(userToRevoke.id);
+      toast.success(`${userToRevoke.name}'s portal access was revoked.`);
+      setUserToRevoke(null);
+    } catch {
+      toast.error("Unable to revoke access. Try again.");
     }
+  };
+  const handleReject = async (user: User, rejectionReason: string) => {
+    try {
+      await verifyUser.mutateAsync({ userId: user.id, status: "REJECTED", role: user.role || "USER", rejectionReason });
+      toast.success(`${user.name}'s request was rejected.`);
+    } catch { toast.error("Unable to reject this request. Try again."); throw new Error("Rejection failed"); }
+  };
 
-    if (error) {
-        return (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-700">Failed to load users. Please try again.</p>
-            </div>
-        );
-    }
+  if (isLoading) return <WorkspacePage><div className="flex min-h-[55dvh] items-center justify-center" aria-busy="true"><LoadingButterfly size="md" /></div></WorkspacePage>;
+  if (error) return <WorkspacePage><div className="mx-auto flex min-h-[55dvh] max-w-lg items-center justify-center"><section className="w-full rounded-lg border border-destructive/30 bg-card p-6 text-center" role="alert"><XCircle className="mx-auto h-8 w-8 text-destructive" /><h1 className="mt-3 text-xl font-semibold">People could not be loaded</h1><p className="mt-2 text-sm text-muted-foreground">Check your connection, then try again.</p><button type="button" onClick={() => void Promise.all([refetchUsers(), refetchRequests()])} className="mt-5 min-h-11 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground">Try again</button></section></div></WorkspacePage>;
 
-    return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-semibold text-gray-900">Users</h1>
-                    <p className="text-gray-600">Manage system users and their assignments</p>
-                </div>
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
-                    <UsersIcon className="w-4 h-4" />
-                    <span>{filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''}</span>
-                </div>
-            </div>
-
-            {/* Filters */}
-            <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
-                {/* Search Bar */}
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <input
-                        type="text"
-                        placeholder="Search users by name or email..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors text-base sm:text-sm"
-                    />
-                </div>
-
-                {/* Filter Controls */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                    <div className="flex flex-col space-y-2">
-                        <label className="text-sm font-medium text-gray-700">Role:</label>
-                        <select
-                            value={roleFilter}
-                            onChange={(e) => setRoleFilter(e.target.value)}
-                            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                        >
-                            <option value="ALL">All Roles</option>
-                            <option value="ADMIN">Admin</option>
-                            <option value="USER">User</option>
-                        </select>
-                    </div>
-
-                    <div className="flex flex-col space-y-2">
-                        <label className="text-sm font-medium text-gray-700">Center:</label>
-                        <select
-                            value={centerFilter}
-                            onChange={(e) => setCenterFilter(e.target.value)}
-                            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                        >
-                            <option value="ALL">All Centers</option>
-                            {/* Center options will be populated dynamically */}
-                        </select>
-                    </div>
-
-                    <div className="flex flex-col space-y-2">
-                        <label className="text-sm font-medium text-gray-700">Semester:</label>
-                        <select
-                            value={semesterFilter}
-                            onChange={(e) => setSemesterFilter(e.target.value)}
-                            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                        >
-                            <option value="ALL">All Semesters</option>
-                            {/* Semester options will be populated dynamically */}
-                        </select>
-                    </div>
-
-                    <div className="flex flex-col justify-end">
-                        <button
-                            onClick={() => {
-                                setSearchQuery('');
-                                setRoleFilter('ALL');
-                                setCenterFilter('ALL');
-                                setSemesterFilter('ALL');
-                            }}
-                            className="px-4 py-2 text-sm font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded-md hover:bg-orange-100 transition-colors"
-                        >
-                            Clear Filters
-                        </button>
-                    </div>
-                </div>
-
-                {/* Results Info */}
-                {(searchQuery || roleFilter !== 'ALL' || centerFilter !== 'ALL' || semesterFilter !== 'ALL') && (
-                    <div className="text-sm text-gray-600 border-t pt-3">
-                        Showing <span className="font-medium">{filteredUsers.length}</span> user{filteredUsers.length !== 1 ? 's' : ''}
-                        {searchQuery && <span className="block sm:inline"> matching "<span className="font-medium">{searchQuery}</span>"</span>}
-                        {roleFilter !== 'ALL' && <span className="block sm:inline"> with role <span className="font-medium">{roleFilter}</span></span>}
-                        {centerFilter !== 'ALL' && <span className="block sm:inline"> in selected center</span>}
-                        {semesterFilter !== 'ALL' && <span className="block sm:inline"> in selected semester</span>}
-                    </div>
-                )}
-            </div>
-
-            {/* Users Grid */}
-            {filteredUsers.length > 0 ? (
-                <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                    {filteredUsers.map((user, index) => (
-                        <motion.div
-                            key={user.id}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.3, delay: index * 0.05 }}
-                            className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
-                        >
-                            <div className="p-4">
-                                {/* Header with Profile and Status */}
-                                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-3 space-y-3 sm:space-y-0">
-                                    <div className="flex items-center space-x-3 min-w-0 flex-1">
-                                        <ProfilePicture
-                                            imageUrl={user.profileImageUrl}
-                                            name={user.name}
-                                            size="w-12 h-12 sm:w-14 sm:h-14"
-                                            colorScheme="orange"
-                                            className="border-2 border-orange-100 flex-shrink-0"
-                                        />
-                                        <div className="min-w-0 flex-1">
-                                            <h3 className="text-sm sm:text-base font-medium text-gray-900 truncate">
-                                                {user.name}
-                                            </h3>
-                                            <p className="text-xs sm:text-sm text-gray-600 truncate">
-                                                {user.email}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-row sm:flex-col space-x-2 sm:space-x-0 sm:space-y-1 flex-shrink-0">
-                                        {getStatusBadge()}
-                                        {getRoleBadge(user.role)}
-                                    </div>
-                                </div>
-
-                                {/* Contact Info */}
-                                {user.phone && (
-                                    <div className="flex items-center text-xs sm:text-sm text-gray-600 mb-3 p-2 bg-gray-50 rounded-md">
-                                        <span className="font-medium mr-2">Phone:</span>
-                                        <span className="break-all">{user.phone}</span>
-                                    </div>
-                                )}
-
-                                {/* Role Assignments */}
-                                <div className="mb-4">
-                                    <div className="flex items-center mb-2">
-                                        <GraduationCap className="w-4 h-4 mr-1 text-gray-400" />
-                                        <span className="text-xs sm:text-sm font-medium text-gray-700">Assignments:</span>
-                                    </div>
-                                    <div className="pl-5">
-                                        {formatRoleAssignments(user.roleAssignments)}
-                                    </div>
-                                </div>
-
-                                {/* Additional Info */}
-                                <div className="text-xs sm:text-sm text-gray-500 space-y-2 border-t pt-3">
-                                    {user.qualification && (
-                                        <div className="flex flex-col sm:flex-row sm:items-center">
-                                            <span className="font-medium text-gray-700 mb-1 sm:mb-0 sm:mr-2 min-w-0">Qualification:</span>
-                                            <span className="text-gray-900 break-words">{user.qualification}</span>
-                                        </div>
-                                    )}
-                                    {user.address && (
-                                        <div className="flex flex-col sm:flex-row sm:items-start">
-                                            <div className="flex items-center mb-1 sm:mb-0 sm:mr-2 flex-shrink-0">
-                                                <MapPin className="w-3 h-3 mr-1 text-gray-400" />
-                                                <span className="font-medium text-gray-700">Address:</span>
-                                            </div>
-                                            <span className="text-gray-900 break-words leading-relaxed">{user.address}</span>
-                                        </div>
-                                    )}
-                                    <div className="flex flex-col sm:flex-row sm:items-center">
-                                        <span className="font-medium text-gray-700 mb-1 sm:mb-0 sm:mr-2">Joined:</span>
-                                        <span className="text-gray-900">{new Date(user.createdAt).toLocaleDateString()}</span>
-                                    </div>
-                                </div>
-
-                                {/* Action Buttons */}
-                                <div className="border-t pt-3 mt-3 space-y-2">
-                                    <button
-                                        onClick={() => navigate(`/users/${user.id}/details`)}
-                                        className="w-full flex items-center justify-center px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
-                                    >
-                                        <Eye className="w-4 h-4 mr-2" />
-                                        View Details
-                                    </button>
-                                    <button
-                                        onClick={() => navigate(`/users/${user.id}/edit`)}
-                                        className="w-full flex items-center justify-center px-3 py-2 text-sm font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded-md hover:bg-orange-100 transition-colors"
-                                    >
-                                        <Edit className="w-4 h-4 mr-2" />
-                                        Edit User
-                                    </button>
-                                </div>
-                            </div>
-                        </motion.div>
-                    ))}
-                </div>
-            ) : (
-                <div className="text-center py-12">
-                    <UsersIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    {searchQuery || roleFilter !== 'ALL' || centerFilter !== 'ALL' || semesterFilter !== 'ALL' ? (
-                        <>
-                            <h3 className="text-lg font-medium text-gray-900 mb-2">No users found</h3>
-                            <p className="text-gray-600 mb-4">
-                                No approved users match your search criteria. Try adjusting your filters.
-                            </p>
-                            <button
-                                onClick={() => {
-                                    setSearchQuery('');
-                                    setRoleFilter('ALL');
-                                    setCenterFilter('ALL');
-                                    setSemesterFilter('ALL');
-                                }}
-                                className="px-4 py-2 text-sm font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors"
-                            >
-                                Clear Filters
-                            </button>
-                        </>
-                    ) : (
-                        <>
-                            <h3 className="text-lg font-medium text-gray-900 mb-2">No approved users found</h3>
-                            <p className="text-gray-600">No approved users are currently in the system.</p>
-                        </>
-                    )}
-                </div>
-            )}
-        </div>
-    );
+  return <WorkspacePage className="space-y-6">
+    <WorkspacePageHeader title="People" description="Manage active people and review incoming registrations in one place." badge={`${approvedUsers.length} active`} />
+    <nav className="flex gap-2 border-b border-border" aria-label="People views">
+      <button type="button" onClick={() => setView("people")} aria-pressed={view === "people"} className={cn("inline-flex min-h-11 items-center gap-2 border-b-2 px-3 text-sm font-semibold", view === "people" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}><UsersRound className="h-4 w-4" />People <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-foreground">{approvedUsers.length}</span></button>
+      <button type="button" onClick={() => setView("requests")} aria-pressed={view === "requests"} className={cn("inline-flex min-h-11 items-center gap-2 border-b-2 px-3 text-sm font-semibold", view === "requests" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}><FileCheck2 className="h-4 w-4" />Requests <span className={cn("rounded-full px-2 py-0.5 text-xs", requests.length ? "bg-warning/15 text-warning-foreground" : "bg-muted text-foreground")}>{requests.length}</span></button>
+    </nav>
+    <section className="rounded-lg border border-border bg-card p-4 shadow-sm" aria-label="People filters">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <label className="relative block"><span className="sr-only">Search people</span><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={view === "people" ? "Search name or email" : "Search name, email, or phone"} className="min-h-11 w-full rounded-md border border-input bg-background py-2 pl-10 pr-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" /></label>
+        {view === "people" && <div className="grid gap-3 sm:grid-cols-3"><select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value as "ALL" | User["role"])} aria-label="Filter by role" className="min-h-11 rounded-md border border-input bg-background px-3 text-sm"><option value="ALL">All roles</option><option value="ADMIN">Administrators</option><option value="USER">Volunteers</option></select><select value={centerFilter} onChange={(event) => setCenterFilter(event.target.value)} aria-label="Filter by center" className="min-h-11 rounded-md border border-input bg-background px-3 text-sm"><option value="ALL">All centers</option>{centers.map((center) => <option key={center.id} value={center.id}>{center.name}</option>)}</select><select value={semesterFilter} onChange={(event) => setSemesterFilter(event.target.value)} aria-label="Filter by semester" className="min-h-11 rounded-md border border-input bg-background px-3 text-sm"><option value="ALL">All semesters</option>{semesters.map((semester) => <option key={semester.id} value={semester.id}>{semester.name}</option>)}</select></div>}
+      </div>
+      {hasFilters && <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-sm text-muted-foreground"><span>{visibleUsers.length} result{visibleUsers.length === 1 ? "" : "s"}</span><button type="button" onClick={clearFilters} className="min-h-11 px-3 font-semibold text-primary hover:bg-primary/10">Clear filters</button></div>}
+    </section>
+    <section aria-live="polite" aria-label={view === "people" ? "People" : "Registration requests"}>
+      {visibleUsers.length ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{visibleUsers.map((user) => <article key={user.id} className="flex min-w-0 flex-col rounded-lg border border-border bg-card p-5 shadow-sm"><div className="flex items-start gap-3"><ProfilePicture imageUrl={user.profileImageUrl} name={user.name} size="md" colorScheme="orange" className="shrink-0" /><div className="min-w-0 flex-1"><h2 className="truncate text-base font-semibold text-foreground">{user.name}</h2><p className="mt-1 truncate text-sm text-muted-foreground">{user.email}</p></div></div><div className="mt-4"><UserStatus status={user.status} role={view === "people" ? user.role : undefined} /></div>{view === "people" ? <><div className="mt-4 border-t border-border pt-4"><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Assignments</p><AssignmentSummary user={user} /></div><div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={() => navigate(`/users/${user.id}/details`)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-input px-3 text-sm font-semibold text-foreground hover:bg-accent"><Eye className="h-4 w-4" />View</button><button type="button" onClick={() => navigate(`/users/${user.id}/edit`)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90"><Pencil className="h-4 w-4" />Manage</button></div><button type="button" onClick={() => setUserToRevoke(user)} className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold text-destructive hover:bg-destructive/10"><UserX className="h-4 w-4" />Revoke access</button></> : <><dl className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-4 text-sm"><div><dt className="text-xs text-muted-foreground">Phone</dt><dd className="mt-1 break-words text-foreground">{user.phone || "Not provided"}</dd></div><div><dt className="text-xs text-muted-foreground">Submitted</dt><dd className="mt-1 text-foreground">{new Date(user.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</dd></div></dl><button type="button" onClick={() => setSelectedRequest(user)} disabled={verifyUser.isPending} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"><ShieldCheck className="h-4 w-4" />Review application</button></>}</article>)}</div> : <div className="rounded-lg border border-dashed border-border bg-card px-6 py-14 text-center"><Filter className="mx-auto h-10 w-10 text-muted-foreground" /><h2 className="mt-4 text-lg font-semibold text-foreground">{hasFilters ? "No matching results" : view === "people" ? "No active people yet" : "No registration requests"}</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">{hasFilters ? "Try clearing or adjusting the filters." : view === "people" ? "Approved registrations will appear here." : "New applications will appear here for review."}</p>{hasFilters && <button type="button" onClick={clearFilters} className="mt-5 min-h-11 rounded-md border border-input px-4 text-sm font-semibold text-foreground">Clear filters</button>}</div>}
+    </section>
+    {selectedRequest && <UserApprovalModal user={selectedRequest} isOpen onClose={() => setSelectedRequest(null)} onApprove={handleApprove} onReject={handleReject} />}
+    <ConfirmationModal isOpen={!!userToRevoke} onClose={() => setUserToRevoke(null)} onConfirm={() => void handleRevokeAccess()} title="Revoke portal access?" message={`This immediately signs ${userToRevoke?.name ?? "this person"} out, prevents new sign-ins, and removes all active role assignments. Their record and assignment history will be retained.`} confirmText="Revoke access" loadingMessage="Revoking access..." isLoading={revokeUserAccess.isPending} variant="danger" />
+  </WorkspacePage>;
 };
 
 export default Users;

@@ -1,460 +1,300 @@
-import React from 'react';
-import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronDown, LogOut, User, PanelRightOpen, X, Users, UserCog, GraduationCap, Building2, FolderOpen } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '@/lib/utils';
-import { useAuth } from '@/hooks/useAuth';
-import { hasPermission } from '@/lib/permissions';
-import BreadcrumbNavigation from '@/components/BreadcrumbNavigation';
-import PWAInstallButton from '@/components/PWAInstallButton';
-import { ProfilePicture } from '@/components/ui';
-import { useProjects } from '@/hooks/useProjectQueries';
-import { ProjectNavigation } from '@/components/ProjectNavigation';
+import { useEffect, useRef, useState } from "react";
+import {
+    ChevronDown,
+    FolderOpen,
+    LogOut,
+    Menu,
+    Settings,
+    ShieldCheck,
+    User,
+} from "lucide-react";
+import { motion } from "framer-motion";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 
+import BreadcrumbNavigation from "@/components/BreadcrumbNavigation";
+import { MobileNavigation } from "@/components/navigation/MobileNavigation";
+import { NavItem } from "@/components/navigation/NavItem";
+import { WorkspaceTree } from "@/components/navigation/WorkspaceTree";
+import PWAInstallButton from "@/components/PWAInstallButton";
+import { ProfilePicture } from "@/components/ui";
+import { useAuth } from "@/hooks/useAuth";
+import { useProjects } from "@/hooks/useProjectQueries";
+import { can } from "@/lib/access";
+import {
+    buildNavigationModel,
+    getNavigationContextFromPathname,
+    isAdministrationPathActive,
+} from "@/lib/navigation";
+import { cn } from "@/lib/utils";
 
-const Layout: React.FC = () => {
+const Layout = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const { user, logout } = useAuth();
-    const [userMenuOpen, setUserMenuOpen] = React.useState(false);
-    const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
-    const [projectsMenuOpen, setProjectsMenuOpen] = React.useState(false);
-    const [managementMenuOpen, setManagementMenuOpen] = React.useState(false);
+    const [mobileOpen, setMobileOpen] = useState(false);
+    const [workspaceOpen, setWorkspaceOpen] = useState(false);
+    const [administrationOpen, setAdministrationOpen] = useState(false);
+    const [profileOpen, setProfileOpen] = useState(false);
 
-    // Fetch user's projects
+    const workspaceRef = useRef<HTMLDivElement>(null);
+    const administrationRef = useRef<HTMLDivElement>(null);
+    const profileRef = useRef<HTMLDivElement>(null);
+
     const { data: projects = [] } = useProjects();
-
-    // Get current context from URL
-    const pathParts = location.pathname.split('/');
-    const currentProjectId = pathParts[2];
-    const currentCenterId = pathParts[4];
-    const currentSemesterId = pathParts[6];    // Check if user can view registration requests
-    const canViewRegistrationRequests = hasPermission(user, [], [], true);
-
-    // Check user permissions for management links
-    const canManageUsers = user?.role === 'ADMIN';
-    const canViewStudents = user && (
-        user.role === 'ADMIN' ||
-        user.roleAssignments?.some(ra =>
-            ra.isActive &&
-            (ra.subRole === 'CENTER_MANAGER' || ra.subRole === 'EDUCATOR' || ra.subRole === 'CURRICULUM_MENTOR')
-        )
+    const canViewWorkspace = can(user, "workspace.view");
+    const visibleProjects = projects.filter((project) =>
+        can(user, "workspace.view", { projectId: project.id }),
     );
 
-    // Refs for dropdown menus
-    const projectsMenuRef = React.useRef<HTMLDivElement>(null);
-    const managementMenuRef = React.useRef<HTMLDivElement>(null);
+    const {
+        projectId: currentProjectId,
+        centerId: currentCenterId,
+        semesterId: currentSemesterId,
+    } = getNavigationContextFromPathname(location.pathname);
+    const navigationModel = buildNavigationModel(user);
 
-    // Handle logout
-    const handleLogout = async () => {
-        await logout();
-        navigate('/login');
+    const closeDesktopMenus = () => {
+        setWorkspaceOpen(false);
+        setAdministrationOpen(false);
+        setProfileOpen(false);
     };
 
-    // Close the user menu when clicking outside
-    const userMenuRef = React.useRef<HTMLDivElement>(null);
-
-    React.useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
-                setUserMenuOpen(false);
-            }
-            if (projectsMenuRef.current && !projectsMenuRef.current.contains(event.target as Node)) {
-                setProjectsMenuOpen(false);
-            }
-            if (managementMenuRef.current && !managementMenuRef.current.contains(event.target as Node)) {
-                setManagementMenuOpen(false);
+    useEffect(() => {
+        const onPointerDown = (event: MouseEvent) => {
+            const target = event.target as Node;
+            if (workspaceRef.current && !workspaceRef.current.contains(target)) setWorkspaceOpen(false);
+            if (administrationRef.current && !administrationRef.current.contains(target)) setAdministrationOpen(false);
+            if (profileRef.current && !profileRef.current.contains(target)) setProfileOpen(false);
+        };
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape") {
+                closeDesktopMenus();
+                setMobileOpen(false);
             }
         };
 
-        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener("mousedown", onPointerDown);
+        document.addEventListener("keydown", onKeyDown);
         return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener("mousedown", onPointerDown);
+            document.removeEventListener("keydown", onKeyDown);
         };
     }, []);
 
-    // Close user menu when route changes
-    React.useEffect(() => {
-        setUserMenuOpen(false);
-        setMobileMenuOpen(false);
-        setProjectsMenuOpen(false);
-        setManagementMenuOpen(false);
-    }, [location]);
+    useEffect(() => {
+        closeDesktopMenus();
+        setMobileOpen(false);
+    }, [location.pathname]);
+
+    const handleLogout = async () => {
+        await logout();
+        navigate("/login");
+    };
 
     return (
-        <div className="min-h-[100dvh] flex flex-col bg-background">
-            {/* Top Navigation Bar */}
-            <header className="sticky top-0 z-40 w-full px-2 flex justify-center border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                <div className="container flex h-16 items-center">
-                    {/* Mobile Menu Button */}
+        <div className="flex min-h-[100dvh] flex-col bg-background">
+            <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur-xl">
+                <div className="mx-auto flex h-16 w-full max-w-7xl items-center px-3 sm:px-6 lg:px-8">
                     <button
-                        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                        className="mr-3 md:hidden flex items-center justify-center h-8 w-8 rounded-md hover:bg-accent"
-                        aria-label="Toggle navigation menu"
+                        type="button"
+                        onClick={() => setMobileOpen(true)}
+                        className="mr-2 flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
+                        aria-label="Open navigation menu"
                     >
-                        <PanelRightOpen className="h-5 w-5 text-gray-600" />
+                        <Menu className="h-5 w-5" aria-hidden="true" />
                     </button>
 
-                    {/* Logo */}
-                    <Link to="/" className="mr-6 flex items-center space-x-2">
-                        <img
-                            src="/images/logo/prangan-logo-light-mode.png"
-                            alt="Prangan Logo"
-                            className="h-8"
-                        />
+                    <Link to="/" className="mr-7 flex items-center" aria-label="Prangan home">
+                        <img src="/images/logo/prangan-logo-light-mode.png" alt="Prangan" className="h-8 w-auto" />
                     </Link>
 
-                    {/* Main Navigation */}
-                    <nav className="hidden md:flex flex-1 items-center space-x-4 lg:space-x-6">
-                        {/* Projects Dropdown */}
-                        <div className="relative" ref={projectsMenuRef}>
-                            <button
-                                onClick={() => setProjectsMenuOpen(!projectsMenuOpen)}
-                                className={cn(
-                                    "text-sm font-medium transition-colors hover:text-primary flex items-center gap-1",
-                                    location.pathname.startsWith('/projects')
-                                        ? "text-foreground"
-                                        : "text-muted-foreground"
-                                )}
+                    <nav className="hidden min-w-0 flex-1 items-center gap-1 md:flex" aria-label="Primary navigation">
+                        {canViewWorkspace && (
+                            <DesktopDisclosure
+                                label="Workspace"
+                                icon={FolderOpen}
+                                open={workspaceOpen}
+                                onToggle={() => {
+                                    const nextOpen = !workspaceOpen;
+                                    closeDesktopMenus();
+                                    setWorkspaceOpen(nextOpen);
+                                }}
+                                panelId="workspace-navigation-panel"
+                                panelRef={workspaceRef}
+                                active={location.pathname.startsWith("/projects")}
                             >
-                                <FolderOpen className="h-4 w-4" />
-                                My Workspace
-                                <ChevronDown className="h-3 w-3" />
-                            </button>
-
-                            {projectsMenuOpen && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 8 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: 8 }}
-                                    className="absolute left-0 mt-1 w-64 rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none max-h-96 overflow-y-auto z-50"
-                                >
-                                    <Link
-                                        to="/projects"
-                                        className="flex w-full items-center px-4 py-2 text-sm hover:bg-accent font-medium text-gray-700"
-                                    >
-                                        <Building2 className="mr-2 h-4 w-4" />
-                                        All Projects
-                                    </Link>
-                                    {projects.length > 0 && (
-                                        <>
-                                            <div className="border-t my-1"></div>
-                                            {projects.map((project) => (
-                                                <ProjectNavigation
-                                                    key={project.id}
-                                                    project={project}
-                                                    currentProjectId={currentProjectId}
-                                                    currentCenterId={currentCenterId}
-                                                    currentSemesterId={currentSemesterId}
-                                                    isMobile={false}
-                                                />
-                                            ))}
-                                        </>
-                                    )}
-                                </motion.div>
-                            )}
-                        </div>
-
-                        {/* Management Dropdown */}
-                        {(canManageUsers || canViewStudents) && (
-                            <div className="relative" ref={managementMenuRef}>
-                                <button
-                                    onClick={() => setManagementMenuOpen(!managementMenuOpen)}
-                                    className="text-sm font-medium transition-colors hover:text-primary flex items-center gap-1 text-muted-foreground"
-                                >
-                                    <UserCog className="h-4 w-4" />
-                                    Manage
-                                    <ChevronDown className="h-3 w-3" />
-                                </button>
-
-                                {managementMenuOpen && (
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 8 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: 8 }}
-                                        className="absolute left-0 mt-1 w-48 rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50"
-                                    >
-                                        {canManageUsers && (
-                                            <Link
-                                                to="/users"
-                                                className="flex w-full items-center px-4 py-2 text-sm hover:bg-accent"
-                                            >
-                                                <Users className="mr-2 h-4 w-4" />
-                                                Manage Users
-                                            </Link>
-                                        )}
-                                        {canViewStudents && currentSemesterId && (
-                                            <Link
-                                                to={`/projects/${currentProjectId}/centers/${currentCenterId}/semesters/${currentSemesterId}/dashboard/students`}
-                                                className="flex w-full items-center px-4 py-2 text-sm hover:bg-accent"
-                                            >
-                                                <GraduationCap className="mr-2 h-4 w-4" />
-                                                Manage Students
-                                            </Link>
-                                        )}
-                                    </motion.div>
-                                )}
-                            </div>
+                                <PanelHeader title="Workspace" description="Switch projects, centers, and semesters." />
+                                <div className="max-h-[min(70vh,32rem)] overflow-y-auto p-2">
+                                    <WorkspaceTree
+                                        projects={visibleProjects}
+                                        user={user}
+                                        currentProjectId={currentProjectId}
+                                        currentCenterId={currentCenterId}
+                                        currentSemesterId={currentSemesterId}
+                                        compact
+                                    />
+                                </div>
+                            </DesktopDisclosure>
                         )}
 
-                        <Link
-                            to="/library"
-                            className={cn(
-                                "text-sm font-medium transition-colors hover:text-primary",
-                                location.pathname.startsWith('/library')
-                                    ? "text-foreground"
-                                    : "text-muted-foreground"
-                            )}
-                        >
-                            Library
-                        </Link>
-                        {canViewRegistrationRequests && (
-                            <Link
-                                to="/registration-requests"
-                                className={cn(
-                                    "text-sm font-medium transition-colors hover:text-primary",
-                                    location.pathname === '/registration-requests'
-                                        ? "text-foreground"
-                                        : "text-muted-foreground"
-                                )}
+                        <NavItem item={navigationModel.universal[0]} />
+
+                        {navigationModel.administration.length > 0 && (
+                            <DesktopDisclosure
+                                label="Administration"
+                                icon={ShieldCheck}
+                                open={administrationOpen}
+                                onToggle={() => {
+                                    const nextOpen = !administrationOpen;
+                                    closeDesktopMenus();
+                                    setAdministrationOpen(nextOpen);
+                                }}
+                                panelId="administration-panel"
+                                panelRef={administrationRef}
+                                active={isAdministrationPathActive(location.pathname)}
+                                narrow
                             >
-                                Registration Requests
-                            </Link>
+                                <PanelHeader title="Administration" description="Manage people and access requests." />
+                                <div className="space-y-0.5 p-2">
+                                    {navigationModel.administration.map((item) => (
+                                        <NavItem key={item.href} item={item} compact />
+                                    ))}
+                                </div>
+                            </DesktopDisclosure>
                         )}
                     </nav>
 
-                    {/* PWA Install Button & User Menu */}
-                    <div className="ml-auto flex items-center space-x-2" ref={userMenuRef}>
-                        <PWAInstallButton />
-                        <div className="relative">
-                            <button
-                                onClick={() => setUserMenuOpen(!userMenuOpen)}
-                                className="flex items-center space-x-1 rounded-full bg-background p-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
-                            >
-                                <ProfilePicture
-                                    imageUrl={user?.profileImageUrl}
-                                    name={user?.name || 'User'}
-                                    size="md"
-                                    colorScheme="orange"
-                                />
-                                <span className="hidden md:inline-flex text-sm font-medium">
-                                    {user?.name || 'User'}
-                                </span>
-                                <ChevronDown className="h-4 w-4 opacity-50" />
-                            </button>
+                    <div ref={profileRef} className="relative ml-auto">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                closeDesktopMenus();
+                                setProfileOpen((value) => !value);
+                            }}
+                            aria-expanded={profileOpen}
+                            aria-controls="profile-navigation-panel"
+                            className="flex min-h-11 items-center gap-2 rounded-full border border-transparent px-1.5 text-sm transition-colors hover:border-border hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                            <ProfilePicture imageUrl={user?.profileImageUrl} name={user?.name || "User"} size="md" colorScheme="orange" />
+                            <span className="hidden max-w-32 truncate font-medium md:block">{user?.name || "User"}</span>
+                            <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", profileOpen && "rotate-180")} aria-hidden="true" />
+                        </button>
 
-                            {userMenuOpen && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 8 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: 8 }}
-                                    className="absolute right-0 mt-1 w-48 rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
-                                >
-                                    <div className="px-4 py-2 border-b">
-                                        <p className="text-sm font-medium">{user?.name || 'User'}</p>
-                                        <p className="text-xs text-muted-foreground truncate">{user?.email || ''}</p>
-                                    </div>
-                                    <Link
-                                        to="/profile"
-                                        className="flex w-full items-center px-4 py-2 text-sm hover:bg-accent"
-                                    >
-                                        <User className="mr-2 h-4 w-4" />
-                                        Profile
-                                    </Link>
+                        {profileOpen && (
+                            <motion.div
+                                id="profile-navigation-panel"
+                                initial={{ opacity: 0, y: 6 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-xl"
+                            >
+                                <div className="border-b border-border bg-muted/30 px-4 py-3">
+                                    <p className="truncate text-sm font-semibold">{user?.name || "User"}</p>
+                                    <p className="truncate text-xs text-muted-foreground">{user?.email || ""}</p>
+                                </div>
+                                <div className="p-2">
+                                    <ProfileLink to="/profile" icon={User} label="Profile" />
+                                    <ProfileLink to="/profile/settings" icon={Settings} label="Settings" />
+                                    <PWAInstallButton />
                                     <button
-                                        onClick={handleLogout}
-                                        className="flex w-full items-center px-4 py-2 text-sm text-red-600 hover:bg-accent"
+                                        type="button"
+                                        onClick={() => void handleLogout()}
+                                        className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive"
                                     >
-                                        <LogOut className="mr-2 h-4 w-4" />
+                                        <LogOut className="h-4 w-4" aria-hidden="true" />
                                         Sign out
                                     </button>
-                                </motion.div>
-                            )}
-                        </div>
+                                </div>
+                            </motion.div>
+                        )}
                     </div>
                 </div>
             </header>
 
-            {/* Mobile Navigation Sidebar */}
-            <AnimatePresence>
-                {mobileMenuOpen && (
-                    <>
-                        {/* Backdrop */}
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            onClick={() => setMobileMenuOpen(false)}
-                            className="fixed inset-0 z-50 bg-black/50 md:hidden"
-                        />
+            <MobileNavigation
+                open={mobileOpen}
+                onClose={() => setMobileOpen(false)}
+                projects={visibleProjects}
+                user={user}
+                model={navigationModel}
+                canViewWorkspace={canViewWorkspace}
+                currentProjectId={currentProjectId}
+                currentCenterId={currentCenterId}
+                currentSemesterId={currentSemesterId}
+                onLogout={() => void handleLogout()}
+            />
 
-                        {/* Sliding Panel */}
-                        <motion.div
-                            initial={{ x: '-100%' }}
-                            animate={{ x: 0 }}
-                            exit={{ x: '-100%' }}
-                            transition={{ type: 'tween', duration: 0.3 }}
-                            className="fixed left-0 top-0 z-50 h-full w-64 bg-background border-r shadow-lg md:hidden"
-                        >
-                            {/* Mobile Menu Header */}
-                            <div className="flex items-center justify-between p-4 border-b">
-                                <img
-                                    src="/images/logo/prangan-logo-light-mode.png"
-                                    alt="Prangan Logo"
-                                    className="h-6"
-                                />
-                                <button
-                                    onClick={() => setMobileMenuOpen(false)}
-                                    className="flex items-center justify-center h-8 w-8 rounded-md hover:bg-accent"
-                                    aria-label="Close navigation menu"
-                                >
-                                    <X className="h-5 w-5" />
-                                </button>
-                            </div>
-
-                            {/* Mobile Navigation Links */}
-                            <nav className="p-4 space-y-2 overflow-y-auto max-h-[calc(100vh-200px)]">
-                                {/* Projects Section */}
-                                <div className="space-y-1">
-                                    <Link
-                                        to="/projects"
-                                        onClick={() => setMobileMenuOpen(false)}
-                                        className={cn(
-                                            "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors hover:bg-accent",
-                                            location.pathname === '/projects'
-                                                ? "bg-accent text-accent-foreground"
-                                                : "text-muted-foreground hover:text-foreground"
-                                        )}
-                                    >
-                                        <Building2 className="mr-2 h-4 w-4" />
-                                        All Projects
-                                    </Link>
-                                    {projects.length > 0 && (
-                                        <div className="pl-3 space-y-1">
-                                            {projects.map((project) => (
-                                                <ProjectNavigation
-                                                    key={project.id}
-                                                    project={project}
-                                                    currentProjectId={currentProjectId}
-                                                    currentCenterId={currentCenterId}
-                                                    currentSemesterId={currentSemesterId}
-                                                    onNavigate={() => setMobileMenuOpen(false)}
-                                                    isMobile={true}
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Management Section */}
-                                {(canManageUsers || canViewStudents) && (
-                                    <div className="border-t pt-2 mt-2 space-y-1">
-                                        <div className="px-3 py-1 text-xs font-semibold text-gray-500">MANAGE</div>
-                                        {canManageUsers && (
-                                            <Link
-                                                to="/users"
-                                                onClick={() => setMobileMenuOpen(false)}
-                                                className="flex items-center px-3 py-2 rounded-md text-sm hover:bg-accent"
-                                            >
-                                                <Users className="mr-2 h-4 w-4" />
-                                                Users
-                                            </Link>
-                                        )}
-                                        {canViewStudents && currentSemesterId && (
-                                            <Link
-                                                to={`/projects/${currentProjectId}/centers/${currentCenterId}/semesters/${currentSemesterId}/dashboard/students`}
-                                                onClick={() => setMobileMenuOpen(false)}
-                                                className="flex items-center px-3 py-2 rounded-md text-sm hover:bg-accent"
-                                            >
-                                                <GraduationCap className="mr-2 h-4 w-4" />
-                                                Students
-                                            </Link>
-                                        )}
-                                    </div>
-                                )}
-
-                                <Link
-                                    to="/library"
-                                    onClick={() => setMobileMenuOpen(false)}
-                                    className={cn(
-                                        "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors hover:bg-accent",
-                                        location.pathname.startsWith('/library')
-                                            ? "bg-accent text-accent-foreground"
-                                            : "text-muted-foreground hover:text-foreground"
-                                    )}
-                                >
-                                    Library
-                                </Link>
-                                {canViewRegistrationRequests && (
-                                    <Link
-                                        to="/registration-requests"
-                                        onClick={() => setMobileMenuOpen(false)}
-                                        className={cn(
-                                            "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors hover:bg-accent",
-                                            location.pathname === '/registration-requests'
-                                                ? "bg-accent text-accent-foreground"
-                                                : "text-muted-foreground hover:text-foreground"
-                                        )}
-                                    >
-                                        Registration Requests
-                                    </Link>
-                                )}
-                            </nav>
-
-                            {/* Mobile User Section */}
-                            <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-background">
-                                <div className="flex items-center space-x-3 mb-3">
-                                    <ProfilePicture
-                                        imageUrl={user?.profileImageUrl}
-                                        name={user?.name || 'User'}
-                                        size="md"
-                                        colorScheme="orange"
-                                    />
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
-                                        <p className="text-xs text-muted-foreground truncate">{user?.email || ''}</p>
-                                    </div>
-                                </div>
-                                <div className="mb-3">
-                                    <PWAInstallButton />
-                                </div>
-                                <div className="space-y-1">
-                                    <Link
-                                        to="/profile"
-                                        onClick={() => setMobileMenuOpen(false)}
-                                        className="flex w-full items-center px-2 py-1.5 text-sm hover:bg-accent rounded-md"
-                                    >
-                                        <User className="mr-2 h-4 w-4" />
-                                        Profile
-                                    </Link>
-                                    <button
-                                        onClick={() => {
-                                            setMobileMenuOpen(false);
-                                            handleLogout();
-                                        }}
-                                        className="flex w-full items-center px-2 py-1.5 text-sm text-red-600 hover:bg-accent rounded-md"
-                                    >
-                                        <LogOut className="mr-2 h-4 w-4" />
-                                        Sign out
-                                    </button>
-                                </div>
-                            </div>
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
-
-            {/* Main Content */}
-            <main className="flex-1 flex justify-center">
-                <div className="w-full max-w-6xl px-2 sm:px-4 md:px-8 py-4 md:py-8">
-                    <div className="w-full overflow-hidden">
-                        <BreadcrumbNavigation />
-                    </div>
+            <main className="flex flex-1 justify-center">
+                <div className="w-full max-w-7xl px-4 pb-5 pt-3 sm:px-6 sm:pb-7 sm:pt-4 lg:px-8">
+                    <div className="w-full overflow-hidden"><BreadcrumbNavigation /></div>
                     <Outlet />
                 </div>
             </main>
         </div>
     );
 };
+
+interface DesktopDisclosureProps {
+    label: string;
+    icon: typeof FolderOpen;
+    open: boolean;
+    onToggle: () => void;
+    panelId: string;
+    panelRef: React.RefObject<HTMLDivElement | null>;
+    active: boolean;
+    narrow?: boolean;
+    children: React.ReactNode;
+}
+
+function DesktopDisclosure({ label, icon: Icon, open, onToggle, panelId, panelRef, active, narrow, children }: DesktopDisclosureProps) {
+    return (
+        <div ref={panelRef} className="relative">
+            <button
+                type="button"
+                onClick={onToggle}
+                aria-expanded={open}
+                aria-controls={panelId}
+                className={cn(
+                    "flex min-h-11 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    active ? "bg-accent/70 text-foreground" : "text-muted-foreground",
+                )}
+            >
+                <Icon className={cn("h-4 w-4", active && "text-primary")} aria-hidden="true" />
+                {label}
+                <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} aria-hidden="true" />
+            </button>
+            {open && (
+                <motion.div
+                    id={panelId}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={cn(
+                        "absolute left-0 top-full z-50 mt-2 overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-xl",
+                        narrow ? "w-72" : "w-[22.5rem]",
+                    )}
+                >
+                    {children}
+                </motion.div>
+            )}
+        </div>
+    );
+}
+
+function PanelHeader({ title, description }: { title: string; description: string }) {
+    return (
+        <div className="border-b border-border bg-muted/30 px-4 py-3">
+            <p className="text-sm font-semibold text-foreground">{title}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+        </div>
+    );
+}
+
+function ProfileLink({ to, icon: Icon, label }: { to: string; icon: typeof User; label: string }) {
+    return (
+        <Link to={to} className="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <Icon className="h-4 w-4" aria-hidden="true" />
+            {label}
+        </Link>
+    );
+}
 
 export default Layout;

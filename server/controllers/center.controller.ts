@@ -8,8 +8,27 @@ import {
   updateCenter,
   deleteCenter,
   getCenterById,
+  getCenterScope,
 } from "../service/center.service.js";
-import { getUserAccessibleCenters } from "../service/user.service.js";
+import {
+  getActiveUserScopeAssignments,
+  getUserAccessibleCenters,
+} from "../service/user.service.js";
+import { isAdmin } from "../security/authorization.js";
+
+const canAccessCenterResource = (
+  user: NonNullable<FastifyRequest["user"]>,
+  assignments: Awaited<ReturnType<typeof getActiveUserScopeAssignments>>,
+  scope: { projectId: string; centerId: string },
+) =>
+  isAdmin(user) ||
+  (Array.isArray(assignments) &&
+    assignments.some(
+      (assignment) =>
+        assignment.isActive &&
+        assignment.projectId === scope.projectId &&
+        assignment.centerId === scope.centerId,
+    ));
 
 export const createCenter = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
@@ -34,9 +53,9 @@ export const createCenter = asyncHandle(
     return successHandle(
       { message: "Center created successfully", center },
       reply,
-      201
+      201,
     );
-  }
+  },
 );
 
 export const listCenters = asyncHandle(
@@ -55,7 +74,7 @@ export const listCenters = asyncHandle(
     }
 
     return successHandle({ centers }, reply, 200);
-  }
+  },
 );
 
 export const getCentersByProjectId = asyncHandle(
@@ -75,7 +94,7 @@ export const getCentersByProjectId = asyncHandle(
     const centers = await getUserAccessibleCenters(
       user.id,
       user.role,
-      projectId
+      projectId,
     );
 
     if (typeof centers === "string") {
@@ -83,25 +102,54 @@ export const getCentersByProjectId = asyncHandle(
     }
 
     return successHandle({ centers }, reply, 200);
-  }
+  },
 );
 
 export const getCenterByIdController = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+    if (!user) {
+      return errorHandle("User not found in request.", reply, 401);
+    }
+
     const { id } = request.params as { id: string };
 
     if (!id) {
       return errorHandle("Center ID is required.", reply, 400);
     }
 
+    const scope = await getCenterScope(id);
+    if (!scope) {
+      return errorHandle("Center not found.", reply, 404);
+    }
+
+    const assignments = isAdmin(user)
+      ? []
+      : await getActiveUserScopeAssignments(user.id);
+    if (typeof assignments === "string") {
+      return errorHandle("Unable to verify center access.", reply, 500);
+    }
+
+    if (!canAccessCenterResource(user, assignments, scope)) {
+      return errorHandle(
+        "You are not authorized to view this center.",
+        reply,
+        403,
+      );
+    }
+
     const center = await getCenterById(id);
 
     if (typeof center === "string") {
-      return errorHandle(center, reply, 500);
+      return errorHandle("Unable to retrieve center.", reply, 500);
+    }
+
+    if (!center) {
+      return errorHandle("Center not found.", reply, 404);
     }
 
     return successHandle({ center }, reply, 200);
-  }
+  },
 );
 
 export const updateCenterController = asyncHandle(
@@ -128,9 +176,9 @@ export const updateCenterController = asyncHandle(
     return successHandle(
       { message: "Center updated successfully", center },
       reply,
-      200
+      200,
     );
-  }
+  },
 );
 
 export const deleteCenterController = asyncHandle(
@@ -150,13 +198,17 @@ export const deleteCenterController = asyncHandle(
     const result = await deleteCenter(id);
 
     if (typeof result === "string") {
-      return errorHandle(result, reply, 500);
+      if (result === "Cannot delete center while enrollments exist") {
+        return errorHandle(result, reply, 409);
+      }
+
+      return errorHandle("Internal Server Error", reply, 500);
     }
 
     return successHandle(
       { message: "Center deleted successfully" },
       reply,
-      200
+      200,
     );
-  }
+  },
 );

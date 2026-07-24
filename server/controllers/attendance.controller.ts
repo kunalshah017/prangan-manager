@@ -9,16 +9,24 @@ import {
 } from "../service/attendance.service.js";
 import {
   GetActiveUsersForAttendanceRequest,
-  MarkAttendanceRequest,
-  MarkBulkAttendanceRequest,
   GetAttendanceRequest,
   GetAttendanceSummaryRequest,
 } from "../types/attendance.types.js";
 import { AttendanceStatus, Role } from "../generated/prisma/index.js";
+import {
+  canManageUserAttendance,
+  hasCompleteAttendanceScope,
+} from "../security/attendance-authorization.js";
+import { getActiveUserScopeAssignments } from "../service/user.service.js";
+import {
+  parseMarkAttendanceRequest,
+  parseMarkBulkAttendanceRequest,
+} from "../security/attendance-input.js";
+import { isValidDateFormat } from "../utils/dateHelpers.js";
 
 // Define AuthenticatedRequest type locally
 interface AuthenticatedRequest<
-  T extends { Body?: any; Querystring?: any; Params?: any } = {}
+  T extends { Body?: any; Querystring?: any; Params?: any } = {},
 > extends FastifyRequest<T> {
   user: {
     id: string;
@@ -28,12 +36,45 @@ interface AuthenticatedRequest<
   };
 }
 
+type AttendanceScope = {
+  projectId?: string;
+  centerId?: string;
+  semesterId?: string;
+};
+
+export const authorizeUserAttendanceScope = async (
+  user: AuthenticatedRequest["user"],
+  scope: Required<AttendanceScope>,
+): Promise<boolean> => {
+  const assignments =
+    user.role === Role.ADMIN
+      ? []
+      : await getActiveUserScopeAssignments(user.id);
+
+  if (typeof assignments === "string") {
+    throw new Error(assignments);
+  }
+
+  return canManageUserAttendance({
+    identity: user,
+    assignments,
+    scope,
+  });
+};
+
+const isTimeoutError = (error: unknown): boolean =>
+  (error instanceof Error && error.message.includes("timeout")) ||
+  (typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "P2024");
+
 /**
  * Get active educators and center managers for attendance marking
  * GET /api/v1/attendance/active-users
  */
 export const getActiveUsersController = async (
-  request: FastifyRequest<{
+  request: AuthenticatedRequest<{
     Querystring: {
       date: string;
       projectId: string;
@@ -41,7 +82,7 @@ export const getActiveUsersController = async (
       semesterId: string;
     };
   }>,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
     const { date, projectId, centerId, semesterId } = request.query;
@@ -53,8 +94,7 @@ export const getActiveUsersController = async (
     }
 
     // Validate date format
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(date)) {
+    if (!isValidDateFormat(date)) {
       return reply.status(400).send({
         error: "Date must be in YYYY-MM-DD format",
       });
@@ -67,16 +107,29 @@ export const getActiveUsersController = async (
       semesterId,
     };
 
+    const scope = { projectId, centerId, semesterId };
+    if (!hasCompleteAttendanceScope(scope)) {
+      return reply.status(400).send({
+        error: "projectId, centerId, and semesterId must be canonical IDs",
+      });
+    }
+
+    if (!(await authorizeUserAttendanceScope(request.user, scope))) {
+      return reply.status(403).send({
+        error: "You are not authorized to manage user attendance",
+      });
+    }
+
     const result = await getActiveUsersForAttendance(requestData);
 
     return reply.status(200).send({
       message: "Active users retrieved successfully",
       data: result,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    console.error("Get active users controller error:", error);
     return reply.status(500).send({
       error: "Failed to get active users",
-      details: error.message,
     });
   }
 };
@@ -87,62 +140,52 @@ export const getActiveUsersController = async (
  */
 export const markAttendanceController = async (
   request: AuthenticatedRequest<{
-    Body: MarkAttendanceRequest;
+    Body: unknown;
   }>,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
-    const attendanceData = request.body;
+    const parsedAttendance = parseMarkAttendanceRequest(request.body);
+    if ("error" in parsedAttendance) {
+      return reply.status(400).send({ error: parsedAttendance.error });
+    }
+
+    const attendanceData = parsedAttendance.data;
     const markedBy = request.user.id;
 
-    // Validate required fields
-    if (
-      !attendanceData.userId ||
-      !attendanceData.date ||
-      !attendanceData.status ||
-      !attendanceData.projectId ||
-      !attendanceData.centerId ||
-      !attendanceData.semesterId ||
-      !attendanceData.roleAssignmentId
-    ) {
+    const scope = {
+      projectId: attendanceData.projectId,
+      centerId: attendanceData.centerId,
+      semesterId: attendanceData.semesterId,
+    };
+    if (!hasCompleteAttendanceScope(scope)) {
       return reply.status(400).send({
-        error:
-          "userId, date, status, projectId, centerId, semesterId, and roleAssignmentId are required",
+        error: "projectId, centerId, and semesterId must be canonical IDs",
       });
     }
 
-    // Validate date format
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(attendanceData.date)) {
-      return reply.status(400).send({
-        error: "Date must be in YYYY-MM-DD format",
-      });
-    }
-
-    // Validate status
-    if (!Object.values(AttendanceStatus).includes(attendanceData.status)) {
-      return reply.status(400).send({
-        error: "Invalid attendance status",
-      });
-    }
-
-    // Validate holiday reason for HOLIDAY status
-    if (
-      attendanceData.status === AttendanceStatus.HOLIDAY &&
-      !attendanceData.holidayReason
-    ) {
-      return reply.status(400).send({
-        error: "Holiday reason is required when marking as holiday",
+    if (!(await authorizeUserAttendanceScope(request.user, scope))) {
+      return reply.status(403).send({
+        error: "You are not authorized to manage user attendance",
       });
     }
 
     const result = await markAttendance(attendanceData, markedBy);
 
     return reply.status(200).send(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
+    console.error("Mark attendance controller error:", error);
+    if (
+      error instanceof Error &&
+      error.message.includes("Invalid attendance role assignment")
+    ) {
+      return reply.status(400).send({
+        error: "Invalid attendance role assignment",
+      });
+    }
+
     return reply.status(500).send({
       error: "Failed to mark attendance",
-      details: error.message,
     });
   }
 };
@@ -154,28 +197,18 @@ export const markAttendanceController = async (
  */
 export const markBulkAttendanceController = async (
   request: AuthenticatedRequest<{
-    Body: MarkBulkAttendanceRequest;
+    Body: unknown;
   }>,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
-    const bulkData = request.body;
-    const markedBy = request.user.id;
-
-    // Validate required fields
-    if (
-      !bulkData.date ||
-      !bulkData.projectId ||
-      !bulkData.centerId ||
-      !bulkData.semesterId ||
-      !bulkData.attendances ||
-      !Array.isArray(bulkData.attendances)
-    ) {
-      return reply.status(400).send({
-        error:
-          "date, projectId, centerId, semesterId, and attendances array are required",
-      });
+    const parsedBulkAttendance = parseMarkBulkAttendanceRequest(request.body);
+    if ("error" in parsedBulkAttendance) {
+      return reply.status(400).send({ error: parsedBulkAttendance.error });
     }
+
+    const bulkData = parsedBulkAttendance.data;
+    const markedBy = request.user.id;
 
     // Check for reasonable batch size to prevent timeouts
     if (bulkData.attendances.length > 100) {
@@ -187,41 +220,21 @@ export const markBulkAttendanceController = async (
       });
     }
 
-    // Validate date format
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(bulkData.date)) {
+    const scope = {
+      projectId: bulkData.projectId,
+      centerId: bulkData.centerId,
+      semesterId: bulkData.semesterId,
+    };
+    if (!hasCompleteAttendanceScope(scope)) {
       return reply.status(400).send({
-        error: "Date must be in YYYY-MM-DD format",
+        error: "projectId, centerId, and semesterId must be canonical IDs",
       });
     }
 
-    // Validate each attendance entry
-    for (const attendance of bulkData.attendances) {
-      if (
-        !attendance.userId ||
-        !attendance.status ||
-        !attendance.roleAssignmentId
-      ) {
-        return reply.status(400).send({
-          error:
-            "Each attendance entry must have userId, status, and roleAssignmentId",
-        });
-      }
-
-      if (!Object.values(AttendanceStatus).includes(attendance.status)) {
-        return reply.status(400).send({
-          error: `Invalid attendance status: ${attendance.status}`,
-        });
-      }
-
-      if (
-        attendance.status === AttendanceStatus.HOLIDAY &&
-        !attendance.holidayReason
-      ) {
-        return reply.status(400).send({
-          error: `Holiday reason is required for user ${attendance.userId} when marking as holiday`,
-        });
-      }
+    if (!(await authorizeUserAttendanceScope(request.user, scope))) {
+      return reply.status(403).send({
+        error: "You are not authorized to manage user attendance",
+      });
     }
 
     const result = await markBulkAttendance(bulkData, markedBy);
@@ -247,21 +260,19 @@ export const markBulkAttendanceController = async (
         ...result,
       });
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Bulk attendance controller error:", error);
 
-    if (error.message?.includes("timeout") || error.code === "P2024") {
+    if (isTimeoutError(error)) {
       return reply.status(408).send({
         error:
           "Request timed out. Please try processing fewer records at once.",
         suggestion: "Split your request into smaller batches of 20-30 records.",
-        details: error.message,
       });
     }
 
     return reply.status(500).send({
       error: "Failed to mark bulk attendance",
-      details: error.message,
     });
   }
 };
@@ -271,7 +282,7 @@ export const markBulkAttendanceController = async (
  * GET /api/v1/attendance/records
  */
 export const getAttendanceController = async (
-  request: FastifyRequest<{
+  request: AuthenticatedRequest<{
     Querystring: {
       startDate?: string;
       endDate?: string;
@@ -284,7 +295,7 @@ export const getAttendanceController = async (
       limit?: string;
     };
   }>,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
     const {
@@ -300,13 +311,12 @@ export const getAttendanceController = async (
     } = request.query;
 
     // Validate date formats if provided
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (startDate && !dateRegex.test(startDate)) {
+    if (startDate && !isValidDateFormat(startDate)) {
       return reply.status(400).send({
         error: "startDate must be in YYYY-MM-DD format",
       });
     }
-    if (endDate && !dateRegex.test(endDate)) {
+    if (endDate && !isValidDateFormat(endDate)) {
       return reply.status(400).send({
         error: "endDate must be in YYYY-MM-DD format",
       });
@@ -317,6 +327,22 @@ export const getAttendanceController = async (
       return reply.status(400).send({
         error: "Invalid attendance status",
       });
+    }
+
+    const scope = { projectId, centerId, semesterId };
+    const isAdmin = request.user.role === Role.ADMIN;
+    if (!isAdmin) {
+      if (!hasCompleteAttendanceScope(scope)) {
+        return reply.status(403).send({
+          error: "You are not authorized to manage user attendance",
+        });
+      }
+
+      if (!(await authorizeUserAttendanceScope(request.user, scope))) {
+        return reply.status(403).send({
+          error: "You are not authorized to manage user attendance",
+        });
+      }
     }
 
     const requestData: GetAttendanceRequest = {
@@ -337,10 +363,10 @@ export const getAttendanceController = async (
       message: "Attendance records retrieved successfully",
       data: result,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    console.error("Get attendance controller error:", error);
     return reply.status(500).send({
       error: "Failed to get attendance records",
-      details: error.message,
     });
   }
 };
@@ -350,7 +376,7 @@ export const getAttendanceController = async (
  * GET /api/v1/attendance/summary
  */
 export const getAttendanceSummaryController = async (
-  request: FastifyRequest<{
+  request: AuthenticatedRequest<{
     Querystring: {
       startDate: string;
       endDate: string;
@@ -360,7 +386,7 @@ export const getAttendanceSummaryController = async (
       userIds?: string;
     };
   }>,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
     const { startDate, endDate, projectId, centerId, semesterId, userIds } =
@@ -373,11 +399,26 @@ export const getAttendanceSummaryController = async (
     }
 
     // Validate date formats
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+    if (!isValidDateFormat(startDate) || !isValidDateFormat(endDate)) {
       return reply.status(400).send({
         error: "Dates must be in YYYY-MM-DD format",
       });
+    }
+
+    const scope = { projectId, centerId, semesterId };
+    const isAdmin = request.user.role === Role.ADMIN;
+    if (!isAdmin) {
+      if (!hasCompleteAttendanceScope(scope)) {
+        return reply.status(403).send({
+          error: "You are not authorized to manage user attendance",
+        });
+      }
+
+      if (!(await authorizeUserAttendanceScope(request.user, scope))) {
+        return reply.status(403).send({
+          error: "You are not authorized to manage user attendance",
+        });
+      }
     }
 
     const requestData: GetAttendanceSummaryRequest = {
@@ -395,10 +436,10 @@ export const getAttendanceSummaryController = async (
       message: "Attendance summary retrieved successfully",
       data: result,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    console.error("Get attendance summary controller error:", error);
     return reply.status(500).send({
       error: "Failed to get attendance summary",
-      details: error.message,
     });
   }
 };
@@ -416,7 +457,7 @@ export const autoMarkAttendanceController = async (
       semesterId: string;
     };
   }>,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
     // Check if user is admin
@@ -428,15 +469,15 @@ export const autoMarkAttendanceController = async (
 
     const { date, projectId, centerId, semesterId } = request.body;
 
-    if (!date || !projectId || !centerId || !semesterId) {
+    const scope = { projectId, centerId, semesterId };
+    if (!hasCompleteAttendanceScope(scope)) {
       return reply.status(400).send({
-        error: "date, projectId, centerId, and semesterId are required",
+        error: "projectId, centerId, and semesterId must be canonical IDs",
       });
     }
 
     // Validate date format
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(date)) {
+    if (!isValidDateFormat(date)) {
       return reply.status(400).send({
         error: "Date must be in YYYY-MM-DD format",
       });
@@ -446,14 +487,14 @@ export const autoMarkAttendanceController = async (
       date,
       projectId,
       centerId,
-      semesterId
+      semesterId,
     );
 
     return reply.status(200).send(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
+    console.error("Auto-mark attendance controller error:", error);
     return reply.status(500).send({
       error: "Failed to auto-mark attendance",
-      details: error.message,
     });
   }
 };

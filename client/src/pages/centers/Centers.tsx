@@ -1,180 +1,167 @@
-import { Plus, Clock, MapPin, Edit, School } from 'lucide-react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { cn } from '@/lib/utils';
-import { buttonVariants } from '@/lib/button-variants';
-import DoodleBackground from '@/components/DoodleBackground';
-import LoadingButterfly from '@/components/LoadingButterfly';
+import { ArrowLeft, Building2, MapPin, Plus, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Link, useParams } from 'react-router-dom';
+
 import { useCentersByProject } from '@/hooks/useCenterQueries';
 import { useProject } from '@/hooks/useProjectQueries';
 import { useAuth } from '@/hooks/useAuth';
+import { cn } from '@/lib/utils';
+import { buttonVariants } from '@/lib/button-variants';
+import DoodleBackground from '@/components/DoodleBackground';
+import { WorkspaceCard } from '@/components/workspace/WorkspaceCard';
+import { centerCardDestination } from '@/lib/workspace-hierarchy';
 
 const Centers = () => {
-    const { projectId } = useParams<{ projectId: string }>();
-    const navigate = useNavigate();
+    const { projectId = '' } = useParams<{ projectId: string }>();
     const { isAdmin } = useAuth();
+    const { data: centers, isLoading, error, refetch } = useCentersByProject(projectId || '');
+    const {
+        data: project,
+        isLoading: projectLoading,
+        error: projectError,
+        refetch: refetchProject,
+    } = useProject(projectId || '');
 
-    // Fetch centers for this specific project and project details
-    const { data: centers, isLoading, error, refetch } = useCentersByProject(projectId!);
-    const { data: project, isLoading: projectLoading } = useProject(projectId!);
-
-    const handleCenterClick = (centerId: string) => {
-        // Navigate to semesters for this center
-        navigate(`/projects/${projectId}/centers/${centerId}/semesters`);
-    };
-
-    // Show loading state
     if (isLoading || projectLoading) {
         return (
-            <>
-                <DoodleBackground numElements={12} />
-                <div className="flex flex-col items-center justify-center min-h-[400px] relative z-1">
-                    <LoadingButterfly size="md" />
-                </div>
-            </>
-        );
-    }
-
-    // Show error state
-    if (error) {
-        return (
-            <>
-                <DoodleBackground numElements={12} />
-                <div className="flex flex-col items-center justify-center min-h-[400px] relative z-1">
-                    <div className="h-16 w-16 rounded-full bg-red-100 flex items-center justify-center mb-4">
-                        <span className="text-red-600 text-2xl">⚠️</span>
+            <div className="relative w-full" aria-live="polite" aria-busy="true">
+                <div className="mx-auto w-full max-w-6xl animate-pulse py-2 motion-reduce:animate-none">
+                    <div className="mb-8 space-y-3 border-b border-border pb-7">
+                        <div className="h-9 w-64 rounded-md bg-muted" />
+                        <div className="h-5 w-96 max-w-full rounded bg-muted" />
                     </div>
-                    <h2 className="text-xl font-semibold text-gray-900 mb-2">Failed to load centers</h2>
-                    <p className="text-gray-600 mb-4">{error.message}</p>
-                    <button
-                        onClick={() => refetch()}
-                        className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
-                    >
-                        Try Again
-                    </button>
+                    <div className="grid gap-5 lg:grid-cols-2">
+                        {[0, 1].map((item) => (
+                            <div key={item} className="h-56 rounded-lg border border-border bg-card" />
+                        ))}
+                    </div>
                 </div>
-            </>
+                <span className="sr-only">Loading centers</span>
+            </div>
         );
     }
 
-    // Sort centers by updatedAt in descending order (most recent first)
-    const centerList = (centers || []).sort((a, b) =>
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    if (error || projectError || !project) {
+        return (
+            <div className="mx-auto flex min-h-[55dvh] w-full max-w-2xl items-center justify-center px-4" aria-live="polite">
+                <div className="w-full rounded-lg border border-border bg-card p-6 text-center shadow-sm sm:p-8">
+                    <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+                        <RefreshCw className="h-5 w-5" aria-hidden="true" />
+                    </div>
+                    <h1 className="text-2xl font-semibold text-foreground">Centers could not be loaded</h1>
+                    <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+                        Check your connection and try again. Your center access has not changed.
+                    </p>
+                    <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+                        <Link to="/projects" className={cn(buttonVariants({ variant: 'outline' }), 'min-h-11 gap-2')}>
+                            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                            Back to projects
+                        </Link>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                void refetch();
+                                void refetchProject();
+                            }}
+                            className={cn(buttonVariants(), 'min-h-11 gap-2')}
+                        >
+                            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                            Try again
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    const centerList = [...(centers || [])].sort(
+        (firstCenter, secondCenter) =>
+            new Date(secondCenter.updatedAt).getTime() - new Date(firstCenter.updatedAt).getTime(),
     );
 
     return (
-        <>
-            <DoodleBackground numElements={12} />
-            <div className="flex flex-col space-y-4 w-full relative z-1">
-                {/* Search and filters bar */}
-                <div className="flex gap-3 sm:flex-row sm:items-center sm:gap-4 pb-6 w-full justify-between">
-                    <h1 className="text-2xl font-bold tracking-tight">
-                        Centers
-                    </h1>
-                    <div className="flex gap-2 sm:w-auto justify-end">
+        <div className="relative w-full">
+            <DoodleBackground animated={false} numElements={6} />
+            <section className="relative z-10 mx-auto w-full max-w-6xl py-2 sm:py-4">
+                <header className="mb-7 flex flex-col gap-5 border-b border-border pb-6 sm:mb-8 sm:flex-row sm:items-end sm:justify-between sm:pb-7">
+                    <div className="max-w-2xl">
+                        <h1 className="text-3xl font-semibold text-foreground sm:text-4xl">Centers</h1>
+                        <p className="mt-3 text-base leading-7 text-muted-foreground">
+                            {project.name} · Choose a center to continue to its semesters and current academic work.
+                        </p>
+                    </div>
+                    <div className="flex w-full gap-2 sm:w-auto">
+                        <Link
+                            to={`/projects/${projectId}/dashboard`}
+                            aria-label="Back to project dashboard"
+                            className={cn(buttonVariants({ variant: "outline" }), "min-h-11 flex-1 gap-2 sm:flex-none")}
+                        >
+                            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                            <span className="sm:hidden">Dashboard</span>
+                            <span className="hidden sm:inline">Back to project dashboard</span>
+                        </Link>
                         {isAdmin() && (
                             <Link
                                 to={`/projects/${projectId}/centers/new`}
-                                className={cn(
-                                    buttonVariants({ size: "default" }),
-                                    "flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white w-full sm:w-auto"
-                                )}
+                                className={cn(buttonVariants(), 'min-h-11 flex-1 gap-2 sm:flex-none')}
                             >
-                                <Plus className="h-4 w-4" />
-                                <span>New Center</span>
+                                <Plus className="h-4 w-4" aria-hidden="true" />
+                                New center
                             </Link>
                         )}
                     </div>
-                </div>
+                </header>
 
-                {/* Center grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {/* Center cards */}
-                    {centerList.map((center) => (
-                        <div
-                            key={center.id}
-                            className="flex flex-col overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm transition-all hover:shadow-md cursor-pointer"
-                            onClick={() => handleCenterClick(center.id)}
-                        >
-                            {/* Center Header */}
-                            <div className="w-full h-32 bg-gradient-to-br from-orange-100 to-orange-200 flex items-center justify-center">
-                                <School className="h-12 w-12 text-orange-600" />
-                            </div>
-
-                            <div className="p-6">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="font-medium">{center.name}</h3>
-                                    {center.project && (
-                                        <span className="text-xs text-muted-foreground bg-orange-50 px-2 py-1 rounded">
-                                            {center.project.name}
-                                        </span>
-                                    )}
-                                </div>
-                                <div className="flex items-center mt-2 text-sm text-muted-foreground">
-                                    <MapPin className="inline h-3 w-3 mr-1" />
-                                    <span className="line-clamp-1">{center.address}</span>
-                                </div>
-                                <div className="mt-4 flex items-center justify-between">
-                                    <div className="flex items-center text-xs text-muted-foreground">
-                                        <Clock className="mr-1 h-3 w-3" />
-                                        <span>Updated {new Date(center.updatedAt).toLocaleDateString()}</span>
+                {centerList.length > 0 && (
+                    <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                        {centerList.map((center) => (
+                            <WorkspaceCard
+                                key={center.id}
+                                title={center.name}
+                                entityLabel="Center"
+                                mediaSrc="/images/default_center_banner.jpg"
+                                mediaAlt={`${center.name} learning center`}
+                                href={centerCardDestination(projectId, center.id)}
+                                openLabel="Open center"
+                                detail={
+                                    <div className="flex items-start gap-2">
+                                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                                        <span className="line-clamp-2">{center.address || 'Address not added'}</span>
                                     </div>
-                                    <div className="flex gap-2">
-                                        {isAdmin() && (
-                                            <Link
-                                                to={`/projects/${projectId}/centers/${center.id}/edit`}
-                                                className={cn(
-                                                    buttonVariants({ variant: 'outline', size: 'sm' }),
-                                                    'h-8 px-2'
-                                                )}
-                                                onClick={e => e.stopPropagation()}
-                                                title="Edit Center"
-                                            >
-                                                <Edit className="h-3 w-3" />
-                                            </Link>
-                                        )}
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleCenterClick(center.id);
-                                            }}
-                                            className={cn(
-                                                buttonVariants({ size: 'sm' }),
-                                                'h-8 px-3 bg-orange-600 hover:bg-orange-700 text-white'
-                                            )}
-                                        >
-                                            Semesters
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+                                }
+                                updatedAt={new Date(center.updatedAt).toLocaleDateString('en-GB')}
+                                editHref={isAdmin() ? `/projects/${projectId}/centers/${center.id}/edit` : undefined}
+                                editLabel={isAdmin() ? `Edit ${center.name}` : undefined}
+                            />
+                        ))}
+                    </div>
+                )}
 
-                {/* No centers found message */}
                 {centerList.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-10">
-                        <MapPin className="h-12 w-12 text-muted-foreground opacity-50 mb-4" />
-                        <h3 className="font-medium text-lg">No centers found</h3>
-                        <p className="text-sm text-muted-foreground">
-                            {isAdmin() ? `Get started by creating the first center for ${project?.name || 'this project'}` : "No centers available to view"}
+                    <div className="rounded-lg border border-dashed border-border bg-card px-6 py-14 text-center" aria-live="polite">
+                        <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                            {isAdmin() ? <Building2 className="h-6 w-6" aria-hidden="true" /> : <ShieldCheck className="h-6 w-6" aria-hidden="true" />}
+                        </div>
+                        <h2 className="text-xl font-semibold text-foreground">
+                            {isAdmin() ? 'Create the first center' : 'No center access yet'}
+                        </h2>
+                        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+                            {isAdmin()
+                                ? `Add the first center for ${project.name}, then create its semesters.`
+                                : 'Ask an administrator to assign you to a center in this project.'}
                         </p>
                         {isAdmin() && (
                             <Link
                                 to={`/projects/${projectId}/centers/new`}
-                                className={cn(
-                                    buttonVariants({ size: "default" }),
-                                    "mt-4 bg-orange-600 hover:bg-orange-700 text-white"
-                                )}
+                                className={cn(buttonVariants(), 'mt-6 min-h-11 gap-2')}
                             >
-                                <Plus className="h-4 w-4 mr-2" />
-                                Create Center
+                                <Plus className="h-4 w-4" aria-hidden="true" />
+                                Create center
                             </Link>
                         )}
                     </div>
                 )}
-            </div>
-        </>
+            </section>
+        </div>
     );
 };
 

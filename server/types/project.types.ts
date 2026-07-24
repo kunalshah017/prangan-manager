@@ -1,7 +1,7 @@
 export interface Project {
-    name: string;
-    description?: string;
-    imageUrl?: string;
-    projectType?: string;
-    metaData?: any;
+  name: string;
+  description?: string;
+  imageUrl?: string | null;
+  projectType?: string;
+  metaData?: any;
 }

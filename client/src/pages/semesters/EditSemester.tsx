@@ -1,236 +1,164 @@
-import React, { useState, useEffect } from 'react';
-import { cn } from '@/lib/utils';
-import { buttonVariants } from '@/lib/button-variants';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Trash2 } from 'lucide-react';
-import DoodleBackground from '@/components/DoodleBackground';
-import LoadingButterfly from '@/components/LoadingButterfly';
-import { CustomButton } from '@/components/ui/button';
+import toast from 'react-hot-toast';
+
+import { SemesterFormLayout } from '@/components/semesters/SemesterFormLayout';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
-import { useSemester, useUpdateSemester, useDeleteSemester } from '@/hooks/useSemesterQueries';
+import { useAcademicLevels, useSemesterLevels } from '@/hooks/useAcademicLevelQueries';
 import { useCenter } from '@/hooks/useCenterQueries';
-import { useAuth } from '@/hooks/useAuth';
+import { useDeleteSemester, useSemester, useUpdateSemester } from '@/hooks/useSemesterQueries';
+import { SemesterRecovery, SemesterSkeleton } from '@/pages/semesters/CreateSemester';
 import type { UpdateSemesterRequest } from '@/types/api';
+import { sortByJourneyOrder } from '@/lib/levels';
 
 const EditSemester = () => {
     const { projectId, centerId, id } = useParams<{ projectId: string; centerId: string; id: string }>();
     const navigate = useNavigate();
-    const { isAdmin } = useAuth();
-
-    // Form state
     const [name, setName] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
+    const [academicLevelIds, setAcademicLevelIds] = useState<string[]>([]);
+    const [levelsInitialized, setLevelsInitialized] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-    // API hooks
-    const { data: semester, isLoading: isSemesterLoading, error: semesterError } = useSemester(id!);
-    const { data: center } = useCenter(centerId!);
+    const { data: semester, isLoading: semesterLoading, error: semesterError, refetch: refetchSemester } = useSemester(id || '');
+    const { data: center, isLoading: centerLoading, error: centerError, refetch: refetchCenter } = useCenter(centerId || '');
+    const catalogQuery = useAcademicLevels({ includeArchived: true });
+    const semesterLevelsQuery = useSemesterLevels(id || "", { includeInactive: true });
     const updateSemesterMutation = useUpdateSemester();
     const deleteSemesterMutation = useDeleteSemester();
+    const semestersUrl = `/projects/${projectId}/centers/${centerId}/semesters`;
 
-    // Check if user is admin - redirect if not
     useEffect(() => {
-        if (!isAdmin()) {
-            navigate(`/projects/${projectId}/centers/${centerId}/semesters`);
-        }
-    }, [isAdmin, navigate, projectId, centerId]);
-
-    // Load semester data into form when available
-    useEffect(() => {
-        if (semester) {
-            setName(semester.name);
-            setStartDate(semester.startDate.split('T')[0]); // Extract date part from ISO string
-            setEndDate(semester.endDate.split('T')[0]); // Extract date part from ISO string
-        }
+        if (!semester) return;
+        setName(semester.name);
+        setStartDate(semester.startDate.split('T')[0]);
+        setEndDate(semester.endDate.split('T')[0]);
     }, [semester]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!id) return;
+    useEffect(() => {
+        if (!semesterLevelsQuery.data || levelsInitialized) return;
+        const levels = semesterLevelsQuery.data;
+        setAcademicLevelIds(levels.map((level) => level.academicLevelId));
+        setLevelsInitialized(true);
+    }, [levelsInitialized, semesterLevelsQuery.data]);
 
+    const catalogLevels = catalogQuery.data ?? [];
+    const membershipLevels = semesterLevelsQuery.data?.map((level) => level.academicLevel) ?? [];
+    const membershipIds = new Set(membershipLevels.map((level) => level.id));
+    const availableAcademicLevels = sortByJourneyOrder([
+        ...catalogLevels.filter((level) => level.isActive || membershipIds.has(level.id)),
+        ...membershipLevels.filter((level) => !catalogLevels.some((candidate) => candidate.id === level.id)),
+    ]);
+
+    const contextMismatch = Boolean(semester?.centerId && semester.centerId !== centerId);
+
+    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!id || contextMismatch) return;
+
+        const trimmedName = name.trim();
+        if (!trimmedName || !startDate || !endDate) {
+            toast.error('Enter a semester name and schedule.');
+            return;
+        }
+        if (endDate < startDate) {
+            toast.error('End date must be on or after the start date.');
+            return;
+        }
+        if (academicLevelIds.length === 0) {
+            toast.error('Select at least one academic level.');
+            return;
+        }
+
+        const updateData: UpdateSemesterRequest = { name: trimmedName, startDate, endDate, academicLevelIds };
         try {
-            const updateData: UpdateSemesterRequest = {
-                name,
-                startDate,
-                endDate,
-            };
-
             await updateSemesterMutation.mutateAsync({ id, data: updateData });
-
-            navigate(`/projects/${projectId}/centers/${centerId}/semesters`, {
-                state: {
-                    message: 'Semester updated successfully!',
-                    type: 'success'
-                }
-            });
-        } catch (error) {
-            console.error('Failed to update semester:', error);
+            toast.success('Semester changes saved.');
+            navigate(semestersUrl);
+        } catch {
+            toast.error('Unable to save semester changes. Try again.');
         }
     };
 
     const handleDelete = async () => {
-        if (!id) return;
-
+        if (!id || contextMismatch) return;
         try {
             await deleteSemesterMutation.mutateAsync(id);
-            navigate(`/projects/${projectId}/centers/${centerId}/semesters`, {
-                state: {
-                    message: 'Semester deleted successfully!',
-                    type: 'success'
-                }
-            });
-        } catch (error) {
-            console.error('Failed to delete semester:', error);
+            toast.success('Semester deleted.');
+            navigate(semestersUrl);
+        } catch {
+            toast.error('Unable to delete this semester. Remove dependent records first and try again.');
         }
     };
 
-    // Show loading state
-    if (isSemesterLoading) {
+    if (semesterLoading || centerLoading) {
+        return <SemesterSkeleton message="Loading semester" />;
+    }
+
+    if (semesterError || centerError || !semester || !center || !centerId) {
         return (
-            <>
-                <DoodleBackground numElements={8} />
-                <div className="flex flex-col items-center justify-center min-h-[400px] relative z-1">
-                    <LoadingButterfly size="md" />
-                </div>
-            </>
+            <SemesterRecovery
+                title="Semester could not be loaded"
+                message="The semester may no longer exist, or the request could not be completed."
+                returnUrl={semestersUrl}
+                onRetry={() => {
+                    void refetchSemester();
+                    void refetchCenter();
+                }}
+            />
         );
     }
 
-    // Show error state
-    if (semesterError) {
+    if (semester.centerId && semester.centerId !== centerId) {
         return (
-            <>
-                <DoodleBackground numElements={8} />
-                <div className="flex flex-col items-center justify-center min-h-[400px] relative z-1">
-                    <div className="h-16 w-16 rounded-full bg-red-100 flex items-center justify-center mb-4">
-                        <span className="text-red-600 text-2xl">⚠️</span>
-                    </div>
-                    <h2 className="text-xl font-semibold text-gray-900 mb-2">Failed to load semester</h2>
-                    <p className="text-gray-600 mb-4">{semesterError.message}</p>
-                </div>
-            </>
-        );
-    }
-
-    // Show not found state
-    if (!semester) {
-        return (
-            <>
-                <DoodleBackground numElements={8} />
-                <div className="flex flex-col items-center justify-center min-h-[400px] relative z-1">
-                    <div className="h-16 w-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-                        <span className="text-gray-600 text-2xl">📅</span>
-                    </div>
-                    <h2 className="text-xl font-semibold text-gray-900 mb-2">Semester not found</h2>
-                    <p className="text-gray-600 mb-4">The semester you're looking for doesn't exist.</p>
-                </div>
-            </>
+            <SemesterRecovery
+                title="Semester does not belong to this center"
+                message={`This semester belongs to another center and cannot be edited from ${center.name}.`}
+                returnUrl={semestersUrl}
+            />
         );
     }
 
     return (
         <>
-            <DoodleBackground numElements={8} />
-            <div className="flex flex-col items-center justify-center min-h-[60vh] w-full relative">
-                <div className="w-full max-w-lg bg-white/80 rounded-lg border shadow-md p-6 relative z-10">
-                    <div className="flex items-center justify-between mb-2">
-                        <h1 className="text-2xl font-bold">Edit Semester</h1>
-                        <button
-                            type="button"
-                            onClick={() => setShowDeleteConfirm(true)}
-                            className={cn(
-                                buttonVariants({ variant: 'outline', size: 'sm' }),
-                                'text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200'
-                            )}
-                            title="Delete Semester"
-                        >
-                            <Trash2 className="h-4 w-4" />
-                        </button>
-                    </div>
-                    <p className="text-muted-foreground mb-6 text-sm">
-                        Update the semester information for <strong>{center?.name || 'this center'}</strong>.
-                    </p>
+            <ConfirmationModal
+                isOpen={showDeleteConfirm}
+                onClose={() => setShowDeleteConfirm(false)}
+                onConfirm={handleDelete}
+                title="Delete semester"
+                message={`Delete "${semester.name}"? This cannot be undone and may be blocked while enrollment history exists.`}
+                confirmText="Delete semester"
+                cancelText="Cancel"
+                isLoading={deleteSemesterMutation.isPending}
+                loadingMessage="Deleting semester..."
+                variant="danger"
+            />
 
-                    <form onSubmit={handleSubmit} className="space-y-5">
-                        {/* Error message */}
-                        {(updateSemesterMutation.error || deleteSemesterMutation.error) && (
-                            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
-                                {updateSemesterMutation.error?.message || deleteSemesterMutation.error?.message}
-                            </div>
-                        )}
-
-                        <div>
-                            <label htmlFor="name" className="block text-sm font-medium mb-1">Semester Name</label>
-                            <input
-                                id="name"
-                                type="text"
-                                value={name}
-                                onChange={e => setName(e.target.value)}
-                                required
-                                className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                placeholder="e.g., Fall 2024, Spring 2025"
-                            />
-                        </div>
-
-                        <div>
-                            <label htmlFor="startDate" className="block text-sm font-medium mb-1">Start Date</label>
-                            <input
-                                id="startDate"
-                                type="date"
-                                value={startDate}
-                                onChange={e => setStartDate(e.target.value)}
-                                required
-                                className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                            />
-                        </div>
-
-                        <div>
-                            <label htmlFor="endDate" className="block text-sm font-medium mb-1">End Date</label>
-                            <input
-                                id="endDate"
-                                type="date"
-                                value={endDate}
-                                onChange={e => setEndDate(e.target.value)}
-                                required
-                                min={startDate} // Ensure end date is not before start date
-                                className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                            />
-                        </div>
-
-                        <div className="flex gap-2 justify-end">
-                            <button
-                                type="button"
-                                onClick={() => navigate(`/projects/${projectId}/centers/${centerId}/semesters`)}
-                                className={cn(buttonVariants({ variant: 'outline' }), 'min-w-[100px]')}
-                            >
-                                Cancel
-                            </button>
-                            <CustomButton
-                                type="submit"
-                                isLoading={updateSemesterMutation.isPending}
-                                loadingMessage="Updating..."
-                                className="bg-orange-600 hover:bg-orange-700 text-white min-w-[120px]"
-                            >
-                                Update Semester
-                            </CustomButton>
-                        </div>
-                    </form>
-                </div>
-
-                {/* Delete Confirmation Modal */}
-                <ConfirmationModal
-                    isOpen={showDeleteConfirm}
-                    onClose={() => setShowDeleteConfirm(false)}
-                    onConfirm={handleDelete}
-                    title="Delete Semester"
-                    message={`Are you sure you want to delete "${semester.name}"? This action cannot be undone and will also delete all associated data.`}
-                    confirmText="Delete Semester"
-                    isLoading={deleteSemesterMutation.isPending}
-                    loadingMessage="Deleting..."
-                    variant="danger"
-                />
-            </div>
+            <SemesterFormLayout
+                mode="edit"
+                centerName={center.name}
+                name={name}
+                startDate={startDate}
+                endDate={endDate}
+                academicLevels={availableAcademicLevels}
+                academicLevelIds={academicLevelIds}
+                academicLevelsLoading={catalogQuery.isLoading || semesterLevelsQuery.isLoading}
+                academicLevelError={!!catalogQuery.error || !!semesterLevelsQuery.error}
+                isPending={updateSemesterMutation.isPending}
+                onNameChange={setName}
+                onStartDateChange={setStartDate}
+                onEndDateChange={setEndDate}
+                onAcademicLevelIdsChange={setAcademicLevelIds}
+                onRetryAcademicLevels={() => {
+                    void catalogQuery.refetch();
+                    void semesterLevelsQuery.refetch();
+                }}
+                onSubmit={handleSubmit}
+                onCancel={() => navigate(semestersUrl)}
+                onDelete={() => setShowDeleteConfirm(true)}
+                isDeletePending={deleteSemesterMutation.isPending}
+            />
         </>
     );
 };

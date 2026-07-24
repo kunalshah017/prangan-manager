@@ -4,8 +4,7 @@ export const EMAIL_TEMPLATES = {
     getTemplate: (data: {
       name: string;
       email: string;
-      generatedPassword: string;
-      status: string;
+      activationUrl: string;
       roleAssignmentDetails: string;
     }) => `
     <!DOCTYPE html>
@@ -15,12 +14,12 @@ export const EMAIL_TEMPLATES = {
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Account Verification</title>
       <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; background-color: #f4f4f4; }
-        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .header { text-align: center; border-bottom: 3px solid #ff8c00; padding-bottom: 20px; margin-bottom: 30px; }
+        body { font-family: Arial, Helvetica, sans-serif; line-height: 1.55; color: #172033; margin: 0; padding: 24px 12px; background-color: #f3f6f8; }
+        .container { max-width: 600px; margin: 0 auto; background: #ffffff; padding: 32px; border-radius: 12px; box-shadow: 0 8px 24px rgba(23,32,51,0.10); }
+        .header { text-align: center; border-bottom: 3px solid #ea7a18; padding-bottom: 20px; margin-bottom: 28px; }
         .logo { max-width: 200px; height: auto; margin-bottom: 15px; }
-        .header h1 { color: #ff8c00; margin: 0; }
-        .credentials { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff8c00; }
+        .header h1 { color: #172033; margin: 0; }
+        .credentials { background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ea7a18; }
         .credential-item { margin: 10px 0; }
         .credential-label { font-weight: bold; color: #555; }
         .credential-value { font-family: 'Courier New', monospace; background: #e9ecef; padding: 5px 10px; border-radius: 4px; display: inline-block; margin-left: 10px; }
@@ -30,12 +29,12 @@ export const EMAIL_TEMPLATES = {
         .status-approved { background-color: #ff8c00; }
         .status-user { background-color: #ff8c00; }
         .status-admin { background-color: #e55100; }
-        .login-button { display: inline-block; background-color: #ff8c00; color: white; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: bold; margin: 20px 0; text-align: center; transition: background-color 0.3s; }
-        .login-button:hover { background-color: #e67e00; }
+        .login-button { display: inline-block; background-color: #b94e00; color: #ffffff !important; padding: 14px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 20px 0; text-align: center; }
+        .login-button:hover { background-color: #933e00; }
         .button-container { text-align: center; margin: 25px 0; }
         .accent-text { color: #ff8c00; font-weight: bold; }
-        .role-assignment { background: #fff8e6; border: 1px solid #ff8c00; border-radius: 8px; padding: 15px; margin: 10px 0; }
-        .role-assignment h4 { color: #ff8c00; margin: 0 0 10px 0; font-size: 16px; }
+        .role-assignment { background: #fff8f0; border: 1px solid #f5bf8f; border-radius: 8px; padding: 15px; margin: 10px 0; }
+        .role-assignment h4 { color: #8a3800; margin: 0 0 10px 0; font-size: 16px; }
         .role-assignment p { margin: 5px 0; color: #333; }
       </style>
     </head>
@@ -49,35 +48,26 @@ export const EMAIL_TEMPLATES = {
         
         <p>Dear <strong class="accent-text">${data.name}</strong>,</p>
         
-        <p>Congratulations! Your account has been <span class="accent-text">verified and activated</span>. You can now access the Prangan Manager system with your new credentials.</p>
+        <p>Congratulations! Your account has been <span class="accent-text">approved</span>. Set a password to activate it.</p>
         
         <div class="credentials">
-          <h3>📋 Your Login Credentials</h3>
+          <h3>📋 Your Account</h3>
           <div class="credential-item">
             <span class="credential-label">📧 Email:</span>
             <span class="credential-value">${data.email}</span>
-          </div>
-          <div class="credential-item">
-            <span class="credential-label">🔐 Password:</span>
-            <span class="credential-value">${data.generatedPassword}</span>
-          </div>
-          <div class="credential-item">
-            <span class="credential-label">📊 Status:</span>
-            <span class="status-badge status-approved">${data.status}</span>
           </div>
         </div>
         
         ${data.roleAssignmentDetails}
         
         <div class="button-container">
-          <a href="https://manager.pranganfoundation.org/login" class="login-button">🚀 Login to Prangan Manager</a>
+          <a href="${data.activationUrl}" class="login-button">Set your password</a>
         </div>
         
         <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff8c00;">
-          <h3 style="color: #ff8c00; margin: 0 0 10px 0;">📋 Quick Login Instructions</h3>
-          <p style="margin: 5px 0;">1. Click the button above to open the login page</p>
-          <p style="margin: 5px 0;">2. Use your email: <strong>${data.email}</strong></p>
-          <p style="margin: 5px 0;">3. Use your password: <strong>${data.generatedPassword}</strong></p>
+          <h3 style="color: #ff8c00; margin: 0 0 10px 0;">📋 Next steps</h3>
+          <p style="margin: 5px 0;">1. Click the button above to set your password.</p>
+          <p style="margin: 5px 0;">2. Sign in with your email: <strong>${data.email}</strong>.</p>
         </div>
 
         <div class="footer">
@@ -97,6 +87,19 @@ export const EMAIL_TEMPLATES = {
     `,
   },
 
+  PASSWORD_RESET: {
+    getTemplate: (data: { name: string; resetUrl: string }) => `
+      <!DOCTYPE html><html><body style="margin:0;padding:24px 12px;background:#f3f6f8;color:#172033;font-family:Arial,Helvetica,sans-serif;line-height:1.55">
+        <main style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;box-shadow:0 8px 24px rgba(23,32,51,.10)">
+          <img src="https://prangan-manager.vercel.app/images/logo/prangan-logo-light-mode.png" alt="Prangan Foundation" style="display:block;max-width:150px;height:auto;margin:0 auto 24px" />
+          <h1 style="margin:0 0 12px;font-size:24px;color:#172033">Reset your password</h1>
+          <p>Hello ${data.name},</p><p>We received a request to reset your Prangan password. Use the secure, one-time link below to choose a new password.</p>
+          <p style="margin:28px 0"><a href="${data.resetUrl}" style="display:inline-block;border-radius:6px;background:#b94e00;color:#fff !important;padding:14px 24px;text-decoration:none;font-weight:700">Reset password</a></p>
+          <p style="padding:14px 16px;background:#f8fafc;border-left:4px solid #ea7a18">If you did not request this, you can safely ignore this email. Your password will not change.</p>
+          <p style="margin:24px 0 0;color:#5d6675;font-size:13px">Prangan Foundation · This is an automated security email.</p>
+        </main></body></html>`,
+  },
+
   VERIFICATION_REJECTED: {
     subject: "❌ Account Registration - Application Status Update",
     getTemplate: (data: {
@@ -111,11 +114,11 @@ export const EMAIL_TEMPLATES = {
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Account Registration Status</title>
       <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; background-color: #f4f4f4; }
-        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .header { text-align: center; border-bottom: 3px solid #dc3545; padding-bottom: 20px; margin-bottom: 30px; }
+        body { font-family: Arial, Helvetica, sans-serif; line-height: 1.55; color: #172033; margin: 0; padding: 24px 12px; background-color: #f3f6f8; }
+        .container { max-width: 600px; margin: 0 auto; background: #fff; padding: 32px; border-radius: 12px; box-shadow: 0 8px 24px rgba(23,32,51,0.10); }
+        .header { text-align: center; border-bottom: 3px solid #c7333d; padding-bottom: 20px; margin-bottom: 28px; }
         .logo { max-width: 200px; height: auto; margin-bottom: 15px; }
-        .header h1 { color: #dc3545; margin: 0; }
+        .header h1 { color: #172033; margin: 0; }
         .rejection-notice { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #dc3545; }
         .rejection-reason { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0; }
         .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #666; }

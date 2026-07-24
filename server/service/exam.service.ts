@@ -1,4 +1,6 @@
-import { PrismaClient, Level } from "../generated/prisma/index.js";
+import { Level } from "../generated/prisma/index.js";
+import { prisma } from "../lib/prisma.js";
+import { buildScoreComponents } from "../security/exam-score-input.js";
 import {
   CreateExamRequest,
   UpdateExamRequest,
@@ -12,8 +14,53 @@ import {
   ExamStatisticsRequest,
   ExamStatisticsResponse,
 } from "../types/exam.types.js";
+import { resolveSemesterLevelInput } from "./semester-level.service.js";
 
-const prisma = new PrismaClient();
+const verifyExamScope = async <
+  T extends {
+    semesterId: string;
+    semesterLevelId: string | null;
+    level: Level;
+  },
+>(
+  scope: T | null,
+): Promise<(T & { semesterLevelId: string }) | null> => {
+  if (!scope) return null;
+  const semesterLevel = await resolveSemesterLevelInput(scope);
+  return { ...scope, semesterLevelId: semesterLevel.id };
+};
+
+export const getExamScope = async (id: string) => {
+  const scope = await prisma.exam.findUnique({
+    where: { id },
+    select: {
+      projectId: true,
+      centerId: true,
+      semesterId: true,
+      semesterLevelId: true,
+      level: true,
+    },
+  });
+  return verifyExamScope(scope);
+};
+
+export const getScoreScope = async (id: string) => {
+  const score = await prisma.studentExamScore.findUnique({
+    where: { id },
+    select: {
+      exam: {
+        select: {
+          projectId: true,
+          centerId: true,
+          semesterId: true,
+          semesterLevelId: true,
+          level: true,
+        },
+      },
+    },
+  });
+  return verifyExamScope(score?.exam ?? null);
+};
 
 // ============================================
 // EXAM CRUD OPERATIONS
@@ -23,12 +70,13 @@ const prisma = new PrismaClient();
  * Create a new exam
  */
 export const createExam = async (
-  data: CreateExamRequest
+  data: CreateExamRequest,
 ): Promise<ExamResponse> => {
   const {
     projectId,
     centerId,
     semesterId,
+    semesterLevelId,
     level,
     cycle,
     name,
@@ -39,18 +87,24 @@ export const createExam = async (
     readingMaxMarks,
     writingMaxMarks,
   } = data;
+  const semesterLevel = await resolveSemesterLevelInput({
+    semesterId,
+    semesterLevelId,
+    level,
+  });
 
   // Calculate total max marks
   const totalMaxMarks =
     listeningMaxMarks + speakingMaxMarks + readingMaxMarks + writingMaxMarks;
 
-  // Check if exam with same name already exists for this context
+  // Check if exam with the same cycle and name already exists for this context.
   const existing = await prisma.exam.findFirst({
     where: {
       projectId,
       centerId,
       semesterId,
-      level,
+      semesterLevelId: semesterLevel.id,
+      cycle,
       name,
     },
   });
@@ -64,7 +118,8 @@ export const createExam = async (
       projectId,
       centerId,
       semesterId,
-      level,
+      semesterLevelId: semesterLevel.id,
+      level: semesterLevel.academicLevel.code as Level,
       cycle,
       name,
       description,
@@ -85,6 +140,7 @@ export const createExam = async (
       semester: {
         select: { id: true, name: true },
       },
+      semesterLevel: { include: { academicLevel: true } },
       _count: {
         select: { studentScores: true },
       },
@@ -99,7 +155,7 @@ export const createExam = async (
  */
 export const getExamById = async (
   id: string,
-  includeScores = false
+  includeScores = false,
 ): Promise<ExamResponse | null> => {
   const exam = await prisma.exam.findUnique({
     where: { id },
@@ -113,6 +169,7 @@ export const getExamById = async (
       semester: {
         select: { id: true, name: true },
       },
+      semesterLevel: { include: { academicLevel: true } },
       _count: {
         select: { studentScores: true },
       },
@@ -145,13 +202,15 @@ export const getExamById = async (
  * Get all exams with filtering
  */
 export const getExams = async (
-  filters: GetExamsRequest
+  filters: GetExamsRequest,
 ): Promise<ExamResponse[]> => {
   const {
     projectId,
     centerId,
     semesterId,
+    semesterLevelId,
     level,
+    cycle,
     isActive,
     startDate,
     endDate,
@@ -162,7 +221,9 @@ export const getExams = async (
       ...(projectId && { projectId }),
       ...(centerId && { centerId }),
       ...(semesterId && { semesterId }),
+      ...(semesterLevelId && { semesterLevelId }),
       ...(level && { level }),
+      ...(cycle && { cycle }),
       ...(isActive !== undefined && { isActive }),
       ...(startDate && {
         examDate: {
@@ -185,6 +246,7 @@ export const getExams = async (
       semester: {
         select: { id: true, name: true },
       },
+      semesterLevel: { include: { academicLevel: true } },
       _count: {
         select: { studentScores: true },
       },
@@ -202,7 +264,7 @@ export const getExams = async (
  */
 export const updateExam = async (
   id: string,
-  data: UpdateExamRequest
+  data: UpdateExamRequest,
 ): Promise<ExamResponse> => {
   const updateData: any = { ...data };
 
@@ -210,6 +272,16 @@ export const updateExam = async (
   const exam = await prisma.exam.findUnique({ where: { id } });
   if (!exam) {
     throw new Error("Exam not found");
+  }
+
+  if (data.semesterLevelId || data.level) {
+    const semesterLevel = await resolveSemesterLevelInput({
+      semesterId: exam.semesterId,
+      semesterLevelId: data.semesterLevelId ?? exam.semesterLevelId,
+      level: data.level ?? exam.level,
+    });
+    updateData.semesterLevelId = semesterLevel.id;
+    updateData.level = semesterLevel.academicLevel.code as Level;
   }
 
   if (
@@ -242,6 +314,7 @@ export const updateExam = async (
       semester: {
         select: { id: true, name: true },
       },
+      semesterLevel: { include: { academicLevel: true } },
       _count: {
         select: { studentScores: true },
       },
@@ -295,7 +368,7 @@ export const hardDeleteExam = async (id: string): Promise<void> => {
  */
 export const createStudentScore = async (
   data: CreateStudentScoreRequest,
-  gradedBy: string
+  gradedBy: string,
 ): Promise<StudentScoreResponse> => {
   const {
     examId,
@@ -309,15 +382,6 @@ export const createStudentScore = async (
     isAbsent,
   } = data;
 
-  // Validate enrollment
-  const enrollment = await prisma.studentEnrollments.findUnique({
-    where: { id: enrollmentId },
-  });
-
-  if (!enrollment || enrollment.studentId !== studentId) {
-    throw new Error("Invalid enrollment for student");
-  }
-
   // Validate exam exists
   const exam = await prisma.exam.findUnique({
     where: { id: examId },
@@ -327,47 +391,54 @@ export const createStudentScore = async (
     throw new Error("Exam not found");
   }
 
-  // Validate scores don't exceed max marks
-  if (!isAbsent) {
-    if (listeningScore > exam.listeningMaxMarks) {
-      throw new Error(
-        `Listening score (${listeningScore}) exceeds maximum marks (${exam.listeningMaxMarks})`
-      );
-    }
-    if (speakingScore > exam.speakingMaxMarks) {
-      throw new Error(
-        `Speaking score (${speakingScore}) exceeds maximum marks (${exam.speakingMaxMarks})`
-      );
-    }
-    if (readingScore > exam.readingMaxMarks) {
-      throw new Error(
-        `Reading score (${readingScore}) exceeds maximum marks (${exam.readingMaxMarks})`
-      );
-    }
-    if (writingScore > exam.writingMaxMarks) {
-      throw new Error(
-        `Writing score (${writingScore}) exceeds maximum marks (${exam.writingMaxMarks})`
-      );
-    }
+  if (!exam.isActive) {
+    throw new Error("Exam is not active");
   }
 
-  // Calculate total score
-  const totalScore = isAbsent
-    ? 0
-    : listeningScore + speakingScore + readingScore + writingScore;
+  const enrollment = await prisma.studentEnrollments.findFirst({
+    where: {
+      id: enrollmentId,
+      studentId,
+      isActive: true,
+      projectId: exam.projectId,
+      centerId: exam.centerId,
+      semesterId: exam.semesterId,
+      semesterLevelId: exam.semesterLevelId,
+    },
+    select: {
+      id: true,
+      studentId: true,
+      isActive: true,
+      projectId: true,
+      centerId: true,
+      semesterId: true,
+      semesterLevelId: true,
+      level: true,
+    },
+  });
+
+  if (!enrollment) {
+    throw new Error("Invalid enrollment for student");
+  }
+
+  const components = buildScoreComponents(
+    { listeningScore, speakingScore, readingScore, writingScore },
+    exam,
+    isAbsent,
+  );
 
   const score = await prisma.studentExamScore.create({
     data: {
       examId,
       studentId,
       enrollmentId,
-      listeningScore: isAbsent ? 0 : listeningScore,
-      speakingScore: isAbsent ? 0 : speakingScore,
-      readingScore: isAbsent ? 0 : readingScore,
-      writingScore: isAbsent ? 0 : writingScore,
-      totalScore,
+      listeningScore: components.listeningScore,
+      speakingScore: components.speakingScore,
+      readingScore: components.readingScore,
+      writingScore: components.writingScore,
+      totalScore: components.totalScore,
       remarks,
-      isAbsent: isAbsent || false,
+      isAbsent: components.isAbsent,
       gradedBy,
       gradedAt: new Date(),
     },
@@ -411,7 +482,7 @@ export const createStudentScore = async (
  */
 export const bulkCreateScores = async (
   data: BulkCreateScoresRequest,
-  gradedBy: string
+  gradedBy: string,
 ): Promise<StudentScoreResponse[]> => {
   const { examId, scores } = data;
 
@@ -424,50 +495,63 @@ export const bulkCreateScores = async (
     throw new Error("Exam not found");
   }
 
-  // Prepare score data with validation
-  const scoreData = scores.map((score) => {
-    // Validate scores don't exceed max marks
-    if (!score.isAbsent) {
-      if (score.listeningScore > exam.listeningMaxMarks) {
-        throw new Error(
-          `Listening score for student ${score.studentId} exceeds maximum marks`
-        );
-      }
-      if (score.speakingScore > exam.speakingMaxMarks) {
-        throw new Error(
-          `Speaking score for student ${score.studentId} exceeds maximum marks`
-        );
-      }
-      if (score.readingScore > exam.readingMaxMarks) {
-        throw new Error(
-          `Reading score for student ${score.studentId} exceeds maximum marks`
-        );
-      }
-      if (score.writingScore > exam.writingMaxMarks) {
-        throw new Error(
-          `Writing score for student ${score.studentId} exceeds maximum marks`
-        );
-      }
-    }
+  if (!exam.isActive) {
+    throw new Error("Exam is not active");
+  }
 
-    const totalScore = score.isAbsent
-      ? 0
-      : score.listeningScore +
-        score.speakingScore +
-        score.readingScore +
-        score.writingScore;
+  const enrollmentPairs = scores.map(({ enrollmentId, studentId }) => ({
+    id: enrollmentId,
+    studentId,
+  }));
+  const enrollments = await prisma.studentEnrollments.findMany({
+    where: {
+      OR: enrollmentPairs,
+      isActive: true,
+      projectId: exam.projectId,
+      centerId: exam.centerId,
+      semesterId: exam.semesterId,
+      semesterLevelId: exam.semesterLevelId,
+    },
+    select: {
+      id: true,
+      studentId: true,
+      isActive: true,
+      projectId: true,
+      centerId: true,
+      semesterId: true,
+      semesterLevelId: true,
+      level: true,
+    },
+  });
+  const validPairs = new Set(
+    enrollments.map((enrollment) => `${enrollment.id}:${enrollment.studentId}`),
+  );
+  const invalidPairs = enrollmentPairs.filter(
+    ({ id, studentId }) => !validPairs.has(`${id}:${studentId}`),
+  );
+
+  if (invalidPairs.length > 0) {
+    throw new Error(
+      `Invalid enrollment for student: ${invalidPairs
+        .map(({ studentId }) => studentId)
+        .join(", ")}`,
+    );
+  }
+
+  const scoreData = scores.map((score) => {
+    const components = buildScoreComponents(score, exam, score.isAbsent);
 
     return {
       examId,
       studentId: score.studentId,
       enrollmentId: score.enrollmentId,
-      listeningScore: score.isAbsent ? 0 : score.listeningScore,
-      speakingScore: score.isAbsent ? 0 : score.speakingScore,
-      readingScore: score.isAbsent ? 0 : score.readingScore,
-      writingScore: score.isAbsent ? 0 : score.writingScore,
-      totalScore,
+      listeningScore: components.listeningScore,
+      speakingScore: components.speakingScore,
+      readingScore: components.readingScore,
+      writingScore: components.writingScore,
+      totalScore: components.totalScore,
       remarks: score.remarks,
-      isAbsent: score.isAbsent || false,
+      isAbsent: components.isAbsent,
       gradedBy,
       gradedAt: new Date(),
     };
@@ -501,8 +585,8 @@ export const bulkCreateScores = async (
             },
           },
         },
-      })
-    )
+      }),
+    ),
   );
 
   return createdScores.map((score) => ({
@@ -519,7 +603,7 @@ export const bulkCreateScores = async (
  * Get student score by ID
  */
 export const getStudentScoreById = async (
-  id: string
+  id: string,
 ): Promise<StudentScoreResponse | null> => {
   const score = await prisma.studentExamScore.findUnique({
     where: { id },
@@ -564,7 +648,7 @@ export const getStudentScoreById = async (
  * Get student scores with filtering
  */
 export const getStudentScores = async (
-  filters: GetStudentScoresRequest
+  filters: GetStudentScoresRequest,
 ): Promise<StudentScoreResponse[]> => {
   const { examId, studentId, enrollmentId } = filters;
 
@@ -618,7 +702,7 @@ export const getStudentScores = async (
 export const updateStudentScore = async (
   id: string,
   data: UpdateStudentScoreRequest,
-  gradedBy: string
+  gradedBy: string,
 ): Promise<StudentScoreResponse> => {
   const score = await prisma.studentExamScore.findUnique({
     where: { id },
@@ -629,64 +713,31 @@ export const updateStudentScore = async (
     throw new Error("Student score not found");
   }
 
-  // Validate scores don't exceed max marks
-  if (!data.isAbsent) {
-    if (
-      data.listeningScore !== undefined &&
-      data.listeningScore > score.exam.listeningMaxMarks
-    ) {
-      throw new Error(
-        `Listening score exceeds maximum marks (${score.exam.listeningMaxMarks})`
-      );
-    }
-    if (
-      data.speakingScore !== undefined &&
-      data.speakingScore > score.exam.speakingMaxMarks
-    ) {
-      throw new Error(
-        `Speaking score exceeds maximum marks (${score.exam.speakingMaxMarks})`
-      );
-    }
-    if (
-      data.readingScore !== undefined &&
-      data.readingScore > score.exam.readingMaxMarks
-    ) {
-      throw new Error(
-        `Reading score exceeds maximum marks (${score.exam.readingMaxMarks})`
-      );
-    }
-    if (
-      data.writingScore !== undefined &&
-      data.writingScore > score.exam.writingMaxMarks
-    ) {
-      throw new Error(
-        `Writing score exceeds maximum marks (${score.exam.writingMaxMarks})`
-      );
-    }
+  if (!score.exam.isActive) {
+    throw new Error("Exam is not active");
   }
 
-  // Calculate new total score
-  const listeningScore = data.listeningScore ?? Number(score.listeningScore);
-  const speakingScore = data.speakingScore ?? Number(score.speakingScore);
-  const readingScore = data.readingScore ?? Number(score.readingScore);
-  const writingScore = data.writingScore ?? Number(score.writingScore);
-  const isAbsent = data.isAbsent ?? score.isAbsent;
-
-  const totalScore = isAbsent
-    ? 0
-    : listeningScore + speakingScore + readingScore + writingScore;
+  const components = buildScoreComponents(
+    {
+      listeningScore: data.listeningScore ?? Number(score.listeningScore),
+      speakingScore: data.speakingScore ?? Number(score.speakingScore),
+      readingScore: data.readingScore ?? Number(score.readingScore),
+      writingScore: data.writingScore ?? Number(score.writingScore),
+    },
+    score.exam,
+    data.isAbsent ?? score.isAbsent,
+  );
 
   const updatedScore = await prisma.studentExamScore.update({
     where: { id },
     data: {
-      ...data,
-      ...(isAbsent && {
-        listeningScore: 0,
-        speakingScore: 0,
-        readingScore: 0,
-        writingScore: 0,
-      }),
-      totalScore,
+      ...(data.remarks !== undefined && { remarks: data.remarks }),
+      listeningScore: components.listeningScore,
+      speakingScore: components.speakingScore,
+      readingScore: components.readingScore,
+      writingScore: components.writingScore,
+      totalScore: components.totalScore,
+      isAbsent: components.isAbsent,
       gradedBy,
       gradedAt: new Date(),
     },
@@ -742,7 +793,7 @@ export const deleteStudentScore = async (id: string): Promise<void> => {
  * Get exam statistics
  */
 export const getExamStatistics = async (
-  examId: string
+  examId: string,
 ): Promise<ExamStatisticsResponse> => {
   const exam = await prisma.exam.findUnique({
     where: { id: examId },
@@ -778,7 +829,7 @@ export const getExamStatistics = async (
   const scores = exam.studentScores;
   const scoresEntered = scores.length;
   const absentStudents = scores.filter((s) => s.isAbsent).length;
-  const pendingScores = totalStudents - scoresEntered;
+  const pendingScores = Math.max(0, totalStudents - scoresEntered);
 
   // Calculate average scores (excluding absent students)
   const presentScores = scores.filter((s) => !s.isAbsent);

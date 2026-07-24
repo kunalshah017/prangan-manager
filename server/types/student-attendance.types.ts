@@ -13,7 +13,7 @@ export interface StudentAttendanceCreateInput {
 export interface StudentAttendanceUpdateInput {
   status?: "PRESENT" | "ABSENT" | "HOLIDAY";
   notes?: string;
-  holidayReason?: string;
+  holidayReason?: string | null;
 }
 
 export interface StudentAttendanceFilter {
@@ -51,6 +51,16 @@ export interface StudentAttendanceWithDetails {
   enrollment: {
     id: string;
     level: string;
+    semesterLevelId: string | null;
+    semesterLevel: {
+      id: string;
+      academicLevel: {
+        id: string;
+        code: string;
+        name: string;
+        journeyOrder: number;
+      };
+    } | null;
   };
   project: {
     id: string;

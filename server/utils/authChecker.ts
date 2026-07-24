@@ -1,9 +1,9 @@
-import jwt from "jsonwebtoken";
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { errorHandle } from "./handler.js";
-import { PrismaClient } from "../generated/prisma/index.js";
 import { Role } from "../generated/prisma/index.js";
-const prisma = new PrismaClient();
+import { prisma } from "../lib/prisma.js";
+import { toAuthenticatedIdentity } from "../security/authentication.js";
+import { readSessionToken, SESSION_COOKIE_NAME } from "../security/session.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -16,32 +16,47 @@ declare module "fastify" {
   }
 }
 
+export const AUTHENTICATION_FAILURE_MESSAGE = "Unauthorized";
+
 export const authChecker = async (
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
-  const token = request.headers.authorization?.split(" ")[1];
+  const token = request.cookies[SESSION_COOKIE_NAME];
 
-  if (!token) return errorHandle("Unauthorized: No token provided", reply, 401);
+  if (!token) {
+    return errorHandle(AUTHENTICATION_FAILURE_MESSAGE, reply, 401);
+  }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET as string);
-    if (typeof decoded === "string" || !decoded?.userId) {
-      return errorHandle("Unauthorized: Invalid token", reply, 401);
+    const decoded = readSessionToken(token);
+    if (!decoded) {
+      return errorHandle(AUTHENTICATION_FAILURE_MESSAGE, reply, 401);
     } else {
       const user = await prisma.user.findUnique({
         where: { id: decoded.userId },
-        select: { id: true, name: true, email: true, role: true }, // Adjust fields as needed
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          status: true,
+          sessionVersion: true,
+        },
       });
+      const identity =
+        user && user.sessionVersion === decoded.sessionVersion
+          ? toAuthenticatedIdentity(user)
+          : null;
 
-      if (!user) {
-        return errorHandle("Unauthorized: User not found", reply, 401);
+      if (!identity) {
+        return errorHandle(AUTHENTICATION_FAILURE_MESSAGE, reply, 401);
       }
 
-      request.user = user; // Attach user to request object
+      request.user = identity;
       return;
     }
-  } catch (error) {
-    return errorHandle("Unauthorized: Invalid token", reply, 401);
+  } catch {
+    return errorHandle(AUTHENTICATION_FAILURE_MESSAGE, reply, 401);
   }
 };

@@ -40,10 +40,10 @@ export const useStudent = (id: string) => {
 
 export const useStudentsByLevel = (level: string) => {
   return useQuery({
-    queryKey: ["students", "level", level],
+    queryKey: queryKeys.studentsByLevel(level),
     queryFn: async (): Promise<Student[]> => {
       const response = await api.get<StudentsResponse>(
-        `/users/students/level/${level}`
+        `/users/students/level/${level}`,
       );
       return response.students;
     },
@@ -52,35 +52,57 @@ export const useStudentsByLevel = (level: string) => {
   });
 };
 
-export const useStudentsBySemester = (semesterId: string) => {
+export const useStudentsBySemesterLevel = (semesterLevelId: string) => {
+  return useQuery({
+    queryKey: queryKeys.studentsBySemesterLevel(semesterLevelId),
+    queryFn: async (): Promise<Student[]> => {
+      const response = await api.get<StudentsResponse>(
+        `/users/students/semester-level/${semesterLevelId}`,
+      );
+      return response.students;
+    },
+    enabled: !!semesterLevelId,
+    staleTime: 2 * 60 * 1000,
+  });
+};
+
+export const useStudentsBySemester = (
+  semesterId: string,
+  options?: { enabled?: boolean },
+) => {
   return useQuery({
     queryKey: ["students", "semester", semesterId],
     queryFn: async (): Promise<Student[]> => {
       const response = await api.get<StudentEnrollmentsResponse>(
-        `/users/students/semester/${semesterId}`
+        `/users/students/semester/${semesterId}`,
       );
       // Extract students from enrollments and add level information
       return response.enrollments.map((enrollment) => ({
         ...enrollment.student!,
-        level: enrollment.level, // Add level from enrollment
+        level: enrollment.level,
+        semesterLevelId: enrollment.semesterLevelId,
+        semesterLevel: enrollment.semesterLevel,
       }));
     },
-    enabled: !!semesterId,
+    enabled: options?.enabled ?? !!semesterId,
     staleTime: 2 * 60 * 1000,
   });
 };
 
 // New hook for getting student enrollments by semester
-export const useStudentEnrollmentsBySemester = (semesterId: string) => {
+export const useStudentEnrollmentsBySemester = (
+  semesterId: string,
+  options?: { enabled?: boolean },
+) => {
   return useQuery({
     queryKey: ["enrollments", "semester", semesterId],
     queryFn: async (): Promise<StudentEnrollment[]> => {
       const response = await api.get<StudentEnrollmentsResponse>(
-        `/users/students/semester/${semesterId}`
+        `/users/students/semester/${semesterId}`,
       );
       return response.enrollments;
     },
-    enabled: !!semesterId,
+    enabled: options?.enabled ?? !!semesterId,
     staleTime: 2 * 60 * 1000,
   });
 };
@@ -91,7 +113,7 @@ export const useCreateStudent = () => {
 
   return useMutation({
     mutationFn: async (
-      studentData: CreateStudentRequest
+      studentData: CreateStudentRequest,
     ): Promise<CreateStudentResponse> => {
       return api.post<CreateStudentResponse>("/users/students", studentData);
     },
@@ -114,7 +136,7 @@ export const useUpdateStudent = () => {
     }): Promise<UpdateStudentResponse> => {
       return api.put<UpdateStudentResponse>(
         `/users/students/${id}`,
-        studentData
+        studentData,
       );
     },
     onSuccess: (_, variables) => {
@@ -185,11 +207,11 @@ export const useCreateEnrollment = () => {
       centerId: string;
       semesterId: string;
       projectId: string;
-      level: StudentEnrollment["level"];
+      semesterLevelId: string;
     }): Promise<{ message: string; enrollment: StudentEnrollment }> => {
       return api.post(
         `/users/students/${studentId}/enrollments`,
-        enrollmentData
+        enrollmentData,
       );
     },
     onSuccess: (_, variables) => {
@@ -221,12 +243,12 @@ export const useUpdateEnrollment = () => {
       centerId?: string;
       semesterId?: string;
       projectId?: string;
-      level?: StudentEnrollment["level"];
+      semesterLevelId?: string;
       isActive?: boolean;
     }): Promise<{ message: string; enrollment: StudentEnrollment }> => {
       return api.put(
         `/users/students/enrollments/${enrollmentId}`,
-        enrollmentData
+        enrollmentData,
       );
     },
     onSuccess: (data, variables) => {

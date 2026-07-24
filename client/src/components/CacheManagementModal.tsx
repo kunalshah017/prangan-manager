@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { CustomButton } from '@/components/ui/custom-button';
 import { Modal } from '@/components/ui/modal';
+import { ConfirmationModal } from '@/components/ui/confirmation-modal';
+import toast from 'react-hot-toast';
 
 interface CacheManagementModalProps {
     isOpen: boolean;
@@ -12,6 +14,8 @@ export const CacheManagementModal: React.FC<CacheManagementModalProps> = ({
     onClose,
 }) => {
     const [isClearing, setIsClearing] = useState(false);
+    const [showUpdateConfirmation, setShowUpdateConfirmation] = useState(false);
+    const [waitingRegistration, setWaitingRegistration] = useState<ServiceWorkerRegistration | null>(null);
 
     const handleClearCache = async () => {
         setIsClearing(true);
@@ -37,12 +41,11 @@ export const CacheManagementModal: React.FC<CacheManagementModalProps> = ({
                 );
             }
 
-            // Show success message and reload
-            alert('Cache cleared successfully! The app will now reload with fresh data.');
+            toast.success('Cache cleared. Reloading with fresh app data...');
             window.location.replace(window.location.href);
         } catch (error) {
             console.error('Error clearing cache:', error);
-            alert('Error clearing cache. Please try manually refreshing the page.');
+            toast.error('Could not clear cached app data.');
             setIsClearing(false);
         }
     };
@@ -59,20 +62,17 @@ export const CacheManagementModal: React.FC<CacheManagementModalProps> = ({
                 await registration.update();
 
                 if (registration.waiting) {
-                    const shouldUpdate = confirm('An update is available! Apply now?');
-                    if (shouldUpdate) {
-                        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-                        setTimeout(() => window.location.reload(), 100);
-                    }
+                    setWaitingRegistration(registration);
+                    setShowUpdateConfirmation(true);
                 } else {
-                    alert('You are already using the latest version!');
+                    toast.success('You are already using the latest version.');
                 }
             } catch (error) {
                 console.error('Error checking for updates:', error);
-                alert('Error checking for updates. Please try again later.');
+                toast.error('Could not check for updates.');
             }
         } else {
-            alert('Service worker not supported in this browser.');
+            toast.error('Updates are not supported in this browser.');
         }
     };
 
@@ -139,6 +139,18 @@ export const CacheManagementModal: React.FC<CacheManagementModalProps> = ({
                     </p>
                 </div>
             </div>
+            <ConfirmationModal
+                isOpen={showUpdateConfirmation}
+                onClose={() => setShowUpdateConfirmation(false)}
+                onConfirm={() => {
+                    waitingRegistration?.waiting?.postMessage({ type: 'SKIP_WAITING' });
+                    setShowUpdateConfirmation(false);
+                    toast.success('Applying the update...');
+                }}
+                title="Update available"
+                message="A newer version is ready. Apply it now to reload with the latest changes."
+                confirmText="Update now"
+            />
         </Modal>
     );
 };

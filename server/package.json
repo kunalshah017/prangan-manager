@@ -9,11 +9,15 @@
     "build": "tsc && npm run copy-prisma",
     "copy-prisma": "node scripts/copy-prisma.js",
     "start": "node dist/server.js",
-    "test": "echo \"No tests specified\"",
+    "test": "tsx --test \"tests/**/*.test.ts\"",
     "postinstall": "prisma generate",
-    "seed": "tsx prisma/seed.ts",
-    "db:seed:prod": "tsx prisma/seed-prod.ts",
-    "vercel-build": "npx prisma migrate deploy && npx prisma generate && tsc",
+    "db:reset:fixtures": "tsx prisma/seed.ts",
+    "db:seed:syllabus": "tsx prisma/seed-syllabus.ts",
+    "db:backfill:person-names": "tsx scripts/backfill-person-names.ts",
+    "db:backfill:semester-levels": "tsx scripts/backfill-semester-levels.ts",
+    "db:verify:semester-levels": "tsx scripts/backfill-semester-levels.ts --verify",
+    "db:verify:semester-level-parity": "tsx scripts/verify-semester-level-parity.ts",
+    "db:verify:remuneration-periods": "tsx scripts/verify-remuneration-periods.ts",
     "generate-profession-images": "node scripts/generate-future-profession-images.js",
     "generate-profession-images:trial": "node scripts/generate-future-profession-images.js --trial",
     "generate-profession-images:full": "node scripts/generate-future-profession-images.js --full",
@@ -23,18 +27,21 @@
   "author": "",
   "license": "ISC",
   "type": "module",
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
-  },
   "dependencies": {
-    "@fastify/cors": "^11.0.1",
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/cors": "^11.3.0",
     "@prisma/client": "^6.11.1",
     "bcryptjs": "^3.0.2",
-    "cloudinary": "^2.7.0",
+    "cloudinary": "^2.10.0",
     "dotenv": "^17.2.0",
-    "fastify": "^5.4.0",
-    "jsonwebtoken": "^9.0.2",
-    "nodemailer": "^7.0.5"
+    "fastify": "^5.10.0",
+    "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^9.0.3"
+  },
+  "overrides": {
+    "ajv": "8.20.0",
+    "fast-uri": "4.1.1",
+    "lodash": "4.18.1"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

@@ -8,11 +8,14 @@ import type {
 } from "@/types/api";
 
 // Get students by semester for attendance marking
-export const useStudentsBySemester = (semesterId: string) => {
+export const useStudentsBySemester = (
+  semesterId: string,
+  options?: { enabled?: boolean },
+) => {
   return useQuery({
     queryKey: ["students", "semester", semesterId, "attendance"], // Added "attendance" to make it unique
     queryFn: () => api.students.getBySemester(semesterId),
-    enabled: !!semesterId,
+    enabled: options?.enabled ?? !!semesterId,
     staleTime: 5 * 60 * 1000, // 5 minutes
     select: (data: StudentsBySemesterResponse) => {
       // Transform the enrollment data to extract students with enrollment info
@@ -42,7 +45,7 @@ interface UseStudentAttendanceRecordsOptions {
 }
 
 export const useStudentAttendanceRecords = (
-  options: UseStudentAttendanceRecordsOptions
+  options: UseStudentAttendanceRecordsOptions,
 ) => {
   const queryParams = new URLSearchParams();
 
@@ -58,21 +61,9 @@ export const useStudentAttendanceRecords = (
   return useQuery({
     queryKey: ["student-attendance", options],
     queryFn: async (): Promise<StudentAttendanceRecordsResponse> => {
-      const response = await fetch(
-        `${api.baseURL}/student-attendance?${queryParams.toString()}`,
-        {
-          headers: {
-            Authorization: `Bearer ${api.getToken()}`,
-            "Content-Type": "application/json",
-          },
-        }
+      return api.get<StudentAttendanceRecordsResponse>(
+        `/student-attendance?${queryParams.toString()}`,
       );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch student attendance records");
-      }
-
-      return response.json();
     },
     enabled:
       options.enabled ??
@@ -92,23 +83,7 @@ export const useBulkMarkStudentAttendance = () => {
 
   return useMutation({
     mutationFn: async (data: BulkMarkStudentAttendanceRequest) => {
-      const response = await fetch(`${api.baseURL}/student-attendance/bulk`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${api.getToken()}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.message || "Failed to mark student attendance"
-        );
-      }
-
-      return response.json();
+      return api.post("/student-attendance/bulk", data);
     },
     onSuccess: (_, variables) => {
       // Invalidate related queries
@@ -144,23 +119,7 @@ export const useMarkStudentAttendance = () => {
 
   return useMutation({
     mutationFn: async (data: MarkStudentAttendanceRequest) => {
-      const response = await fetch(`${api.baseURL}/student-attendance/mark`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${api.getToken()}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.message || "Failed to mark student attendance"
-        );
-      }
-
-      return response.json();
+      return api.post("/student-attendance/mark", data);
     },
     onSuccess: (_, variables) => {
       // Invalidate related queries

@@ -1,5 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
-import { ApiError } from "./api-client";
+import { ApiError } from "./api-error";
 
 // Configure the QueryClient with default options
 export const queryClient = new QueryClient({
@@ -28,11 +28,14 @@ export const queryClient = new QueryClient({
       refetchOnReconnect: "always",
     },
     mutations: {
-      // Retry mutations once on failure
-      retry: 1,
+      // Mutations can create duplicate side effects, so never retry by default
+      retry: false,
     },
   },
 });
+
+export const semesterSetupSummariesKey = (centerId: string) =>
+  ["centers", centerId, "semester-setup-summaries"] as const;
 
 // Query key factory for consistent query keys
 export const queryKeys = {
@@ -55,6 +58,15 @@ export const queryKeys = {
   semestersByCenter: (centerId: string) =>
     ["semesters", "center", centerId] as const,
 
+  // Managed levels
+  academicLevelsRoot: ["academic-levels"] as const,
+  academicLevels: (includeArchived = false) =>
+    ["academic-levels", { includeArchived }] as const,
+  semesterLevelsRoot: (semesterId: string) =>
+    ["semesters", semesterId, "levels"] as const,
+  semesterLevels: (semesterId: string, includeInactive = false) =>
+    ["semesters", semesterId, "levels", { includeInactive }] as const,
+
   // Users and admin
   users: ["users"] as const,
   user: (id: string) => ["users", id] as const,
@@ -64,6 +76,9 @@ export const queryKeys = {
   // Students
   students: ["students"] as const,
   student: (id: string) => ["students", id] as const,
+  studentsBySemesterLevel: (semesterLevelId: string) =>
+    ["students", "semester-level", semesterLevelId] as const,
+  /** @deprecated Use studentsBySemesterLevel. */
   studentsByLevel: (level: string) => ["students", "level", level] as const,
 
   // Syllabus

@@ -1,5 +1,7 @@
 import type { User } from "@/types/api";
 
+export { can, type Permission, type WorkspaceContext } from "./access";
+
 /**
  * Permission System Overview:
  *
@@ -20,7 +22,7 @@ export const hasPermission = (
   allowedRoles: ("USER" | "ADMIN")[] = [],
   allowedSubRoles: string[] = [],
   requireAdmin: boolean = false,
-  allowAll: boolean = false
+  allowAll: boolean = false,
 ): boolean => {
   if (!user) return false;
 
@@ -54,7 +56,7 @@ export const hasPermission = (
     return (
       user.roleAssignments?.some(
         (assignment) =>
-          assignment.isActive && allowedSubRoles.includes(assignment.subRole)
+          assignment.isActive && allowedSubRoles.includes(assignment.subRole),
       ) || false
     );
   }

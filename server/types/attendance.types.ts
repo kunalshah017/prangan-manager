@@ -9,10 +9,21 @@ export interface AttendanceUser {
     id: string;
     subRole: string;
     level?: string;
+    semesterLevelId?: string;
+    semesterLevel?: {
+      id: string;
+      academicLevel: {
+        id: string;
+        code: string;
+        name: string;
+        journeyOrder: number;
+      };
+    };
     committedDays?: CommittedDays;
     projectId?: string;
     centerId?: string;
     semesterId?: string;
+    isActive: boolean;
   }[];
 }
 
@@ -102,10 +113,26 @@ export interface GetAttendanceResponse {
     markedBy?: string;
     markedByName?: string;
     markedAt?: string;
+    user: {
+      id: string;
+      name: string;
+      email: string;
+      profileImageUrl?: string;
+    };
     roleAssignment: {
       id: string;
       subRole: string;
       level?: string;
+      semesterLevelId?: string;
+      semesterLevel?: {
+        id: string;
+        academicLevel: {
+          id: string;
+          code: string;
+          name: string;
+          journeyOrder: number;
+        };
+      };
       committedDays?: CommittedDays;
     };
   }[];

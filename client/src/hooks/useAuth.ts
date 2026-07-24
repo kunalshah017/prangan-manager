@@ -6,9 +6,12 @@ import {
   useRegister,
   useLogout,
 } from "@/hooks/useAuthQueries";
+import { isCurrentUserAuthenticated } from "@/lib/session";
 import type { LoginRequest, RegisterRequest } from "@/types/api";
 
-export const useAuth = () => {
+export const useAuth = ({
+  probeSession = false,
+}: { probeSession?: boolean } = {}) => {
   const authStore = useAuthStore();
 
   // Get current user query
@@ -16,7 +19,7 @@ export const useAuth = () => {
     data: currentUser,
     isLoading: isUserLoading,
     isError: isUserError,
-  } = useCurrentUser();
+  } = useCurrentUser(probeSession);
 
   // Mutations
   const loginMutation = useLogin();
@@ -28,12 +31,7 @@ export const useAuth = () => {
     if (currentUser) {
       // If we have user data and store doesn't have it, or data is different, update store
       if (!authStore.user || authStore.user.id !== currentUser.id) {
-        const token = localStorage.getItem("prangan_auth_token");
-        if (token) {
-          authStore.setAuth(currentUser, token);
-        } else {
-          authStore.setUser(currentUser);
-        }
+        authStore.setAuth(currentUser);
       }
     }
   }, [currentUser, authStore]);
@@ -45,12 +43,13 @@ export const useAuth = () => {
       // it likely means the token is invalid, so logout
       authStore.clearAuth();
     }
+    if (isUserError && !authStore.hasProbedSession) {
+      authStore.markSessionProbeComplete();
+    }
   }, [isUserError, authStore]);
 
   const login = async (credentials: LoginRequest) => {
-    const response = await loginMutation.mutateAsync(credentials);
-    // After login mutation succeeds, currentUser query will refetch automatically
-    return response;
+    return loginMutation.mutateAsync(credentials);
   };
 
   const register = async (userData: RegisterRequest) => {
@@ -59,12 +58,14 @@ export const useAuth = () => {
 
   const logout = async () => {
     await logoutMutation.mutateAsync();
-    authStore.clearAuth();
   };
 
   // Determine auth state based on both store and current query
-  const isAuthenticated =
-    authStore.isAuthenticated && (!!currentUser || isUserLoading);
+  const isAuthenticated = isCurrentUserAuthenticated(
+    !!currentUser,
+    authStore.isAuthenticated,
+    isUserLoading,
+  );
 
   return {
     // State
@@ -92,7 +93,7 @@ export const useAuth = () => {
       return (
         user?.roleAssignments?.some(
           (assignment) =>
-            assignment.isActive && subRoles.includes(assignment.subRole)
+            assignment.isActive && subRoles.includes(assignment.subRole),
         ) || false
       );
     },
@@ -105,7 +106,7 @@ export const useAuth = () => {
       return (
         user?.roleAssignments?.some(
           (assignment) =>
-            assignment.isActive && assignment.subRole === "EDUCATOR"
+            assignment.isActive && assignment.subRole === "EDUCATOR",
         ) || false
       );
     },
@@ -118,7 +119,7 @@ export const useAuth = () => {
       return (
         user?.roleAssignments?.some(
           (assignment) =>
-            assignment.isActive && assignment.subRole === "CENTER_MANAGER"
+            assignment.isActive && assignment.subRole === "CENTER_MANAGER",
         ) || false
       );
     },

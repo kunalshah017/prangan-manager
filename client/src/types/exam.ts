@@ -1,20 +1,19 @@
-export type Level =
-  | "LEVEL_1"
-  | "LEVEL_2"
-  | "LEVEL_3"
-  | "LEVEL_4"
-  | "PRIMARY_A"
-  | "PRIMARY_B";
+import type { AssessmentCycle } from "./api";
+import type { LegacyLevel, LevelReference } from "./api";
 
-export type ExamCycle = "PRE_ASSESSMENT" | "SA_1" | "SA_2" | "SA_3";
+/** @deprecated Use managed level references. */
+export type Level = LegacyLevel;
 
-export interface Exam {
+export type { AssessmentCycle } from "./api";
+
+export interface Exam extends LevelReference {
   id: string;
   projectId: string;
   centerId: string;
   semesterId: string;
+  /** @deprecated Use semesterLevelId and semesterLevel. */
   level: Level;
-  cycle: ExamCycle;
+  cycle: AssessmentCycle;
   name: string;
   description?: string;
   examDate: string;
@@ -59,7 +58,7 @@ export interface StudentExamScore {
   isAbsent: boolean;
   createdAt: string;
   updatedAt: string;
-  exam?: {
+  exam?: LevelReference & {
     id: string;
     name: string;
     examDate: string;
@@ -76,12 +75,12 @@ export interface StudentExamScore {
   };
 }
 
-export interface CreateExamRequest {
+export interface CreateExamRequest extends LevelReference {
   projectId: string;
   centerId: string;
   semesterId: string;
-  level: Level;
-  cycle: ExamCycle;
+  level?: Level;
+  cycle: AssessmentCycle;
   name: string;
   description?: string;
   examDate: string;
@@ -91,11 +90,11 @@ export interface CreateExamRequest {
   writingMaxMarks: number;
 }
 
-export interface UpdateExamRequest {
+export interface UpdateExamRequest extends LevelReference {
   name?: string;
   description?: string;
   level?: Level;
-  cycle?: ExamCycle;
+  cycle?: AssessmentCycle;
   examDate?: string;
   listeningMaxMarks?: number;
   speakingMaxMarks?: number;

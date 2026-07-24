@@ -13,10 +13,10 @@ import {
   updateStudentScore,
   deleteStudentScore,
   getExamStatistics,
+  getExamScope,
+  getScoreScope,
 } from "../service/exam.service.js";
 import {
-  CreateExamRequest,
-  UpdateExamRequest,
   GetExamsRequest,
   CreateStudentScoreRequest,
   UpdateStudentScoreRequest,
@@ -25,10 +25,29 @@ import {
   ExamStatisticsRequest,
 } from "../types/exam.types.js";
 import { Role } from "../generated/prisma/index.js";
+import {
+  canManageExam,
+  canReadExam,
+  canWriteScore,
+  hasCompleteExamScope,
+  type ExamScope,
+} from "../security/exam-authorization.js";
+import { getActiveUserScopeAssignments } from "../service/user.service.js";
+import {
+  parseBulkCreateScores,
+  parseCreateStudentScore,
+  parseUpdateStudentScore,
+} from "../security/exam-score-input.js";
+import {
+  parseCreateExamRequest,
+  parseOptionalAssessmentCycle,
+  parseUpdateExamRequest,
+} from "../security/exam-input.js";
+import { resolveSemesterLevelInput } from "../service/semester-level.service.js";
 
 // Define AuthenticatedRequest type
 interface AuthenticatedRequest<
-  T extends { Body?: any; Querystring?: any; Params?: any } = {}
+  T extends { Body?: any; Querystring?: any; Params?: any } = {},
 > extends FastifyRequest<T> {
   user: {
     id: string;
@@ -37,6 +56,71 @@ interface AuthenticatedRequest<
     role: Role;
   };
 }
+
+const forbidden = (reply: FastifyReply) =>
+  reply.status(403).send({ error: "Forbidden" });
+
+const isUniqueConstraintError = (error: unknown): boolean =>
+  typeof error === "object" &&
+  error !== null &&
+  "code" in error &&
+  error.code === "P2002";
+
+const sendScoreError = (
+  reply: FastifyReply,
+  error: unknown,
+  fallback: string,
+) => {
+  console.error(error);
+  const message = error instanceof Error ? error.message : "";
+  if (message.includes("Invalid enrollment")) {
+    return reply.status(400).send({ error: "Invalid score enrollment" });
+  }
+  if (message.includes("Exam is not active")) {
+    return reply.status(400).send({ error: "Exam is not active" });
+  }
+  if (
+    /^(Listening|Speaking|Reading|Writing) score (must|exceeds)|^Total score exceeds|^isAbsent must/.test(
+      message,
+    )
+  ) {
+    return reply.status(400).send({ error: "Invalid score values" });
+  }
+  if (message.includes("Unique constraint")) {
+    return reply
+      .status(409)
+      .send({ error: "Score already exists for this student and exam" });
+  }
+  return reply.status(500).send({ error: fallback });
+};
+
+const sendExamError = (
+  reply: FastifyReply,
+  error: unknown,
+  fallback: string,
+) => {
+  console.error(error);
+  return reply.status(500).send({ error: fallback });
+};
+
+const authorizeExamScope = async (
+  user: AuthenticatedRequest["user"],
+  scope: ExamScope | null | undefined,
+  policy: "read" | "manage" | "write-score",
+): Promise<boolean> => {
+  if (user.role !== Role.ADMIN && !hasCompleteExamScope(scope)) return false;
+
+  const assignments =
+    user.role === Role.ADMIN
+      ? []
+      : await getActiveUserScopeAssignments(user.id);
+  if (typeof assignments === "string") throw new Error(assignments);
+
+  const input = { identity: user, assignments, scope };
+  if (policy === "read") return canReadExam(input);
+  if (policy === "manage") return canManageExam(input);
+  return canWriteScore(input);
+};
 
 // ============================================
 // EXAM CONTROLLERS
@@ -47,30 +131,29 @@ interface AuthenticatedRequest<
  * POST /api/v1/exams
  */
 export const createExamController = async (
-  request: AuthenticatedRequest<{ Body: CreateExamRequest }>,
-  reply: FastifyReply
+  request: AuthenticatedRequest<{ Body: unknown }>,
+  reply: FastifyReply,
 ) => {
   try {
-    const data = request.body;
+    const parsedRequest = parseCreateExamRequest(request.body);
+    if ("error" in parsedRequest)
+      return reply.status(400).send({ error: parsedRequest.error });
+    const data = parsedRequest.data;
 
-    // Validate required fields
-    if (
-      !data.projectId ||
-      !data.centerId ||
-      !data.semesterId ||
-      !data.level ||
-      !data.cycle ||
-      !data.name ||
-      !data.examDate ||
-      data.listeningMaxMarks === undefined ||
-      data.speakingMaxMarks === undefined ||
-      data.readingMaxMarks === undefined ||
-      data.writingMaxMarks === undefined
-    ) {
+    const semesterLevel = await resolveSemesterLevelInput(data);
+    const scope = {
+      projectId: data.projectId,
+      centerId: data.centerId,
+      semesterId: data.semesterId,
+      semesterLevelId: semesterLevel.id,
+    };
+    if (!hasCompleteExamScope(scope)) {
       return reply.status(400).send({
-        error:
-          "Missing required fields: projectId, centerId, semesterId, level, name, examDate, LSRW max marks",
+        error: "projectId, centerId, and semesterId must be canonical IDs",
       });
+    }
+    if (!(await authorizeExamScope(request.user, scope, "manage"))) {
+      return forbidden(reply);
     }
 
     const exam = await createExam(data);
@@ -79,16 +162,17 @@ export const createExamController = async (
       message: "Exam created successfully",
       data: exam,
     });
-  } catch (error: any) {
-    if (error.message.includes("already exists")) {
+  } catch (error: unknown) {
+    console.error(error);
+    if (
+      isUniqueConstraintError(error) ||
+      (error instanceof Error && error.message.includes("already exists"))
+    ) {
       return reply.status(409).send({
-        error: error.message,
+        error: "Exam already exists for this context",
       });
     }
-    return reply.status(500).send({
-      error: "Failed to create exam",
-      details: error.message,
-    });
+    return reply.status(500).send({ error: "Failed to create exam" });
   }
 };
 
@@ -101,11 +185,17 @@ export const getExamByIdController = async (
     Params: { id: string };
     Querystring: { includeScores?: string };
   }>,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
     const { id } = request.params;
     const includeScores = request.query.includeScores === "true";
+
+    const scope = await getExamScope(id);
+    if (!scope) return reply.status(404).send({ error: "Exam not found" });
+    if (!(await authorizeExamScope(request.user, scope, "read"))) {
+      return forbidden(reply);
+    }
 
     const exam = await getExamById(id, includeScores);
 
@@ -118,11 +208,8 @@ export const getExamByIdController = async (
     return reply.status(200).send({
       data: exam,
     });
-  } catch (error: any) {
-    return reply.status(500).send({
-      error: "Failed to fetch exam",
-      details: error.message,
-    });
+  } catch (error) {
+    return sendExamError(reply, error, "Failed to fetch exam");
   }
 };
 
@@ -132,19 +219,36 @@ export const getExamByIdController = async (
  */
 export const getExamsController = async (
   request: AuthenticatedRequest<{ Querystring: GetExamsRequest }>,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
     const filters = request.query;
+    const parsedCycle = parseOptionalAssessmentCycle(filters.cycle);
+    if ("error" in parsedCycle)
+      return reply.status(400).send({ error: parsedCycle.error });
 
     // Parse isActive from string to boolean if it exists
     // Query params come as strings, so we need to convert
     const parsedFilters: GetExamsRequest = {
       ...filters,
+      ...(parsedCycle.data !== undefined && { cycle: parsedCycle.data }),
       ...(filters.isActive !== undefined && {
         isActive: String(filters.isActive) === "true",
       }),
     };
+
+    const scope = {
+      projectId: parsedFilters.projectId,
+      centerId: parsedFilters.centerId,
+      semesterId: parsedFilters.semesterId,
+      level: parsedFilters.level,
+    };
+    if (request.user.role !== Role.ADMIN && !hasCompleteExamScope(scope)) {
+      return forbidden(reply);
+    }
+    if (!(await authorizeExamScope(request.user, scope, "read"))) {
+      return forbidden(reply);
+    }
 
     const exams = await getExams(parsedFilters);
 
@@ -152,11 +256,8 @@ export const getExamsController = async (
       data: exams,
       count: exams.length,
     });
-  } catch (error: any) {
-    return reply.status(500).send({
-      error: "Failed to fetch exams",
-      details: error.message,
-    });
+  } catch (error) {
+    return sendExamError(reply, error, "Failed to fetch exams");
   }
 };
 
@@ -167,13 +268,22 @@ export const getExamsController = async (
 export const updateExamController = async (
   request: AuthenticatedRequest<{
     Params: { id: string };
-    Body: UpdateExamRequest;
+    Body: unknown;
   }>,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
     const { id } = request.params;
-    const data = request.body;
+    const parsedRequest = parseUpdateExamRequest(request.body);
+    if ("error" in parsedRequest)
+      return reply.status(400).send({ error: parsedRequest.error });
+    const data = parsedRequest.data;
+
+    const scope = await getExamScope(id);
+    if (!scope) return reply.status(404).send({ error: "Exam not found" });
+    if (!(await authorizeExamScope(request.user, scope, "manage"))) {
+      return forbidden(reply);
+    }
 
     const exam = await updateExam(id, data);
 
@@ -181,16 +291,19 @@ export const updateExamController = async (
       message: "Exam updated successfully",
       data: exam,
     });
-  } catch (error: any) {
-    if (error.message.includes("not found")) {
-      return reply.status(404).send({
-        error: error.message,
+  } catch (error: unknown) {
+    console.error(error);
+    if (isUniqueConstraintError(error)) {
+      return reply.status(409).send({
+        error: "Exam already exists for this context",
       });
     }
-    return reply.status(500).send({
-      error: "Failed to update exam",
-      details: error.message,
-    });
+    if (error instanceof Error && error.message.includes("not found")) {
+      return reply.status(404).send({
+        error: "Exam not found",
+      });
+    }
+    return reply.status(500).send({ error: "Failed to update exam" });
   }
 };
 
@@ -203,7 +316,7 @@ export const deleteExamController = async (
     Params: { id: string };
     Querystring: { hard?: string };
   }>,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
     const { id } = request.params;
@@ -216,22 +329,26 @@ export const deleteExamController = async (
           error: "Only admins can permanently delete exams",
         });
       }
+      const scope = await getExamScope(id);
+      if (!scope) return reply.status(404).send({ error: "Exam not found" });
       await hardDeleteExam(id);
       return reply.status(200).send({
         message: "Exam permanently deleted",
       });
     } else {
+      const scope = await getExamScope(id);
+      if (!scope) return reply.status(404).send({ error: "Exam not found" });
+      if (!(await authorizeExamScope(request.user, scope, "manage"))) {
+        return forbidden(reply);
+      }
       const exam = await deleteExam(id);
       return reply.status(200).send({
         message: "Exam deleted successfully",
         data: exam,
       });
     }
-  } catch (error: any) {
-    return reply.status(500).send({
-      error: "Failed to delete exam",
-      details: error.message,
-    });
+  } catch (error) {
+    return sendExamError(reply, error, "Failed to delete exam");
   }
 };
 
@@ -245,26 +362,19 @@ export const deleteExamController = async (
  */
 export const createStudentScoreController = async (
   request: AuthenticatedRequest<{ Body: CreateStudentScoreRequest }>,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
-    const data = request.body;
+    const parsed = parseCreateStudentScore(request.body);
+    if ("error" in parsed)
+      return reply.status(400).send({ error: parsed.error });
+    const data = parsed.data;
     const gradedBy = request.user.id;
 
-    // Validate required fields
-    if (
-      !data.examId ||
-      !data.studentId ||
-      !data.enrollmentId ||
-      (data.listeningScore === undefined && !data.isAbsent) ||
-      (data.speakingScore === undefined && !data.isAbsent) ||
-      (data.readingScore === undefined && !data.isAbsent) ||
-      (data.writingScore === undefined && !data.isAbsent)
-    ) {
-      return reply.status(400).send({
-        error:
-          "Missing required fields: examId, studentId, enrollmentId, LSRW scores (unless marked absent)",
-      });
+    const scope = await getExamScope(data.examId);
+    if (!scope) return reply.status(400).send({ error: "Exam not found" });
+    if (!(await authorizeExamScope(request.user, scope, "write-score"))) {
+      return forbidden(reply);
     }
 
     const score = await createStudentScore(data, gradedBy);
@@ -273,25 +383,8 @@ export const createStudentScoreController = async (
       message: "Student score created successfully",
       data: score,
     });
-  } catch (error: any) {
-    if (
-      error.message.includes("Invalid enrollment") ||
-      error.message.includes("not found") ||
-      error.message.includes("exceeds maximum")
-    ) {
-      return reply.status(400).send({
-        error: error.message,
-      });
-    }
-    if (error.message.includes("Unique constraint")) {
-      return reply.status(409).send({
-        error: "Score already exists for this student and exam",
-      });
-    }
-    return reply.status(500).send({
-      error: "Failed to create student score",
-      details: error.message,
-    });
+  } catch (error) {
+    return sendScoreError(reply, error, "Failed to create student score");
   }
 };
 
@@ -301,16 +394,19 @@ export const createStudentScoreController = async (
  */
 export const bulkCreateScoresController = async (
   request: AuthenticatedRequest<{ Body: BulkCreateScoresRequest }>,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
-    const data = request.body;
+    const parsed = parseBulkCreateScores(request.body);
+    if ("error" in parsed)
+      return reply.status(400).send({ error: parsed.error });
+    const data = parsed.data;
     const gradedBy = request.user.id;
 
-    if (!data.examId || !data.scores || data.scores.length === 0) {
-      return reply.status(400).send({
-        error: "Missing required fields: examId and scores array",
-      });
+    const scope = await getExamScope(data.examId);
+    if (!scope) return reply.status(400).send({ error: "Exam not found" });
+    if (!(await authorizeExamScope(request.user, scope, "write-score"))) {
+      return forbidden(reply);
     }
 
     const scores = await bulkCreateScores(data, gradedBy);
@@ -319,19 +415,8 @@ export const bulkCreateScoresController = async (
       message: `${scores.length} student scores created successfully`,
       data: scores,
     });
-  } catch (error: any) {
-    if (
-      error.message.includes("not found") ||
-      error.message.includes("exceeds maximum")
-    ) {
-      return reply.status(400).send({
-        error: error.message,
-      });
-    }
-    return reply.status(500).send({
-      error: "Failed to create student scores",
-      details: error.message,
-    });
+  } catch (error) {
+    return sendScoreError(reply, error, "Failed to create student scores");
   }
 };
 
@@ -341,10 +426,16 @@ export const bulkCreateScoresController = async (
  */
 export const getStudentScoreByIdController = async (
   request: AuthenticatedRequest<{ Params: { id: string } }>,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
     const { id } = request.params;
+    const scope = await getScoreScope(id);
+    if (!scope)
+      return reply.status(404).send({ error: "Student score not found" });
+    if (!(await authorizeExamScope(request.user, scope, "read"))) {
+      return forbidden(reply);
+    }
     const score = await getStudentScoreById(id);
 
     if (!score) {
@@ -356,11 +447,8 @@ export const getStudentScoreByIdController = async (
     return reply.status(200).send({
       data: score,
     });
-  } catch (error: any) {
-    return reply.status(500).send({
-      error: "Failed to fetch student score",
-      details: error.message,
-    });
+  } catch (error) {
+    return sendExamError(reply, error, "Failed to fetch student score");
   }
 };
 
@@ -370,21 +458,28 @@ export const getStudentScoreByIdController = async (
  */
 export const getStudentScoresController = async (
   request: AuthenticatedRequest<{ Querystring: GetStudentScoresRequest }>,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
     const filters = request.query;
+    if (request.user.role !== Role.ADMIN && !filters.examId) {
+      return forbidden(reply);
+    }
+    if (filters.examId) {
+      const scope = await getExamScope(filters.examId);
+      if (!scope) return reply.status(404).send({ error: "Exam not found" });
+      if (!(await authorizeExamScope(request.user, scope, "read"))) {
+        return forbidden(reply);
+      }
+    }
     const scores = await getStudentScores(filters);
 
     return reply.status(200).send({
       data: scores,
       count: scores.length,
     });
-  } catch (error: any) {
-    return reply.status(500).send({
-      error: "Failed to fetch student scores",
-      details: error.message,
-    });
+  } catch (error) {
+    return sendExamError(reply, error, "Failed to fetch student scores");
   }
 };
 
@@ -397,12 +492,22 @@ export const updateStudentScoreController = async (
     Params: { id: string };
     Body: UpdateStudentScoreRequest;
   }>,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
     const { id } = request.params;
-    const data = request.body;
+    const parsed = parseUpdateStudentScore(request.body);
+    if ("error" in parsed)
+      return reply.status(400).send({ error: parsed.error });
+    const data = parsed.data;
     const gradedBy = request.user.id;
+
+    const scope = await getScoreScope(id);
+    if (!scope)
+      return reply.status(404).send({ error: "Student score not found" });
+    if (!(await authorizeExamScope(request.user, scope, "write-score"))) {
+      return forbidden(reply);
+    }
 
     const score = await updateStudentScore(id, data, gradedBy);
 
@@ -410,19 +515,8 @@ export const updateStudentScoreController = async (
       message: "Student score updated successfully",
       data: score,
     });
-  } catch (error: any) {
-    if (
-      error.message.includes("not found") ||
-      error.message.includes("exceeds maximum")
-    ) {
-      return reply.status(400).send({
-        error: error.message,
-      });
-    }
-    return reply.status(500).send({
-      error: "Failed to update student score",
-      details: error.message,
-    });
+  } catch (error) {
+    return sendScoreError(reply, error, "Failed to update student score");
   }
 };
 
@@ -432,7 +526,7 @@ export const updateStudentScoreController = async (
  */
 export const deleteStudentScoreController = async (
   request: AuthenticatedRequest<{ Params: { id: string } }>,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
     const { id } = request.params;
@@ -444,16 +538,17 @@ export const deleteStudentScoreController = async (
       });
     }
 
+    const scope = await getScoreScope(id);
+    if (!scope)
+      return reply.status(404).send({ error: "Student score not found" });
+
     await deleteStudentScore(id);
 
     return reply.status(200).send({
       message: "Student score deleted successfully",
     });
-  } catch (error: any) {
-    return reply.status(500).send({
-      error: "Failed to delete student score",
-      details: error.message,
-    });
+  } catch (error) {
+    return sendExamError(reply, error, "Failed to delete student score");
   }
 };
 
@@ -467,24 +562,27 @@ export const deleteStudentScoreController = async (
  */
 export const getExamStatisticsController = async (
   request: AuthenticatedRequest<{ Params: { id: string } }>,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
     const { id } = request.params;
+    const scope = await getExamScope(id);
+    if (!scope) return reply.status(404).send({ error: "Exam not found" });
+    if (!(await authorizeExamScope(request.user, scope, "read"))) {
+      return forbidden(reply);
+    }
     const statistics = await getExamStatistics(id);
 
     return reply.status(200).send({
       data: statistics,
     });
   } catch (error: any) {
+    console.error(error);
     if (error.message.includes("not found")) {
       return reply.status(404).send({
-        error: error.message,
+        error: "Exam not found",
       });
     }
-    return reply.status(500).send({
-      error: "Failed to fetch exam statistics",
-      details: error.message,
-    });
+    return reply.status(500).send({ error: "Failed to fetch exam statistics" });
   }
 };

@@ -1,16 +1,146 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import { StudentAttendanceService } from "../service/student-attendance.service.js";
 import {
-  StudentAttendanceCreateInput,
-  StudentAttendanceUpdateInput,
-  StudentAttendanceFilter,
-  BulkStudentAttendanceInput,
-} from "../types/student-attendance.types.js";
+  StudentAttendanceSemesterDateError,
+  StudentAttendanceService,
+  StudentAttendanceWeekendDateError,
+} from "../service/student-attendance.service.js";
+import { StudentAttendanceFilter } from "../types/student-attendance.types.js";
+import { Level, Role, SubRole } from "../generated/prisma/index.js";
+import {
+  canManageStudentAttendance,
+  hasCompleteAttendanceScope,
+} from "../security/attendance-authorization.js";
+import {
+  parseBulkStudentAttendance,
+  parseStudentAttendanceCreate,
+  parseStudentAttendanceUpdate,
+} from "../security/student-attendance-update.js";
+import { getActiveUserScopeAssignments } from "../service/user.service.js";
+import { isValidDateFormat } from "../utils/dateHelpers.js";
+
+type StudentAttendanceScope = {
+  projectId?: string;
+  centerId?: string;
+  semesterId?: string;
+};
+
+const studentAttendanceAuthorizationMessage =
+  "You are not authorized to manage student attendance";
+
+const sendStudentAttendanceError = (
+  reply: FastifyReply,
+  error: unknown,
+  logMessage: string,
+  fallbackMessage: string,
+) => {
+  if (
+    error instanceof StudentAttendanceSemesterDateError ||
+    error instanceof StudentAttendanceWeekendDateError
+  ) {
+    const publicMessage = error.message;
+    return reply.status(400).send({ message: publicMessage });
+  }
+
+  console.error(logMessage, error);
+  return reply.status(500).send({ message: fallbackMessage });
+};
+
+const invalidStudentAttendanceFilterDateMessage = (
+  filter: Pick<StudentAttendanceFilter, "date" | "dateFrom" | "dateTo">,
+): string | null => {
+  if (filter.date && !isValidDateFormat(filter.date)) {
+    return "Date must be in YYYY-MM-DD format";
+  }
+
+  if (
+    (filter.dateFrom && !isValidDateFormat(filter.dateFrom)) ||
+    (filter.dateTo && !isValidDateFormat(filter.dateTo))
+  ) {
+    return "Dates must be in YYYY-MM-DD format";
+  }
+
+  return null;
+};
+
+const resolveStudentAttendanceAccess = async (
+  user: NonNullable<FastifyRequest["user"]>,
+  scope: Required<StudentAttendanceScope>,
+): Promise<{ allowedSemesterLevelIds?: string[] } | null> => {
+  if (user.role === Role.ADMIN) return {};
+
+  const assignments = await getActiveUserScopeAssignments(user.id);
+  if (typeof assignments === "string") throw new Error(assignments);
+
+  if (!canManageStudentAttendance({ identity: user, assignments, scope })) {
+    return null;
+  }
+
+  const exactAssignments = assignments.filter(
+    (assignment) =>
+      assignment.isActive &&
+      assignment.projectId === scope.projectId &&
+      assignment.centerId === scope.centerId &&
+      assignment.semesterId === scope.semesterId,
+  );
+
+  if (
+    exactAssignments.some(
+      (assignment) => assignment.subRole === SubRole.CENTER_MANAGER,
+    )
+  ) {
+    return {};
+  }
+
+  const allowedSemesterLevelIds = Array.from(
+    new Set(
+      exactAssignments
+        .filter(
+          (
+            assignment,
+          ): assignment is typeof assignment & {
+            semesterLevelId: string;
+          } =>
+            assignment.subRole === SubRole.EDUCATOR &&
+            assignment.semesterLevelId !== null,
+        )
+        .map((assignment) => assignment.semesterLevelId),
+    ),
+  );
+
+  return allowedSemesterLevelIds.length > 0
+    ? { allowedSemesterLevelIds }
+    : null;
+};
+
+const requireStudentAttendanceAccess = async (
+  request: FastifyRequest,
+  reply: FastifyReply,
+  scope: StudentAttendanceScope,
+  invalidScopeStatus: 400 | 403,
+) => {
+  if (!hasCompleteAttendanceScope(scope)) {
+    return reply.status(invalidScopeStatus).send({
+      message:
+        invalidScopeStatus === 400
+          ? "projectId, centerId, and semesterId must be canonical IDs"
+          : studentAttendanceAuthorizationMessage,
+    });
+  }
+
+  const access = await resolveStudentAttendanceAccess(request.user!, scope);
+  if (!access) {
+    return reply
+      .status(403)
+      .send({ message: studentAttendanceAuthorizationMessage });
+  }
+
+  return access;
+};
 
 // Mark attendance for a single student
 export const markStudentAttendance = async (
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
     const userId = request.user?.id;
@@ -18,22 +148,28 @@ export const markStudentAttendance = async (
       return reply.status(401).send({ message: "Unauthorized" });
     }
 
-    const attendanceData = request.body as StudentAttendanceCreateInput;
-
-    // Validate required fields
-    if (
-      !attendanceData.studentId ||
-      !attendanceData.date ||
-      !attendanceData.enrollmentId
-    ) {
-      return reply.status(400).send({
-        message: "Student ID, date, and enrollment ID are required",
-      });
+    const parsedAttendance = parseStudentAttendanceCreate(request.body);
+    if ("error" in parsedAttendance) {
+      return reply.status(400).send({ message: parsedAttendance.error });
     }
+    const attendanceData = parsedAttendance.data;
+
+    const access = await requireStudentAttendanceAccess(
+      request,
+      reply,
+      {
+        projectId: attendanceData.projectId,
+        centerId: attendanceData.centerId,
+        semesterId: attendanceData.semesterId,
+      },
+      400,
+    );
+    if (!access || "sent" in access) return;
 
     const attendance = await StudentAttendanceService.markAttendance(
       attendanceData,
-      userId
+      userId,
+      access.allowedSemesterLevelIds,
     );
 
     return reply.status(200).send({
@@ -41,10 +177,12 @@ export const markStudentAttendance = async (
       attendance,
     });
   } catch (error: any) {
-    console.error("Error marking student attendance:", error);
-    return reply.status(500).send({
-      message: error.message || "Failed to mark student attendance",
-    });
+    return sendStudentAttendanceError(
+      reply,
+      error,
+      "Error marking student attendance:",
+      "Failed to mark student attendance",
+    );
   }
 };
 
@@ -52,7 +190,7 @@ export const markStudentAttendance = async (
 // Optimized for serverless environments to avoid timeouts
 export const markBulkStudentAttendance = async (
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
     const userId = request.user?.id;
@@ -60,14 +198,11 @@ export const markBulkStudentAttendance = async (
       return reply.status(401).send({ message: "Unauthorized" });
     }
 
-    const bulkData = request.body as BulkStudentAttendanceInput;
-
-    // Validate required fields
-    if (!bulkData.date || !bulkData.studentAttendances?.length) {
-      return reply.status(400).send({
-        message: "Date and student attendances array are required",
-      });
+    const parsedBulkAttendance = parseBulkStudentAttendance(request.body);
+    if ("error" in parsedBulkAttendance) {
+      return reply.status(400).send({ message: parsedBulkAttendance.error });
     }
+    const bulkData = parsedBulkAttendance.data;
 
     // Simple validation for reasonable batch sizes (your typical use case: ~100 students)
     const MAX_BATCH_SIZE = 150; // Reasonable limit for typical class sizes
@@ -81,17 +216,22 @@ export const markBulkStudentAttendance = async (
       });
     }
 
-    // Validate date format
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(bulkData.date)) {
-      return reply.status(400).send({
-        message: "Date must be in YYYY-MM-DD format",
-      });
-    }
+    const access = await requireStudentAttendanceAccess(
+      request,
+      reply,
+      {
+        projectId: bulkData.projectId,
+        centerId: bulkData.centerId,
+        semesterId: bulkData.semesterId,
+      },
+      400,
+    );
+    if (!access || "sent" in access) return;
 
     const result = await StudentAttendanceService.markBulkAttendance(
       bulkData,
-      userId
+      userId,
+      access.allowedSemesterLevelIds,
     );
 
     const hasErrors = result.errors.length > 0;
@@ -124,84 +264,51 @@ export const markBulkStudentAttendance = async (
         optimizationType: "SIMPLE_TRANSACTION",
         bulkProcessing: true,
         estimatedProcessingTime: `${Math.ceil(
-          bulkData.studentAttendances.length * 0.02
+          bulkData.studentAttendances.length * 0.02,
         )} seconds`,
         note: "Optimized for typical class sizes (~100 students)",
         performance: "Single transaction for reliable processing",
       },
     });
   } catch (error: any) {
-    console.error("Error marking bulk student attendance:", error);
-
-    if (
-      error.message?.includes("timeout") ||
-      error.message?.includes("timed out") ||
-      error.message?.includes("Transaction already closed") ||
-      error.message?.includes("expired transaction")
-    ) {
-      return reply.status(408).send({
-        message:
-          "Request timed out during processing. Vercel's serverless environment has strict timeout limits.",
-        explanation:
-          "The application is deployed on Vercel's serverless platform, which has execution time limits to ensure optimal performance. This batch exceeded those limits.",
-        error: error.message,
-        recommendedActions: [
-          "Try reducing the batch size to 200-300 students or fewer",
-          "Process attendance for different class levels separately",
-          "Split large centers into multiple smaller requests",
-          "Process during off-peak hours when database response is faster",
-          "Contact support if issues persist with reasonable batch sizes",
-        ],
-        technicalInfo: {
-          optimizationType: "SIMPLE_TRANSACTION",
-          processingStrategy: "Single transaction for typical class sizes",
-          transactionTimeout: "10 seconds",
-          maxRecommendedBatchSize: 150,
-        },
-      });
-    }
-
-    return reply.status(500).send({
-      message: error.message || "Failed to mark bulk student attendance",
-    });
+    return sendStudentAttendanceError(
+      reply,
+      error,
+      "Error marking bulk student attendance:",
+      "Failed to mark bulk student attendance",
+    );
   }
 };
 
 // Get attendance records with filters
 export const getStudentAttendance = async (
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
     const filter = request.query as StudentAttendanceFilter;
+    const dateValidationError =
+      invalidStudentAttendanceFilterDateMessage(filter);
+    if (dateValidationError) {
+      return reply.status(400).send({ message: dateValidationError });
+    }
+    const isAdmin = request.user?.role === Role.ADMIN;
+    let allowedSemesterLevelIds: string[] | undefined;
 
-    const attendance = await StudentAttendanceService.getAttendance(filter);
+    if (!isAdmin) {
+      const access = await requireStudentAttendanceAccess(
+        request,
+        reply,
+        filter,
+        403,
+      );
+      if (!access || "sent" in access) return;
+      allowedSemesterLevelIds = access.allowedSemesterLevelIds;
+    }
 
-    return reply.status(200).send({
-      message: "Student attendance retrieved successfully",
-      attendance,
-      count: attendance.length,
-    });
-  } catch (error: any) {
-    console.error("Error getting student attendance:", error);
-    return reply.status(500).send({
-      message: error.message || "Failed to get student attendance",
-    });
-  }
-};
-
-// Get attendance for a specific student
-export const getStudentAttendanceById = async (
-  request: FastifyRequest,
-  reply: FastifyReply
-) => {
-  try {
-    const { studentId } = request.params as { studentId: string };
-    const filter = request.query as Omit<StudentAttendanceFilter, "studentId">;
-
-    const attendance = await StudentAttendanceService.getStudentAttendance(
-      studentId,
-      filter
+    const attendance = await StudentAttendanceService.getAttendance(
+      filter,
+      allowedSemesterLevelIds,
     );
 
     return reply.status(200).send({
@@ -210,33 +317,111 @@ export const getStudentAttendanceById = async (
       count: attendance.length,
     });
   } catch (error: any) {
-    console.error("Error getting student attendance by ID:", error);
-    return reply.status(500).send({
-      message: error.message || "Failed to get student attendance",
+    return sendStudentAttendanceError(
+      reply,
+      error,
+      "Error getting student attendance:",
+      "Failed to get student attendance",
+    );
+  }
+};
+
+// Get attendance for a specific student
+export const getStudentAttendanceById = async (
+  request: FastifyRequest,
+  reply: FastifyReply,
+) => {
+  try {
+    const { studentId } = request.params as { studentId: string };
+    const filter = request.query as Omit<StudentAttendanceFilter, "studentId">;
+    const dateValidationError =
+      invalidStudentAttendanceFilterDateMessage(filter);
+    if (dateValidationError) {
+      return reply.status(400).send({ message: dateValidationError });
+    }
+    const isAdmin = request.user?.role === Role.ADMIN;
+    let allowedSemesterLevelIds: string[] | undefined;
+
+    if (!isAdmin) {
+      const access = await requireStudentAttendanceAccess(
+        request,
+        reply,
+        filter,
+        403,
+      );
+      if (!access || "sent" in access) return;
+      allowedSemesterLevelIds = access.allowedSemesterLevelIds;
+    }
+
+    const attendance = await StudentAttendanceService.getStudentAttendance(
+      studentId,
+      filter,
+      allowedSemesterLevelIds,
+    );
+
+    return reply.status(200).send({
+      message: "Student attendance retrieved successfully",
+      attendance,
+      count: attendance.length,
     });
+  } catch (error: any) {
+    return sendStudentAttendanceError(
+      reply,
+      error,
+      "Error getting student attendance by ID:",
+      "Failed to get student attendance",
+    );
   }
 };
 
 // Get attendance statistics for a student
 export const getStudentAttendanceStats = async (
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
     const { studentId } = request.params as { studentId: string };
-    const { semesterId, centerId, dateFrom, dateTo } = request.query as {
-      semesterId?: string;
-      centerId?: string;
-      dateFrom?: string;
-      dateTo?: string;
-    };
+    const { projectId, semesterId, centerId, dateFrom, dateTo } =
+      request.query as {
+        projectId?: string;
+        semesterId?: string;
+        centerId?: string;
+        dateFrom?: string;
+        dateTo?: string;
+      };
+    const dateValidationError = invalidStudentAttendanceFilterDateMessage({
+      dateFrom,
+      dateTo,
+    });
+    if (dateValidationError) {
+      return reply.status(400).send({ message: dateValidationError });
+    }
+    const isAdmin = request.user?.role === Role.ADMIN;
+    let allowedSemesterLevelIds: string[] | undefined;
+
+    if (!isAdmin) {
+      const access = await requireStudentAttendanceAccess(
+        request,
+        reply,
+        {
+          projectId,
+          centerId,
+          semesterId,
+        },
+        403,
+      );
+      if (!access || "sent" in access) return;
+      allowedSemesterLevelIds = access.allowedSemesterLevelIds;
+    }
 
     const stats = await StudentAttendanceService.getStudentAttendanceStats(
       studentId,
+      projectId,
       semesterId,
       centerId,
       dateFrom,
-      dateTo
+      dateTo,
+      allowedSemesterLevelIds,
     );
 
     return reply.status(200).send({
@@ -244,17 +429,19 @@ export const getStudentAttendanceStats = async (
       stats,
     });
   } catch (error: any) {
-    console.error("Error getting student attendance stats:", error);
-    return reply.status(500).send({
-      message: error.message || "Failed to get student attendance statistics",
-    });
+    return sendStudentAttendanceError(
+      reply,
+      error,
+      "Error getting student attendance stats:",
+      "Failed to get student attendance statistics",
+    );
   }
 };
 
 // Update attendance record
 export const updateStudentAttendance = async (
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
     const userId = request.user?.id;
@@ -263,12 +450,42 @@ export const updateStudentAttendance = async (
     }
 
     const { attendanceId } = request.params as { attendanceId: string };
-    const updateData = request.body as StudentAttendanceUpdateInput;
+    const parsedUpdate = parseStudentAttendanceUpdate(request.body);
+    if ("error" in parsedUpdate) {
+      return reply.status(400).send({ message: parsedUpdate.error });
+    }
+
+    const scope =
+      await StudentAttendanceService.getAttendanceScope(attendanceId);
+    if (!scope) {
+      return reply
+        .status(403)
+        .send({ message: studentAttendanceAuthorizationMessage });
+    }
+
+    const access = await requireStudentAttendanceAccess(
+      request,
+      reply,
+      scope,
+      403,
+    );
+    if (!access || "sent" in access) return;
+    if (
+      access.allowedSemesterLevelIds &&
+      (!scope.enrollment.semesterLevelId ||
+        !access.allowedSemesterLevelIds.includes(
+          scope.enrollment.semesterLevelId,
+        ))
+    ) {
+      return reply
+        .status(403)
+        .send({ message: studentAttendanceAuthorizationMessage });
+    }
 
     const attendance = await StudentAttendanceService.updateAttendance(
       attendanceId,
-      updateData,
-      userId
+      parsedUpdate.data,
+      userId,
     );
 
     return reply.status(200).send({
@@ -278,7 +495,7 @@ export const updateStudentAttendance = async (
   } catch (error: any) {
     console.error("Error updating student attendance:", error);
     return reply.status(500).send({
-      message: error.message || "Failed to update student attendance",
+      message: "Failed to update student attendance",
     });
   }
 };
@@ -286,10 +503,41 @@ export const updateStudentAttendance = async (
 // Delete attendance record
 export const deleteStudentAttendance = async (
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
+    const userId = request.user?.id;
+    if (!userId) {
+      return reply.status(401).send({ message: "Unauthorized" });
+    }
+
     const { attendanceId } = request.params as { attendanceId: string };
+    const scope =
+      await StudentAttendanceService.getAttendanceScope(attendanceId);
+    if (!scope) {
+      return reply
+        .status(403)
+        .send({ message: studentAttendanceAuthorizationMessage });
+    }
+
+    const access = await requireStudentAttendanceAccess(
+      request,
+      reply,
+      scope,
+      403,
+    );
+    if (!access || "sent" in access) return;
+    if (
+      access.allowedSemesterLevelIds &&
+      (!scope.enrollment.semesterLevelId ||
+        !access.allowedSemesterLevelIds.includes(
+          scope.enrollment.semesterLevelId,
+        ))
+    ) {
+      return reply
+        .status(403)
+        .send({ message: studentAttendanceAuthorizationMessage });
+    }
 
     await StudentAttendanceService.deleteAttendance(attendanceId);
 
@@ -299,7 +547,7 @@ export const deleteStudentAttendance = async (
   } catch (error: any) {
     console.error("Error deleting student attendance:", error);
     return reply.status(500).send({
-      message: error.message || "Failed to delete student attendance",
+      message: "Failed to delete student attendance",
     });
   }
 };
@@ -307,7 +555,7 @@ export const deleteStudentAttendance = async (
 // Get attendance for a specific date and center/semester
 export const getAttendanceByDate = async (
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
     const { date, centerId, semesterId, projectId } = request.query as {
@@ -322,12 +570,35 @@ export const getAttendanceByDate = async (
         message: "Date, center ID, and semester ID are required",
       });
     }
+    if (!isValidDateFormat(date)) {
+      return reply.status(400).send({
+        message: "Date must be in YYYY-MM-DD format",
+      });
+    }
+
+    const isAdmin = request.user?.role === Role.ADMIN;
+    let allowedSemesterLevelIds: string[] | undefined;
+    if (!isAdmin) {
+      const access = await requireStudentAttendanceAccess(
+        request,
+        reply,
+        {
+          projectId,
+          centerId,
+          semesterId,
+        },
+        403,
+      );
+      if (!access || "sent" in access) return;
+      allowedSemesterLevelIds = access.allowedSemesterLevelIds;
+    }
 
     const attendance = await StudentAttendanceService.getAttendanceByDate(
       date,
       centerId,
       semesterId,
-      projectId
+      projectId,
+      allowedSemesterLevelIds,
     );
 
     return reply.status(200).send({
@@ -336,17 +607,19 @@ export const getAttendanceByDate = async (
       count: attendance.length,
     });
   } catch (error: any) {
-    console.error("Error getting attendance by date:", error);
-    return reply.status(500).send({
-      message: error.message || "Failed to get attendance by date",
-    });
+    return sendStudentAttendanceError(
+      reply,
+      error,
+      "Error getting attendance by date:",
+      "Failed to get attendance by date",
+    );
   }
 };
 
 // Get students without attendance for a specific date
 export const getStudentsWithoutAttendance = async (
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
     const { date, centerId, semesterId, projectId } = request.query as {
@@ -361,13 +634,36 @@ export const getStudentsWithoutAttendance = async (
         message: "Date, center ID, and semester ID are required",
       });
     }
+    if (!isValidDateFormat(date)) {
+      return reply.status(400).send({
+        message: "Date must be in YYYY-MM-DD format",
+      });
+    }
+
+    const isAdmin = request.user?.role === Role.ADMIN;
+    let allowedSemesterLevelIds: string[] | undefined;
+    if (!isAdmin) {
+      const access = await requireStudentAttendanceAccess(
+        request,
+        reply,
+        {
+          projectId,
+          centerId,
+          semesterId,
+        },
+        403,
+      );
+      if (!access || "sent" in access) return;
+      allowedSemesterLevelIds = access.allowedSemesterLevelIds;
+    }
 
     const students =
       await StudentAttendanceService.getStudentsWithoutAttendance(
         date,
         centerId,
         semesterId,
-        projectId
+        projectId,
+        allowedSemesterLevelIds,
       );
 
     return reply.status(200).send({
@@ -376,32 +672,42 @@ export const getStudentsWithoutAttendance = async (
       count: students.length,
     });
   } catch (error: any) {
-    console.error("Error getting students without attendance:", error);
-    return reply.status(500).send({
-      message: error.message || "Failed to get students without attendance",
-    });
+    return sendStudentAttendanceError(
+      reply,
+      error,
+      "Error getting students without attendance:",
+      "Failed to get students without attendance",
+    );
   }
+};
+
+const parsePositiveStudentCount = (value: unknown): number | null => {
+  if (typeof value !== "string" || !/^(?:[1-9]\d*)$/.test(value)) {
+    return null;
+  }
+
+  const count = Number(value);
+  return Number.isSafeInteger(count) && count > 0 ? count : null;
 };
 
 // Get processing estimates for bulk attendance operation
 export const getBulkAttendanceEstimate = async (
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) => {
   try {
-    const { studentCount } = request.query as { studentCount: string };
+    const { studentCount } = request.query as { studentCount?: unknown };
 
-    const count = parseInt(studentCount);
-    if (isNaN(count) || count <= 0) {
+    const count = parsePositiveStudentCount(studentCount);
+    if (count === null) {
       return reply.status(400).send({
         message: "Valid student count is required",
       });
     }
 
-    // Calculate estimates based on Vercel serverless deployment constraints
-    const batchStrategy = "VERCEL_SERVERLESS_BATCHING";
-    const estimatedTime = Math.ceil(Math.max(count * 0.05, 2)); // More conservative for Vercel
-    const maxRecommended = 300; // Reduced for Vercel's timeout limits
+    const batchStrategy = "SINGLE_PRISMA_TRANSACTION";
+    const estimatedTime = Math.ceil(Math.max(count * 0.02, 1));
+    const maxRecommended = 150;
 
     return reply.status(200).send({
       message: "Processing estimate calculated successfully",
@@ -411,38 +717,34 @@ export const getBulkAttendanceEstimate = async (
         estimatedProcessingTime: `${estimatedTime} seconds`,
         maxRecommendedBatchSize: maxRecommended,
         processingInfo: {
-          deployment: "VERCEL_SERVERLESS",
-          optimizationType: "BATCHED_TRANSACTIONS",
+          optimizationType: "SINGLE_TRANSACTION",
           bulkProcessing: true,
-          timeoutProtection: true,
-          transactionTimeout: "15 seconds",
+          timeoutSafeguard: "8 seconds",
           explanation:
-            "Backend uses Prisma transactions with batching optimized for Vercel's serverless environment",
+            "Valid attendance records are processed in one Prisma transaction.",
           performance:
-            "Processes 20 students per batch with extended timeout protection",
+            "The service applies an 8-second elapsed-time safeguard before transaction processing; actual duration varies with the request and database.",
         },
         recommendations:
           count > maxRecommended
             ? [
                 `Consider splitting into ${Math.ceil(
-                  count / maxRecommended
+                  count / maxRecommended,
                 )} smaller requests`,
                 "Process different class levels or centers separately",
-                "Use bulk processing during off-peak hours for better performance",
-                "Vercel's serverless limits require smaller batch sizes",
+                "This endpoint is a planning estimate, not a completion guarantee",
               ]
             : [
-                "This batch size is excellent for Vercel's serverless environment",
-                "Expected to complete within timeout limits",
-                "Batched processing handles 20 students per transaction batch",
-                "Optimized for Vercel's 15-second function timeout",
+                "This endpoint provides a planning estimate, not a completion guarantee",
+                "Valid records are committed together in one Prisma transaction",
+                "The service uses an 8-second elapsed-time safeguard before transaction processing",
               ],
       },
     });
   } catch (error: any) {
     console.error("Error calculating bulk attendance estimate:", error);
     return reply.status(500).send({
-      message: error.message || "Failed to calculate processing estimate",
+      message: "Failed to calculate processing estimate",
     });
   }
 };

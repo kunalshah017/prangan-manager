@@ -21,8 +21,9 @@ export const useExams = (filters?: {
   projectId?: string;
   centerId?: string;
   semesterId?: string;
-  level?: string;
+  semesterLevelId?: string;
   isActive?: boolean;
+  enabled?: boolean;
 }) => {
   return useQuery({
     queryKey: ["exams", filters],
@@ -31,50 +32,59 @@ export const useExams = (filters?: {
       if (filters?.projectId) params.append("projectId", filters.projectId);
       if (filters?.centerId) params.append("centerId", filters.centerId);
       if (filters?.semesterId) params.append("semesterId", filters.semesterId);
-      if (filters?.level) params.append("level", filters.level);
+      if (filters?.semesterLevelId)
+        params.append("semesterLevelId", filters.semesterLevelId);
       if (filters?.isActive !== undefined)
         params.append("isActive", String(filters.isActive));
 
       const response = await api.get<{ data: Exam[]; count: number }>(
-        `/exams?${params.toString()}`
+        `/exams?${params.toString()}`,
       );
       return response.data;
     },
     enabled:
-      !!filters?.projectId && !!filters?.centerId && !!filters?.semesterId,
+      filters?.enabled ??
+      (!!filters?.projectId && !!filters?.centerId && !!filters?.semesterId),
   });
 };
 
 /**
  * Fetch a single exam by ID
  */
-export const useExam = (examId: string, includeScores = false) => {
+export const useExam = (
+  examId: string,
+  includeScores = false,
+  options?: { enabled?: boolean },
+) => {
   return useQuery({
     queryKey: ["exam", examId, includeScores],
     queryFn: async () => {
       const params = includeScores ? "?includeScores=true" : "";
       const response = await api.get<{ data: Exam }>(
-        `/exams/${examId}${params}`
+        `/exams/${examId}${params}`,
       );
       return response.data;
     },
-    enabled: !!examId,
+    enabled: options?.enabled ?? !!examId,
   });
 };
 
 /**
  * Fetch exam statistics
  */
-export const useExamStatistics = (examId: string) => {
+export const useExamStatistics = (
+  examId: string,
+  options?: { enabled?: boolean },
+) => {
   return useQuery({
     queryKey: ["exam-statistics", examId],
     queryFn: async () => {
       const response = await api.get<{ data: ExamStatistics }>(
-        `/exams/${examId}/statistics`
+        `/exams/${examId}/statistics`,
       );
       return response.data;
     },
-    enabled: !!examId,
+    enabled: options?.enabled ?? !!examId,
   });
 };
 
@@ -92,7 +102,7 @@ export const useCreateExam = () => {
     mutationFn: async (data: CreateExamRequest) => {
       const response = await api.post<{ message: string; data: Exam }>(
         "/exams",
-        data
+        data,
       );
       return response.data;
     },
@@ -118,7 +128,7 @@ export const useUpdateExam = () => {
     }) => {
       const response = await api.put<{ message: string; data: Exam }>(
         `/exams/${examId}`,
-        data
+        data,
       );
       return response.data;
     },
@@ -163,6 +173,7 @@ export const useStudentScores = (filters?: {
   examId?: string;
   studentId?: string;
   enrollmentId?: string;
+  enabled?: boolean;
 }) => {
   return useQuery({
     queryKey: ["student-scores", filters],
@@ -179,7 +190,9 @@ export const useStudentScores = (filters?: {
       }>(`/exams/scores?${params.toString()}`);
       return response.data;
     },
-    enabled: !!(filters?.examId || filters?.studentId || filters?.enrollmentId),
+    enabled:
+      filters?.enabled ??
+      !!(filters?.examId || filters?.studentId || filters?.enrollmentId),
   });
 };
 
@@ -191,7 +204,7 @@ export const useStudentScore = (scoreId: string) => {
     queryKey: ["student-score", scoreId],
     queryFn: async () => {
       const response = await api.get<{ data: StudentExamScore }>(
-        `/exams/scores/${scoreId}`
+        `/exams/scores/${scoreId}`,
       );
       return response.data;
     },

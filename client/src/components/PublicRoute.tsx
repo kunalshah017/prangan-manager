@@ -11,7 +11,7 @@ interface PublicRouteProps {
  * and shows a loading state while checking authentication
  */
 const PublicRoute: React.FC<PublicRouteProps> = ({ children }) => {
-    const { isAuthenticated, isLoading } = useAuth();
+    const { isAuthenticated, isLoading } = useAuth({ probeSession: true });
     const location = useLocation();
 
     // Show loading state while checking authentication

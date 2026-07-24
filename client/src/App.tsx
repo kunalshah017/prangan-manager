@@ -1,39 +1,48 @@
-import { lazy, Suspense, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { lazy, Suspense, useEffect, useState } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { Toaster } from 'react-hot-toast'
+import { Toaster, toast } from 'react-hot-toast'
 import DoodleBackground from '@/components/DoodleBackground'
 import LoadingButterfly from '@/components/LoadingButterfly'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import PublicRoute from '@/components/PublicRoute'
 import PWAInstallPrompt from '@/components/PWAInstallPrompt'
+import { ConfirmationModal } from '@/components/ui'
 import { queryClient } from '@/lib/query-client'
 import { initializeAuth } from '@/stores/authStore'
 import { Analytics } from '@vercel/analytics/react';
 
 // Layouts
 const Layout = lazy(() => import('./components/Layout'))
+const NotFoundPage = lazy(() => import('./components/NotFoundPage'))
 
 // Pages
 const Home = lazy(() => import('./pages/Home'))
 const Login = lazy(() => import('./pages/Login'))
 const Register = lazy(() => import('./pages/Register'))
+const ActivateAccount = lazy(() => import('./pages/ActivateAccount'))
+const ResetPassword = lazy(() => import('./pages/ResetPassword'))
+const AdministrationDashboard = lazy(() => import('./pages/AdministrationDashboard'))
 const Projects = lazy(() => import('./pages/projects/Projects'))
+const ProjectDashboard = lazy(() => import('./pages/projects/ProjectDashboard'))
 const CreateProject = lazy(() => import('./pages/projects/CreateProject'))
 const EditProject = lazy(() => import('./pages/projects/EditProject'))
 const Centers = lazy(() => import('./pages/centers/Centers'))
+const CenterDashboard = lazy(() => import('./pages/centers/CenterDashboard'))
 const CreateCenter = lazy(() => import('./pages/centers/CreateCenter'))
 const EditCenter = lazy(() => import('./pages/centers/EditCenter'))
 const Semesters = lazy(() => import('./pages/semesters/Semesters'))
 const CreateSemester = lazy(() => import('./pages/semesters/CreateSemester'))
 const EditSemester = lazy(() => import('./pages/semesters/EditSemester'))
+const SemesterSetup = lazy(() => import('./pages/semesters/SemesterSetup'))
 const Dashboard = lazy(() => import('./pages/semesters/Dashboard'))
+const SemesterUsers = lazy(() => import('./pages/semesters/SemesterUsers'))
 const Students = lazy(() => import('./pages/students/Students'))
 const CreateStudent = lazy(() => import('./pages/students/CreateStudent'))
 const EditStudent = lazy(() => import('./pages/students/EditStudent'))
 const ViewAttendance = lazy(() => import('./pages/attendance/ViewAttendance').then(module => ({ default: module.ViewAttendance })))
 const MarkAttendance = lazy(() => import('./pages/attendance/MarkAttendance').then(module => ({ default: module.MarkAttendance })))
-const Renumeration = lazy(() => import('./pages/attendance/Renumeration').then(module => ({ default: module.Renumeration })))
+const Remuneration = lazy(() => import('./pages/attendance/Remuneration').then(module => ({ default: module.Remuneration })))
 const ViewStudentAttendance = lazy(() => import('./pages/student-attendance/ViewStudentAttendance').then(module => ({ default: module.ViewStudentAttendance })))
 const MarkStudentAttendance = lazy(() => import('./pages/student-attendance/MarkStudentAttendance').then(module => ({ default: module.MarkStudentAttendance })))
 const SyllabusManagement = lazy(() => import('./pages/syllabus').then(module => ({ default: module.SyllabusManagement })))
@@ -44,14 +53,14 @@ const ExamManagement = lazy(() => import('./pages/exams').then(module => ({ defa
 const CreateExam = lazy(() => import('./pages/exams').then(module => ({ default: module.CreateExam })))
 const EditExam = lazy(() => import('./pages/exams').then(module => ({ default: module.EditExam })))
 const ExamScores = lazy(() => import('./pages/exams').then(module => ({ default: module.ExamScores })))
-const RegistrationRequests = lazy(() => import('./pages/RegistrationRequests'))
 const Users = lazy(() => import('./pages/users/Users'))
 const UserDetails = lazy(() => import('./pages/users/UserDetails'))
 const EditUser = lazy(() => import('./pages/users/EditUser'))
 const Profile = lazy(() => import('./pages/Profile'))
-const BankDetails = lazy(() => import('./pages/BankDetails'))
+const Settings = lazy(() => import('./pages/Settings'))
 const Library = lazy(() => import('./pages/library/Library'))
 const BookReader = lazy(() => import('./pages/library/BookReader'))
+const AcademicLevels = lazy(() => import('./pages/levels/AcademicLevels'))
 
 
 // Loading fallback component
@@ -64,10 +73,45 @@ const PageLoading = () => (
   </div>
 )
 
+const LegacyRemunerationRedirect = () => {
+  const { projectId, centerId, semesterId } = useParams();
+  return (
+    <Navigate
+      replace
+      to={`/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/attendance/remuneration`}
+    />
+  );
+};
+
 function App() {
+  const [pwaRecovery, setPwaRecovery] = useState<{ kind: 'update' | 'recovery'; registration?: ServiceWorkerRegistration } | null>(null);
+
   useEffect(() => {
     initializeAuth();
   }, []);
+
+  useEffect(() => {
+    const handlePwaRecovery = (event: Event) => {
+      setPwaRecovery((event as CustomEvent<{ kind: 'update' | 'recovery'; registration?: ServiceWorkerRegistration }>).detail);
+    };
+    window.addEventListener('prangan:pwa-update', handlePwaRecovery);
+    return () => window.removeEventListener('prangan:pwa-update', handlePwaRecovery);
+  }, []);
+
+  const applyPwaRecovery = async () => {
+    if (!pwaRecovery) return;
+    if (pwaRecovery.kind === 'update') {
+      window.dispatchEvent(new CustomEvent('prangan:pwa-apply-update', { detail: { registration: pwaRecovery.registration } }));
+      toast.success('Applying the update...');
+      setPwaRecovery(null);
+      return;
+    }
+
+    if ('caches' in window) {
+      await Promise.all((await caches.keys()).map((cacheName) => caches.delete(cacheName)));
+    }
+    window.location.replace(window.location.href);
+  };
 
   return (
     <>
@@ -80,8 +124,21 @@ function App() {
               <Route path="/" element={<PublicRoute><Home /></PublicRoute>} />
               <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
               <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+              <Route path="/activate" element={<ActivateAccount />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
 
               {/* Protected routes with layout */}
+              <Route
+                path="/administration"
+                element={
+                  <ProtectedRoute requireAdmin>
+                    <Layout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<AdministrationDashboard />} />
+              </Route>
+
               <Route
                 path="/projects"
                 element={
@@ -91,27 +148,97 @@ function App() {
                 }
               >
                 <Route index element={<Projects />} />
-                <Route path="new" element={<CreateProject />} />
-                <Route path=":id/edit" element={<EditProject />} />
+                <Route
+                  path="new"
+                  element={
+                    <ProtectedRoute requireAdmin>
+                      <CreateProject />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path=":id/edit"
+                  element={
+                    <ProtectedRoute requireAdmin>
+                      <EditProject />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path=":projectId/dashboard" element={<ProjectDashboard />} />
                 <Route path=":projectId/centers" element={<Centers />} />
-                <Route path=":projectId/centers/new" element={<CreateCenter />} />
-                <Route path=":projectId/centers/:id/edit" element={<EditCenter />} />
+                <Route
+                  path=":projectId/centers/:centerId/dashboard"
+                  element={<CenterDashboard />}
+                />
+                <Route
+                  path=":projectId/centers/new"
+                  element={
+                    <ProtectedRoute requireAdmin>
+                      <CreateCenter />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path=":projectId/centers/:id/edit"
+                  element={
+                    <ProtectedRoute requireAdmin>
+                      <EditCenter />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path=":projectId/centers/:centerId/semesters" element={<Semesters />} />
-                <Route path=":projectId/centers/:centerId/semesters/new" element={<CreateSemester />} />
-                <Route path=":projectId/centers/:centerId/semesters/:id/edit" element={<EditSemester />} />
-                <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard" element={<Dashboard />} />
+                <Route
+                  path=":projectId/centers/:centerId/semesters/new"
+                  element={
+                    <ProtectedRoute requireAdmin>
+                      <CreateSemester />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path=":projectId/centers/:centerId/semesters/:semesterId/setup"
+                  element={
+                    <ProtectedRoute requireAdmin>
+                      <SemesterSetup />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path=":projectId/centers/:centerId/semesters/:id/edit"
+                  element={
+                    <ProtectedRoute requireAdmin>
+                      <EditSemester />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path=":projectId/centers/:centerId/semesters/:semesterId/dashboard"
+                  element={
+                    <ProtectedRoute permission="workspace.view">
+                      <Dashboard />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/students"
                   element={
-                    <ProtectedRoute allowAll={true}>
+                    <ProtectedRoute permission="students.read">
                       <Students />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/users"
+                  element={
+                    <ProtectedRoute permission="staffAttendance.read">
+                      <SemesterUsers />
                     </ProtectedRoute>
                   }
                 />
                 <Route
                   path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/students/new"
                   element={
-                    <ProtectedRoute allowedSubRoles={['CENTER_MANAGER']}>
+                    <ProtectedRoute permission="students.manage">
                       <CreateStudent />
                     </ProtectedRoute>
                   }
@@ -119,38 +246,41 @@ function App() {
                 <Route
                   path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/students/:id/edit"
                   element={
-                    <ProtectedRoute allowedSubRoles={['CENTER_MANAGER']}>
+                    <ProtectedRoute permission="students.manage">
                       <EditStudent />
                     </ProtectedRoute>
                   }
                 />
                 <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/attendance/view" element={
-                  <ProtectedRoute allowedSubRoles={['CENTER_MANAGER']}>
+                  <ProtectedRoute permission="staffAttendance.read">
                     <ViewAttendance />
                   </ProtectedRoute>
                 } />
                 <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/attendance/mark" element={
-                  <ProtectedRoute allowedSubRoles={['CENTER_MANAGER']}>
+                  <ProtectedRoute permission="staffAttendance.write">
                     <MarkAttendance />
                   </ProtectedRoute>
                 } />
-                <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/attendance/renumeration" element={
-                  <ProtectedRoute allowedSubRoles={['CENTER_MANAGER']}>
-                    <Renumeration />
+                <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/attendance/remuneration" element={
+                  <ProtectedRoute permission="staffAttendance.read">
+                    <Remuneration />
                   </ProtectedRoute>
+                } />
+                <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/attendance/renumeration" element={
+                  <LegacyRemunerationRedirect />
                 } />
                 <Route
                   path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/bank-details"
                   element={
                     <ProtectedRoute allowAll={true}>
-                      <BankDetails />
+                      <Navigate to="/profile#payment" replace />
                     </ProtectedRoute>
                   }
                 />
                 <Route
                   path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/student-attendance/view"
                   element={
-                    <ProtectedRoute allowedSubRoles={['EDUCATOR', 'CENTER_MANAGER']}>
+                    <ProtectedRoute permission="studentAttendance.read">
                       <ViewStudentAttendance />
                     </ProtectedRoute>
                   }
@@ -158,7 +288,7 @@ function App() {
                 <Route
                   path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/student-attendance/mark"
                   element={
-                    <ProtectedRoute allowedSubRoles={['EDUCATOR', 'CENTER_MANAGER']}>
+                    <ProtectedRoute permission="studentAttendance.write">
                       <MarkStudentAttendance />
                     </ProtectedRoute>
                   }
@@ -167,7 +297,7 @@ function App() {
                 <Route
                   path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/syllabus"
                   element={
-                    <ProtectedRoute allowAll={true}>
+                    <ProtectedRoute permission="curriculum.read">
                       <SyllabusManagement />
                     </ProtectedRoute>
                   }
@@ -175,7 +305,7 @@ function App() {
                 <Route
                   path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/syllabus/create"
                   element={
-                    <ProtectedRoute allowedSubRoles={['CURRICULUM_MENTOR']}>
+                    <ProtectedRoute permission="curriculum.manage">
                       <CreateSyllabus />
                     </ProtectedRoute>
                   }
@@ -183,7 +313,7 @@ function App() {
                 <Route
                   path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/syllabus/:syllabusId/edit"
                   element={
-                    <ProtectedRoute allowedSubRoles={['CURRICULUM_MENTOR']}>
+                    <ProtectedRoute permission="curriculum.manage">
                       <EditSyllabus />
                     </ProtectedRoute>
                   }
@@ -191,7 +321,7 @@ function App() {
                 <Route
                   path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/syllabus/:syllabusId/progress"
                   element={
-                    <ProtectedRoute allowAll={true}>
+                    <ProtectedRoute permission="curriculum.progress.write">
                       <SyllabusProgress />
                     </ProtectedRoute>
                   }
@@ -200,7 +330,7 @@ function App() {
                 <Route
                   path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/exams"
                   element={
-                    <ProtectedRoute>
+                    <ProtectedRoute permission="exams.read">
                       <ExamManagement />
                     </ProtectedRoute>
                   }
@@ -208,7 +338,7 @@ function App() {
                 <Route
                   path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/exams/create"
                   element={
-                    <ProtectedRoute allowedSubRoles={['CENTER_MANAGER', 'CURRICULUM_MENTOR']}>
+                    <ProtectedRoute permission="exams.manage">
                       <CreateExam />
                     </ProtectedRoute>
                   }
@@ -216,7 +346,7 @@ function App() {
                 <Route
                   path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/exams/:examId/edit"
                   element={
-                    <ProtectedRoute allowedSubRoles={['CENTER_MANAGER', 'CURRICULUM_MENTOR']}>
+                    <ProtectedRoute permission="exams.manage">
                       <EditExam />
                     </ProtectedRoute>
                   }
@@ -224,7 +354,7 @@ function App() {
                 <Route
                   path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/exams/:examId/scores"
                   element={
-                    <ProtectedRoute>
+                    <ProtectedRoute permission="scores.read">
                       <ExamScores />
                     </ProtectedRoute>
                   }
@@ -240,7 +370,19 @@ function App() {
                 }
               >
                 <Route index element={<Profile />} />
-                <Route path="bank" element={<BankDetails />} />
+                <Route path="settings" element={<Settings />} />
+                <Route path="bank" element={<Navigate to="/profile#payment" replace />} />
+              </Route>
+
+              <Route
+                path="/academic-levels"
+                element={
+                  <ProtectedRoute requireAdmin>
+                    <Layout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<AcademicLevels />} />
               </Route>
 
               <Route
@@ -251,7 +393,7 @@ function App() {
                   </ProtectedRoute>
                 }
               >
-                <Route index element={<RegistrationRequests />} />
+                <Route index element={<Navigate to="/users?view=requests" replace />} />
               </Route>
 
               <Route
@@ -287,8 +429,7 @@ function App() {
                 }
               />
 
-              {/* Redirect any unmatched routes to home */}
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </Suspense>
         </BrowserRouter>
@@ -332,6 +473,18 @@ function App() {
 
         {/* PWA Install Prompt */}
         <PWAInstallPrompt />
+
+        <ConfirmationModal
+          isOpen={!!pwaRecovery}
+          onClose={() => setPwaRecovery(null)}
+          onConfirm={() => void applyPwaRecovery()}
+          title={pwaRecovery?.kind === 'update' ? 'Update available' : 'Reload with fresh app data'}
+          message={pwaRecovery?.kind === 'update'
+            ? 'A newer version is ready. Apply it now to reload with the latest changes.'
+            : 'The app could not load a required resource. Clear cached app files and reload?'}
+          confirmText={pwaRecovery?.kind === 'update' ? 'Update now' : 'Clear cache and reload'}
+          variant={pwaRecovery?.kind === 'update' ? 'default' : 'warning'}
+        />
 
         {/* {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />} */}
       </QueryClientProvider>

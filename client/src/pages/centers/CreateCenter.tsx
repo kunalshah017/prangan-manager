@@ -1,109 +1,101 @@
-import React, { useState, useEffect } from 'react';
-import { cn } from '@/lib/utils';
-import { buttonVariants } from '@/lib/button-variants';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
-import DoodleBackground from '@/components/DoodleBackground';
-import { CustomButton } from '@/components/ui/button';
+
+import { CenterFormLayout } from '@/components/centers/CenterFormLayout';
 import { useCreateCenter } from '@/hooks/useCenterQueries';
 import { useProject } from '@/hooks/useProjectQueries';
-import { useAuth } from '@/hooks/useAuth';
+import { buttonVariants } from '@/lib/button-variants';
+import { cn } from '@/lib/utils';
 
 const CreateCenter = () => {
     const { projectId } = useParams<{ projectId: string }>();
     const [name, setName] = useState('');
     const [address, setAddress] = useState('');
     const navigate = useNavigate();
-    const { isAdmin } = useAuth();
-
     const { mutate: createCenter, isPending } = useCreateCenter();
-    const { data: project } = useProject(projectId!);
+    const { data: project, isLoading, error, refetch } = useProject(projectId || '');
+    const centersUrl = `/projects/${projectId}/centers`;
 
-    // Check if user is admin - redirect if not
-    useEffect(() => {
-        if (!isAdmin()) {
-            navigate(`/projects/${projectId}/centers`);
+    const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!projectId) return;
+
+        const trimmedName = name.trim();
+        const trimmedAddress = address.trim();
+        if (!trimmedName || !trimmedAddress) {
+            toast.error('Enter a center name and address.');
+            return;
         }
-    }, [isAdmin, navigate, projectId]);
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
 
         createCenter(
             {
-                name,
-                address,
-                projectId: projectId!,
+                name: trimmedName,
+                address: trimmedAddress,
+                projectId,
                 metadata: {},
             },
             {
                 onSuccess: () => {
-                    toast.success('Center created successfully!');
-                    navigate(`/projects/${projectId}/centers`);
+                    toast.success('Center created.');
+                    navigate(centersUrl);
                 },
-                onError: (err) => {
-                    console.error('Failed to create center:', err);
-                    toast.error(err?.message || 'Failed to create center. Please try again.');
-                }
-            }
+                onError: () => {
+                    toast.error('Unable to create center. Try again.');
+                },
+            },
         );
     };
 
-    return (
-        <div className="flex flex-col items-center justify-center h-full w-full relative">
-            <DoodleBackground numElements={8} />
-            <div className="w-full max-w-lg bg-white/80 rounded-lg border shadow-md p-6 relative z-10">
-                <h1 className="text-2xl font-bold mb-2">Create Center</h1>
-                <p className="text-muted-foreground mb-6 text-sm">
-                    Fill in the details to create a new center for <strong>{project?.name || 'this project'}</strong>.
-                </p>
-
-                <form onSubmit={handleSubmit} className="space-y-5">
-                    <div>
-                        <label htmlFor="name" className="block text-sm font-medium mb-1">Center Name</label>
-                        <input
-                            id="name"
-                            type="text"
-                            value={name}
-                            onChange={e => setName(e.target.value)}
-                            required
-                            className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                            placeholder="Enter center name"
-                        />
-                    </div>
-
-                    <div>
-                        <label htmlFor="address" className="block text-sm font-medium mb-1">Address</label>
-                        <textarea
-                            id="address"
-                            value={address}
-                            onChange={e => setAddress(e.target.value)}
-                            required
-                            className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                            placeholder="Enter complete address"
-                        />
-                    </div>
-
-                    <div className="flex gap-2 justify-end">
-                        <button
-                            type="button"
-                            onClick={() => navigate(`/projects/${projectId}/centers`)}
-                            className={cn(buttonVariants({ variant: 'outline' }), 'min-w-[100px]')}
-                        >
-                            Cancel
-                        </button>
-                        <CustomButton
-                            type="submit"
-                            isLoading={isPending}
-                            loadingMessage="Creating..."
-                            className="bg-orange-600 hover:bg-orange-700 text-white min-w-[120px]"
-                        >
-                            Create Center
-                        </CustomButton>
-                    </div>
-                </form>
+    if (isLoading) {
+        return (
+            <div className="mx-auto w-full max-w-6xl animate-pulse py-4 motion-reduce:animate-none" aria-live="polite" aria-busy="true">
+                <div className="mb-7 h-11 w-36 rounded-md bg-muted" />
+                <div className="mb-8 h-28 rounded-lg bg-muted" />
+                <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
+                    <div className="h-[28rem] rounded-lg border border-border bg-card" />
+                    <div className="h-64 rounded-lg border border-border bg-card" />
+                </div>
+                <span className="sr-only">Loading project</span>
             </div>
-        </div>
+        );
+    }
+
+    if (error || !project || !projectId) {
+        return (
+            <div className="mx-auto flex min-h-[55dvh] w-full max-w-2xl items-center justify-center px-4" aria-live="polite">
+                <div className="w-full rounded-lg border border-border bg-card p-6 text-center shadow-sm sm:p-8">
+                    <RefreshCw className="mx-auto h-8 w-8 text-destructive" aria-hidden="true" />
+                    <h1 className="mt-4 text-2xl font-semibold text-foreground">Project could not be loaded</h1>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">Return to Projects or try loading this project again.</p>
+                    <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+                        <Link to="/projects" className={cn(buttonVariants({ variant: 'outline' }), 'min-h-11 gap-2')}>
+                            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                            Back to projects
+                        </Link>
+                        <button type="button" onClick={() => refetch()} className={cn(buttonVariants(), 'min-h-11 gap-2')}>
+                            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                            Try again
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <CenterFormLayout
+            mode="create"
+            projectName={project.name}
+            name={name}
+            address={address}
+            isPending={isPending}
+            onNameChange={setName}
+            onAddressChange={setAddress}
+            onSubmit={handleSubmit}
+            onCancel={() => navigate(centersUrl)}
+        />
     );
 };
 

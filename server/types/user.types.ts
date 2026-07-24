@@ -8,7 +8,10 @@ export type {
 
 // Optional: Create custom types for API requests if needed
 export interface UserRegistrationRequest {
-  name: string;
+  name?: string;
+  firstName?: string;
+  middleName?: string | null;
+  lastName?: string | null;
   email: string;
   phone?: string;
   qualification?: string;
@@ -19,6 +22,9 @@ export interface UserRegistrationRequest {
 
 export interface UserUpdateRequest {
   name?: string;
+  firstName?: string;
+  middleName?: string | null;
+  lastName?: string | null;
   phone?: string;
   qualification?: string;
   address?: string;

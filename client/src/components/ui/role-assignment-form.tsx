@@ -5,6 +5,7 @@ import { buttonVariants } from '@/lib/button-variants';
 import { useProjects } from '@/hooks/useProjectQueries';
 import { useCenters } from '@/hooks/useCenterQueries';
 import { useSemesters } from '@/hooks/useSemesterQueries';
+import { SemesterLevelSelect } from '@/components/levels/SemesterLevelSelect';
 import type { RoleAssignment, Center, Semester } from '@/types/api';
 
 interface RoleAssignmentFormProps {
@@ -22,15 +23,6 @@ const SUB_ROLES = [
     { value: 'TECH', label: 'Tech' },
     { value: 'CENTER_MANAGER', label: 'Center Manager' },
     { value: 'EDUCATOR', label: 'Educator' },
-] as const;
-
-const LEVELS = [
-    { value: 'LEVEL_1', label: 'Level 1' },
-    { value: 'LEVEL_2', label: 'Level 2' },
-    { value: 'LEVEL_3', label: 'Level 3' },
-    { value: 'LEVEL_4', label: 'Level 4' },
-    { value: 'PRIMARY_A', label: 'Primary A' },
-    { value: 'PRIMARY_B', label: 'Primary B' },
 ] as const;
 
 const COMMITTED_DAYS = [
@@ -112,7 +104,7 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
                     (assignment.projectId || '') === (assignment2.projectId || '') &&
                     (assignment.centerId || '') === (assignment2.centerId || '') &&
                     (assignment.semesterId || '') === (assignment2.semesterId || '') &&
-                    (assignment.level || '') === (assignment2.level || '') &&
+                    (assignment.semesterLevelId || '') === (assignment2.semesterLevelId || '') &&
                     (assignment.committedDays || '') === (assignment2.committedDays || '');
 
                 if (isDuplicate) {
@@ -161,6 +153,8 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
             // Clear incompatible fields
             if (value !== 'EDUCATOR') {
                 delete assignment.level;
+                delete assignment.semesterLevelId;
+                delete assignment.semesterLevel;
             }
             if (value !== 'CENTER_MANAGER' && value !== 'EDUCATOR') {
                 delete assignment.committedDays;
@@ -177,11 +171,15 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
                         // Center doesn't belong to new project, clear it and semester
                         delete assignment.centerId;
                         delete assignment.semesterId;
+                        delete assignment.semesterLevelId;
+                        delete assignment.semesterLevel;
                     }
                 } else if (!value) {
                     // Project cleared, clear everything
                     delete assignment.centerId;
                     delete assignment.semesterId;
+                    delete assignment.semesterLevelId;
+                    delete assignment.semesterLevel;
                 }
             }
         } else if (field === 'centerId') {
@@ -200,13 +198,19 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
                 const semester = allSemesters.find(s => s.id === assignment.semesterId);
                 if (semester && semester.centerId !== value) {
                     delete assignment.semesterId;
+                    delete assignment.semesterLevelId;
+                    delete assignment.semesterLevel;
                 }
             } else if (!value) {
                 // Clear semester if center is cleared
                 delete assignment.semesterId;
+                delete assignment.semesterLevelId;
+                delete assignment.semesterLevel;
             }
         } else if (field === 'semesterId') {
             assignment.semesterId = value;
+            delete assignment.semesterLevelId;
+            delete assignment.semesterLevel;
 
             // Only auto-assign center and project if they're not already set
             if (value) {
@@ -226,9 +230,10 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
                     }
                 }
             }
-        } else {
-            // For level and committedDays
-            (assignment as Record<string, string | undefined>)[field] = value;
+        } else if (field === 'semesterLevelId') {
+            assignment.semesterLevelId = value;
+        } else if (field === 'committedDays') {
+            assignment.committedDays = value as RoleAssignment['committedDays'];
         }
 
         updated[index] = assignment;
@@ -404,22 +409,14 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
                             {/* Level - Only for Educator */}
                             {assignment.subRole === 'EDUCATOR' && (
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Level
-                                    </label>
-                                    <select
-                                        value={assignment.level || ''}
-                                        onChange={(e) => updateRoleAssignment(index, 'level', e.target.value || undefined)}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                                        aria-label="Level"
-                                    >
-                                        <option value="">Select a level</option>
-                                        {LEVELS.map((level) => (
-                                            <option key={level.value} value={level.value}>
-                                                {level.label}
-                                            </option>
-                                        ))}
-                                    </select>
+                                    <SemesterLevelSelect
+                                        semesterId={assignment.semesterId || ''}
+                                        value={assignment.semesterLevelId || ''}
+                                        onChange={(value) => updateRoleAssignment(index, 'semesterLevelId', value || undefined)}
+                                        disabled={!assignment.semesterId}
+                                        includeInactiveCurrent
+                                        currentLevel={assignment.semesterLevel || undefined}
+                                    />
                                 </div>
                             )}
 

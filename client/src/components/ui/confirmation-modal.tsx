@@ -39,7 +39,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={title} closeOnBackdrop={!isLoading}>
+        <Modal isOpen={isOpen} onClose={onClose} title={title} closeOnBackdrop={!isLoading} closeOnEscape={!isLoading}>
             <div className="space-y-6">
                 <p className="text-gray-600 leading-relaxed">{message}</p>
 

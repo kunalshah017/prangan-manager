@@ -32,8 +32,8 @@ npx prisma generate
 # Run database migrations
 npx prisma migrate dev
 
-# Seed the database with test data
-npm run seed
+# Reset local development fixtures only
+NODE_ENV=development ALLOW_LOCAL_SEED=true ALLOW_DESTRUCTIVE_SEED=true DEV_SEED_PASSWORD=replace-with-a-local-password npm run db:reset:fixtures
 ```
 
 **Note:** After updating the schema with new student enrollment features, make sure to regenerate the Prisma client:
@@ -85,8 +85,9 @@ Register a new user (status will be PENDING by default).
 ```json
 {
   "email": "user@example.com",
-  "name": "John Doe",
-  "password": "password123",
+  "firstName": "John",
+  "middleName": null,
+  "lastName": "Doe",
   "phone": "1234567890",
   "qualification": "Bachelor's",
   "address": "123 Main St",
@@ -125,6 +126,9 @@ Login user and get JWT token.
     "id": "user_id",
     "email": "user@example.com",
     "name": "John Doe",
+    "firstName": "John",
+    "middleName": null,
+    "lastName": "Doe",
     "profileImageUrl": "https://example.com/profile.jpg",
     "role": "USER",
     "status": "APPROVED",
@@ -408,10 +412,12 @@ Authorization: Bearer <admin_jwt_token>
 
 **Required Fields:**
 
-- `name` (string): Student's full name
+- `firstName` (string): Student's first or only name
 
 **Optional Basic Fields:**
 
+- `middleName` (string or null): Student's middle name or names
+- `lastName` (string or null): Student's last name
 - `dob` (string): Date of birth in YYYY-MM-DD format
 - `phoneNumber` (string): Student's phone number
 - `whatsappNumber` (string): WhatsApp number for communication
@@ -436,7 +442,9 @@ Authorization: Bearer <admin_jwt_token>
 
 ```json
 {
-  "name": "Aarav Mehta",
+  "firstName": "Aarav",
+  "middleName": null,
+  "lastName": "Mehta",
   "dob": "2015-03-12",
   "phoneNumber": "+919876541001",
   "whatsappNumber": "+919876541001",
@@ -468,6 +476,9 @@ Authorization: Bearer <admin_jwt_token>
   "student": {
     "id": "student_id",
     "name": "Aarav Mehta",
+    "firstName": "Aarav",
+    "middleName": null,
+    "lastName": "Mehta",
     "dob": "2015-03-12T00:00:00.000Z",
     "phoneNumber": "+919876541001",
     "whatsappNumber": "+919876541001",
@@ -523,6 +534,9 @@ Authorization: Bearer <jwt_token>
     {
       "id": "student_id_1",
       "name": "Aarav Mehta",
+      "firstName": "Aarav",
+      "middleName": null,
+      "lastName": "Mehta",
       "dob": "2015-03-12T00:00:00.000Z",
       "phoneNumber": "+919876541001",
       "whatsappNumber": "+919876541001",
@@ -564,6 +578,9 @@ Authorization: Bearer <jwt_token>
   "student": {
     "id": "student_id",
     "name": "Aarav Mehta",
+    "firstName": "Aarav",
+    "middleName": null,
+    "lastName": "Mehta",
     "dob": "2015-03-12T00:00:00.000Z",
     "phoneNumber": "+919876541001",
     "whatsappNumber": "+919876541001",
@@ -594,7 +611,9 @@ Authorization: Bearer <admin_jwt_token>
 
 ```json
 {
-  "name": "Aarav Kumar Mehta",
+  "firstName": "Aarav",
+  "middleName": "Kumar",
+  "lastName": "Mehta",
   "dob": "2015-03-12",
   "phoneNumber": "+919876541001",
   "whatsappNumber": "+919876541001",
@@ -624,6 +643,9 @@ Authorization: Bearer <admin_jwt_token>
   "student": {
     "id": "student_id",
     "name": "Aarav Kumar Mehta",
+    "firstName": "Aarav",
+    "middleName": "Kumar",
+    "lastName": "Mehta",
     "dob": "2015-03-12T00:00:00.000Z",
     "phoneNumber": "+919876541001",
     "whatsappNumber": "+919876541001",
@@ -1331,17 +1353,16 @@ Authorization: Bearer <admin_jwt_token>
 
 _All student attendance routes require authentication_
 
-#### POST /api/v1/student-attendance/mark
+#### Access Policy
 
-Mark attendance for a student (Admin only).
+- Administrators can perform all student-attendance operations.
+- Center Managers can perform all operations for their exact active project, center, and semester assignment.
+- Educators can perform all operations for their exact active assignment, limited to their assigned levels.
+- Create, bulk create, list, date views, history, statistics, update, and delete all apply this policy. Update and delete authorize against the persisted attendance record's scope and enrollment level.
 
-**Headers:**
+#### POST /api/v1/student-attendance
 
-```
-Authorization: Bearer <admin_jwt_token>
-```
-
-**Body:**
+Create or update one student's attendance. Returns `200`.
 
 ```json
 {
@@ -1349,436 +1370,52 @@ Authorization: Bearer <admin_jwt_token>
   "enrollmentId": "enrollment_id",
   "date": "2024-01-15",
   "status": "PRESENT",
-  "notes": "Present and participating well",
-  "holidayReason": null
-}
-```
-
-**Response (201):**
-
-```json
-{
-  "message": "Attendance marked successfully",
-  "attendance": {
-    "id": "attendance_id",
-    "studentId": "student_id",
-    "date": "2024-01-15T00:00:00.000Z",
-    "status": "PRESENT",
-    "enrollmentId": "enrollment_id",
-    "projectId": "project_id",
-    "centerId": "center_id",
-    "semesterId": "semester_id",
-    "notes": "Present and participating well",
-    "holidayReason": null,
-    "markedBy": "admin_user_id",
-    "markedAt": "2024-01-15T10:30:00.000Z",
-    "student": {
-      "id": "student_id",
-      "name": "John Doe",
-      "profileImageUrl": "https://example.com/student.jpg"
-    },
-    "enrollment": {
-      "id": "enrollment_id",
-      "level": "LEVEL_2"
-    },
-    "project": {
-      "id": "project_id",
-      "name": "Project Alpha"
-    },
-    "center": {
-      "id": "center_id",
-      "name": "Main Center",
-      "address": "123 Main St"
-    },
-    "semester": {
-      "id": "semester_id",
-      "name": "Spring 2024",
-      "startDate": "2024-01-01T00:00:00.000Z",
-      "endDate": "2024-06-30T00:00:00.000Z"
-    },
-    "markedByUser": {
-      "id": "admin_user_id",
-      "name": "Admin User"
-    }
-  }
-}
-```
-
-#### POST /api/v1/student-attendance/bulk
-
-Mark attendance for multiple students at once (Admin only).
-
-**Headers:**
-
-```
-Authorization: Bearer <admin_jwt_token>
-```
-
-**Body:**
-
-```json
-{
-  "date": "2024-01-15",
-  "status": "PRESENT",
   "projectId": "project_id",
   "centerId": "center_id",
   "semesterId": "semester_id",
-  "studentAttendances": [
-    {
-      "studentId": "student_id_1",
-      "enrollmentId": "enrollment_id_1",
-      "status": "PRESENT"
-    },
-    {
-      "studentId": "student_id_2",
-      "enrollmentId": "enrollment_id_2",
-      "status": "ABSENT",
-      "notes": "Sick leave"
-    },
-    {
-      "studentId": "student_id_3",
-      "enrollmentId": "enrollment_id_3",
-      "status": "HOLIDAY"
-    }
-  ],
-  "holidayReason": "National Holiday"
+  "notes": "Present and participating well"
 }
 ```
 
-**Response (200):**
+`date` must be a real calendar date in `YYYY-MM-DD` format. `HOLIDAY` requires a non-empty `holidayReason`.
 
-```json
-{
-  "message": "Bulk student attendance marked successfully",
-  "attendances": [
-    {
-      "id": "attendance_id_1",
-      "studentId": "student_id_1",
-      "date": "2024-01-15T00:00:00.000Z",
-      "status": "PRESENT",
-      "enrollmentId": "enrollment_id_1",
-      "projectId": "project_id",
-      "centerId": "center_id",
-      "semesterId": "semester_id",
-      "markedBy": "admin_user_id",
-      "markedAt": "2024-01-15T10:30:00.000Z",
-      "student": {
-        "id": "student_id_1",
-        "name": "John Doe"
-      }
-    },
-    {
-      "id": "attendance_id_2",
-      "studentId": "student_id_2",
-      "date": "2024-01-15T00:00:00.000Z",
-      "status": "ABSENT",
-      "notes": "Sick leave"
-    },
-    {
-      "id": "attendance_id_3",
-      "studentId": "student_id_3",
-      "date": "2024-01-15T00:00:00.000Z",
-      "status": "HOLIDAY"
-    }
-  ],
-  "processed": 3,
-  "total": 3
-}
-```
+#### POST /api/v1/student-attendance/bulk
+
+Create or update attendance for multiple students in one exact project, center, and semester scope. Returns `200`, `207` for partial success, or `400` when every item fails.
+
+The body contains `date`, `status`, `projectId`, `centerId`, `semesterId`, `studentAttendances`, and, for holiday records, `holidayReason`.
+
+#### GET `/api/v1/student-attendance/bulk/estimate?studentCount=<positive integer>`
+
+Planning endpoint for estimating bulk attendance processing. Authentication is required. It accepts one positive integer `studentCount` and returns an estimate only; it does not return student or attendance data. This endpoint deliberately has no scope policy because it does not read or modify scoped attendance records.
 
 #### GET /api/v1/student-attendance
 
-Get student attendance records with optional filters.
+List attendance records. Optional query parameters: `studentId`, `projectId`, `centerId`, `semesterId`, `date`, `dateFrom`, `dateTo`, and `status`.
 
-**Headers:**
+#### GET /api/v1/student-attendance/by-date
 
-```
-Authorization: Bearer <jwt_token>
-```
+List attendance records for `date` with query parameters `date`, `projectId`, `centerId`, and `semesterId`. `date`, `centerId`, and `semesterId` are required; `projectId` further narrows the result when supplied.
 
-**Query Parameters:**
+#### GET /api/v1/student-attendance/students-without-attendance
 
-- `studentId` (string, optional): Filter by specific student
-- `projectId` (string, optional): Filter by project
-- `centerId` (string, optional): Filter by center
-- `semesterId` (string, optional): Filter by semester
-- `date` (string, optional): Filter by specific date (YYYY-MM-DD)
-- `dateFrom` (string, optional): Filter from date (YYYY-MM-DD)
-- `dateTo` (string, optional): Filter to date (YYYY-MM-DD)
-- `status` (string, optional): Filter by attendance status (PRESENT, ABSENT, HOLIDAY)
-
-**Response (200):**
-
-```json
-{
-  "message": "Attendance records retrieved successfully",
-  "attendance": [
-    {
-      "id": "attendance_id",
-      "studentId": "student_id",
-      "date": "2024-01-15T00:00:00.000Z",
-      "status": "PRESENT",
-      "enrollmentId": "enrollment_id",
-      "projectId": "project_id",
-      "centerId": "center_id",
-      "semesterId": "semester_id",
-      "notes": "Present and participating well",
-      "holidayReason": null,
-      "markedBy": "admin_user_id",
-      "markedAt": "2024-01-15T10:30:00.000Z",
-      "student": {
-        "id": "student_id",
-        "name": "John Doe",
-        "profileImageUrl": "https://example.com/student.jpg"
-      },
-      "enrollment": {
-        "id": "enrollment_id",
-        "level": "LEVEL_2"
-      },
-      "project": {
-        "id": "project_id",
-        "name": "Project Alpha"
-      },
-      "center": {
-        "id": "center_id",
-        "name": "Main Center",
-        "address": "123 Main St"
-      },
-      "semester": {
-        "id": "semester_id",
-        "name": "Spring 2024",
-        "startDate": "2024-01-01T00:00:00.000Z",
-        "endDate": "2024-06-30T00:00:00.000Z"
-      },
-      "markedByUser": {
-        "id": "admin_user_id",
-        "name": "Admin User"
-      }
-    }
-  ]
-}
-```
+List enrolled students with no attendance record for query parameters `date`, `projectId`, `centerId`, and `semesterId`. `date`, `centerId`, and `semesterId` are required; `projectId` is optional.
 
 #### GET /api/v1/student-attendance/student/:studentId
 
-Get attendance records for a specific student.
+List one student's attendance history. Optional query parameters: `projectId`, `centerId`, `semesterId`, `date`, `dateFrom`, `dateTo`, and `status`.
 
-**Headers:**
+#### GET /api/v1/student-attendance/student/:studentId/stats
 
-```
-Authorization: Bearer <jwt_token>
-```
+Get one student's attendance statistics. Optional query parameters: `projectId`, `centerId`, `semesterId`, `dateFrom`, and `dateTo`.
 
-**Path Parameters:**
+#### PUT /api/v1/student-attendance/:attendanceId
 
-- `studentId` (string): The ID of the student
+Update an attendance record. The body may contain only `status`, `notes`, and `holidayReason`. Returns `200`.
 
-**Query Parameters:**
+#### DELETE /api/v1/student-attendance/:attendanceId
 
-- `semesterId` (string, optional): Filter by semester
-- `centerId` (string, optional): Filter by center
-- `dateFrom` (string, optional): Filter from date (YYYY-MM-DD)
-- `dateTo` (string, optional): Filter to date (YYYY-MM-DD)
-
-**Response (200):**
-
-```json
-{
-  "message": "Student attendance records retrieved successfully",
-  "attendance": [
-    {
-      "id": "attendance_id",
-      "studentId": "student_id",
-      "date": "2024-01-15T00:00:00.000Z",
-      "status": "PRESENT",
-      "notes": "Present and participating well"
-    }
-  ]
-}
-```
-
-#### GET /api/v1/student-attendance/stats/:studentId
-
-Get attendance statistics for a specific student.
-
-**Headers:**
-
-```
-Authorization: Bearer <jwt_token>
-```
-
-**Path Parameters:**
-
-- `studentId` (string): The ID of the student
-
-**Query Parameters:**
-
-- `semesterId` (string, optional): Filter by semester
-- `centerId` (string, optional): Filter by center
-- `dateFrom` (string, optional): Filter from date (YYYY-MM-DD)
-- `dateTo` (string, optional): Filter to date (YYYY-MM-DD)
-
-**Response (200):**
-
-```json
-{
-  "message": "Student attendance statistics retrieved successfully",
-  "stats": {
-    "totalDays": 20,
-    "presentDays": 18,
-    "absentDays": 2,
-    "holidayDays": 3,
-    "attendancePercentage": 90.0
-  }
-}
-```
-
-#### GET /api/v1/student-attendance/date/:date
-
-Get attendance records for a specific date across all centers/projects.
-
-**Headers:**
-
-```
-Authorization: Bearer <jwt_token>
-```
-
-**Path Parameters:**
-
-- `date` (string): The date in YYYY-MM-DD format
-
-**Query Parameters:**
-
-- `centerId` (string, optional): Filter by center
-- `semesterId` (string, optional): Filter by semester
-- `projectId` (string, optional): Filter by project
-
-**Response (200):**
-
-```json
-{
-  "message": "Daily attendance records retrieved successfully",
-  "attendance": [
-    {
-      "id": "attendance_id",
-      "studentId": "student_id",
-      "date": "2024-01-15T00:00:00.000Z",
-      "status": "PRESENT",
-      "student": {
-        "id": "student_id",
-        "name": "John Doe"
-      },
-      "center": {
-        "id": "center_id",
-        "name": "Main Center"
-      }
-    }
-  ]
-}
-```
-
-#### GET /api/v1/student-attendance/missing
-
-Get students who don't have attendance records for a specific date.
-
-**Headers:**
-
-```
-Authorization: Bearer <jwt_token>
-```
-
-**Query Parameters:**
-
-- `date` (string, required): The date in YYYY-MM-DD format
-- `centerId` (string, required): Filter by center
-- `semesterId` (string, required): Filter by semester
-- `projectId` (string, optional): Filter by project
-
-**Response (200):**
-
-```json
-{
-  "message": "Students without attendance retrieved successfully",
-  "students": [
-    {
-      "enrollmentId": "enrollment_id",
-      "student": {
-        "id": "student_id",
-        "name": "Jane Smith",
-        "profileImageUrl": "https://example.com/student.jpg"
-      },
-      "level": "LEVEL_3",
-      "studentId": "student_id",
-      "projectId": "project_id",
-      "centerId": "center_id",
-      "semesterId": "semester_id"
-    }
-  ]
-}
-```
-
-#### PUT /api/v1/student-attendance/:id
-
-Update an existing attendance record (Admin only).
-
-**Headers:**
-
-```
-Authorization: Bearer <admin_jwt_token>
-```
-
-**Path Parameters:**
-
-- `id` (string): The ID of the attendance record to update
-
-**Body:**
-
-```json
-{
-  "status": "ABSENT",
-  "notes": "Updated: Student was sick",
-  "holidayReason": null
-}
-```
-
-**Response (200):**
-
-```json
-{
-  "message": "Attendance updated successfully",
-  "attendance": {
-    "id": "attendance_id",
-    "studentId": "student_id",
-    "date": "2024-01-15T00:00:00.000Z",
-    "status": "ABSENT",
-    "notes": "Updated: Student was sick",
-    "markedBy": "admin_user_id",
-    "markedAt": "2024-01-15T15:30:00.000Z"
-  }
-}
-```
-
-#### DELETE /api/v1/student-attendance/:id
-
-Delete an attendance record (Admin only).
-
-**Headers:**
-
-```
-Authorization: Bearer <admin_jwt_token>
-```
-
-**Path Parameters:**
-
-- `id` (string): The ID of the attendance record to delete
-
-**Response (200):**
-
-```json
-{
-  "message": "Attendance record deleted successfully"
-}
-```
+Delete an attendance record. Returns `200`.
 
 #### Student Attendance Status Values
 
@@ -2347,6 +1984,10 @@ Authorization: Bearer <jwt_token>
 
 _All attendance routes require authentication_
 
+**Access policy:** Administrators can manage all user attendance. Center Managers can manage only their exact active project, center, and semester scope. Educators cannot manage user attendance.
+
+**Canonical inputs:** User-attendance bodies and list filters use canonical, unpadded IDs. Every attendance date is a real UTC calendar date in `YYYY-MM-DD` format. Non-administrators must provide all three scope IDs for records and summary requests; administrators may retain broad reporting.
+
 #### GET /api/v1/attendance/active-users
 
 Get active educators and center managers for a specific date, project, center, and semester for attendance marking.
@@ -2360,9 +2001,9 @@ Authorization: Bearer <jwt_token>
 **Query Parameters:**
 
 - `date` (string, required): Date in YYYY-MM-DD format (must be Saturday or Sunday)
-- `projectId` (string, required): The ID of the project
-- `centerId` (string, required): The ID of the center
-- `semesterId` (string, required): The ID of the semester
+- `projectId` (string, required): Canonical ID of the project
+- `centerId` (string, required): Canonical ID of the center
+- `semesterId` (string, required): Canonical ID of the semester
 
 **Response (200):**
 
@@ -2437,6 +2078,8 @@ Authorization: Bearer <jwt_token>
 - `notes` (string): Additional notes
 - `holidayReason` (string): Required when status is HOLIDAY
 
+The submitted role assignment must be active, belong to the stated user, match the stated project, center, and semester exactly, and have an `EDUCATOR` or `CENTER_MANAGER` sub-role.
+
 **Response (200):**
 
 ```json
@@ -2492,6 +2135,8 @@ Authorization: Bearer <jwt_token>
 }
 ```
 
+Each attendance entry's role assignment must be active, belong to its stated user, match the stated project, center, and semester exactly, and have an `EDUCATOR` or `CENTER_MANAGER` sub-role.
+
 **Response (200):**
 
 ```json
@@ -2501,6 +2146,8 @@ Authorization: Bearer <jwt_token>
   "errors": []
 }
 ```
+
+Bulk responses use `200` when all entries are processed, `207` when committed preflight failures are reported alongside successful entries, and `400` when the request cannot be accepted.
 
 #### GET /api/v1/attendance/records
 
@@ -2514,12 +2161,12 @@ Authorization: Bearer <jwt_token>
 
 **Query Parameters:**
 
-- `startDate` (string, optional): Start date in YYYY-MM-DD format
-- `endDate` (string, optional): End date in YYYY-MM-DD format
-- `userId` (string, optional): Filter by user ID
-- `projectId` (string, optional): Filter by project ID
-- `centerId` (string, optional): Filter by center ID
-- `semesterId` (string, optional): Filter by semester ID
+- `startDate` (string, optional): Real UTC calendar date in YYYY-MM-DD format
+- `endDate` (string, optional): Real UTC calendar date in YYYY-MM-DD format
+- `userId` (string, optional): Canonical user ID
+- `projectId` (string, optional): Canonical project ID
+- `centerId` (string, optional): Canonical center ID
+- `semesterId` (string, optional): Canonical semester ID
 - `status` (string, optional): Filter by attendance status
 - `page` (number, optional): Page number for pagination (default: 1)
 - `limit` (number, optional): Records per page (default: 50)
@@ -2576,12 +2223,12 @@ Authorization: Bearer <jwt_token>
 
 **Query Parameters:**
 
-- `startDate` (string, required): Start date in YYYY-MM-DD format
-- `endDate` (string, required): End date in YYYY-MM-DD format
-- `projectId` (string, optional): Filter by project ID
-- `centerId` (string, optional): Filter by center ID
-- `semesterId` (string, optional): Filter by semester ID
-- `userIds` (string, optional): Comma-separated user IDs to filter by
+- `startDate` (string, required): Real UTC calendar date in YYYY-MM-DD format
+- `endDate` (string, required): Real UTC calendar date in YYYY-MM-DD format
+- `projectId` (string, optional): Canonical project ID
+- `centerId` (string, optional): Canonical center ID
+- `semesterId` (string, optional): Canonical semester ID
+- `userIds` (string, optional): Comma-separated canonical user IDs to filter by
 
 **Response (200):**
 
@@ -2649,7 +2296,6 @@ The attendance system follows these rules:
 1. **Weekend Only**: Attendance is only tracked for Saturday and Sunday based on users' `committedDays`
 2. **Committed Days Matching**: Only users with matching committed days for the requested date are eligible
 3. **Status Logic**:
-
    - **PRESENT**: User explicitly marked as present (client sends entry)
    - **ABSENT**: User was expected but didn't show up on their committed day
    - **NOT_AVAILABLE**: User was not available on a day they weren't committed to, or auto-marked
@@ -2802,16 +2448,9 @@ Each user role assignment includes:
 - Active status for easy management
 - Assignment timestamps for tracking
 
-### Test Admin Account
+### Local Fixture Accounts
 
-After running `npm run seed`, you can use these credentials:
-
-- **Email**: pranganfoundationindia@gmail.com
-- **Password**: Prangan@2025
-- **Role**: ADMIN
-- **Status**: APPROVED
-
-The seed script also creates 10 sample students with Indian names and various levels.
+The local fixture reset creates development-only accounts and uses the password supplied through `DEV_SEED_PASSWORD`. It refuses to run unless `NODE_ENV=development`, `ALLOW_LOCAL_SEED=true`, and `ALLOW_DESTRUCTIVE_SEED=true` are all set. Never set these controls in a shared or production environment.
 
 ## Scripts
 
@@ -2821,11 +2460,12 @@ npm run dev          # Start development server with watch mode
 npm run dev:ts-node  # Start with ts-node (alternative)
 
 # Production
-npm run build        # Build the project (includes migrations)
+npm run build        # Compile the project; migrations are a separate approved operation
 npm run start        # Start production server
 
 # Database
-npm run seed         # Seed database with test data
+NODE_ENV=development ALLOW_LOCAL_SEED=true ALLOW_DESTRUCTIVE_SEED=true DEV_SEED_PASSWORD=replace-with-a-local-password npm run db:reset:fixtures
+NODE_ENV=development ALLOW_LOCAL_SEED=true npm run db:seed:syllabus
 npx prisma generate  # Generate Prisma client
 npx prisma migrate dev # Run database migrations
 npx prisma studio    # Open Prisma Studio

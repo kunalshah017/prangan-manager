@@ -1,7 +1,46 @@
+/** @deprecated Use SemesterLevel references for operational data. */
+export type LegacyLevel =
+  | "LEVEL_1"
+  | "LEVEL_2"
+  | "LEVEL_3"
+  | "LEVEL_4"
+  | "PRIMARY_A"
+  | "PRIMARY_B";
+
+export interface AcademicLevel {
+  id: string;
+  code: string;
+  name: string;
+  journeyOrder: number;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SemesterLevel {
+  id: string;
+  semesterId: string;
+  academicLevelId: string;
+  isActive: boolean;
+  academicLevel: AcademicLevel;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface LevelReference {
+  semesterLevelId?: string | null;
+  semesterLevel?: SemesterLevel | null;
+  /** @deprecated Use semesterLevelId and semesterLevel. */
+  level?: LegacyLevel;
+}
+
 // Base Entity Types
 export interface User {
   id: string;
   name: string;
+  firstName: string;
+  middleName?: string | null;
+  lastName?: string | null;
   email: string;
   role: "USER" | "ADMIN";
   status: "PENDING" | "APPROVED" | "REJECTED";
@@ -11,6 +50,10 @@ export interface User {
   dob?: string;
   profileImageUrl?: string;
   reimbursementAmount?: number;
+  remunerationRates?: Array<{
+    semesterId: string;
+    dailyRate: number | string;
+  }>;
   // Optional bank details
   bankAccountNumber?: string | null;
   bankAccountName?: string | null;
@@ -20,7 +63,7 @@ export interface User {
   upiId?: string | null;
   createdAt: string;
   updatedAt: string;
-  roleAssignments?: {
+  roleAssignments?: (LevelReference & {
     id: string;
     subRole:
       | "TRAINING_DEVELOPMENT"
@@ -33,16 +76,49 @@ export interface User {
     projectId?: string;
     centerId?: string;
     semesterId?: string;
-    level?:
-      | "LEVEL_1"
-      | "LEVEL_2"
-      | "LEVEL_3"
-      | "LEVEL_4"
-      | "PRIMARY_A"
-      | "PRIMARY_B";
     committedDays?: "SATURDAY" | "SUNDAY" | "BOTH";
     isActive: boolean;
-  }[];
+  })[];
+}
+
+export interface RemunerationUser {
+  id: string;
+  name: string;
+  firstName: string;
+  middleName?: string | null;
+  lastName?: string | null;
+  dailyRate: number | null;
+  remunerationPeriods?: RemunerationPeriod[];
+  bankAccountNumber?: string | null;
+  bankAccountName?: string | null;
+  bankIfsc?: string | null;
+  bankName?: string | null;
+  bankBranch?: string | null;
+  upiId?: string | null;
+}
+
+export interface RemunerationPeriod {
+  id: string;
+  amountPerDay: number;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+}
+
+export interface SemesterUser extends ContextStaffUser {
+  email: string;
+  remunerationPeriods: RemunerationPeriod[];
+}
+
+export interface ContextStaffUser {
+  id: string;
+  name: string;
+  firstName: string;
+  middleName?: string | null;
+  lastName?: string | null;
+  profileImageUrl?: string | null;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  dob?: string | null;
+  roleAssignments: NonNullable<User["roleAssignments"]>;
 }
 
 export interface Project {
@@ -51,7 +127,7 @@ export interface Project {
   description: string;
   metadata?: Record<string, unknown>;
   projectType?: string;
-  imageUrl?: string;
+  imageUrl?: string | null;
   status: "ACTIVE" | "INACTIVE";
   createdAt: string;
   updatedAt: string;
@@ -77,17 +153,22 @@ export interface Semester {
   startDate: string;
   endDate: string;
   centerId: string;
+  status: "DRAFT" | "ACTIVE" | "ARCHIVED";
   center?: {
     id: string;
     name: string;
   };
+  levels?: SemesterLevel[];
   createdAt: string;
   updatedAt: string;
 }
 
-export interface Student {
+export interface Student extends LevelReference {
   id: string;
   name: string;
+  firstName: string;
+  middleName?: string | null;
+  lastName?: string | null;
   profileImageUrl?: string;
   dob?: string;
   phoneNumber?: string;
@@ -104,29 +185,17 @@ export interface Student {
   futureProfessionImageUrl?: string;
   createdAt: string;
   updatedAt: string;
-  // Level is now available through enrollments
-  level?:
-    | "LEVEL_1"
-    | "LEVEL_2"
-    | "LEVEL_3"
-    | "LEVEL_4"
-    | "PRIMARY_A"
-    | "PRIMARY_B";
+  // Legacy level remains during page migration.
 }
 
-export interface StudentEnrollment {
+export interface StudentEnrollment extends LevelReference {
   id: string;
   studentId: string;
   centerId: string;
   semesterId: string;
   projectId: string;
-  level:
-    | "LEVEL_1"
-    | "LEVEL_2"
-    | "LEVEL_3"
-    | "LEVEL_4"
-    | "PRIMARY_A"
-    | "PRIMARY_B";
+  /** @deprecated Use semesterLevelId and semesterLevel. */
+  level: LegacyLevel;
   isActive: boolean;
   enrolledAt: string;
   promotedAt?: string;
@@ -185,14 +254,18 @@ export interface LoginRequest {
   password: string;
 }
 
-export interface LoginResponse extends ApiResponse<{ token: string }> {
-  token: string;
+export interface LoginResponse extends ApiResponse<{
+  user: User;
+}> {
+  user: User;
 }
 
 export type RegisterRequest = Pick<
   User,
   | "email"
-  | "name"
+  | "firstName"
+  | "middleName"
+  | "lastName"
   | "phone"
   | "qualification"
   | "address"
@@ -240,21 +313,149 @@ export type CreateSemesterRequest = CreateRequest<
   "name" | "startDate" | "endDate"
 > & {
   centerId?: string; // Made optional since README doesn't show it in request
+  academicLevelIds?: string[];
+  sourceSemesterId?: string;
 };
 export type UpdateSemesterRequest = UpdateRequest<
   Semester,
   "name" | "startDate" | "endDate"
->;
+> & { academicLevelIds?: string[] };
 export type CreateSemesterResponse = EntityResponse<Semester, "semester">;
 export type SemestersResponse = EntityListResponse<Semester, "semesters">;
 export type SemesterResponse = EntityResponse<Semester, "semester">;
 export type UpdateSemesterResponse = EntityResponse<Semester, "semester">;
 
+export type StudentTransitionDecision = {
+  sourceEnrollmentId: string;
+  studentId: string;
+  decision:
+    | "REVIEW"
+    | "PROMOTE"
+    | "RETAIN"
+    | "PASSED_OUT"
+    | "NOT_CONTINUING";
+  targetSemesterLevelId?: string;
+  student?: Student;
+  sourceLevel?: AcademicLevel | null;
+  promotionSuggestion?: PromotionSuggestion;
+};
+
+export type PromotionSuggestion = {
+  decision: "REVIEW" | "PROMOTE" | "RETAIN" | "PASSED_OUT";
+  targetSemesterLevelId?: string;
+  evidence: {
+    status: "SCORED" | "MISSING" | "ABSENT" | "INVALID";
+    reason:
+      | "ABOVE_THRESHOLD"
+      | "AT_OR_BELOW_THRESHOLD"
+      | "FINAL_LEVEL_COMPLETED"
+      | "NEXT_LEVEL_UNAVAILABLE"
+      | "CURRENT_LEVEL_UNAVAILABLE"
+      | "ASSESSMENT_MISSING"
+      | "ASSESSMENT_ABSENT"
+      | "ASSESSMENT_INVALID";
+    threshold: 70;
+    percentage?: number;
+    examId?: string;
+    examName?: string;
+    examDate?: string;
+  };
+};
+
+export type StaffTransitionDecision = {
+  userId: string;
+  decision: "ASSIGN" | "NOT_CONTINUING";
+  assignments: RoleAssignment[];
+  dailyRate?: number | null;
+  user?: Pick<
+    User,
+    "id" | "name" | "firstName" | "middleName" | "lastName"
+  > | null;
+};
+
+export interface SemesterTransition {
+  id: string;
+  semesterId: string;
+  sourceSemesterId?: string | null;
+  status: "DRAFT" | "COMPLETED";
+  semester: Semester & { levels: SemesterLevel[] };
+  sourceSemester?: Pick<Semester, "id" | "name"> | null;
+  studentPlan: StudentTransitionDecision[];
+  staffPlan: StaffTransitionDecision[];
+  progress: {
+    students: { resolved: number; total: number };
+    staff: { resolved: number; total: number };
+    rates: { resolved: number; total: number };
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SemesterSetupSummary {
+  semester: Pick<
+    Semester,
+    "id" | "name" | "status" | "startDate" | "endDate"
+  >;
+  sourceSemester: Pick<Semester, "id" | "name"> | null;
+  updatedAt: string;
+  progress: {
+    students: { resolved: number; total: number };
+    staff: { resolved: number; total: number };
+    rates: { resolved: number; total: number };
+  };
+}
+
+export interface SemesterSetupSummariesResponse {
+  setupSummaries: SemesterSetupSummary[];
+}
+
+// Managed Academic Level API Types
+export interface CreateAcademicLevelRequest {
+  code: string;
+  name: string;
+  afterLevelId?: string;
+}
+
+export interface UpdateAcademicLevelRequest {
+  name?: string;
+  isActive?: boolean;
+}
+
+export interface ReorderAcademicLevelsRequest {
+  orderedIds: string[];
+}
+
+export interface ReplaceSemesterLevelsRequest {
+  academicLevelIds: string[];
+}
+
+export type AcademicLevelsResponse = EntityListResponse<
+  AcademicLevel,
+  "levels"
+>;
+export type AcademicLevelResponse = EntityResponse<AcademicLevel, "level">;
+export type SemesterLevelsResponse = EntityListResponse<
+  SemesterLevel,
+  "levels"
+>;
+
 // User Management API Types
 export type UsersResponse = EntityListResponse<User, "users">;
+export type RemunerationUsersResponse = EntityListResponse<
+  RemunerationUser,
+  "users"
+>;
+export type ContextStaffResponse = EntityListResponse<
+  ContextStaffUser,
+  "users"
+>;
+export type SemesterUsersResponse = EntityListResponse<
+  SemesterUser,
+  "users"
+>;
 
 // Role Assignment Types
-export interface RoleAssignment {
+export interface RoleAssignment extends LevelReference {
   subRole:
     | "TRAINING_DEVELOPMENT"
     | "RECRUITMENT"
@@ -266,13 +467,6 @@ export interface RoleAssignment {
   projectId?: string;
   centerId?: string;
   semesterId?: string;
-  level?:
-    | "LEVEL_1"
-    | "LEVEL_2"
-    | "LEVEL_3"
-    | "LEVEL_4"
-    | "PRIMARY_A"
-    | "PRIMARY_B";
   committedDays?: "SATURDAY" | "SUNDAY" | "BOTH";
 }
 
@@ -282,30 +476,23 @@ export type VerifyUserRequest = {
   userId: string;
   status: "APPROVED" | "REJECTED" | "PENDING";
   role: "USER" | "ADMIN";
-  email: string;
-  name: string;
   roleAssignments?: RoleAssignment[];
   rejectionReason?: string;
 };
 export type VerifyUserResponse = MessageResponse;
 
 // Student API Types
-export interface StudentEnrollmentData {
+export interface StudentEnrollmentData extends LevelReference {
   centerId?: string;
   semesterId?: string;
   projectId?: string;
-  level?:
-    | "LEVEL_1"
-    | "LEVEL_2"
-    | "LEVEL_3"
-    | "LEVEL_4"
-    | "PRIMARY_A"
-    | "PRIMARY_B";
 }
 
 export type CreateStudentRequest = CreateRequest<
   Student,
-  | "name"
+  | "firstName"
+  | "middleName"
+  | "lastName"
   | "profileImageUrl"
   | "dob"
   | "phoneNumber"
@@ -325,7 +512,9 @@ export type CreateStudentRequest = CreateRequest<
 
 export type UpdateStudentRequest = UpdateRequest<
   Student,
-  | "name"
+  | "firstName"
+  | "middleName"
+  | "lastName"
   | "profileImageUrl"
   | "dob"
   | "phoneNumber"
@@ -343,16 +532,20 @@ export type UpdateStudentRequest = UpdateRequest<
   enrollment?: StudentEnrollmentData;
 };
 
-export interface CreateStudentResponse
-  extends EntityResponse<Student, "student"> {
+export interface CreateStudentResponse extends EntityResponse<
+  Student,
+  "student"
+> {
   enrollment?: StudentEnrollment;
 }
 
 export type StudentsResponse = EntityListResponse<Student, "students">;
 export type StudentResponse = EntityResponse<Student, "student">;
 
-export interface UpdateStudentResponse
-  extends EntityResponse<Student, "student"> {
+export interface UpdateStudentResponse extends EntityResponse<
+  Student,
+  "student"
+> {
   enrollment?: StudentEnrollment;
 }
 
@@ -368,19 +561,15 @@ export interface AttendanceUser {
   name: string;
   email: string;
   profileImageUrl?: string;
-  roleAssignments: {
+  roleAssignments: (LevelReference & {
     id: string;
     subRole: "CENTER_MANAGER" | "EDUCATOR";
-    level?:
-      | "LEVEL_1"
-      | "LEVEL_2"
-      | "LEVEL_3"
-      | "LEVEL_4"
-      | "PRIMARY_A"
-      | "PRIMARY_B";
     committedDays?: "SATURDAY" | "SUNDAY" | "BOTH";
+    projectId?: string;
+    centerId?: string;
+    semesterId?: string;
     isActive: boolean;
-  }[];
+  })[];
 }
 
 export interface AttendanceRecord {
@@ -410,16 +599,9 @@ export interface AttendanceRecord {
     email: string;
     profileImageUrl?: string;
   };
-  roleAssignment?: {
+  roleAssignment?: LevelReference & {
     id: string;
     subRole: "CENTER_MANAGER" | "EDUCATOR";
-    level?:
-      | "LEVEL_1"
-      | "LEVEL_2"
-      | "LEVEL_3"
-      | "LEVEL_4"
-      | "PRIMARY_A"
-      | "PRIMARY_B";
     committedDays?: "SATURDAY" | "SUNDAY" | "BOTH";
   };
 }
@@ -448,15 +630,10 @@ export interface StudentAttendanceRecord {
     name: string;
     profileImageUrl?: string;
   };
-  enrollment?: {
+  enrollment?: LevelReference & {
     id: string;
-    level:
-      | "LEVEL_1"
-      | "LEVEL_2"
-      | "LEVEL_3"
-      | "LEVEL_4"
-      | "PRIMARY_A"
-      | "PRIMARY_B";
+    /** @deprecated Use semesterLevelId and semesterLevel. */
+    level: LegacyLevel;
   };
   project?: {
     id: string;
@@ -613,21 +790,23 @@ export interface ApiError {
 // SYLLABUS TYPES
 // ============================================
 
-export type Level =
-  | "LEVEL_1"
-  | "LEVEL_2"
-  | "LEVEL_3"
-  | "LEVEL_4"
-  | "PRIMARY_A"
-  | "PRIMARY_B";
+/** @deprecated Use managed AcademicLevel and SemesterLevel references. */
+export type Level = LegacyLevel;
+
+export type AssessmentCycle = "PRE_ASSESSMENT" | "SA_1" | "SA_2" | "SA_3";
+export type CurriculumAssessmentCycle = Exclude<
+  AssessmentCycle,
+  "PRE_ASSESSMENT"
+>;
 
 export type SyllabusTopicStatus = "PENDING" | "ONGOING" | "COMPLETED";
 
-export interface Syllabus {
+export interface Syllabus extends LevelReference {
   id: string;
   projectId: string;
   centerId: string;
   semesterId: string;
+  /** @deprecated Use semesterLevelId and semesterLevel. */
   level: Level;
   name: string;
   description?: string;
@@ -661,10 +840,10 @@ export interface SyllabusTopic {
   parentId?: string;
   serialNumber: string;
   title: string;
-  cycle?: string;
+  cycle: CurriculumAssessmentCycle;
   status: SyllabusTopicStatus;
   orderIndex: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
   parent?: {
@@ -700,7 +879,7 @@ export interface SyllabusStatistics {
   };
   completionPercentage: number;
   cycleBreakdown?: {
-    cycle: string;
+    cycle: CurriculumAssessmentCycle;
     total: number;
     pending: number;
     ongoing: number;
@@ -717,16 +896,17 @@ export interface SyllabusStatistics {
 }
 
 // Request Types
-export interface CreateSyllabusRequest {
+export interface CreateSyllabusRequest extends LevelReference {
   projectId: string;
   centerId: string;
   semesterId: string;
-  level: Level;
+  /** @deprecated Use semesterLevelId. */
+  level?: Level;
   name: string;
   description?: string;
 }
 
-export interface UpdateSyllabusRequest {
+export interface UpdateSyllabusRequest extends LevelReference {
   name?: string;
   description?: string;
   isActive?: boolean;
@@ -737,9 +917,9 @@ export interface CreateSyllabusTopicRequest {
   parentId?: string;
   serialNumber: string;
   title: string;
-  cycle?: string;
+  cycle: CurriculumAssessmentCycle;
   orderIndex: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface BulkCreateTopicsRequest {
@@ -748,19 +928,19 @@ export interface BulkCreateTopicsRequest {
     parentId?: string;
     serialNumber: string;
     title: string;
-    cycle?: string;
+    cycle: CurriculumAssessmentCycle;
     orderIndex: number;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
   }[];
 }
 
 export interface UpdateSyllabusTopicRequest {
   serialNumber?: string;
   title?: string;
-  cycle?: string;
+  cycle?: CurriculumAssessmentCycle;
   status?: SyllabusTopicStatus;
   orderIndex?: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface UpdateTopicStatusRequest {

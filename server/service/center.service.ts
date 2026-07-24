@@ -1,8 +1,6 @@
-import { PrismaClient } from "../generated/prisma/index.js";
+import { prisma } from "../lib/prisma.js";
 
 import type { Center } from "../types/center.types.js";
-
-const prisma = new PrismaClient();
 
 export const CreateCenter = async (centerData: Partial<Center>) => {
   try {
@@ -61,16 +59,23 @@ export const updateCenter = async (id: string, centerData: Partial<Center>) => {
 
 export const deleteCenter = async (id: string) => {
   try {
-    // First, delete all semesters related to this center
-    await prisma.semesters.deleteMany({
+    const enrollmentCount = await prisma.studentEnrollments.count({
       where: { centerId: id },
     });
 
-    // Then, delete the center
-    const center = await prisma.centers.delete({
-      where: { id },
+    if (enrollmentCount > 0) {
+      return "Cannot delete center while enrollments exist";
+    }
+
+    return await prisma.$transaction(async (tx) => {
+      await tx.semesters.deleteMany({
+        where: { centerId: id },
+      });
+
+      return tx.centers.delete({
+        where: { id },
+      });
     });
-    return center;
   } catch (error: unknown) {
     console.error("Error deleting center:", error);
     return "Failed to delete center";
@@ -96,4 +101,13 @@ export const getCenterById = async (id: string) => {
     console.error("Error fetching center by ID:", error);
     return "Failed to fetch center";
   }
+};
+
+export const getCenterScope = async (id: string) => {
+  const center = await prisma.centers.findUnique({
+    where: { id },
+    select: { projectId: true },
+  });
+
+  return center ? { projectId: center.projectId, centerId: id } : null;
 };

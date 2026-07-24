@@ -1,8 +1,9 @@
 import {
-  PrismaClient,
   AttendanceStatus,
   CommittedDays,
+  SubRole,
 } from "../generated/prisma/index.js";
+import { prisma } from "../lib/prisma.js";
 import {
   GetActiveUsersForAttendanceRequest,
   GetActiveUsersForAttendanceResponse,
@@ -17,30 +18,29 @@ import {
   AttendanceSummary,
 } from "../types/attendance.types.js";
 
-const prisma = new PrismaClient();
+export const getRelevantCommittedDays = (date: string): CommittedDays[] => {
+  const dayOfWeek = new Date(date).getUTCDay();
+
+  if (dayOfWeek === 6) {
+    return [CommittedDays.SATURDAY, CommittedDays.BOTH];
+  }
+
+  if (dayOfWeek === 0) {
+    return [CommittedDays.SUNDAY, CommittedDays.BOTH];
+  }
+
+  return [];
+};
 
 /**
  * Get active educators and center managers for attendance marking
  */
 export const getActiveUsersForAttendance = async (
-  request: GetActiveUsersForAttendanceRequest
+  request: GetActiveUsersForAttendanceRequest,
 ): Promise<GetActiveUsersForAttendanceResponse> => {
   const { date, semesterId, centerId, projectId } = request;
 
-  // Parse the date to get day of week (0 = Sunday, 6 = Saturday)
-  const requestDate = new Date(date);
-  const dayOfWeek = requestDate.getDay();
-
-  // Determine which committed days are relevant for this date
-  const relevantCommittedDays: CommittedDays[] = [];
-  if (dayOfWeek === 6 || dayOfWeek === 0) {
-    // For any weekend day (Saturday or Sunday), include all weekend committed days
-    relevantCommittedDays.push(
-      CommittedDays.SATURDAY,
-      CommittedDays.SUNDAY,
-      CommittedDays.BOTH
-    );
-  }
+  const relevantCommittedDays = getRelevantCommittedDays(date);
 
   // If it's not a weekend day, return empty result
   if (relevantCommittedDays.length === 0) {
@@ -58,9 +58,6 @@ export const getActiveUsersForAttendance = async (
         subRole: {
           in: ["EDUCATOR", "CENTER_MANAGER"],
         },
-        committedDays: {
-          in: relevantCommittedDays,
-        },
         projectId: projectId,
         centerId: centerId,
         semesterId: semesterId,
@@ -77,9 +74,6 @@ export const getActiveUsersForAttendance = async (
           subRole: {
             in: ["EDUCATOR", "CENTER_MANAGER"],
           },
-          committedDays: {
-            in: relevantCommittedDays,
-          },
           projectId: projectId,
           ...(centerId && { centerId }),
           ...(semesterId && { semesterId }),
@@ -93,6 +87,9 @@ export const getActiveUsersForAttendance = async (
           },
           semester: {
             select: { name: true },
+          },
+          semesterLevel: {
+            include: { academicLevel: true },
           },
         },
       },
@@ -111,10 +108,13 @@ export const getActiveUsersForAttendance = async (
       id: assignment.id,
       subRole: assignment.subRole as string,
       level: (assignment.level as string) || undefined,
+      semesterLevelId: assignment.semesterLevelId || undefined,
+      semesterLevel: assignment.semesterLevel || undefined,
       committedDays: (assignment.committedDays as CommittedDays) || undefined,
       projectId: assignment.projectId || undefined,
       centerId: assignment.centerId || undefined,
       semesterId: assignment.semesterId || undefined,
+      isActive: assignment.isActive,
     })),
   }));
 
@@ -129,7 +129,7 @@ export const getActiveUsersForAttendance = async (
  */
 export const markAttendance = async (
   request: MarkAttendanceRequest,
-  markedBy: string
+  markedBy: string,
 ): Promise<MarkAttendanceResponse> => {
   const {
     userId,
@@ -146,6 +146,22 @@ export const markAttendance = async (
   // Validate holiday reason is provided when status is HOLIDAY
   if (status === AttendanceStatus.HOLIDAY && !holidayReason) {
     throw new Error("Holiday reason is required when marking as holiday");
+  }
+
+  const [roleAssignment] = await prisma.userRoleAssignments.findMany({
+    where: {
+      id: { in: [roleAssignmentId] },
+      isActive: true,
+      projectId,
+      centerId,
+      semesterId,
+      subRole: { in: [SubRole.EDUCATOR, SubRole.CENTER_MANAGER] },
+    },
+    select: { id: true, userId: true },
+  });
+
+  if (roleAssignment?.userId !== userId) {
+    throw new Error("Invalid attendance role assignment");
   }
 
   // Check if attendance already exists for this date and context
@@ -263,7 +279,7 @@ export const markAttendance = async (
  */
 export const markBulkAttendance = async (
   request: MarkBulkAttendanceRequest,
-  markedBy: string
+  markedBy: string,
 ): Promise<{ message: string; processedCount: number; errors: string[] }> => {
   const { date, projectId, centerId, semesterId, attendances } = request;
   const errors: string[] = [];
@@ -271,16 +287,43 @@ export const markBulkAttendance = async (
   const now = new Date();
 
   try {
+    const roleAssignments = await prisma.userRoleAssignments.findMany({
+      where: {
+        id: {
+          in: attendances.map((attendance) => attendance.roleAssignmentId),
+        },
+        isActive: true,
+        projectId,
+        centerId,
+        semesterId,
+        subRole: { in: [SubRole.EDUCATOR, SubRole.CENTER_MANAGER] },
+      },
+      select: { id: true, userId: true },
+    });
+    const assignmentUserIds = new Map(
+      roleAssignments.map((assignment) => [assignment.id, assignment.userId]),
+    );
+
     // Pre-validate all attendance data
     const validAttendances: typeof attendances = [];
     for (const attendanceData of attendances) {
+      if (
+        assignmentUserIds.get(attendanceData.roleAssignmentId) !==
+        attendanceData.userId
+      ) {
+        errors.push(
+          `User ${attendanceData.userId}: Invalid attendance role assignment`,
+        );
+        continue;
+      }
+
       // Validate holiday reason is provided when status is HOLIDAY
       if (
         attendanceData.status === AttendanceStatus.HOLIDAY &&
         !attendanceData.holidayReason
       ) {
         errors.push(
-          `User ${attendanceData.userId}: Holiday reason is required when marking as holiday`
+          `User ${attendanceData.userId}: Holiday reason is required when marking as holiday`,
         );
         continue;
       }
@@ -308,55 +351,47 @@ export const markBulkAttendance = async (
 
           // Process each item in the batch
           for (const attendanceData of batch) {
-            try {
-              // Use upsert for each record - this is still faster than individual transactions
-              await tx.userAttendance.upsert({
-                where: {
-                  userId_date_projectId_centerId_semesterId: {
-                    userId: attendanceData.userId,
-                    date: requestDate,
-                    projectId,
-                    centerId,
-                    semesterId,
-                  },
-                },
-                update: {
-                  status: attendanceData.status,
-                  roleAssignmentId: attendanceData.roleAssignmentId,
-                  notes: attendanceData.notes || null,
-                  holidayReason:
-                    attendanceData.status === AttendanceStatus.HOLIDAY
-                      ? attendanceData.holidayReason
-                      : null,
-                  markedBy,
-                  markedAt: now,
-                  updatedAt: now,
-                },
-                create: {
+            // Use upsert for each record - this is still faster than individual transactions
+            await tx.userAttendance.upsert({
+              where: {
+                userId_date_projectId_centerId_semesterId: {
                   userId: attendanceData.userId,
                   date: requestDate,
-                  status: attendanceData.status,
-                  roleAssignmentId: attendanceData.roleAssignmentId,
                   projectId,
                   centerId,
                   semesterId,
-                  notes: attendanceData.notes || null,
-                  holidayReason:
-                    attendanceData.status === AttendanceStatus.HOLIDAY
-                      ? attendanceData.holidayReason
-                      : null,
-                  markedBy,
-                  markedAt: now,
                 },
-              });
-              successCount++;
-            } catch (error: any) {
-              console.error(
-                `Error processing attendance for user ${attendanceData.userId}:`,
-                error
-              );
-              errors.push(`User ${attendanceData.userId}: ${error.message}`);
-            }
+              },
+              update: {
+                status: attendanceData.status,
+                roleAssignmentId: attendanceData.roleAssignmentId,
+                notes: attendanceData.notes || null,
+                holidayReason:
+                  attendanceData.status === AttendanceStatus.HOLIDAY
+                    ? attendanceData.holidayReason
+                    : null,
+                markedBy,
+                markedAt: now,
+                updatedAt: now,
+              },
+              create: {
+                userId: attendanceData.userId,
+                date: requestDate,
+                status: attendanceData.status,
+                roleAssignmentId: attendanceData.roleAssignmentId,
+                projectId,
+                centerId,
+                semesterId,
+                notes: attendanceData.notes || null,
+                holidayReason:
+                  attendanceData.status === AttendanceStatus.HOLIDAY
+                    ? attendanceData.holidayReason
+                    : null,
+                markedBy,
+                markedAt: now,
+              },
+            });
+            successCount++;
           }
         }
 
@@ -364,7 +399,7 @@ export const markBulkAttendance = async (
       },
       {
         timeout: 8000, // Set timeout to 8 seconds (less than Vercel's 10s limit)
-      }
+      },
     );
 
     return {
@@ -378,10 +413,10 @@ export const markBulkAttendance = async (
     // If the entire transaction fails due to timeout or other issues
     if (error.message.includes("timeout") || error.code === "P2024") {
       errors.push(
-        `Transaction timed out. Try processing fewer records at once.`
+        `Transaction timed out. Try processing fewer records at once.`,
       );
     } else {
-      errors.push(`Transaction failed: ${error.message}`);
+      errors.push("Transaction failed while marking attendance");
     }
 
     return {
@@ -396,7 +431,7 @@ export const markBulkAttendance = async (
  * Get attendance records with filtering and pagination
  */
 export const getAttendanceRecords = async (
-  request: GetAttendanceRequest
+  request: GetAttendanceRequest,
 ): Promise<GetAttendanceResponse> => {
   const {
     startDate,
@@ -437,7 +472,7 @@ export const getAttendanceRecords = async (
       where: whereClause,
       include: {
         user: {
-          select: { name: true, email: true },
+          select: { name: true, email: true, profileImageUrl: true },
         },
         project: {
           select: { name: true },
@@ -453,6 +488,8 @@ export const getAttendanceRecords = async (
             id: true,
             subRole: true,
             level: true,
+            semesterLevelId: true,
+            semesterLevel: { include: { academicLevel: true } },
             committedDays: true,
           },
         },
@@ -474,6 +511,12 @@ export const getAttendanceRecords = async (
     userId: attendance.userId,
     userName: attendance.user.name,
     userEmail: attendance.user.email,
+    user: {
+      id: attendance.userId,
+      name: attendance.user.name,
+      email: attendance.user.email,
+      profileImageUrl: attendance.user.profileImageUrl || undefined,
+    },
     date: attendance.date.toISOString().split("T")[0],
     status: attendance.status as AttendanceStatus,
     projectId: attendance.projectId,
@@ -491,6 +534,8 @@ export const getAttendanceRecords = async (
       id: attendance.roleAssignment.id,
       subRole: attendance.roleAssignment.subRole,
       level: attendance.roleAssignment.level || undefined,
+      semesterLevelId: attendance.roleAssignment.semesterLevelId || undefined,
+      semesterLevel: attendance.roleAssignment.semesterLevel || undefined,
       committedDays: attendance.roleAssignment.committedDays || undefined,
     },
   }));
@@ -510,7 +555,7 @@ export const getAttendanceRecords = async (
  * Get attendance summary/report for users
  */
 export const getAttendanceSummary = async (
-  request: GetAttendanceSummaryRequest
+  request: GetAttendanceSummaryRequest,
 ): Promise<GetAttendanceSummaryResponse> => {
   const { startDate, endDate, projectId, centerId, semesterId, userIds } =
     request;
@@ -590,17 +635,15 @@ export const getAttendanceSummary = async (
   });
 
   // Calculate period info
-  const start = new Date(startDate);
-  const end = new Date(endDate);
+  const start = new Date(`${startDate}T00:00:00.000Z`);
+  const end = new Date(`${endDate}T00:00:00.000Z`);
   const timeDiff = end.getTime() - start.getTime();
   const totalDays = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
 
   // Count weekend days in the period
   let weekendDays = 0;
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const dayOfWeek = d.getDay();
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
-      // Sunday or Saturday
+  for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+    if (getRelevantCommittedDays(d.toISOString().slice(0, 10)).length > 0) {
       weekendDays++;
     }
   }
@@ -623,13 +666,13 @@ export const autoMarkAttendance = async (
   date: string,
   projectId: string,
   centerId: string,
-  semesterId: string
+  semesterId: string,
 ): Promise<{ message: string; processedCount: number }> => {
   const requestDate = new Date(date);
-  const dayOfWeek = requestDate.getDay();
+  const relevantCommittedDays = getRelevantCommittedDays(date);
 
   // Only process weekend days
-  if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+  if (relevantCommittedDays.length === 0) {
     return {
       message: "Auto-marking only works for weekend days",
       processedCount: 0,
@@ -679,7 +722,7 @@ export const autoMarkAttendance = async (
       } catch (error) {
         console.error(
           `Error auto-marking attendance for user ${user.id}:`,
-          error
+          error,
         );
       }
     }

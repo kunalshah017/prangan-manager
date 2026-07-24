@@ -55,7 +55,7 @@ export interface BookInfo {
 export interface Book {
   id: string;
   pdfUrl: string;
-  coverUrl?: string;
+  coverUrl: string;
   pdfOffset: number;
   bookInfo: BookInfo;
   structure: BookStructureItem[];
@@ -78,6 +78,7 @@ export interface Book {
 export const books: Book[] = [
   {
     id: "communicate-cambridge-1",
+    coverUrl: "/images/library/cambridge_english_level_1.webp",
     pdfUrl:
       "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/cambridge_english_level_1.pdf",
     pdfOffset: 11,
@@ -714,6 +715,7 @@ export const books: Book[] = [
   },
   {
     id: "communicate-cambridge-2",
+    coverUrl: "/images/library/cambridge_english_level_2.webp",
     pdfUrl:
       "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/cambridge_english_level_2.pdf",
     pdfOffset: 11,
@@ -1028,6 +1030,7 @@ export const books: Book[] = [
   },
   {
     id: "communicate-cambridge-3",
+    coverUrl: "/images/library/cambridge_english_level_3.webp",
     pdfUrl:
       "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/cambridge_english_level_3.pdf",
     pdfOffset: 11,
@@ -1560,6 +1563,7 @@ export const books: Book[] = [
   },
   {
     id: "communicate-cambridge-4",
+    coverUrl: "/images/library/cambridge_english_level_4.webp",
     pdfUrl:
       "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/cambridge_english_level_4.pdf",
     pdfOffset: 11,
@@ -2097,6 +2101,7 @@ export const books: Book[] = [
   },
   {
     id: "grammar-gear-level-1",
+    coverUrl: "/images/library/grammar_gear_level_1.webp",
     pdfUrl:
       "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/grammar_gear_level_1.pdf",
     pdfOffset: 7,
@@ -2386,6 +2391,7 @@ export const books: Book[] = [
   },
   {
     id: "grammar-gear-level-2",
+    coverUrl: "/images/library/grammar_gear_level_2.webp",
     pdfUrl:
       "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/grammar_gear_level_2.pdf",
     pdfOffset: 7,
@@ -2685,6 +2691,7 @@ export const books: Book[] = [
   },
   {
     id: "grammar-gear-level-3",
+    coverUrl: "/images/library/grammar_gear_level_3.webp",
     pdfUrl:
       "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/grammar_gear_level_3.pdf",
     pdfOffset: 7,
@@ -2999,6 +3006,7 @@ export const books: Book[] = [
   },
   {
     id: "grammar-gear-level-4",
+    coverUrl: "/images/library/grammar_gear_level_4.webp",
     pdfUrl:
       "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/grammar_gear_level_4.pdf",
     pdfOffset: 7,

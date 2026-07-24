@@ -6,28 +6,53 @@ import {
   SubRole,
   Level,
   CommittedDays,
+  type Prisma,
 } from "../generated/prisma/index.js";
 import bcrypt from "bcryptjs";
+import { resolvePersonNameCreate } from "../lib/person-name.js";
+import {
+  assertDestructiveLocalSeedAllowed,
+  getDevelopmentSeedPassword,
+} from "./seed-safety.js";
 
-const prisma = new PrismaClient();
-
-async function main() {
+async function seedFixtures(
+  prisma: PrismaClient,
+  seedPassword: string,
+): Promise<void> {
   console.log("🌱 Starting database seeding...");
 
-  // Clear existing data (optional - for fresh seeding)
   console.log("🧹 Clearing existing data...");
-  await prisma.studentAttendance.deleteMany();
-  await prisma.studentEnrollments.deleteMany();
-  await prisma.students.deleteMany();
-  await prisma.userRoleAssignments.deleteMany();
-  await prisma.semesters.deleteMany();
-  await prisma.centers.deleteMany();
-  await prisma.projects.deleteMany();
-  await prisma.user.deleteMany();
+  await prisma.$transaction(async (transaction) => {
+    await transaction.studentAttendance.deleteMany();
+    await transaction.studentExamScore.deleteMany();
+    await transaction.studentEnrollments.deleteMany();
+    await transaction.students.deleteMany();
+    await transaction.userRoleAssignments.deleteMany();
+    await transaction.semesters.deleteMany();
+    await transaction.centers.deleteMany();
+    await transaction.projects.deleteMany();
+    await transaction.user.deleteMany();
+  });
 
   // Hash passwords
-  const adminPassword = await bcrypt.hash("Prangan@2025", 10);
-  const userPassword = await bcrypt.hash("Password123", 10);
+  const adminPassword = await bcrypt.hash(seedPassword, 10);
+  const userPassword = await bcrypt.hash(seedPassword, 10);
+  const createFixtureUser = (args: Prisma.UserCreateArgs) =>
+    prisma.user.create({
+      ...args,
+      data: {
+        ...args.data,
+        ...resolvePersonNameCreate({ name: args.data.name }),
+      },
+    });
+  const createFixtureStudent = (args: Prisma.StudentsCreateArgs) =>
+    prisma.students.create({
+      ...args,
+      data: {
+        ...args.data,
+        ...resolvePersonNameCreate({ name: args.data.name }),
+      },
+    });
 
   // Create Projects
   console.log("📁 Creating projects...");
@@ -101,7 +126,7 @@ async function main() {
   console.log("👥 Creating users...");
   const users = await Promise.all([
     // Admin Users
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "pranganfoundationindia@gmail.com",
         name: "Admin User 1",
@@ -115,7 +140,7 @@ async function main() {
         profileImageUrl: "https://example.com/admin1.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "admin2@chanchalmann.org",
         name: "Admin User 2",
@@ -130,7 +155,7 @@ async function main() {
       },
     }),
     // Center Managers
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "manager1@chanchalmann.org",
         name: "Center Manager 1",
@@ -144,7 +169,7 @@ async function main() {
         profileImageUrl: "https://example.com/manager1.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "manager2@chanchalmann.org",
         name: "Center Manager 2",
@@ -158,7 +183,7 @@ async function main() {
         profileImageUrl: "https://example.com/manager2.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "manager3@chanchalmann.org",
         name: "Center Manager 3",
@@ -172,7 +197,7 @@ async function main() {
         profileImageUrl: "https://example.com/manager3.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "manager4@chanchalmann.org",
         name: "Center Manager 4",
@@ -187,7 +212,7 @@ async function main() {
       },
     }),
     // Tulip Center Educators (10 educators)
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "educator1@chanchalmann.org",
         name: "Educator 1",
@@ -201,7 +226,7 @@ async function main() {
         profileImageUrl: "https://example.com/educator1.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "educator2@chanchalmann.org",
         name: "Educator 2",
@@ -215,7 +240,7 @@ async function main() {
         profileImageUrl: "https://example.com/educator2.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "educator3@chanchalmann.org",
         name: "Educator 3",
@@ -229,7 +254,7 @@ async function main() {
         profileImageUrl: "https://example.com/educator3.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "educator4@chanchalmann.org",
         name: "Educator 4",
@@ -243,7 +268,7 @@ async function main() {
         profileImageUrl: "https://example.com/educator4.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "educator5@chanchalmann.org",
         name: "Educator 5",
@@ -257,7 +282,7 @@ async function main() {
         profileImageUrl: "https://example.com/educator5.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "educator6@chanchalmann.org",
         name: "Educator 6",
@@ -271,7 +296,7 @@ async function main() {
         profileImageUrl: "https://example.com/educator6.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "educator7@chanchalmann.org",
         name: "Educator 7",
@@ -285,7 +310,7 @@ async function main() {
         profileImageUrl: "https://example.com/educator7.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "educator8@chanchalmann.org",
         name: "Educator 8",
@@ -299,7 +324,7 @@ async function main() {
         profileImageUrl: "https://example.com/educator8.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "educator9@chanchalmann.org",
         name: "Educator 9",
@@ -313,7 +338,7 @@ async function main() {
         profileImageUrl: "https://example.com/educator9.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "educator10@chanchalmann.org",
         name: "Educator 10",
@@ -328,7 +353,7 @@ async function main() {
       },
     }),
     // Lavender Center Educators (10 educators)
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "educator11@chanchalmann.org",
         name: "Educator 11",
@@ -342,7 +367,7 @@ async function main() {
         profileImageUrl: "https://example.com/educator11.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "educator12@chanchalmann.org",
         name: "Educator 12",
@@ -356,7 +381,7 @@ async function main() {
         profileImageUrl: "https://example.com/educator12.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "educator13@chanchalmann.org",
         name: "Educator 13",
@@ -370,7 +395,7 @@ async function main() {
         profileImageUrl: "https://example.com/educator13.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "educator14@chanchalmann.org",
         name: "Educator 14",
@@ -384,7 +409,7 @@ async function main() {
         profileImageUrl: "https://example.com/educator14.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "educator15@chanchalmann.org",
         name: "Educator 15",
@@ -398,7 +423,7 @@ async function main() {
         profileImageUrl: "https://example.com/educator15.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "educator16@chanchalmann.org",
         name: "Educator 16",
@@ -412,7 +437,7 @@ async function main() {
         profileImageUrl: "https://example.com/educator16.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "educator17@chanchalmann.org",
         name: "Educator 17",
@@ -426,7 +451,7 @@ async function main() {
         profileImageUrl: "https://example.com/educator17.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "educator18@chanchalmann.org",
         name: "Educator 18",
@@ -440,7 +465,7 @@ async function main() {
         profileImageUrl: "https://example.com/educator18.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "educator19@chanchalmann.org",
         name: "Educator 19",
@@ -454,7 +479,7 @@ async function main() {
         profileImageUrl: "https://example.com/educator19.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "educator20@chanchalmann.org",
         name: "Educator 20",
@@ -470,7 +495,7 @@ async function main() {
     }),
     // Other roles - 2 of each
     // Training Development
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "training1@chanchalmann.org",
         name: "Training Staff 1",
@@ -484,7 +509,7 @@ async function main() {
         profileImageUrl: "https://example.com/training1.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "training2@chanchalmann.org",
         name: "Training Staff 2",
@@ -499,7 +524,7 @@ async function main() {
       },
     }),
     // Recruitment
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "recruitment1@chanchalmann.org",
         name: "Recruitment Staff 1",
@@ -513,7 +538,7 @@ async function main() {
         profileImageUrl: "https://example.com/recruitment1.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "recruitment2@chanchalmann.org",
         name: "Recruitment Staff 2",
@@ -528,7 +553,7 @@ async function main() {
       },
     }),
     // Growth Development
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "growth1@chanchalmann.org",
         name: "Growth Staff 1",
@@ -542,7 +567,7 @@ async function main() {
         profileImageUrl: "https://example.com/growth1.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "growth2@chanchalmann.org",
         name: "Growth Staff 2",
@@ -557,7 +582,7 @@ async function main() {
       },
     }),
     // Curriculum Mentor
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "curriculum1@chanchalmann.org",
         name: "Curriculum Mentor 1",
@@ -571,7 +596,7 @@ async function main() {
         profileImageUrl: "https://example.com/curriculum1.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "curriculum2@chanchalmann.org",
         name: "Curriculum Mentor 2",
@@ -586,7 +611,7 @@ async function main() {
       },
     }),
     // Tech
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "tech1@chanchalmann.org",
         name: "Tech Staff 1",
@@ -600,7 +625,7 @@ async function main() {
         profileImageUrl: "https://example.com/tech1.jpg",
       },
     }),
-    prisma.user.create({
+    createFixtureUser({
       data: {
         email: "tech2@chanchalmann.org",
         name: "Tech Staff 2",
@@ -994,16 +1019,16 @@ async function main() {
   const students = await Promise.all([
     // LEVEL_1 Students (15 students) - Ages 14-16 (born 2009-2011)
     ...Array.from({ length: 15 }, (_, i) =>
-      prisma.students.create({
+      createFixtureStudent({
         data: {
           name: `Student L1 ${i + 1}`,
           phoneNumber: `+91 987654${String(1001 + i).padStart(4, "0")}`,
           dob: new Date(
             `${2009 + Math.floor(Math.random() * 3)}-${String(
-              Math.floor(Math.random() * 12) + 1
+              Math.floor(Math.random() * 12) + 1,
             ).padStart(2, "0")}-${String(
-              Math.floor(Math.random() * 28) + 1
-            ).padStart(2, "0")}`
+              Math.floor(Math.random() * 28) + 1,
+            ).padStart(2, "0")}`,
           ),
           profileImageUrl: `https://example.com/student-l1-${i + 1}.jpg`,
           fatherName: `Father L1 ${i + 1}`,
@@ -1014,20 +1039,20 @@ async function main() {
           motherOccupation: "Homemaker",
           familyIncome: `${15000 + i * 1000}`,
         },
-      })
+      }),
     ),
     // LEVEL_2 Students (15 students) - Ages 12-14 (born 2011-2013)
     ...Array.from({ length: 15 }, (_, i) =>
-      prisma.students.create({
+      createFixtureStudent({
         data: {
           name: `Student L2 ${i + 1}`,
           phoneNumber: `+91 987654${String(2001 + i).padStart(4, "0")}`,
           dob: new Date(
             `${2011 + Math.floor(Math.random() * 3)}-${String(
-              Math.floor(Math.random() * 12) + 1
+              Math.floor(Math.random() * 12) + 1,
             ).padStart(2, "0")}-${String(
-              Math.floor(Math.random() * 28) + 1
-            ).padStart(2, "0")}`
+              Math.floor(Math.random() * 28) + 1,
+            ).padStart(2, "0")}`,
           ),
           profileImageUrl: `https://example.com/student-l2-${i + 1}.jpg`,
           fatherName: `Father L2 ${i + 1}`,
@@ -1038,20 +1063,20 @@ async function main() {
           motherOccupation: "Working",
           familyIncome: `${20000 + i * 1000}`,
         },
-      })
+      }),
     ),
     // LEVEL_3 Students (15 students) - Ages 10-12 (born 2013-2015)
     ...Array.from({ length: 15 }, (_, i) =>
-      prisma.students.create({
+      createFixtureStudent({
         data: {
           name: `Student L3 ${i + 1}`,
           phoneNumber: `+91 987654${String(3001 + i).padStart(4, "0")}`,
           dob: new Date(
             `${2013 + Math.floor(Math.random() * 3)}-${String(
-              Math.floor(Math.random() * 12) + 1
+              Math.floor(Math.random() * 12) + 1,
             ).padStart(2, "0")}-${String(
-              Math.floor(Math.random() * 28) + 1
-            ).padStart(2, "0")}`
+              Math.floor(Math.random() * 28) + 1,
+            ).padStart(2, "0")}`,
           ),
           profileImageUrl: `https://example.com/student-l3-${i + 1}.jpg`,
           fatherName: `Father L3 ${i + 1}`,
@@ -1062,20 +1087,20 @@ async function main() {
           motherOccupation: "Homemaker",
           familyIncome: `${25000 + i * 1000}`,
         },
-      })
+      }),
     ),
     // LEVEL_4 Students (15 students) - Ages 8-10 (born 2015-2017)
     ...Array.from({ length: 15 }, (_, i) =>
-      prisma.students.create({
+      createFixtureStudent({
         data: {
           name: `Student L4 ${i + 1}`,
           phoneNumber: `+91 987654${String(4001 + i).padStart(4, "0")}`,
           dob: new Date(
             `${2015 + Math.floor(Math.random() * 3)}-${String(
-              Math.floor(Math.random() * 12) + 1
+              Math.floor(Math.random() * 12) + 1,
             ).padStart(2, "0")}-${String(
-              Math.floor(Math.random() * 28) + 1
-            ).padStart(2, "0")}`
+              Math.floor(Math.random() * 28) + 1,
+            ).padStart(2, "0")}`,
           ),
           profileImageUrl: `https://example.com/student-l4-${i + 1}.jpg`,
           fatherName: `Father L4 ${i + 1}`,
@@ -1086,20 +1111,20 @@ async function main() {
           motherOccupation: "Working",
           familyIncome: `${30000 + i * 1000}`,
         },
-      })
+      }),
     ),
     // PRIMARY_A Students (12 students) - Ages 6-8 (born 2017-2019)
     ...Array.from({ length: 12 }, (_, i) =>
-      prisma.students.create({
+      createFixtureStudent({
         data: {
           name: `Student PA ${i + 1}`,
           phoneNumber: `+91 987654${String(5001 + i).padStart(4, "0")}`,
           dob: new Date(
             `${2017 + Math.floor(Math.random() * 3)}-${String(
-              Math.floor(Math.random() * 12) + 1
+              Math.floor(Math.random() * 12) + 1,
             ).padStart(2, "0")}-${String(
-              Math.floor(Math.random() * 28) + 1
-            ).padStart(2, "0")}`
+              Math.floor(Math.random() * 28) + 1,
+            ).padStart(2, "0")}`,
           ),
           profileImageUrl: `https://example.com/student-pa-${i + 1}.jpg`,
           fatherName: `Father PA ${i + 1}`,
@@ -1110,20 +1135,20 @@ async function main() {
           motherOccupation: "Homemaker",
           familyIncome: `${18000 + i * 800}`,
         },
-      })
+      }),
     ),
     // PRIMARY_B Students (12 students) - Ages 4-6 (born 2019-2021)
     ...Array.from({ length: 12 }, (_, i) =>
-      prisma.students.create({
+      createFixtureStudent({
         data: {
           name: `Student PB ${i + 1}`,
           phoneNumber: `+91 987654${String(6001 + i).padStart(4, "0")}`,
           dob: new Date(
             `${2019 + Math.floor(Math.random() * 3)}-${String(
-              Math.floor(Math.random() * 12) + 1
+              Math.floor(Math.random() * 12) + 1,
             ).padStart(2, "0")}-${String(
-              Math.floor(Math.random() * 28) + 1
-            ).padStart(2, "0")}`
+              Math.floor(Math.random() * 28) + 1,
+            ).padStart(2, "0")}`,
           ),
           profileImageUrl: `https://example.com/student-pb-${i + 1}.jpg`,
           fatherName: `Father PB ${i + 1}`,
@@ -1134,7 +1159,7 @@ async function main() {
           motherOccupation: "Working",
           familyIncome: `${22000 + i * 800}`,
         },
-      })
+      }),
     ),
   ]);
 
@@ -1156,7 +1181,7 @@ async function main() {
           level: Level.LEVEL_1,
           isActive: true,
         },
-      })
+      }),
     );
   }
 
@@ -1174,7 +1199,7 @@ async function main() {
           level: Level.LEVEL_2,
           isActive: true,
         },
-      })
+      }),
     );
   }
 
@@ -1192,7 +1217,7 @@ async function main() {
           level: Level.LEVEL_3,
           isActive: true,
         },
-      })
+      }),
     );
   }
 
@@ -1210,7 +1235,7 @@ async function main() {
           level: Level.LEVEL_4,
           isActive: true,
         },
-      })
+      }),
     );
   }
 
@@ -1228,7 +1253,7 @@ async function main() {
           level: Level.PRIMARY_A,
           isActive: true,
         },
-      })
+      }),
     );
   }
 
@@ -1246,7 +1271,7 @@ async function main() {
           level: Level.PRIMARY_B,
           isActive: true,
         },
-      })
+      }),
     );
   }
 
@@ -1262,11 +1287,19 @@ async function main() {
     • Student enrollments and role assignments`);
 }
 
-main()
-  .catch((e) => {
-    console.error("❌ Error during seeding:", e);
-    process.exit(1);
-  })
-  .finally(async () => {
+async function main(): Promise<void> {
+  assertDestructiveLocalSeedAllowed();
+  const seedPassword = getDevelopmentSeedPassword();
+  const prisma = new PrismaClient();
+
+  try {
+    await seedFixtures(prisma, seedPassword);
+  } finally {
     await prisma.$disconnect();
-  });
+  }
+}
+
+main().catch((e) => {
+  console.error("❌ Error during seeding:", e);
+  process.exit(1);
+});

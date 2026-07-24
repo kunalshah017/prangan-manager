@@ -1,5 +1,5 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import React from "react";
+import { motion } from "framer-motion";
 import {
     BookOpen,
     Pencil,
@@ -12,11 +12,10 @@ import {
     PaintBucket,
     Rocket,
     Globe,
-    Lightbulb
-} from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+    Lightbulb,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
-// Educational icons from Lucide
 const EDUCATIONAL_ICONS: LucideIcon[] = [
     BookOpen,
     Pencil,
@@ -29,8 +28,10 @@ const EDUCATIONAL_ICONS: LucideIcon[] = [
     PaintBucket,
     Rocket,
     Globe,
-    Lightbulb
+    Lightbulb,
 ];
+
+const COLORS = ["#f97316", "#ea580c", "#f59e0b", "#d97706", "#fb923c"];
 
 interface DoodleProps {
     Icon: LucideIcon;
@@ -40,16 +41,26 @@ interface DoodleProps {
     initialY: number;
     duration: number;
     delay: number;
+    animated: boolean;
+    staticRotation: number;
 }
 
-const Doodle = ({ Icon, color, size, initialX, initialY, duration, delay }: DoodleProps) => {
+const Doodle = ({ Icon, color, size, initialX, initialY, duration, delay, animated, staticRotation }: DoodleProps) => {
+    if (!animated) {
+        return (
+            <div
+                className="absolute opacity-20"
+                style={{ left: `${initialX}%`, top: `${initialY}%`, transform: `rotate(${staticRotation}deg)` }}
+            >
+                <Icon size={size} color={color} strokeWidth={1} />
+            </div>
+        );
+    }
+
     return (
         <motion.div
             className="absolute"
-            style={{
-                left: `${initialX}%`,
-                top: `${initialY}%`,
-            }}
+            style={{ left: `${initialX}%`, top: `${initialY}%` }}
             initial={{ scale: 0, rotate: -30 }}
             animate={{
                 opacity: [0, 0.8, 0.8, 0.8, 0.8, 0],
@@ -59,11 +70,11 @@ const Doodle = ({ Icon, color, size, initialX, initialY, duration, delay }: Dood
                 rotate: [-20, 0, 10, 20],
             }}
             transition={{
-                duration: duration,
-                delay: delay,
+                duration,
+                delay,
                 repeat: Infinity,
                 repeatDelay: Math.random() * 2,
-                ease: "easeInOut"
+                ease: "easeInOut",
             }}
         >
             <Icon size={size} color={color} strokeWidth={1} opacity={0.6} />
@@ -73,107 +84,63 @@ const Doodle = ({ Icon, color, size, initialX, initialY, duration, delay }: Dood
 
 interface DoodleBackgroundProps {
     numElements?: number;
+    animated?: boolean;
 }
 
-const DoodleBackground: React.FC<DoodleBackgroundProps> = ({ numElements = 10 }) => {
-    // Function to generate random doodle elements with better distribution
-    const generateDoodles = () => {
-        const doodles = [];
-        const colors = [
-            '#f97316', // orange-500
-            '#ea580c', // orange-600
-            '#f59e0b', // amber-500
-            '#d97706', // amber-600
-            '#fb923c', // orange-400
-        ];
-
-        // Create a grid for better distribution
+const DoodleBackground: React.FC<DoodleBackgroundProps> = ({ numElements = 10, animated = true }) => {
+    const doodles = React.useMemo(() => {
         const gridSize = Math.ceil(Math.sqrt(numElements));
         const cellWidth = 100 / gridSize;
         const cellHeight = 100 / gridSize;
 
-        // Distribute elements in a grid with some randomness
-        for (let i = 0; i < numElements; i++) {
-            // Calculate grid position
-            const gridX = i % gridSize;
-            const gridY = Math.floor(i / gridSize);
+        return Array.from({ length: numElements }, (_, index) => {
+            const gridX = index % gridSize;
+            const gridY = Math.floor(index / gridSize);
 
-            // Add randomness within the grid cell (20-80% of cell size)
-            const cellOffsetX = cellWidth * (0.2 + Math.random() * 0.6);
-            const cellOffsetY = cellHeight * (0.2 + Math.random() * 0.6);
+            if (!animated) {
+                return {
+                    Icon: EDUCATIONAL_ICONS[index % EDUCATIONAL_ICONS.length],
+                    color: COLORS[index % COLORS.length],
+                    size: 18 + (index % 3) * 4,
+                    initialX: gridX * cellWidth + cellWidth * (0.28 + (index % 2) * 0.3),
+                    initialY: gridY * cellHeight + cellHeight * (0.3 + ((index + 1) % 2) * 0.25),
+                    duration: 0,
+                    delay: 0,
+                    animated,
+                    staticRotation: (index % 5) * 8 - 16,
+                };
+            }
 
-            // Calculate final position with some randomness
-            const posX = (gridX * cellWidth) + cellOffsetX;
-            const posY = (gridY * cellHeight) + cellOffsetY;
-
-            const Icon = EDUCATIONAL_ICONS[Math.floor(Math.random() * EDUCATIONAL_ICONS.length)];
-            const color = colors[Math.floor(Math.random() * colors.length)];
-            // Smaller size range: 16px to 32px
-            const size = 16 + Math.random() * 16;
-
-            doodles.push({
-                Icon,
-                color,
-                size,
-                initialX: posX, // Grid-based X position
-                initialY: posY, // Grid-based Y position
+            return {
+                Icon: EDUCATIONAL_ICONS[Math.floor(Math.random() * EDUCATIONAL_ICONS.length)],
+                color: COLORS[Math.floor(Math.random() * COLORS.length)],
+                size: 16 + Math.random() * 16,
+                initialX: gridX * cellWidth + cellWidth * (0.2 + Math.random() * 0.6),
+                initialY: gridY * cellHeight + cellHeight * (0.2 + Math.random() * 0.6),
                 duration: 5 + Math.random() * 7,
-                delay: Math.random() * 1,
-            });
-        }
-
-        return doodles;
-    };
-
-    const doodles = React.useMemo(() => generateDoodles(), [numElements]);
+                delay: Math.random(),
+                animated,
+                staticRotation: 0,
+            };
+        });
+    }, [animated, numElements]);
 
     return (
-        <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-            {/* Lighter gradient background */}
+        <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none" aria-hidden="true">
             <div className="absolute inset-0 bg-gradient-to-br from-orange-50 to-amber-100/30 opacity-40" />
-
-            {/* Animated pattern overlay with reduced opacity */}
+            <div className="doodle-grid absolute inset-0" />
             <div
-                className="absolute inset-0 opacity-3"
+                className={`doodle-plus-pattern absolute inset-0 ${animated ? "" : "doodle-plus-pattern-static"}`}
                 style={{
                     backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23f97316\' fill-opacity=\'0.2\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
-                    backgroundSize: '60px 60px'
+                    backgroundSize: "60px 60px",
                 }}
             />
-
-            {/* Doodle elements */}
             {doodles.map((doodle, index) => (
-                <Doodle
-                    key={index}
-                    Icon={doodle.Icon}
-                    color={doodle.color}
-                    size={doodle.size}
-                    initialX={doodle.initialX}
-                    initialY={doodle.initialY}
-                    duration={doodle.duration}
-                    delay={doodle.delay}
-                />
+                <Doodle key={index} {...doodle} />
             ))}
-
-            {/* Add CSS for background animation */}
-            <style dangerouslySetInnerHTML={{
-                __html: `
-          @keyframes moveBackground {
-            0% {
-              background-position: 0 0;
-            }
-            100% {
-              background-position: 1000px 1000px;
-            }
-          }
-          .opacity-3 {
-            opacity: 0.03;
-            animation: moveBackground 120s linear infinite;
-          }
-        `
-            }} />
         </div>
     );
 };
 
-export default DoodleBackground; 
+export default DoodleBackground;

@@ -1,134 +1,169 @@
-import React, { useState, useEffect } from 'react';
-import { cn } from '@/lib/utils';
-import { buttonVariants } from '@/lib/button-variants';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, RefreshCw } from 'lucide-react';
+import toast from 'react-hot-toast';
+
 import DoodleBackground from '@/components/DoodleBackground';
-import { CustomButton } from '@/components/ui/button';
-import { useCreateSemester } from '@/hooks/useSemesterQueries';
+import { SemesterFormLayout } from '@/components/semesters/SemesterFormLayout';
+import { useAcademicLevels } from '@/hooks/useAcademicLevelQueries';
 import { useCenter } from '@/hooks/useCenterQueries';
-import { useAuth } from '@/hooks/useAuth';
+import { useCreateSemester } from '@/hooks/useSemesterQueries';
+import { useSemestersByCenter } from '@/hooks/useSemesterQueries';
+import { buttonVariants } from '@/lib/button-variants';
+import { cn } from '@/lib/utils';
 
 const CreateSemester = () => {
     const { projectId, centerId } = useParams<{ projectId: string; centerId: string }>();
     const [name, setName] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
+    const [academicLevelIds, setAcademicLevelIds] = useState<string[]>([]);
+    const [levelsInitialized, setLevelsInitialized] = useState(false);
+    const [sourceSemesterId, setSourceSemesterId] = useState('');
     const navigate = useNavigate();
-    const { isAdmin } = useAuth();
+    const { mutate: createSemester, isPending } = useCreateSemester();
+    const { data: center, isLoading, error, refetch } = useCenter(centerId || '');
+    const levelsQuery = useAcademicLevels();
+    const semestersQuery = useSemestersByCenter(centerId || '');
+    const semestersUrl = `/projects/${projectId}/centers/${centerId}/semesters`;
 
-    const { mutate: createSemester, isPending, error } = useCreateSemester();
-    const { data: center } = useCenter(centerId!);
-
-    // Check if user is admin - redirect if not
     useEffect(() => {
-        if (!isAdmin()) {
-            navigate(`/projects/${projectId}/centers/${centerId}/semesters`);
-        }
-    }, [isAdmin, navigate, projectId, centerId]);
+        if (!levelsQuery.data || levelsInitialized) return;
+        const levels = levelsQuery.data;
+        setAcademicLevelIds(levels.map((level) => level.id));
+        setLevelsInitialized(true);
+    }, [levelsInitialized, levelsQuery.data]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    useEffect(() => {
+        if (sourceSemesterId || !semestersQuery.data?.length) return;
+        const latest = [...semestersQuery.data]
+            .filter((semester) => semester.status !== 'DRAFT')
+            .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime())[0];
+        if (latest) setSourceSemesterId(latest.id);
+    }, [semestersQuery.data, sourceSemesterId]);
+
+    const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!centerId) return;
+
+        const trimmedName = name.trim();
+        if (!trimmedName || !startDate || !endDate) {
+            toast.error('Enter a semester name and schedule.');
+            return;
+        }
+        if (endDate < startDate) {
+            toast.error('End date must be on or after the start date.');
+            return;
+        }
+        if (academicLevelIds.length === 0) {
+            toast.error('Select at least one academic level.');
+            return;
+        }
 
         createSemester(
             {
-                name,
+                name: trimmedName,
                 startDate,
                 endDate,
-                centerId: centerId!,
+                centerId,
+                academicLevelIds,
+                ...(sourceSemesterId && { sourceSemesterId }),
             },
             {
-                onSuccess: () => {
-                    // Navigate to semesters list with success message
-                    navigate(`/projects/${projectId}/centers/${centerId}/semesters`, {
-                        state: {
-                            message: 'Semester created successfully!',
-                            type: 'success'
-                        }
-                    });
+                onSuccess: (response) => {
+                    toast.success('Semester draft created. Review its setup before activation.');
+                    navigate(`${semestersUrl}/${response.semester.id}/setup`);
                 },
-                onError: (err) => {
-                    console.error('Failed to create semester:', err);
-                }
-            }
+                onError: () => {
+                    toast.error('Unable to create semester. Try again.');
+                },
+            },
         );
     };
 
+    if (isLoading) {
+        return <SemesterSkeleton message="Loading center" />;
+    }
+
+    if (error || !center || !centerId) {
+        return (
+            <SemesterRecovery
+                title="Center could not be loaded"
+                message="Return to Centers or try loading this center again."
+                returnUrl={`/projects/${projectId}/centers`}
+                onRetry={() => void refetch()}
+            />
+        );
+    }
+
     return (
-        <div className="flex flex-col items-center justify-center min-h-[60dvh] w-full relative">
-            <DoodleBackground numElements={8} />
-            <div className="w-full max-w-lg bg-white/80 rounded-lg border shadow-md p-6 relative z-10">
-                <h1 className="text-2xl font-bold mb-2">Create Semester</h1>
-                <p className="text-muted-foreground mb-6 text-sm">
-                    Fill in the details to create a new semester for <strong>{center?.name || 'this center'}</strong>.
-                </p>
-
-                <form onSubmit={handleSubmit} className="space-y-5">
-                    {/* Error message */}
-                    {error && (
-                        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
-                            {error?.message}
-                        </div>
-                    )}
-
-                    <div>
-                        <label htmlFor="name" className="block text-sm font-medium mb-1">Semester Name</label>
-                        <input
-                            id="name"
-                            type="text"
-                            value={name}
-                            onChange={e => setName(e.target.value)}
-                            required
-                            className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                            placeholder="e.g., Fall 2024, Spring 2025"
-                        />
-                    </div>
-
-                    <div>
-                        <label htmlFor="startDate" className="block text-sm font-medium mb-1">Start Date</label>
-                        <input
-                            id="startDate"
-                            type="date"
-                            value={startDate}
-                            onChange={e => setStartDate(e.target.value)}
-                            required
-                            className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                        />
-                    </div>
-
-                    <div>
-                        <label htmlFor="endDate" className="block text-sm font-medium mb-1">End Date</label>
-                        <input
-                            id="endDate"
-                            type="date"
-                            value={endDate}
-                            onChange={e => setEndDate(e.target.value)}
-                            required
-                            min={startDate} // Ensure end date is not before start date
-                            className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                        />
-                    </div>
-
-                    <div className="flex gap-2 justify-end">
-                        <button
-                            type="button"
-                            onClick={() => navigate(`/projects/${projectId}/centers/${centerId}/semesters`)}
-                            className={cn(buttonVariants({ variant: 'outline' }), 'min-w-[100px]')}
-                        >
-                            Cancel
-                        </button>
-                        <CustomButton
-                            type="submit"
-                            isLoading={isPending}
-                            loadingMessage="Creating..."
-                            className="bg-orange-600 hover:bg-orange-700 text-white min-w-[120px]"
-                        >
-                            Create Semester
-                        </CustomButton>
-                    </div>
-                </form>
-            </div>
-        </div>
+        <SemesterFormLayout
+            mode="create"
+            centerName={center.name}
+            name={name}
+            startDate={startDate}
+            endDate={endDate}
+            academicLevels={levelsQuery.data ?? []}
+            academicLevelIds={academicLevelIds}
+            sourceSemesters={semestersQuery.data ?? []}
+            sourceSemesterId={sourceSemesterId}
+            onSourceSemesterIdChange={setSourceSemesterId}
+            academicLevelsLoading={levelsQuery.isLoading}
+            academicLevelError={!!levelsQuery.error}
+            isPending={isPending}
+            onNameChange={setName}
+            onStartDateChange={setStartDate}
+            onEndDateChange={setEndDate}
+            onAcademicLevelIdsChange={setAcademicLevelIds}
+            onRetryAcademicLevels={() => void levelsQuery.refetch()}
+            onSubmit={handleSubmit}
+            onCancel={() => navigate(semestersUrl)}
+        />
     );
 };
+
+interface SemesterRecoveryProps {
+    title: string;
+    message: string;
+    returnUrl: string;
+    onRetry?: () => void;
+}
+
+export const SemesterRecovery = ({ title, message, returnUrl, onRetry }: SemesterRecoveryProps) => (
+    <div className="relative mx-auto flex min-h-[55dvh] w-full max-w-2xl items-center justify-center px-4" aria-live="polite">
+        <DoodleBackground animated={false} numElements={6} />
+        <div className="relative z-10 w-full rounded-lg border border-border bg-card p-6 text-center shadow-sm sm:p-8">
+            <RefreshCw className="mx-auto h-8 w-8 text-destructive" aria-hidden="true" />
+            <h1 className="mt-4 text-2xl font-semibold text-foreground">{title}</h1>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">{message}</p>
+            <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+                <Link to={returnUrl} className={cn(buttonVariants({ variant: 'outline' }), 'min-h-11 gap-2')}>
+                    <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                    Back
+                </Link>
+                {onRetry && (
+                    <button type="button" onClick={onRetry} className={cn(buttonVariants(), 'min-h-11 gap-2')}>
+                        <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                        Try again
+                    </button>
+                )}
+            </div>
+        </div>
+    </div>
+);
+
+export const SemesterSkeleton = ({ message }: { message: string }) => (
+    <div className="relative mx-auto w-full max-w-6xl py-4" aria-live="polite" aria-busy="true">
+        <DoodleBackground animated={false} numElements={6} />
+        <div className="relative z-10 animate-pulse motion-reduce:animate-none">
+            <div className="mb-8 h-28 rounded-lg bg-muted" />
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
+                <div className="h-[30rem] rounded-lg border border-border bg-card" />
+                <div className="h-64 rounded-lg border border-border bg-card" />
+            </div>
+        </div>
+        <span className="sr-only">{message}</span>
+    </div>
+);
 
 export default CreateSemester;

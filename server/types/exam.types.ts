@@ -1,17 +1,16 @@
-import { Level } from "../generated/prisma/index.js";
+import { AssessmentCycle, Level } from "../generated/prisma/index.js";
 
 // ============================================
 // EXAM TYPES
 // ============================================
 
-export type ExamCycle = "PRE_ASSESSMENT" | "SA_1" | "SA_2" | "SA_3";
-
 export interface CreateExamRequest {
   projectId: string;
   centerId: string;
   semesterId: string;
-  level: Level;
-  cycle: ExamCycle;
+  semesterLevelId?: string;
+  level?: Level;
+  cycle: AssessmentCycle;
   name: string;
   description?: string;
   examDate: string; // ISO date string
@@ -24,8 +23,9 @@ export interface CreateExamRequest {
 export interface UpdateExamRequest {
   name?: string;
   description?: string;
+  semesterLevelId?: string;
   level?: Level;
-  cycle?: ExamCycle;
+  cycle?: AssessmentCycle;
   examDate?: string; // ISO date string
   listeningMaxMarks?: number;
   speakingMaxMarks?: number;
@@ -38,8 +38,9 @@ export interface GetExamsRequest {
   projectId?: string;
   centerId?: string;
   semesterId?: string;
+  semesterLevelId?: string;
   level?: Level;
-  cycle?: ExamCycle;
+  cycle?: AssessmentCycle;
   isActive?: boolean;
   startDate?: string; // Filter exams from this date
   endDate?: string; // Filter exams until this date
@@ -50,8 +51,9 @@ export interface ExamResponse {
   projectId: string;
   centerId: string;
   semesterId: string;
+  semesterLevelId: string;
   level: Level;
-  cycle: ExamCycle;
+  cycle: AssessmentCycle;
   name: string;
   description?: string;
   examDate: Date;
@@ -74,6 +76,15 @@ export interface ExamResponse {
   semester?: {
     id: string;
     name: string;
+  };
+  semesterLevel?: {
+    id: string;
+    academicLevel: {
+      id: string;
+      code: string;
+      name: string;
+      journeyOrder: number;
+    };
   };
   _count?: {
     studentScores: number;

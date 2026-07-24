@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { hasPermission } from '@/lib/permissions';
+import { can, hasPermission, type Permission, type WorkspaceContext } from '@/lib/permissions';
 
 interface ProtectedComponentProps {
     children: React.ReactNode;
@@ -9,6 +9,8 @@ interface ProtectedComponentProps {
     requireAdmin?: boolean;
     allowAll?: boolean; // shorthand for allowing all authenticated users
     fallback?: React.ReactNode; // Optional fallback content when access is denied
+    permission?: Permission;
+    context?: WorkspaceContext;
 }
 
 const ProtectedComponent: React.FC<ProtectedComponentProps> = ({
@@ -17,7 +19,9 @@ const ProtectedComponent: React.FC<ProtectedComponentProps> = ({
     allowedSubRoles = [],
     requireAdmin = false,
     allowAll = false,
-    fallback = null
+    fallback = null,
+    permission,
+    context,
 }) => {
     const { user, isAuthenticated } = useAuth();
 
@@ -28,7 +32,11 @@ const ProtectedComponent: React.FC<ProtectedComponentProps> = ({
 
     // Check if user has required permissions
     // Note: ADMIN users have access to all components by default
-    if (!hasPermission(user, allowedRoles, allowedSubRoles, requireAdmin, allowAll)) {
+    const isAllowed = permission
+        ? can(user, permission, context)
+        : hasPermission(user, allowedRoles, allowedSubRoles, requireAdmin, allowAll);
+
+    if (!isAllowed) {
         return <>{fallback}</>;
     }
 

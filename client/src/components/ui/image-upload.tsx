@@ -3,9 +3,13 @@ import { Upload, X, Image as ImageIcon, Camera, FolderOpen } from 'lucide-react'
 import { cn } from '@/lib/utils';
 import { uploadToCloudinary, validateImageFile } from '@/lib/cloudinary';
 import LoadingButterfly from '@/components/LoadingButterfly';
+import { Modal } from './modal';
+import { ImageCropDialog } from './image-crop-dialog';
 
 interface ImageUploadProps {
     value?: string;
+    fallbackValue?: string;
+    fallbackLabel?: string;
     onChange: (url: string) => void;
     onRemove?: () => void;
     disabled?: boolean;
@@ -17,6 +21,8 @@ interface ImageUploadProps {
 
 const ImageUpload: React.FC<ImageUploadProps> = ({
     value,
+    fallbackValue,
+    fallbackLabel = "Default image",
     onChange,
     onRemove,
     disabled = false,
@@ -29,10 +35,14 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
     const [dragActive, setDragActive] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showOptions, setShowOptions] = useState(false);
+    const [pendingCropFile, setPendingCropFile] = useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
+    const previewValue = value || fallbackValue;
+    const accessibleLabel = label || "Image";
+    const isRounded = variant === 'rounded';
 
-    const handleFile = async (file: File) => {
+    const uploadFile = async (file: File) => {
         setError(null);
 
         // Validate file
@@ -52,6 +62,16 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
         } finally {
             setIsUploading(false);
         }
+    };
+
+    const handleFile = (file: File) => {
+        const validationError = validateImageFile(file);
+        if (validationError) {
+            setError(validationError);
+            return;
+        }
+        setError(null);
+        setPendingCropFile(file);
     };
 
     const handleClick = () => {
@@ -111,7 +131,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
         }
     };
 
-    const handleRemove = (e: React.MouseEvent) => {
+    const handleRemove = (e: React.SyntheticEvent) => {
         e.stopPropagation();
         if (onRemove) {
             onRemove();
@@ -130,8 +150,9 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
             )}
 
             <div
+                data-slot="image-preview-frame"
                 className={cn(
-                    "relative border-2 border-dashed transition-colors cursor-pointer",
+                    "image-preview-frame relative border-2 border-dashed transition-colors",
                     variant === 'rounded'
                         ? "rounded-full w-32 h-32 mx-auto"
                         : "rounded-lg",
@@ -141,7 +162,6 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
                     error && "border-red-300",
                     value && !error && "border-green-300"
                 )}
-                onClick={handleClick}
                 onDragEnter={handleDrag}
                 onDragLeave={handleDrag}
                 onDragOver={handleDrag}
@@ -154,8 +174,8 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
                     onChange={handleFileChange}
                     disabled={disabled || isUploading}
                     className="hidden"
-                    aria-label={`Upload ${label.toLowerCase()}`}
-                    title={`Upload ${label.toLowerCase()}`}
+                    aria-label={`Upload ${accessibleLabel.toLowerCase()}`}
+                    title={`Upload ${accessibleLabel.toLowerCase()}`}
                 />
 
                 <input
@@ -166,8 +186,8 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
                     onChange={handleFileChange}
                     disabled={disabled || isUploading}
                     className="hidden"
-                    aria-label={`Camera capture ${label.toLowerCase()}`}
-                    title={`Camera capture ${label.toLowerCase()}`}
+                    aria-label={`Camera capture ${accessibleLabel.toLowerCase()}`}
+                    title={`Camera capture ${accessibleLabel.toLowerCase()}`}
                 />
 
                 {isUploading ? (
@@ -180,39 +200,37 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
                             <p className="text-sm text-gray-600 mt-4">Uploading image...</p>
                         )}
                     </div>
-                ) : value ? (
-                    <div className="relative group">
-                        <img
-                            src={value}
-                            alt="Uploaded"
-                            className={cn(
-                                "w-full object-cover",
-                                variant === 'rounded'
-                                    ? "h-32 w-32 rounded-full mx-auto"
-                                    : "h-48 rounded-lg"
+                ) : previewValue ? (
+                    <div className={cn("p-3", variant === 'rounded' && "p-0")}>
+                        <div className="relative">
+                            <img
+                                src={previewValue}
+                                alt={isRounded ? `${accessibleLabel} preview` : value ? `${accessibleLabel} custom preview` : `${accessibleLabel} default preview`}
+                                className={cn(
+                                    "w-full object-cover",
+                                    variant === 'rounded'
+                                        ? "h-32 w-32 rounded-full mx-auto"
+                                        : "aspect-video rounded-md"
+                                )}
+                            />
+                            {!isRounded && (
+                                <span className="absolute left-3 top-3 rounded-full border border-border bg-background/95 px-2.5 py-1 text-xs font-medium text-foreground shadow-sm">
+                                    {value ? "Custom image" : fallbackLabel}
+                                </span>
                             )}
-                        />
-                        <div className={cn(
-                            "absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center",
-                            variant === 'rounded' ? "rounded-full" : "rounded-lg"
-                        )}>
-                            <button
-                                type="button"
-                                onClick={handleRemove}
-                                className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                                disabled={disabled}
-                                aria-label="Remove image"
-                                title="Remove image"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
                         </div>
                     </div>
                 ) : (
-                    <div className={cn(
-                        "flex flex-col items-center justify-center",
-                        variant === 'rounded' ? "p-6 h-full" : "p-8 space-y-4"
-                    )}>
+                    <button
+                        type="button"
+                        onClick={handleClick}
+                        disabled={disabled || isUploading}
+                        aria-label={`Upload ${accessibleLabel.toLowerCase()}`}
+                        className={cn(
+                            "flex w-full flex-col items-center justify-center",
+                            variant === 'rounded' ? "p-6 h-full" : "p-8 space-y-4"
+                        )}
+                    >
                         <div className={cn(
                             "rounded-full flex items-center justify-center",
                             "bg-gray-100 text-gray-400",
@@ -235,19 +253,47 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
                                 </p>
                             </div>
                         )}
-                    </div>
+                    </button>
                 )}
             </div>
 
+            {previewValue && !isUploading && (
+                <div
+                    data-slot="image-upload-actions"
+                    className="image-upload-actions mx-auto grid w-full max-w-sm grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-2"
+                >
+                    <button
+                        type="button"
+                        onClick={handleClick}
+                        className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        disabled={disabled || isUploading}
+                        aria-label={value ? "Replace image" : "Upload custom image"}
+                    >
+                        <Upload className="h-4 w-4" />
+                        {value ? "Replace image" : "Upload custom image"}
+                    </button>
+                    {value && (
+                        <button
+                            type="button"
+                            onClick={handleRemove}
+                            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md px-3 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2"
+                            disabled={disabled || isUploading}
+                            aria-label="Remove image"
+                            title="Remove image"
+                        >
+                            <X className="h-4 w-4" />
+                            Remove image
+                        </button>
+                    )}
+                </div>
+            )}
+
             {/* Mobile options modal */}
             {showOptions && (
-                <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50" onClick={() => setShowOptions(false)}>
-                    <div className="bg-white rounded-t-2xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
-                        <div className="text-center">
-                            <h3 className="text-lg font-medium text-gray-900 mb-4">Select Image Source</h3>
-                        </div>
+                <Modal isOpen={showOptions} onClose={() => setShowOptions(false)} title="Select Image Source">
+                    <div className="space-y-4">
 
-                        <button
+                        <button type="button"
                             onClick={handleCameraClick}
                             className="w-full flex items-center justify-center space-x-3 p-4 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors"
                             disabled={disabled || isUploading}
@@ -256,7 +302,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
                             <span className="font-medium text-orange-700">Take Photo</span>
                         </button>
 
-                        <button
+                        <button type="button"
                             onClick={handleGalleryClick}
                             className="w-full flex items-center justify-center space-x-3 p-4 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
                             disabled={disabled || isUploading}
@@ -265,27 +311,38 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
                             <span className="font-medium text-blue-700">Choose from Gallery</span>
                         </button>
 
-                        <button
+                        <button type="button"
                             onClick={() => setShowOptions(false)}
                             className="w-full p-4 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                         >
                             <span className="font-medium text-gray-700">Cancel</span>
                         </button>
                     </div>
-                </div>
+                </Modal>
             )}
 
-            {error && (
-                <p className="text-sm text-red-600">
-                    {error}
-                </p>
-            )}
+            <ImageCropDialog
+                file={pendingCropFile}
+                onClose={() => setPendingCropFile(null)}
+                onConfirm={(croppedFile) => {
+                    setPendingCropFile(null);
+                    void uploadFile(croppedFile);
+                }}
+            />
 
-            {value && !error && (
-                <p className="text-sm text-green-600">
-                    Image uploaded successfully
-                </p>
-            )}
+            <div aria-live="polite">
+                {error && (
+                    <p className="text-sm text-destructive">
+                        {error}
+                    </p>
+                )}
+
+                {!isRounded && value && !error && (
+                    <p className="text-sm text-emerald-700">
+                        Custom image ready
+                    </p>
+                )}
+            </div>
         </div>
     );
 };

@@ -1,476 +1,159 @@
-import { useState, useEffect } from 'react';
-import PhoneInput from 'react-phone-number-input';
-import 'react-phone-number-input/style.css';
-import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
-import { useParams } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
-import { useStudent, useUpdateStudent } from '@/hooks/useStudentQueries';
-import { CustomButton } from '@/components/ui/button';
-import ImageUpload from '@/components/ui/image-upload';
-import LoadingButterfly from '@/components/LoadingButterfly';
-import EnrollmentManager from '@/components/EnrollmentManager';
-import type { UpdateStudentRequest } from '@/types/api';
+import { useEffect, useState } from "react";
+import { ArrowLeft, RefreshCw } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
-const EditStudent = () => {
+import EnrollmentManager from "@/components/EnrollmentManager";
+import {
+    StudentFormLayout,
+    type StudentFormValues,
+} from "@/components/students/StudentFormLayout";
+import type { PersonNameField } from "@/components/ui/person-name-fields";
+import { WorkspacePage } from "@/components/workspace/WorkspacePage";
+import { useStudent, useUpdateStudent } from "@/hooks/useStudentQueries";
+import { buttonVariants } from "@/lib/button-variants";
+import { cn } from "@/lib/utils";
+
+const emptyValues: StudentFormValues = {
+    firstName: "",
+    middleName: "",
+    lastName: "",
+    profileImageUrl: "",
+    dob: "",
+    phoneNumber: "",
+    whatsappNumber: "",
+    alternateNumber: "",
+    fatherName: "",
+    motherName: "",
+    address: "",
+    schoolName: "",
+    fatherOccupation: "",
+    motherOccupation: "",
+    familyIncome: "",
+    futureProfession: "",
+};
+
+export default function EditStudent() {
     const navigate = useNavigate();
-    const { id, projectId, centerId, semesterId } = useParams<{ id: string; projectId: string; centerId: string; semesterId: string }>();
-    const { data: student, isLoading, error } = useStudent(id!);
-    const updateStudentMutation = useUpdateStudent();
-
-    // Build the students URL for navigation
+    const { id = "", projectId = "", centerId = "", semesterId = "" } = useParams();
+    const studentQuery = useStudent(id);
+    const updateStudent = useUpdateStudent();
+    const [values, setValues] = useState<StudentFormValues>(emptyValues);
+    const [errors, setErrors] = useState<Record<string, string>>({});
     const studentsUrl = `/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/students`;
 
-    const [formData, setFormData] = useState<UpdateStudentRequest>({
-        name: '',
-        profileImageUrl: '',
-        dob: '',
-        phoneNumber: '',
-        whatsappNumber: '',
-        alternateNumber: '',
-        fatherName: '',
-        motherName: '',
-        address: '',
-        schoolName: '',
-        fatherOccupation: '',
-        motherOccupation: '',
-        familyIncome: '',
-        futureProfession: ''
-    });
-
-    const [errors, setErrors] = useState<Record<string, string>>({});
-
-    const familyIncomeOptions = [
-        { value: '', label: 'Select Income Range' },
-        { value: '0-25000', label: '₹0 - ₹25,000' },
-        { value: '25000-50000', label: '₹25,000 - ₹50,000' },
-        { value: '50000-75000', label: '₹50,000 - ₹75,000' },
-        { value: '75000-100000', label: '₹75,000 - ₹1,00,000' },
-        { value: '100000+', label: '₹1,00,000+' }
-    ];
-
     useEffect(() => {
-        if (student) {
-            setFormData({
-                name: student.name || '',
-                profileImageUrl: student.profileImageUrl || '',
-                dob: student.dob ? student.dob.split('T')[0] : '',
-                phoneNumber: student.phoneNumber && /^\+\d{10,15}$/.test(student.phoneNumber) ? student.phoneNumber : '',
-                whatsappNumber: student.whatsappNumber && /^\+\d{10,15}$/.test(student.whatsappNumber) ? student.whatsappNumber : '',
-                alternateNumber: student.alternateNumber && /^\+\d{10,15}$/.test(student.alternateNumber) ? student.alternateNumber : '',
-                fatherName: student.fatherName || '',
-                motherName: student.motherName || '',
-                address: student.address || '',
-                schoolName: student.schoolName || '',
-                fatherOccupation: student.fatherOccupation || '',
-                motherOccupation: student.motherOccupation || '',
-                familyIncome: student.familyIncome || '',
-                futureProfession: student.futureProfession || ''
-            });
-        }
-    }, [student]);
+        const student = studentQuery.data;
+        if (!student) return;
+        setValues({
+            firstName: student.firstName || "",
+            middleName: student.middleName || "",
+            lastName: student.lastName || "",
+            profileImageUrl: student.profileImageUrl || "",
+            dob: student.dob?.split("T")[0] || "",
+            phoneNumber: student.phoneNumber || "",
+            whatsappNumber: student.whatsappNumber || "",
+            alternateNumber: student.alternateNumber || "",
+            fatherName: student.fatherName || "",
+            motherName: student.motherName || "",
+            address: student.address || "",
+            schoolName: student.schoolName || "",
+            fatherOccupation: student.fatherOccupation || "",
+            motherOccupation: student.motherOccupation || "",
+            familyIncome: student.familyIncome || "",
+            futureProfession: student.futureProfession || "",
+        });
+    }, [studentQuery.data]);
 
-    const validateForm = (): boolean => {
-        const newErrors: Record<string, string> = {};
-
-        if (!formData.name?.trim()) {
-            newErrors.name = 'Student name is required';
-        }
-
-        // Accept E.164 format from react-phone-number-input
-        if (formData.phoneNumber && !/^\+\d{10,15}$/.test(formData.phoneNumber)) {
-            newErrors.phoneNumber = 'Please enter a valid phone number';
-        }
-        if (formData.whatsappNumber && !/^\+\d{10,15}$/.test(formData.whatsappNumber)) {
-            newErrors.whatsappNumber = 'Please enter a valid WhatsApp number';
-        }
-        if (formData.alternateNumber && !/^\+\d{10,15}$/.test(formData.alternateNumber)) {
-            newErrors.alternateNumber = 'Please enter a valid alternate number';
-        }
-
-        setErrors(newErrors);
-        return Object.keys(newErrors).length === 0;
+    const updateField = (field: keyof StudentFormValues, value: string) => {
+        setValues((current) => ({ ...current, [field]: value }));
+        if (errors[field]) setErrors((current) => ({ ...current, [field]: "" }));
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const updateName = (field: PersonNameField, value: string) => updateField(field, value);
 
-        if (!validateForm() || !id) {
-            return;
+    const validate = () => {
+        const nextErrors: Record<string, string> = {};
+        if (!values.firstName?.trim()) nextErrors.firstName = "First name is required";
+        for (const field of ["phoneNumber", "whatsappNumber", "alternateNumber"] as const) {
+            const value = values[field];
+            if (value && !/^\+\d{10,15}$/.test(value)) nextErrors[field] = "Enter a valid phone number";
         }
-
-        try {
-            // Clean the form data - only student details, no enrollment
-            const cleanedData: UpdateStudentRequest & { id: string } = {
-                id,
-                ...(formData.name && { name: formData.name }),
-                ...(formData.profileImageUrl !== undefined && { profileImageUrl: formData.profileImageUrl }),
-                ...(formData.dob && { dob: formData.dob }),
-                ...(formData.phoneNumber && formData.phoneNumber !== '+91 ' && {
-                    phoneNumber: formData.phoneNumber.replace(/\s/g, '')
-                }),
-                ...(formData.whatsappNumber && formData.whatsappNumber !== '+91 ' && {
-                    whatsappNumber: formData.whatsappNumber.replace(/\s/g, '')
-                }),
-                ...(formData.alternateNumber && formData.alternateNumber !== '+91 ' && {
-                    alternateNumber: formData.alternateNumber.replace(/\s/g, '')
-                }),
-                // Family details
-                ...(formData.fatherName !== undefined && { fatherName: formData.fatherName }),
-                ...(formData.motherName !== undefined && { motherName: formData.motherName }),
-                ...(formData.address !== undefined && { address: formData.address }),
-                ...(formData.schoolName !== undefined && { schoolName: formData.schoolName }),
-                ...(formData.fatherOccupation !== undefined && { fatherOccupation: formData.fatherOccupation }),
-                ...(formData.motherOccupation !== undefined && { motherOccupation: formData.motherOccupation }),
-                ...(formData.familyIncome !== undefined && { familyIncome: formData.familyIncome }),
-                ...(formData.futureProfession !== undefined && { futureProfession: formData.futureProfession })
-            };
-
-            await updateStudentMutation.mutateAsync(cleanedData);
-            navigate(studentsUrl);
-        } catch (error) {
-            console.error('Error updating student:', error);
-        }
+        setErrors(nextErrors);
+        return Object.keys(nextErrors).length === 0;
     };
 
-    const handleInputChange = (field: keyof UpdateStudentRequest, value: string | undefined) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
-        // Clear error when user starts typing
-        if (errors[field]) {
-            setErrors(prev => ({ ...prev, [field]: '' }));
-        }
+    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!id || !validate()) return;
+
+        await updateStudent.mutateAsync({
+            id,
+            firstName: values.firstName?.trim(),
+            middleName: values.middleName?.trim() || null,
+            lastName: values.lastName?.trim() || null,
+            profileImageUrl: values.profileImageUrl || "",
+            dob: values.dob || "",
+            phoneNumber: values.phoneNumber || "",
+            whatsappNumber: values.whatsappNumber || "",
+            alternateNumber: values.alternateNumber || "",
+            fatherName: values.fatherName || "",
+            motherName: values.motherName || "",
+            address: values.address || "",
+            schoolName: values.schoolName || "",
+            fatherOccupation: values.fatherOccupation || "",
+            motherOccupation: values.motherOccupation || "",
+            familyIncome: values.familyIncome || "",
+            futureProfession: values.futureProfession || "",
+        });
+        navigate(studentsUrl);
     };
 
-    if (isLoading) {
+    if (studentQuery.isLoading) return <StudentFormSkeleton />;
+
+    if (studentQuery.error || !studentQuery.data) {
         return (
-            <div className="flex justify-center items-center min-h-[400px]">
-                <LoadingButterfly size="md" />
-            </div>
-        );
-    }
-
-    if (error || !student) {
-        return (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-700">Failed to load student. Please try again.</p>
+            <div className="mx-auto flex min-h-[55dvh] w-full max-w-2xl items-center justify-center px-4" aria-live="polite">
+                <div className="w-full rounded-lg border border-border bg-card p-6 text-center shadow-sm sm:p-8">
+                    <RefreshCw className="mx-auto h-8 w-8 text-destructive" aria-hidden="true" />
+                    <h1 className="mt-4 text-2xl font-semibold text-foreground">Student could not be loaded</h1>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">The record may no longer exist, or the request could not be completed.</p>
+                    <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+                        <Link to={studentsUrl} className={cn(buttonVariants({ variant: "outline" }), "min-h-11 gap-2")}><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to students</Link>
+                        <button type="button" onClick={() => void studentQuery.refetch()} className={cn(buttonVariants(), "min-h-11 gap-2")}><RefreshCw className="h-4 w-4" aria-hidden="true" />Try again</button>
+                    </div>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center space-x-4">
-                <button
-                    onClick={() => navigate(studentsUrl)}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                    aria-label="Go back to students list"
-                >
-                    <ArrowLeft className="w-5 h-5" />
-                </button>
-                <div >
-                    <h1 className="text-2xl font-semibold text-gray-900">Edit Student</h1>
-                    <p className="text-sm text-gray-600 mt-1">Update {student.name}'s information</p>
-                </div>
-            </div>
-
-            {/* Form */}
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                className="bg-white rounded-lg border border-gray-200 shadow-sm"
-            >
-                <div className="p-6">
-                    {updateStudentMutation.error && (
-                        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-                            <p className="text-red-700">
-                                {updateStudentMutation.error instanceof Error
-                                    ? updateStudentMutation.error.message
-                                    : 'Failed to update student. Please try again.'}
-                            </p>
-                        </div>
-                    )}
-
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                        {/* Profile Image */}
-                        <div>
-                            <ImageUpload
-                                label="Profile Image"
-                                value={formData.profileImageUrl || ''}
-                                onChange={(url) => handleInputChange('profileImageUrl', url)}
-                                placeholder="Upload student's profile image"
-                                disabled={updateStudentMutation.isPending}
-                                variant="rounded"
-                            />
-                        </div>
-
-                        {/* Basic Information */}
-                        <div className="grid gap-6 md:grid-cols-2">
-                            <div>
-                                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-                                    Student Name *
-                                </label>
-                                <input
-                                    type="text"
-                                    id="name"
-                                    value={formData.name || ''}
-                                    onChange={(e) => handleInputChange('name', e.target.value)}
-                                    disabled={updateStudentMutation.isPending}
-                                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 ${errors.name ? 'border-red-300' : 'border-gray-300'
-                                        }`}
-                                    placeholder="Enter student's full name"
-                                />
-                                {errors.name && (
-                                    <p className="mt-1 text-sm text-red-600">{errors.name}</p>
-                                )}
-                            </div>
-
-                            <div>
-                                <label htmlFor="dob" className="block text-sm font-medium text-gray-700 mb-2">
-                                    Date of Birth
-                                </label>
-                                <input
-                                    type="date"
-                                    id="dob"
-                                    value={formData.dob || ''}
-                                    onChange={(e) => handleInputChange('dob', e.target.value)}
-                                    disabled={updateStudentMutation.isPending}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                                />
-                            </div>
-
-                            <div>
-                                <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-2">
-                                    Phone Number
-                                </label>
-                                <PhoneInput
-                                    id="phoneNumber"
-                                    international
-                                    defaultCountry="IN"
-                                    value={formData.phoneNumber || ''}
-                                    onChange={(value) => handleInputChange('phoneNumber', value || '')}
-                                    disabled={updateStudentMutation.isPending}
-                                    className={`w-full ${errors.phoneNumber ? 'border-red-300' : 'border-gray-300'}`}
-                                />
-                                {errors.phoneNumber && (
-                                    <p className="mt-1 text-sm text-red-600">{errors.phoneNumber}</p>
-                                )}
-                            </div>
-
-                            <div>
-                                <label htmlFor="whatsappNumber" className="block text-sm font-medium text-gray-700 mb-2">
-                                    WhatsApp Number
-                                </label>
-                                <PhoneInput
-                                    id="whatsappNumber"
-                                    international
-                                    defaultCountry="IN"
-                                    value={formData.whatsappNumber || ''}
-                                    onChange={(value) => handleInputChange('whatsappNumber', value || '')}
-                                    disabled={updateStudentMutation.isPending}
-                                    className={`w-full ${errors.whatsappNumber ? 'border-red-300' : 'border-gray-300'}`}
-                                />
-                                {errors.whatsappNumber && (
-                                    <p className="mt-1 text-sm text-red-600">{errors.whatsappNumber}</p>
-                                )}
-                            </div>
-
-                            <div>
-                                <label htmlFor="alternateNumber" className="block text-sm font-medium text-gray-700 mb-2">
-                                    Alternate Number
-                                </label>
-                                <PhoneInput
-                                    id="alternateNumber"
-                                    international
-                                    defaultCountry="IN"
-                                    value={formData.alternateNumber || ''}
-                                    onChange={(value) => handleInputChange('alternateNumber', value || '')}
-                                    disabled={updateStudentMutation.isPending}
-                                    className={`w-full ${errors.alternateNumber ? 'border-red-300' : 'border-gray-300'}`}
-                                />
-                                {errors.alternateNumber && (
-                                    <p className="mt-1 text-sm text-red-600">{errors.alternateNumber}</p>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Family Information Section */}
-                        <div>
-                            <h3 className="text-lg font-medium text-gray-900 mb-4">Family Information</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* Father's Name */}
-                                <div>
-                                    <label htmlFor="fatherName" className="block text-sm font-medium text-gray-700 mb-2">
-                                        Father's Name
-                                    </label>
-                                    <input
-                                        type="text"
-                                        id="fatherName"
-                                        value={formData.fatherName || ''}
-                                        onChange={(e) => handleInputChange('fatherName', e.target.value)}
-                                        disabled={updateStudentMutation.isPending}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                                        placeholder="Enter father's full name"
-                                    />
-                                </div>
-
-                                {/* Mother's Name */}
-                                <div>
-                                    <label htmlFor="motherName" className="block text-sm font-medium text-gray-700 mb-2">
-                                        Mother's Name
-                                    </label>
-                                    <input
-                                        type="text"
-                                        id="motherName"
-                                        value={formData.motherName || ''}
-                                        onChange={(e) => handleInputChange('motherName', e.target.value)}
-                                        disabled={updateStudentMutation.isPending}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                                        placeholder="Enter mother's full name"
-                                    />
-                                </div>
-
-                                {/* Father's Occupation */}
-                                <div>
-                                    <label htmlFor="fatherOccupation" className="block text-sm font-medium text-gray-700 mb-2">
-                                        Father's Occupation
-                                    </label>
-                                    <input
-                                        type="text"
-                                        id="fatherOccupation"
-                                        value={formData.fatherOccupation || ''}
-                                        onChange={(e) => handleInputChange('fatherOccupation', e.target.value)}
-                                        disabled={updateStudentMutation.isPending}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                                        placeholder="Enter father's profession"
-                                    />
-                                </div>
-
-                                {/* Mother's Occupation */}
-                                <div>
-                                    <label htmlFor="motherOccupation" className="block text-sm font-medium text-gray-700 mb-2">
-                                        Mother's Occupation
-                                    </label>
-                                    <input
-                                        type="text"
-                                        id="motherOccupation"
-                                        value={formData.motherOccupation || ''}
-                                        onChange={(e) => handleInputChange('motherOccupation', e.target.value)}
-                                        disabled={updateStudentMutation.isPending}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                                        placeholder="Enter mother's profession"
-                                    />
-                                </div>
-
-                                {/* School Name */}
-                                <div>
-                                    <label htmlFor="schoolName" className="block text-sm font-medium text-gray-700 mb-2">
-                                        School Name
-                                    </label>
-                                    <input
-                                        type="text"
-                                        id="schoolName"
-                                        value={formData.schoolName || ''}
-                                        onChange={(e) => handleInputChange('schoolName', e.target.value)}
-                                        disabled={updateStudentMutation.isPending}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                                        placeholder="Enter school name"
-                                    />
-                                </div>
-
-                                {/* Family Income */}
-                                <div>
-                                    <label htmlFor="familyIncome" className="block text-sm font-medium text-gray-700 mb-2">
-                                        Family Income Range
-                                    </label>
-                                    <select
-                                        id="familyIncome"
-                                        value={formData.familyIncome || ''}
-                                        onChange={(e) => handleInputChange('familyIncome', e.target.value)}
-                                        disabled={updateStudentMutation.isPending}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                                    >
-                                        {familyIncomeOptions.map((option) => (
-                                            <option key={option.value} value={option.value}>
-                                                {option.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                {/* Future Profession */}
-                                <div>
-                                    <label htmlFor="futureProfession" className="block text-sm font-medium text-gray-700 mb-2">
-                                        Future Profession / Career Goal
-                                    </label>
-                                    <input
-                                        type="text"
-                                        id="futureProfession"
-                                        value={formData.futureProfession || ''}
-                                        onChange={(e) => handleInputChange('futureProfession', e.target.value)}
-                                        disabled={updateStudentMutation.isPending}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                                        placeholder="e.g., Doctor, Engineer, Teacher"
-                                    />
-                                </div>
-
-                                {/* Address */}
-                                <div className="md:col-span-2">
-                                    <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-2">
-                                        Address
-                                    </label>
-                                    <textarea
-                                        id="address"
-                                        value={formData.address || ''}
-                                        onChange={(e) => handleInputChange('address', e.target.value)}
-                                        disabled={updateStudentMutation.isPending}
-                                        rows={3}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                                        placeholder="Enter complete residential address"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Submit Button */}
-                        <div className="flex space-x-4 pt-6 border-t border-gray-200">
-                            <CustomButton
-                                type="button"
-                                variant="outline"
-                                onClick={() => navigate(studentsUrl)}
-                                disabled={updateStudentMutation.isPending}
-                            >
-                                Cancel
-                            </CustomButton>
-                            <CustomButton
-                                type="submit"
-                                isLoading={updateStudentMutation.isPending}
-                                loadingMessage="Updating student..."
-                                className="bg-orange-600 hover:bg-orange-700 text-white"
-                            >
-                                Update Student
-                            </CustomButton>
-                        </div>
-                    </form>
-                </div>
-            </motion.div>
-
-            {/* Enrollment Management Section */}
-            {
-                id && student && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3, delay: 0.1 }}
-                        className="bg-white rounded-lg border border-gray-200 shadow-sm p-6"
-                    >
-                        <EnrollmentManager studentId={id} studentName={student.name} />
-                    </motion.div>
-                )
-            }
-        </div >
+        <WorkspacePage className="space-y-8">
+            <StudentFormLayout
+                mode="edit"
+                values={values}
+                errors={errors}
+                isPending={updateStudent.isPending}
+                studentName={studentQuery.data.name}
+                error={updateStudent.error instanceof Error ? updateStudent.error.message : undefined}
+                onChange={updateField}
+                onNameChange={updateName}
+                onSubmit={handleSubmit}
+                onCancel={() => navigate(studentsUrl)}
+            />
+            <section className="rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6" aria-labelledby="enrollment-history-title">
+                <h2 id="enrollment-history-title" className="sr-only">Enrollment history</h2>
+                <EnrollmentManager studentId={id} studentName={studentQuery.data.name} />
+            </section>
+        </WorkspacePage>
     );
-};
+}
 
-export default EditStudent;
+function StudentFormSkeleton() {
+    return (
+        <div className="mx-auto w-full max-w-6xl animate-pulse py-4 motion-reduce:animate-none" aria-live="polite" aria-busy="true">
+            <div className="mb-8 space-y-3 border-b border-border pb-6"><div className="h-10 w-56 rounded bg-muted" /><div className="h-5 w-96 max-w-full rounded bg-muted" /></div>
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]"><div className="space-y-5"><div className="h-72 rounded-lg border border-border bg-card" /><div className="h-64 rounded-lg border border-border bg-card" /></div><div className="h-80 rounded-lg border border-border bg-card" /></div>
+            <span className="sr-only">Loading student</span>
+        </div>
+    );
+}

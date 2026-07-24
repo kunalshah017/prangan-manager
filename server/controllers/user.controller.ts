@@ -3,15 +3,21 @@ import { asyncHandle, successHandle, errorHandle } from "../utils/handler.js";
 import {
   createUser,
   getUserByEmail,
+  getAdminUserById,
   getUserById,
+  getContextStaff,
+  getSemesterUsers,
+  getRemunerationUsers,
   updateUser,
   getUnverifiedUsers,
   createStudent,
   getAllStudents,
   getStudentById,
+  getStudentActiveEnrollmentScopes,
   updateStudent,
   deleteStudent,
   getStudentsByLevel,
+  getStudentsBySemesterLevel,
   getStudentsByProject,
   getStudentsByCenter,
   getStudentsBySemester,
@@ -21,28 +27,40 @@ import {
   updateEnrollment,
   deleteEnrollment,
   createUserRoleAssignment,
+  getActiveUserScopeAssignments,
   getUserRoleAssignments,
   updateUserRoleAssignment,
   deleteUserRoleAssignment,
   getAllUsersWithAssignments,
   bulkUpdateUserAssignments,
   getUserAccessibleStudents,
+  resolveEffectiveEnrollmentContext,
+  validateEnrollmentHierarchy,
+  updateSemesterRemunerationRates,
+  setSemesterRemunerationPeriod,
+  updateSemesterUserAssignments,
 } from "../service/user.service.js";
+import type { EnrollmentScope } from "../service/user.service.js";
 import { getProjectById } from "../service/project.service.js";
 import { getCenterById } from "../service/center.service.js";
 import { getSemesterById } from "../service/semester.service.js";
 import type { UserRegistrationRequest } from "../types/user.types.js";
-import { generToken } from "../utils/generateToken.js";
 import bcryptjs from "bcryptjs";
 import { sendEmail } from "../utils/mail.js";
 import {
   UserStatus,
   Level,
   Role,
-  PrismaClient,
   SubRole,
   CommittedDays,
+  AccountTokenType,
 } from "../generated/prisma/index.js";
+import { prisma } from "../lib/prisma.js";
+import {
+  parseLegacyPersonName,
+  resolvePersonNameCreate,
+  resolvePersonNameUpdate,
+} from "../lib/person-name.js";
 import {
   convertToDateTime,
   isValidDateFormat,
@@ -50,9 +68,53 @@ import {
 } from "../utils/dateHelpers.js";
 import { EMAIL_TEMPLATES } from "../constants/email_templates.js";
 import { updateUserBankDetails } from "../service/user.service.js";
+import { canAccessScope, isAdmin } from "../security/authorization.js";
+import {
+  canManageStudentProfile,
+  canReadStudentEnrollment,
+} from "../security/student-authorization.js";
+import { extractGeneralUserUpdate } from "../security/user-update.js";
+import { parseRemunerationPeriodInput } from "../security/remuneration-input.js";
+import {
+  CSRF_COOKIE_NAME,
+  createSessionToken,
+  getCsrfCookieOptions,
+  getSessionCookieOptions,
+  SESSION_COOKIE_NAME,
+} from "../security/session.js";
+import {
+  consumeAccountTokenAndSetPassword,
+  createAccountToken,
+  createAccountTokenInTransaction,
+} from "../service/account-token.service.js";
+import { resolveSemesterLevelInput } from "../service/semester-level.service.js";
 
-// Initialize Prisma Client for transaction handling
-const prisma = new PrismaClient();
+const getStudentScopeAssignments = async (
+  user: NonNullable<FastifyRequest["user"]>,
+) => (isAdmin(user) ? [] : getActiveUserScopeAssignments(user.id));
+
+const getAccessibleStudentEnrollmentScopes = async ({
+  user,
+  studentId,
+  policy,
+}: {
+  user: NonNullable<FastifyRequest["user"]>;
+  studentId: string;
+  policy: typeof canReadStudentEnrollment | typeof canManageStudentProfile;
+}) => {
+  const [assignments, scopes] = await Promise.all([
+    getStudentScopeAssignments(user),
+    isAdmin(user)
+      ? Promise.resolve([])
+      : getStudentActiveEnrollmentScopes(studentId),
+  ]);
+
+  if (typeof assignments === "string") return "assignments" as const;
+  if (isAdmin(user)) return undefined;
+  return scopes.filter((scope): scope is EnrollmentScope =>
+    policy({ identity: user, assignments, scope }),
+  );
+};
 
 // Update current user's bank details
 export const updateMyBankDetails = asyncHandle(
@@ -93,6 +155,9 @@ export const updateMyBankDetails = asyncHandle(
           id: result.id,
           email: result.email,
           name: result.name,
+          firstName: result.firstName,
+          middleName: result.middleName,
+          lastName: result.lastName,
           profileImageUrl: result.profileImageUrl,
           role: result.role,
           status: result.status,
@@ -112,17 +177,24 @@ export const updateMyBankDetails = asyncHandle(
         },
       },
       reply,
-      200
+      200,
     );
-  }
+  },
 );
 
 export const registerUser = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
     const data = request.body as UserRegistrationRequest;
 
-    if (!data.email || !data.name) {
-      return errorHandle("Email and name are required.", reply, 400);
+    if (!data.email) {
+      return errorHandle("Email is required.", reply, 400);
+    }
+
+    let resolvedName;
+    try {
+      resolvedName = resolvePersonNameCreate(data);
+    } catch (error) {
+      return errorHandle((error as Error).message, reply, 400);
     }
 
     // Validate DOB if provided
@@ -132,7 +204,7 @@ export const registerUser = asyncHandle(
         return errorHandle(
           "Invalid date format. Please use YYYY-MM-DD or ISO format.",
           reply,
-          400
+          400,
         );
       }
 
@@ -141,7 +213,7 @@ export const registerUser = asyncHandle(
         return errorHandle(
           "Invalid date provided for date of birth.",
           reply,
-          400
+          400,
         );
       }
 
@@ -150,7 +222,7 @@ export const registerUser = asyncHandle(
         return errorHandle(
           "Date of birth cannot be in the future.",
           reply,
-          400
+          400,
         );
       }
 
@@ -161,11 +233,9 @@ export const registerUser = asyncHandle(
       }
     }
 
-    const tempPassword = "defaultPassword123"; // Temporary password
-
     const [checkUser, hashedPassword] = await Promise.all([
       getUserByEmail(data.email),
-      bcryptjs.hash(tempPassword, 10),
+      bcryptjs.hash("pending-account-password", 10),
     ]);
 
     if (checkUser) {
@@ -173,7 +243,7 @@ export const registerUser = asyncHandle(
     }
 
     const userData = {
-      name: data.name,
+      ...resolvedName,
       email: data.email,
       dob: dobDate,
       password: hashedPassword,
@@ -200,9 +270,9 @@ export const registerUser = asyncHandle(
     return successHandle(
       { message: "User registered successfully" },
       reply,
-      201
+      201,
     );
-  }
+  },
 );
 
 export const loginUser = asyncHandle(
@@ -224,34 +294,40 @@ export const loginUser = asyncHandle(
       return errorHandle(
         "Your account is pending approval. Please contact an administrator.",
         reply,
-        403
+        403,
       );
     }
 
     const isPasswordValid = await bcryptjs.compare(
       data.password,
-      user.password
+      user.password,
     );
 
     if (!isPasswordValid) {
       return errorHandle("Invalid password.", reply, 401);
     }
 
-    const token = generToken(user.id);
+    const token = createSessionToken(user.id, user.sessionVersion);
 
     // Fetch full user details with role assignments for response
     const fullUserDetails = await getUserById(user.id);
 
+    reply.setCookie(SESSION_COOKIE_NAME, token, getSessionCookieOptions());
+
     return successHandle(
-      {
-        message: "Login successful",
-        token: token,
-        user: fullUserDetails,
-      },
+      { message: "Login successful", user: fullUserDetails },
       reply,
-      200
+      200,
     );
-  }
+  },
+);
+
+export const logoutUser = asyncHandle(
+  async (_request: FastifyRequest, reply: FastifyReply) => {
+    reply.clearCookie(SESSION_COOKIE_NAME, { path: "/" });
+    reply.clearCookie(CSRF_COOKIE_NAME, { path: "/" });
+    return successHandle({ message: "Logged out" }, reply, 200);
+  },
 );
 
 export const getCurrentUser = asyncHandle(
@@ -274,9 +350,9 @@ export const getCurrentUser = asyncHandle(
         user: fullUserDetails,
       },
       reply,
-      200
+      200,
     );
-  }
+  },
 );
 
 export const verifyUser = asyncHandle(
@@ -290,14 +366,13 @@ export const verifyUser = asyncHandle(
       status: UserStatus;
       role: Role;
       userId: string;
-      email: string;
-      name: string;
       rejectionReason?: string; // Added for rejection cases
       roleAssignments?: Array<{
         subRole: string;
         projectId?: string;
         centerId?: string;
         semesterId?: string;
+        semesterLevelId?: string;
         level?: string;
         committedDays?: string;
       }>;
@@ -305,18 +380,8 @@ export const verifyUser = asyncHandle(
 
     console.log("Verifying user with data:", data);
 
-    if (
-      !data.userId ||
-      !data.status ||
-      !data.role ||
-      !data.email ||
-      !data.name
-    ) {
-      return errorHandle(
-        "User ID, status, role, email, and name are required.",
-        reply,
-        400
-      );
+    if (!data.userId || !data.status || !data.role) {
+      return errorHandle("User ID, status, and role are required.", reply, 400);
     }
 
     // Validate enum values
@@ -328,18 +393,13 @@ export const verifyUser = asyncHandle(
       return errorHandle("Invalid role provided.", reply, 400);
     }
 
-    // Generate password: username + special symbol + 4 digit number
-    const specialSymbols = ["@", "#", "$", "%", "&", "*", "!"];
-    const randomSymbol =
-      specialSymbols[Math.floor(Math.random() * specialSymbols.length)];
-    const randomNumber = Math.floor(1000 + Math.random() * 9000); // 4 digit number
-    const generatedPassword = `${data.name.replace(
-      /\s+/g,
-      ""
-    )}${randomSymbol}${randomNumber}`;
-
-    // Hash the generated password
-    const hashedPassword = await bcryptjs.hash(generatedPassword, 10);
+    const notificationUser = await prisma.user.findUnique({
+      where: { id: data.userId },
+      select: { email: true, name: true },
+    });
+    if (!notificationUser) {
+      return errorHandle("User not found.", reply, 404);
+    }
 
     // ============================================
     // STEP 1: HANDLE REJECTION CASE FIRST
@@ -354,21 +414,21 @@ export const verifyUser = asyncHandle(
           data.rejectionReason ||
           "No specific reason was provided. Please contact an administrator for more details.";
 
-        console.log(`📧 Sending rejection email to: ${data.email}`);
+        console.log(`📧 Sending rejection email to: ${notificationUser.email}`);
 
         const emailResult = await sendEmail(
-          data.email,
+          notificationUser.email,
           "Registration Update - Prangan Foundation",
           EMAIL_TEMPLATES.VERIFICATION_REJECTED.getTemplate({
-            name: data.name,
-            email: data.email,
+            name: notificationUser.name,
+            email: notificationUser.email,
             rejectionReason: rejectionReason,
-          })
+          }),
         );
 
         console.log(
           "✅ Rejection email sent successfully:",
-          emailResult.messageId
+          emailResult.messageId,
         );
 
         // Delete the user from database
@@ -385,7 +445,7 @@ export const verifyUser = asyncHandle(
             action: "rejected_and_deleted",
           },
           reply,
-          200
+          200,
         );
       } catch (error) {
         console.error("❌ Error handling user rejection:", error);
@@ -394,7 +454,7 @@ export const verifyUser = asyncHandle(
             error instanceof Error ? error.message : "Unknown error"
           }`,
           reply,
-          500
+          500,
         );
       }
     }
@@ -406,19 +466,28 @@ export const verifyUser = asyncHandle(
 
     let updatedUser: any;
     let createdAssignments: any = null;
+    let activationToken: string | null = null;
 
     try {
       // Wrap all database operations in a single transaction
       const transactionResult = await prisma.$transaction(async (tx) => {
-        // Update user with new status, role, and hashed password
+        // Update user status and role before issuing an activation token.
         const userUpdate = await tx.user.update({
           where: { id: data.userId },
           data: {
             status: data.status,
             role: data.role,
-            password: hashedPassword,
           },
         });
+
+        const newActivationToken =
+          data.status === UserStatus.APPROVED
+            ? await createAccountTokenInTransaction(
+                tx,
+                data.userId,
+                AccountTokenType.ACTIVATION,
+              )
+            : null;
 
         console.log("✅ User updated successfully in transaction");
 
@@ -439,7 +508,7 @@ export const verifyUser = asyncHandle(
             // Validate business rules
             if (assignment.level && assignment.subRole !== "EDUCATOR") {
               throw new Error(
-                "Level can only be assigned to EDUCATOR sub-role."
+                "Level can only be assigned to EDUCATOR sub-role.",
               );
             }
 
@@ -448,7 +517,7 @@ export const verifyUser = asyncHandle(
               !["CENTER_MANAGER", "EDUCATOR"].includes(assignment.subRole)
             ) {
               throw new Error(
-                "CommittedDays can only be assigned to CENTER_MANAGER or EDUCATOR sub-roles."
+                "CommittedDays can only be assigned to CENTER_MANAGER or EDUCATOR sub-roles.",
               );
             }
           }
@@ -479,6 +548,14 @@ export const verifyUser = asyncHandle(
           // Create new assignments
           const createdAssignmentsList = [];
           for (const assignment of uniqueAssignments) {
+            const semesterLevel =
+              assignment.subRole === "EDUCATOR"
+                ? await resolveSemesterLevelInput({
+                    semesterId: assignment.semesterId,
+                    semesterLevelId: assignment.semesterLevelId,
+                    level: assignment.level,
+                  })
+                : null;
             const created = await tx.userRoleAssignments.create({
               data: {
                 userId: data.userId,
@@ -486,7 +563,10 @@ export const verifyUser = asyncHandle(
                 projectId: assignment.projectId || null,
                 centerId: assignment.centerId || null,
                 semesterId: assignment.semesterId || null,
-                level: assignment.level ? (assignment.level as Level) : null,
+                semesterLevelId: semesterLevel?.id || null,
+                level: semesterLevel
+                  ? (semesterLevel.academicLevel.code as Level)
+                  : null,
                 committedDays: assignment.committedDays
                   ? (assignment.committedDays as CommittedDays)
                   : null,
@@ -495,6 +575,7 @@ export const verifyUser = asyncHandle(
                 project: { select: { id: true, name: true } },
                 center: { select: { id: true, name: true } },
                 semester: { select: { id: true, name: true } },
+                semesterLevel: { include: { academicLevel: true } },
               },
             });
             createdAssignmentsList.push(created);
@@ -502,30 +583,27 @@ export const verifyUser = asyncHandle(
 
           assignmentsResult = createdAssignmentsList;
           console.log(
-            "✅ Role assignments created successfully in transaction"
+            "✅ Role assignments created successfully in transaction",
           );
         }
 
-        return { userUpdate, assignmentsResult };
+        return {
+          userUpdate,
+          assignmentsResult,
+          activationToken: newActivationToken,
+        };
       });
 
       updatedUser = transactionResult.userUpdate;
       createdAssignments = transactionResult.assignmentsResult;
+      activationToken = transactionResult.activationToken;
 
       console.log(
-        "🎉 All database operations completed successfully in transaction"
+        "🎉 All database operations completed successfully in transaction",
       );
     } catch (transactionError) {
       console.error("❌ Database transaction failed:", transactionError);
-      return errorHandle(
-        `Database operation failed: ${
-          transactionError instanceof Error
-            ? transactionError.message
-            : "Unknown error"
-        }`,
-        reply,
-        500
-      );
+      return errorHandle("Database operation failed", reply, 500);
     }
 
     // ============================================
@@ -584,7 +662,7 @@ export const verifyUser = asyncHandle(
               const semester = await getSemesterById(assignment.semesterId);
               if (semester && typeof semester !== "string") {
                 const startDate = new Date(
-                  semester.startDate
+                  semester.startDate,
                 ).toLocaleDateString();
                 const endDate = new Date(semester.endDate).toLocaleDateString();
                 details += `<p><strong>📅 Semester:</strong> ${semester.name} (${startDate} - ${endDate})</p>`;
@@ -616,18 +694,18 @@ export const verifyUser = asyncHandle(
                 assignment.committedDays === "BOTH"
                   ? "Saturday & Sunday"
                   : assignment.committedDays === "SATURDAY"
-                  ? "Saturday"
-                  : "Sunday";
+                    ? "Saturday"
+                    : "Sunday";
               details += `<p><strong>📅 Committed Days:</strong> ${daysText}</p>`;
             }
 
             details += `</div>`;
             return details;
-          }
+          },
         );
 
         const assignmentDetailsArray = await Promise.all(
-          assignmentDetailsPromises
+          assignmentDetailsPromises,
         );
 
         const assignmentCount = data.roleAssignments.length;
@@ -653,7 +731,7 @@ export const verifyUser = asyncHandle(
       } catch (error) {
         console.error(
           "Error fetching role assignment details for email:",
-          error
+          error,
         );
         // Continue without role details if there's an error
       }
@@ -664,7 +742,9 @@ export const verifyUser = asyncHandle(
     // ============================================
     try {
       if (data.status === "APPROVED") {
-        console.log(`📧 Sending verification success email to: ${data.email}`);
+        console.log(
+          `📧 Sending verification success email to: ${notificationUser.email}`,
+        );
 
         // Prepare role assignment details for email if available
         let roleAssignmentDetails = "";
@@ -763,11 +843,11 @@ export const verifyUser = asyncHandle(
 
                 details += `</div>`;
                 return details;
-              }
+              },
             );
 
             const assignmentDetailsArray = await Promise.all(
-              assignmentDetailsPromises
+              assignmentDetailsPromises,
             );
 
             const assignmentCount = data.roleAssignments.length;
@@ -793,7 +873,7 @@ export const verifyUser = asyncHandle(
           } catch (error) {
             console.error(
               "Error fetching role assignment details for email:",
-              error
+              error,
             );
             // Continue without role details if there's an error
           }
@@ -801,27 +881,26 @@ export const verifyUser = asyncHandle(
 
         try {
           const emailResult = await sendEmail(
-            data.email,
+            updatedUser.email,
             "🎉 Account Verification - Welcome to Prangan Foundation",
             EMAIL_TEMPLATES.VERIFICATION_SUCCESS.getTemplate({
-              name: data.name,
-              email: data.email,
-              generatedPassword: generatedPassword,
-              status: data.status,
+              name: updatedUser.name,
+              email: updatedUser.email,
+              activationUrl: `${process.env.CLIENT_ORIGIN || "http://localhost:5173"}/activate?token=${encodeURIComponent(activationToken || "")}`,
               roleAssignmentDetails: roleAssignmentDetails,
-            })
+            }),
           );
 
           console.log(
             "✅ Verification email sent successfully:",
-            emailResult.messageId
+            emailResult.messageId,
           );
         } catch (emailError) {
           console.error("❌ Failed to send email:", emailError);
           // Note: We don't return an error here since the user was successfully created
           // Just log the email failure - the main operation succeeded
           console.log(
-            "⚠️ User verification completed successfully, but email notification failed"
+            "⚠️ User verification completed successfully, but email notification failed",
           );
         }
       }
@@ -830,12 +909,12 @@ export const verifyUser = asyncHandle(
       // Note: We don't return an error here since the user was successfully created
       // Just log the email failure - the main operation succeeded
       console.log(
-        "⚠️ User verification completed successfully, but email notification failed"
+        "⚠️ User verification completed successfully, but email notification failed",
       );
     }
 
     // Fetch full user details with role assignments for response
-    const fullUserDetails = await getUserById(updatedUser.id);
+    const fullUserDetails = await getAdminUserById(updatedUser.id);
 
     return successHandle(
       {
@@ -845,9 +924,152 @@ export const verifyUser = asyncHandle(
         roleAssignments: createdAssignments,
       },
       reply,
-      200
+      200,
     );
-  }
+  },
+);
+
+const isPassword = (value: unknown): value is string =>
+  typeof value === "string" && value.length >= 12;
+
+export const activateAccount = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const body = request.body as { token?: unknown; password?: unknown };
+    if (typeof body?.token !== "string" || !isPassword(body.password)) {
+      return errorHandle(
+        "A valid token and password are required.",
+        reply,
+        400,
+      );
+    }
+
+    const activated = await consumeAccountTokenAndSetPassword({
+      rawToken: body.token,
+      type: AccountTokenType.ACTIVATION,
+      password: body.password,
+    });
+    if (!activated)
+      return errorHandle("Activation link is invalid or expired.", reply, 400);
+
+    return successHandle(
+      { message: "Account activated. Please sign in." },
+      reply,
+      200,
+    );
+  },
+);
+
+export const requestPasswordReset = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const body = request.body as { email?: unknown };
+    const message =
+      "If that account exists, a password reset link has been sent.";
+    if (typeof body?.email !== "string")
+      return successHandle({ message }, reply, 200);
+
+    const user = await getUserByEmail(body.email);
+    if (
+      user &&
+      typeof user !== "string" &&
+      user.status === UserStatus.APPROVED
+    ) {
+      const token = await createAccountToken(
+        user.id,
+        AccountTokenType.PASSWORD_RESET,
+      );
+      try {
+        await sendEmail(
+          user.email,
+          "Reset your Prangan password",
+          EMAIL_TEMPLATES.PASSWORD_RESET.getTemplate({
+            name: user.name,
+            resetUrl: `${process.env.CLIENT_ORIGIN || "http://localhost:5173"}/reset-password?token=${encodeURIComponent(token)}`,
+          }),
+        );
+      } catch (error) {
+        console.error("Password reset email failed:", error);
+      }
+    }
+
+    return successHandle({ message }, reply, 200);
+  },
+);
+
+export const completePasswordReset = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const body = request.body as { token?: unknown; password?: unknown };
+    if (typeof body?.token !== "string" || !isPassword(body.password)) {
+      return errorHandle(
+        "A valid token and password are required.",
+        reply,
+        400,
+      );
+    }
+
+    const reset = await consumeAccountTokenAndSetPassword({
+      rawToken: body.token,
+      type: AccountTokenType.PASSWORD_RESET,
+      password: body.password,
+    });
+    if (!reset)
+      return errorHandle("Reset link is invalid or expired.", reply, 400);
+
+    return successHandle(
+      { message: "Password reset. Please sign in." },
+      reply,
+      200,
+    );
+  },
+);
+
+/**
+ * Revocation is deliberately separate from registration rejection: approved
+ * accounts remain in the audit trail, while their current portal access and
+ * active scope assignments are withdrawn in one transaction.
+ */
+export const revokeUserAccessController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const admin = request.user;
+    if (!admin || admin.role !== Role.ADMIN) {
+      return errorHandle("Only admins can revoke portal access.", reply, 403);
+    }
+
+    const { userId } = request.params as { userId: string };
+    if (!userId) return errorHandle("User ID is required.", reply, 400);
+    if (admin.id === userId) {
+      return errorHandle("You cannot revoke your own portal access.", reply, 400);
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        select: { id: true, status: true },
+      });
+      if (!user) return null;
+
+      await tx.userRoleAssignments.updateMany({
+        where: { userId, isActive: true },
+        data: { isActive: false },
+      });
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          status: UserStatus.REJECTED,
+          sessionVersion: { increment: 1 },
+        },
+      });
+      return user;
+    });
+
+    if (!result) return errorHandle("User not found.", reply, 404);
+    return successHandle(
+      {
+        message: "Portal access revoked and active role assignments removed.",
+      },
+      reply,
+      200,
+    );
+  },
 );
 
 export const GetUnverifiedUsers = asyncHandle(
@@ -868,16 +1090,24 @@ export const GetUnverifiedUsers = asyncHandle(
         users: unverifiedUsers,
       },
       reply,
-      200
+      200,
     );
-  }
+  },
 );
 
 // Student Controllers
 export const addStudent = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+    if (!user) {
+      return errorHandle("Unauthorized access.", reply, 401);
+    }
+
     const data = request.body as {
-      name: string;
+      name?: string;
+      firstName?: string;
+      middleName?: string | null;
+      lastName?: string | null;
       dob?: string;
       phoneNumber?: string;
       whatsappNumber?: string;
@@ -899,8 +1129,19 @@ export const addStudent = asyncHandle(
       };
     };
 
-    if (!data.name) {
-      return errorHandle("Name is required.", reply, 400);
+    let resolvedName;
+    try {
+      resolvedName = resolvePersonNameCreate(data);
+    } catch (error) {
+      return errorHandle((error as Error).message, reply, 400);
+    }
+
+    if (!data.enrollment && !isAdmin(user)) {
+      return errorHandle(
+        "Only admins can create students without an enrollment.",
+        reply,
+        403,
+      );
     }
 
     // Validate enrollment data if provided
@@ -914,13 +1155,40 @@ export const addStudent = asyncHandle(
         return errorHandle(
           "All enrollment fields (centerId, semesterId, projectId, level) are required when enrollment is provided.",
           reply,
-          400
+          400,
         );
       }
 
       // Validate level enum
       if (!Object.values(Level).includes(data.enrollment.level)) {
         return errorHandle("Invalid level provided in enrollment.", reply, 400);
+      }
+
+      const assignments = await getStudentScopeAssignments(user);
+      if (typeof assignments === "string") {
+        return errorHandle(
+          "Unable to verify student creation access.",
+          reply,
+          500,
+        );
+      }
+      if (
+        !canManageStudentProfile({
+          identity: user,
+          assignments,
+          scope: data.enrollment,
+        })
+      ) {
+        return errorHandle(
+          "You are not authorized to create a student in this scope.",
+          reply,
+          403,
+        );
+      }
+
+      const validation = await validateEnrollmentHierarchy(data.enrollment);
+      if (validation !== true) {
+        return errorHandle(validation, reply, 400);
       }
     }
 
@@ -931,7 +1199,7 @@ export const addStudent = asyncHandle(
         return errorHandle(
           "Invalid date format for DOB. Please use YYYY-MM-DD or ISO format.",
           reply,
-          400
+          400,
         );
       }
 
@@ -940,7 +1208,7 @@ export const addStudent = asyncHandle(
         return errorHandle(
           "Invalid date provided for date of birth.",
           reply,
-          400
+          400,
         );
       }
 
@@ -949,7 +1217,7 @@ export const addStudent = asyncHandle(
         return errorHandle(
           "Date of birth cannot be in the future.",
           reply,
-          400
+          400,
         );
       }
 
@@ -959,13 +1227,13 @@ export const addStudent = asyncHandle(
         return errorHandle(
           "Please provide a valid date of birth for the student.",
           reply,
-          400
+          400,
         );
       }
     }
 
     const studentData = {
-      name: data.name,
+      ...resolvedName,
       dob: dobDate,
       phoneNumber: data.phoneNumber || null,
       whatsappNumber: data.whatsappNumber || null,
@@ -1002,7 +1270,7 @@ export const addStudent = asyncHandle(
         return errorHandle(
           `Student created but enrollment failed: ${enrollment}`,
           reply,
-          500
+          500,
         );
       }
     }
@@ -1018,9 +1286,9 @@ export const addStudent = asyncHandle(
         enrollment: enrollment,
       },
       reply,
-      201
+      201,
     );
-  }
+  },
 );
 
 export const getStudents = asyncHandle(
@@ -1043,9 +1311,9 @@ export const getStudents = asyncHandle(
         students: students,
       },
       reply,
-      200
+      200,
     );
-  }
+  },
 );
 
 export const getStudent = asyncHandle(
@@ -1061,10 +1329,26 @@ export const getStudent = asyncHandle(
       return errorHandle("Student ID is required.", reply, 400);
     }
 
-    const student = await getStudentById(id);
+    const visibleEnrollmentScopes = await getAccessibleStudentEnrollmentScopes({
+      user,
+      studentId: id,
+      policy: canReadStudentEnrollment,
+    });
+    if (visibleEnrollmentScopes === "assignments") {
+      return errorHandle("Unable to verify student access.", reply, 500);
+    }
+    if (visibleEnrollmentScopes?.length === 0) {
+      return errorHandle(
+        "You are not authorized to view this student.",
+        reply,
+        403,
+      );
+    }
+
+    const student = await getStudentById(id, visibleEnrollmentScopes);
 
     if (typeof student === "string") {
-      return errorHandle(student, reply, 500);
+      return errorHandle("Unable to retrieve student.", reply, 500);
     }
 
     if (!student) {
@@ -1077,16 +1361,24 @@ export const getStudent = asyncHandle(
         student: student,
       },
       reply,
-      200
+      200,
     );
-  }
+  },
 );
 
 export const updateStudentController = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+    if (!user) {
+      return errorHandle("Unauthorized access.", reply, 401);
+    }
+
     const { id } = request.params as { id: string };
     const data = request.body as {
       name?: string;
+      firstName?: string;
+      middleName?: string | null;
+      lastName?: string | null;
       dob?: string;
       phoneNumber?: string;
       whatsappNumber?: string;
@@ -1118,6 +1410,22 @@ export const updateStudentController = asyncHandle(
       return errorHandle("Student ID is required.", reply, 400);
     }
 
+    const access = await getAccessibleStudentEnrollmentScopes({
+      user,
+      studentId: id,
+      policy: canManageStudentProfile,
+    });
+    if (access === "assignments") {
+      return errorHandle("Unable to verify student update access.", reply, 500);
+    }
+    if (access?.length === 0) {
+      return errorHandle(
+        "You are not authorized to update this student.",
+        reply,
+        403,
+      );
+    }
+
     // Validate enrollment level if provided (both single enrollment and enrollments array)
     if (
       data.enrollment?.level &&
@@ -1142,7 +1450,7 @@ export const updateStudentController = asyncHandle(
           return errorHandle(
             "Each enrollment must have centerId, semesterId, projectId, and level",
             reply,
-            400
+            400,
           );
         }
 
@@ -1150,7 +1458,7 @@ export const updateStudentController = asyncHandle(
           return errorHandle(
             `Invalid level provided: ${enrollment.level}`,
             reply,
-            400
+            400,
           );
         }
       }
@@ -1158,7 +1466,33 @@ export const updateStudentController = asyncHandle(
 
     const updateData: any = {};
 
-    if (data.name) updateData.name = data.name;
+    if (
+      ["name", "firstName", "middleName", "lastName"].some((field) =>
+        Object.prototype.hasOwnProperty.call(data, field),
+      )
+    ) {
+      const currentStudent = await getStudentById(id);
+      if (!currentStudent || typeof currentStudent === "string") {
+        return errorHandle("Student not found.", reply, 404);
+      }
+
+      const currentName = currentStudent.firstName
+        ? {
+            firstName: currentStudent.firstName,
+            middleName: currentStudent.middleName,
+            lastName: currentStudent.lastName,
+          }
+        : parseLegacyPersonName(currentStudent.name);
+
+      try {
+        Object.assign(
+          updateData,
+          resolvePersonNameUpdate(data, currentName) ?? {},
+        );
+      } catch (error) {
+        return errorHandle((error as Error).message, reply, 400);
+      }
+    }
 
     // Handle DOB update
     if (data.dob !== undefined) {
@@ -1169,7 +1503,7 @@ export const updateStudentController = asyncHandle(
           return errorHandle(
             "Invalid date format for DOB. Please use YYYY-MM-DD or ISO format.",
             reply,
-            400
+            400,
           );
         }
 
@@ -1178,7 +1512,7 @@ export const updateStudentController = asyncHandle(
           return errorHandle(
             "Invalid date provided for date of birth.",
             reply,
-            400
+            400,
           );
         }
 
@@ -1187,7 +1521,7 @@ export const updateStudentController = asyncHandle(
           return errorHandle(
             "Date of birth cannot be in the future.",
             reply,
-            400
+            400,
           );
         }
 
@@ -1197,7 +1531,7 @@ export const updateStudentController = asyncHandle(
           return errorHandle(
             "Please provide a valid date of birth for the student.",
             reply,
-            400
+            400,
           );
         }
 
@@ -1242,9 +1576,9 @@ export const updateStudentController = asyncHandle(
         student: student,
       },
       reply,
-      200
+      200,
     );
-  }
+  },
 );
 
 export const deleteStudentController = asyncHandle(
@@ -1263,7 +1597,11 @@ export const deleteStudentController = asyncHandle(
     const result = await deleteStudent(id);
 
     if (typeof result === "string") {
-      return errorHandle(result, reply, 500);
+      if (result === "Cannot delete student while enrollments exist") {
+        return errorHandle(result, reply, 409);
+      }
+
+      return errorHandle("Internal Server Error", reply, 500);
     }
 
     return successHandle(
@@ -1271,9 +1609,9 @@ export const deleteStudentController = asyncHandle(
         message: "Student deleted successfully",
       },
       reply,
-      200
+      200,
     );
-  }
+  },
 );
 
 export const getStudentsByLevelController = asyncHandle(
@@ -1309,9 +1647,34 @@ export const getStudentsByLevelController = asyncHandle(
         students: students,
       },
       reply,
-      200
+      200,
     );
-  }
+  },
+);
+
+export const getStudentsBySemesterLevelController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+    if (!user) return errorHandle("Unauthorized access.", reply, 401);
+
+    const { semesterLevelId } = request.params as { semesterLevelId: string };
+    if (!semesterLevelId) {
+      return errorHandle("Semester level ID is required.", reply, 400);
+    }
+
+    const students = await getUserAccessibleStudents(user.id, user.role, {
+      semesterLevelId,
+    });
+    if (typeof students === "string") {
+      return errorHandle(students, reply, 500);
+    }
+
+    return successHandle(
+      { message: "Students retrieved successfully", students },
+      reply,
+      200,
+    );
+  },
 );
 
 // New controllers for project, center, semester filtering
@@ -1343,9 +1706,9 @@ export const getStudentsByProjectController = asyncHandle(
         enrollments: enrollments,
       },
       reply,
-      200
+      200,
     );
-  }
+  },
 );
 
 export const getStudentsByCenterController = asyncHandle(
@@ -1376,9 +1739,9 @@ export const getStudentsByCenterController = asyncHandle(
         enrollments: enrollments,
       },
       reply,
-      200
+      200,
     );
-  }
+  },
 );
 
 export const getStudentsBySemesterController = asyncHandle(
@@ -1409,9 +1772,9 @@ export const getStudentsBySemesterController = asyncHandle(
         enrollments: enrollments,
       },
       reply,
-      200
+      200,
     );
-  }
+  },
 );
 
 // Keep enrollStudentController for backward compatibility
@@ -1427,7 +1790,8 @@ export const enrollStudentController = asyncHandle(
       centerId: string;
       semesterId: string;
       projectId: string;
-      level: Level;
+      semesterLevelId?: string;
+      level?: Level;
     };
 
     if (
@@ -1435,14 +1799,19 @@ export const enrollStudentController = asyncHandle(
       !data.centerId ||
       !data.semesterId ||
       !data.projectId ||
-      !data.level
+      (!data.semesterLevelId && !data.level)
     ) {
       return errorHandle("All enrollment fields are required.", reply, 400);
     }
 
     // Validate level enum
-    if (!Object.values(Level).includes(data.level)) {
+    if (data.level && !Object.values(Level).includes(data.level)) {
       return errorHandle("Invalid level provided.", reply, 400);
+    }
+
+    const validation = await validateEnrollmentHierarchy(data);
+    if (validation !== true) {
+      return errorHandle(validation, reply, 400);
     }
 
     const enrollment = await enrollStudent(data);
@@ -1457,9 +1826,9 @@ export const enrollStudentController = asyncHandle(
         enrollment: enrollment,
       },
       reply,
-      201
+      201,
     );
-  }
+  },
 );
 
 // New enrollment management controllers
@@ -1475,53 +1844,31 @@ export const createEnrollmentController = asyncHandle(
       centerId: string;
       semesterId: string;
       projectId: string;
-      level: Level;
+      semesterLevelId?: string;
+      level?: Level;
     };
 
     if (!studentId) {
       return errorHandle("Student ID is required.", reply, 400);
     }
 
-    if (!data.centerId || !data.semesterId || !data.projectId || !data.level) {
+    if (
+      !data.centerId ||
+      !data.semesterId ||
+      !data.projectId ||
+      (!data.semesterLevelId && !data.level)
+    ) {
       return errorHandle("All enrollment fields are required.", reply, 400);
     }
 
     // Validate level enum
-    if (!Object.values(Level).includes(data.level)) {
+    if (data.level && !Object.values(Level).includes(data.level)) {
       return errorHandle("Invalid level provided.", reply, 400);
     }
 
-    // Validate hierarchy: semester belongs to center, center belongs to project
-    const semester = await getSemesterById(data.semesterId);
-    const center = await getCenterById(data.centerId);
-    const project = await getProjectById(data.projectId);
-
-    if (!semester || typeof semester === "string") {
-      return errorHandle("Invalid semester ID.", reply, 400);
-    }
-
-    if (!center || typeof center === "string") {
-      return errorHandle("Invalid center ID.", reply, 400);
-    }
-
-    if (!project || typeof project === "string") {
-      return errorHandle("Invalid project ID.", reply, 400);
-    }
-
-    if (semester.centerId !== data.centerId) {
-      return errorHandle(
-        "Semester does not belong to the specified center.",
-        reply,
-        400
-      );
-    }
-
-    if (center.projectId !== data.projectId) {
-      return errorHandle(
-        "Center does not belong to the specified project.",
-        reply,
-        400
-      );
+    const validation = await validateEnrollmentHierarchy(data);
+    if (validation !== true) {
+      return errorHandle(validation, reply, 400);
     }
 
     const enrollment = await createEnrollment(
@@ -1529,7 +1876,8 @@ export const createEnrollmentController = asyncHandle(
       data.centerId,
       data.semesterId,
       data.projectId,
-      data.level
+      data.level,
+      data.semesterLevelId,
     );
 
     if (typeof enrollment === "string") {
@@ -1543,9 +1891,9 @@ export const createEnrollmentController = asyncHandle(
         enrollment: enrollment,
       },
       reply,
-      201
+      201,
     );
-  }
+  },
 );
 
 export const getStudentEnrollmentsController = asyncHandle(
@@ -1561,10 +1909,33 @@ export const getStudentEnrollmentsController = asyncHandle(
       return errorHandle("Student ID is required.", reply, 400);
     }
 
-    const enrollments = await getStudentEnrollments(studentId);
+    const visibleEnrollmentScopes = await getAccessibleStudentEnrollmentScopes({
+      user,
+      studentId,
+      policy: canReadStudentEnrollment,
+    });
+    if (visibleEnrollmentScopes === "assignments") {
+      return errorHandle(
+        "Unable to verify student enrollment access.",
+        reply,
+        500,
+      );
+    }
+    if (visibleEnrollmentScopes?.length === 0) {
+      return errorHandle(
+        "You are not authorized to view these enrollments.",
+        reply,
+        403,
+      );
+    }
+
+    const enrollments = await getStudentEnrollments(
+      studentId,
+      visibleEnrollmentScopes,
+    );
 
     if (typeof enrollments === "string") {
-      return errorHandle(enrollments, reply, 500);
+      return errorHandle("Unable to retrieve student enrollments.", reply, 500);
     }
 
     const activeEnrollments = enrollments.filter((e: any) => e.isActive);
@@ -1580,9 +1951,9 @@ export const getStudentEnrollmentsController = asyncHandle(
         },
       },
       reply,
-      200
+      200,
     );
-  }
+  },
 );
 
 export const updateEnrollmentController = asyncHandle(
@@ -1597,6 +1968,7 @@ export const updateEnrollmentController = asyncHandle(
       centerId?: string;
       semesterId?: string;
       projectId?: string;
+      semesterLevelId?: string;
       level?: Level;
       isActive?: boolean;
     };
@@ -1610,36 +1982,19 @@ export const updateEnrollmentController = asyncHandle(
       return errorHandle("Invalid level provided.", reply, 400);
     }
 
-    // Validate hierarchy if changing relationships
-    if (data.centerId && data.projectId) {
-      const center = await getCenterById(data.centerId);
-      if (!center || typeof center === "string") {
-        return errorHandle("Invalid center ID.", reply, 400);
-      }
-      if (center.projectId !== data.projectId) {
-        return errorHandle(
-          "Center does not belong to the specified project.",
-          reply,
-          400
-        );
-      }
+    const context = await resolveEffectiveEnrollmentContext(enrollmentId, data);
+    if (typeof context === "string") {
+      return errorHandle(context, reply, 400);
     }
 
-    if (data.semesterId && data.centerId) {
-      const semester = await getSemesterById(data.semesterId);
-      if (!semester || typeof semester === "string") {
-        return errorHandle("Invalid semester ID.", reply, 400);
-      }
-      if (semester.centerId !== data.centerId) {
-        return errorHandle(
-          "Semester does not belong to the specified center.",
-          reply,
-          400
-        );
-      }
-    }
-
-    const enrollment = await updateEnrollment(enrollmentId, data);
+    const enrollment = await updateEnrollment(enrollmentId, {
+      projectId: context.projectId,
+      centerId: context.centerId,
+      semesterId: context.semesterId,
+      semesterLevelId: data.semesterLevelId ?? context.semesterLevelId,
+      level: context.level,
+      isActive: data.isActive,
+    });
 
     if (typeof enrollment === "string") {
       return errorHandle(enrollment, reply, 500);
@@ -1651,9 +2006,9 @@ export const updateEnrollmentController = asyncHandle(
         enrollment: enrollment,
       },
       reply,
-      200
+      200,
     );
-  }
+  },
 );
 
 export const deleteEnrollmentController = asyncHandle(
@@ -1680,14 +2035,22 @@ export const deleteEnrollmentController = asyncHandle(
         message: "Enrollment deleted successfully",
       },
       reply,
-      200
+      200,
     );
-  }
+  },
 );
 
 // User Management Controllers
 export const getAllUsersController = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
+    const authUser = request.user;
+    if (!authUser) {
+      return errorHandle("Authentication required.", reply, 401);
+    }
+    if (!isAdmin(authUser)) {
+      return errorHandle("Administrator access required.", reply, 403);
+    }
+
     const users = await getAllUsersWithAssignments();
 
     if (typeof users === "string") {
@@ -1700,9 +2063,439 @@ export const getAllUsersController = asyncHandle(
         users: users,
       },
       reply,
-      200
+      200,
     );
-  }
+  },
+);
+
+export const getContextStaffController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const authUser = request.user;
+    if (!authUser) {
+      return errorHandle("Authentication required.", reply, 401);
+    }
+
+    const { projectId, centerId, semesterId } = request.query as {
+      projectId?: string;
+      centerId?: string;
+      semesterId?: string;
+    };
+    if (
+      typeof projectId !== "string" ||
+      !projectId.trim() ||
+      typeof centerId !== "string" ||
+      !centerId.trim() ||
+      typeof semesterId !== "string" ||
+      !semesterId.trim()
+    ) {
+      return errorHandle(
+        "Project ID, center ID, and semester ID are required.",
+        reply,
+        400,
+      );
+    }
+
+    const scope = {
+      projectId: projectId.trim(),
+      centerId: centerId.trim(),
+      semesterId: semesterId.trim(),
+    };
+    const assignments = isAdmin(authUser)
+      ? []
+      : await getActiveUserScopeAssignments(authUser.id);
+    if (typeof assignments === "string") {
+      return errorHandle(assignments, reply, 500);
+    }
+
+    if (
+      !canAccessScope({
+        identity: authUser,
+        assignments,
+        allowedSubRoles: Object.values(SubRole),
+        scope,
+      })
+    ) {
+      return errorHandle(
+        "You are not authorized to view staff for this scope.",
+        reply,
+        403,
+      );
+    }
+
+    const users = await getContextStaff({
+      projectId: scope.projectId,
+      centerId: scope.centerId,
+      semesterId: scope.semesterId,
+    });
+    if (typeof users === "string") {
+      return errorHandle(users, reply, 500);
+    }
+
+    return successHandle(
+      {
+        message: "Context staff retrieved successfully",
+        users,
+      },
+      reply,
+      200,
+    );
+  },
+);
+
+export const getRemunerationUsersController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const authUser = request.user;
+    if (!authUser) {
+      return errorHandle("Authentication required.", reply, 401);
+    }
+
+    const { projectId, centerId, semesterId } = request.query as {
+      projectId?: string;
+      centerId?: string;
+      semesterId?: string;
+    };
+    if (
+      typeof projectId !== "string" ||
+      !projectId.trim() ||
+      typeof centerId !== "string" ||
+      !centerId.trim() ||
+      typeof semesterId !== "string" ||
+      !semesterId.trim()
+    ) {
+      return errorHandle(
+        "Project ID, center ID, and semester ID are required.",
+        reply,
+        400,
+      );
+    }
+
+    const scope = {
+      projectId: projectId.trim(),
+      centerId: centerId.trim(),
+      semesterId: semesterId.trim(),
+    };
+    const assignments = isAdmin(authUser)
+      ? []
+      : await getActiveUserScopeAssignments(authUser.id);
+    if (typeof assignments === "string") {
+      return errorHandle(assignments, reply, 500);
+    }
+
+    if (
+      !canAccessScope({
+        identity: authUser,
+        assignments,
+        allowedSubRoles: [SubRole.CENTER_MANAGER],
+        scope,
+      })
+    ) {
+      return errorHandle(
+        "You are not authorized to administer remuneration for this scope.",
+        reply,
+        403,
+      );
+    }
+
+    const users = await getRemunerationUsers({
+      projectId: scope.projectId,
+      centerId: scope.centerId,
+      semesterId: scope.semesterId,
+    });
+    if (typeof users === "string") {
+      return errorHandle(users, reply, 500);
+    }
+
+    return successHandle(
+      {
+        message: "Remuneration users retrieved successfully",
+        users,
+      },
+      reply,
+      200,
+    );
+  },
+);
+
+export const getSemesterUsersController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const authUser = request.user;
+    if (!authUser) return errorHandle("Authentication required.", reply, 401);
+    const query = request.query as Record<string, unknown>;
+    const scope = {
+      projectId: typeof query.projectId === "string" ? query.projectId.trim() : "",
+      centerId: typeof query.centerId === "string" ? query.centerId.trim() : "",
+      semesterId: typeof query.semesterId === "string" ? query.semesterId.trim() : "",
+    };
+    if (!scope.projectId || !scope.centerId || !scope.semesterId) {
+      return errorHandle("Project, center, and semester are required.", reply, 400);
+    }
+    const assignments = isAdmin(authUser)
+      ? []
+      : await getActiveUserScopeAssignments(authUser.id);
+    if (
+      typeof assignments === "string" ||
+      !canAccessScope({
+        identity: authUser,
+        assignments,
+        allowedSubRoles: [SubRole.CENTER_MANAGER],
+        scope,
+      })
+    ) {
+      return errorHandle("You are not authorized to view semester users.", reply, 403);
+    }
+    const users = await getSemesterUsers(scope);
+    if (typeof users === "string") return errorHandle(users, reply, 500);
+    return successHandle(
+      { message: "Semester users retrieved successfully.", users },
+      reply,
+      200,
+    );
+  },
+);
+
+export const updateRemunerationRatesController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const authUser = request.user;
+    if (!authUser) return errorHandle("Authentication required.", reply, 401);
+
+    const body = request.body as {
+      projectId?: unknown;
+      centerId?: unknown;
+      semesterId?: unknown;
+      rates?: unknown;
+    };
+    const projectId =
+      typeof body?.projectId === "string" ? body.projectId.trim() : "";
+    const centerId =
+      typeof body?.centerId === "string" ? body.centerId.trim() : "";
+    const semesterId =
+      typeof body?.semesterId === "string" ? body.semesterId.trim() : "";
+    if (!projectId || !centerId || !semesterId || !Array.isArray(body.rates)) {
+      return errorHandle(
+        "Project, center, semester, and rates are required.",
+        reply,
+        400,
+      );
+    }
+
+    const rates: Array<{ userId: string; dailyRate: number }> = [];
+    const seen = new Set<string>();
+    for (const [index, raw] of body.rates.entries()) {
+      if (
+        typeof raw !== "object" ||
+        raw === null ||
+        Array.isArray(raw) ||
+        Object.keys(raw).some(
+          (key) => !["userId", "dailyRate"].includes(key),
+        )
+      ) {
+        return errorHandle(`Rate ${index + 1} is invalid.`, reply, 400);
+      }
+      const { userId, dailyRate } = raw as {
+        userId?: unknown;
+        dailyRate?: unknown;
+      };
+      if (
+        typeof userId !== "string" ||
+        !userId.trim() ||
+        seen.has(userId.trim()) ||
+        typeof dailyRate !== "number" ||
+        !Number.isFinite(dailyRate) ||
+        dailyRate < 0 ||
+        Math.round(dailyRate * 100) !== dailyRate * 100
+      ) {
+        return errorHandle(`Rate ${index + 1} is invalid.`, reply, 400);
+      }
+      seen.add(userId.trim());
+      rates.push({ userId: userId.trim(), dailyRate });
+    }
+
+    const scope = { projectId, centerId, semesterId };
+    const assignments = isAdmin(authUser)
+      ? []
+      : await getActiveUserScopeAssignments(authUser.id);
+    if (typeof assignments === "string") {
+      return errorHandle(assignments, reply, 500);
+    }
+    if (
+      !canAccessScope({
+        identity: authUser,
+        assignments,
+        allowedSubRoles: [SubRole.CENTER_MANAGER],
+        scope,
+      })
+    ) {
+      return errorHandle(
+        "You are not authorized to administer remuneration for this scope.",
+        reply,
+        403,
+      );
+    }
+
+    const payees = await getRemunerationUsers(scope);
+    if (typeof payees === "string") return errorHandle(payees, reply, 500);
+    const eligibleIds = new Set(payees.map((payee) => payee.id));
+    if (rates.some((rate) => !eligibleIds.has(rate.userId))) {
+      return errorHandle(
+        "Every rate must belong to an eligible payee in this semester.",
+        reply,
+        400,
+      );
+    }
+
+    const result = await updateSemesterRemunerationRates({
+      semesterId,
+      rates,
+    });
+    if (typeof result === "string") return errorHandle(result, reply, 500);
+    return successHandle(
+      { message: "Semester remuneration rates updated.", rates: result },
+      reply,
+      200,
+    );
+  },
+);
+
+export const setRemunerationPeriodController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const authUser = request.user;
+    if (!authUser) return errorHandle("Authentication required.", reply, 401);
+
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const projectId =
+      typeof body.projectId === "string" ? body.projectId.trim() : "";
+    const centerId =
+      typeof body.centerId === "string" ? body.centerId.trim() : "";
+    const semesterId =
+      typeof body.semesterId === "string" ? body.semesterId.trim() : "";
+    if (!projectId || !centerId || !semesterId) {
+      return errorHandle("Project, center, and semester are required.", reply, 400);
+    }
+
+    let period;
+    try {
+      period = parseRemunerationPeriodInput({
+        userId: body.userId,
+        amountPerDay: body.amountPerDay,
+        effectiveFrom: body.effectiveFrom,
+        ...Object.fromEntries(
+          Object.entries(body).filter(
+            ([key]) =>
+              ![
+                "projectId",
+                "centerId",
+                "semesterId",
+                "userId",
+                "amountPerDay",
+                "effectiveFrom",
+              ].includes(key),
+          ),
+        ),
+      });
+    } catch (error) {
+      return errorHandle(
+        error instanceof Error ? error.message : "Invalid remuneration details.",
+        reply,
+        400,
+      );
+    }
+
+    const scope = { projectId, centerId, semesterId };
+    const assignments = isAdmin(authUser)
+      ? []
+      : await getActiveUserScopeAssignments(authUser.id);
+    if (
+      typeof assignments === "string" ||
+      !canAccessScope({
+        identity: authUser,
+        assignments,
+        allowedSubRoles: [SubRole.CENTER_MANAGER],
+        scope,
+      })
+    ) {
+      return errorHandle(
+        "You are not authorized to administer remuneration for this scope.",
+        reply,
+        403,
+      );
+    }
+
+    const result = await setSemesterRemunerationPeriod({
+      ...scope,
+      ...period,
+      actorId: authUser.id,
+    });
+    if (typeof result === "string") return errorHandle(result, reply, 400);
+    return successHandle(
+      { message: "Remuneration schedule updated.", periods: result },
+      reply,
+      200,
+    );
+  },
+);
+
+export const updateSemesterUserAssignmentsController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const authUser = request.user;
+    if (!authUser || authUser.role !== Role.ADMIN) {
+      return errorHandle("Only admins can update semester roles.", reply, 403);
+    }
+    const { userId } = request.params as { userId?: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const projectId = typeof body.projectId === "string" ? body.projectId.trim() : "";
+    const centerId = typeof body.centerId === "string" ? body.centerId.trim() : "";
+    const semesterId = typeof body.semesterId === "string" ? body.semesterId.trim() : "";
+    if (!userId || !projectId || !centerId || !semesterId || !Array.isArray(body.assignments)) {
+      return errorHandle("User, project, center, semester, and roles are required.", reply, 400);
+    }
+    const assignments: Array<{
+      subRole: SubRole;
+      semesterLevelId?: string;
+      committedDays?: CommittedDays;
+    }> = [];
+    for (const raw of body.assignments) {
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+        return errorHandle("Every semester role must be valid.", reply, 400);
+      }
+      const value = raw as Record<string, unknown>;
+      if (
+        Object.keys(value).some(
+          (key) => !["subRole", "semesterLevelId", "committedDays"].includes(key),
+        ) ||
+        typeof value.subRole !== "string" ||
+        !Object.values(SubRole).includes(value.subRole as SubRole)
+      ) {
+        return errorHandle("Every semester role must be valid.", reply, 400);
+      }
+      const subRole = value.subRole as SubRole;
+      const semesterLevelId =
+        typeof value.semesterLevelId === "string" && value.semesterLevelId
+          ? value.semesterLevelId
+          : undefined;
+      const committedDays =
+        typeof value.committedDays === "string" &&
+        Object.values(CommittedDays).includes(value.committedDays as CommittedDays)
+          ? (value.committedDays as CommittedDays)
+          : undefined;
+      if (semesterLevelId && subRole !== SubRole.EDUCATOR) {
+        return errorHandle("Only educators can have a semester level.", reply, 400);
+      }
+      assignments.push({ subRole, semesterLevelId, committedDays });
+    }
+    const result = await updateSemesterUserAssignments({
+      userId,
+      projectId,
+      centerId,
+      semesterId,
+      assignments,
+    });
+    if (typeof result === "string") return errorHandle(result, reply, 400);
+    return successHandle(
+      { message: "Semester roles updated.", assignments: result },
+      reply,
+      200,
+    );
+  },
 );
 
 export const getUserAssignmentsController = asyncHandle(
@@ -1712,7 +2505,7 @@ export const getUserAssignmentsController = asyncHandle(
       return errorHandle(
         "Only admins can access user assignments.",
         reply,
-        403
+        403,
       );
     }
 
@@ -1734,9 +2527,9 @@ export const getUserAssignmentsController = asyncHandle(
         assignments: assignments,
       },
       reply,
-      200
+      200,
     );
-  }
+  },
 );
 
 export const updateUserManagementController = asyncHandle(
@@ -1747,13 +2540,15 @@ export const updateUserManagementController = asyncHandle(
     }
 
     const { userId } = request.params as { userId: string };
-    const data = request.body as {
-      roleAssignments: Array<{
-        subRole: string;
+    const data = (request.body ?? {}) as {
+      role?: Role;
+      roleAssignments?: Array<{
+        subRole: SubRole;
         projectId?: string;
         centerId?: string;
         semesterId?: string;
-        level?: string;
+        semesterLevelId?: string;
+        level?: Level;
         committedDays?: string;
       }>;
     };
@@ -1762,26 +2557,49 @@ export const updateUserManagementController = asyncHandle(
       return errorHandle("User ID is required.", reply, 400);
     }
 
-    if (!data.roleAssignments || !Array.isArray(data.roleAssignments)) {
-      return errorHandle("Role assignments array is required.", reply, 400);
+    if (data.role === undefined && data.roleAssignments === undefined) {
+      return errorHandle("Role or role assignments are required.", reply, 400);
+    }
+
+    if (data.role !== undefined && !Object.values(Role).includes(data.role)) {
+      return errorHandle("Invalid role provided.", reply, 400);
+    }
+
+    if (
+      data.roleAssignments !== undefined &&
+      !Array.isArray(data.roleAssignments)
+    ) {
+      return errorHandle("Role assignments must be an array.", reply, 400);
     }
 
     // Validate each assignment
-    for (const assignment of data.roleAssignments) {
+    for (const assignment of data.roleAssignments ?? []) {
       if (!assignment.subRole) {
         return errorHandle(
           "Sub-role is required for each assignment.",
           reply,
-          400
+          400,
         );
+      }
+      if (!Object.values(SubRole).includes(assignment.subRole)) {
+        return errorHandle("Invalid sub-role provided.", reply, 400);
+      }
+      if (
+        assignment.level &&
+        !Object.values(Level).includes(assignment.level)
+      ) {
+        return errorHandle("Invalid level provided.", reply, 400);
       }
 
       // Validate that level and committedDays are only set for appropriate roles
-      if (assignment.level && assignment.subRole !== "EDUCATOR") {
+      if (
+        (assignment.level || assignment.semesterLevelId) &&
+        assignment.subRole !== "EDUCATOR"
+      ) {
         return errorHandle(
-          "Level can only be set for EDUCATOR sub-role.",
+          "Semester level can only be set for EDUCATOR sub-role.",
           reply,
-          400
+          400,
         );
       }
 
@@ -1792,29 +2610,39 @@ export const updateUserManagementController = asyncHandle(
         return errorHandle(
           "CommittedDays can only be set for CENTER_MANAGER and EDUCATOR sub-roles.",
           reply,
-          400
+          400,
         );
       }
     }
 
-    const updatedAssignments = await bulkUpdateUserAssignments(
-      userId,
-      data.roleAssignments
-    );
+    let updatedAssignments;
+    if (data.roleAssignments !== undefined) {
+      updatedAssignments = await bulkUpdateUserAssignments(
+        userId,
+        data.roleAssignments,
+      );
 
-    if (typeof updatedAssignments === "string") {
-      return errorHandle(updatedAssignments, reply, 500);
+      if (typeof updatedAssignments === "string") {
+        return errorHandle(updatedAssignments, reply, 500);
+      }
+    }
+
+    if (data.role !== undefined) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { role: data.role },
+      });
     }
 
     return successHandle(
       {
-        message: "User assignments updated successfully",
+        message: "User management updated successfully",
         assignments: updatedAssignments,
       },
       reply,
-      200
+      200,
     );
-  }
+  },
 );
 
 export const createUserAssignmentController = asyncHandle(
@@ -1824,30 +2652,37 @@ export const createUserAssignmentController = asyncHandle(
       return errorHandle(
         "Only admins can create user assignments.",
         reply,
-        403
+        403,
       );
     }
 
     const data = request.body as {
       userId: string;
-      subRole: string;
+      subRole: SubRole;
       projectId?: string;
       centerId?: string;
       semesterId?: string;
-      level?: string;
+      semesterLevelId?: string;
+      level?: Level;
       committedDays?: string;
     };
 
     if (!data.userId || !data.subRole) {
       return errorHandle("User ID and sub-role are required.", reply, 400);
     }
+    if (!Object.values(SubRole).includes(data.subRole)) {
+      return errorHandle("Invalid sub-role provided.", reply, 400);
+    }
+    if (data.level && !Object.values(Level).includes(data.level)) {
+      return errorHandle("Invalid level provided.", reply, 400);
+    }
 
     // Validate business rules
-    if (data.level && data.subRole !== "EDUCATOR") {
+    if ((data.level || data.semesterLevelId) && data.subRole !== "EDUCATOR") {
       return errorHandle(
-        "Level can only be set for EDUCATOR sub-role.",
+        "Semester level can only be set for EDUCATOR sub-role.",
         reply,
-        400
+        400,
       );
     }
 
@@ -1858,7 +2693,7 @@ export const createUserAssignmentController = asyncHandle(
       return errorHandle(
         "CommittedDays can only be set for CENTER_MANAGER and EDUCATOR sub-roles.",
         reply,
-        400
+        400,
       );
     }
 
@@ -1874,9 +2709,9 @@ export const createUserAssignmentController = asyncHandle(
         assignment: assignment,
       },
       reply,
-      201
+      201,
     );
-  }
+  },
 );
 
 export const deleteUserAssignmentController = asyncHandle(
@@ -1886,7 +2721,7 @@ export const deleteUserAssignmentController = asyncHandle(
       return errorHandle(
         "Only admins can delete user assignments.",
         reply,
-        403
+        403,
       );
     }
 
@@ -1907,9 +2742,9 @@ export const deleteUserAssignmentController = asyncHandle(
         message: "User assignment deleted successfully",
       },
       reply,
-      200
+      200,
     );
-  }
+  },
 );
 
 // Get Single User Controller
@@ -1926,11 +2761,14 @@ export const getUserByIdController = asyncHandle(
       return errorHandle(
         "You can only view your own profile or you must be an admin.",
         reply,
-        403
+        403,
       );
     }
 
-    const user = await getUserById(userId);
+    const user =
+      authUser.id === userId
+        ? await getUserById(userId)
+        : await getAdminUserById(userId);
     if (!user || typeof user === "string") {
       return errorHandle("User not found.", reply, 404);
     }
@@ -1941,9 +2779,9 @@ export const getUserByIdController = asyncHandle(
         user,
       },
       reply,
-      200
+      200,
     );
-  }
+  },
 );
 
 // Update User Details Controller
@@ -1961,43 +2799,63 @@ export const updateUserController = asyncHandle(
       return errorHandle(
         "You can only update your own profile or you must be an admin.",
         reply,
-        403
+        403,
       );
     }
 
-    const data = request.body as {
+    const {
+      data: extractedData,
+      forbiddenFields,
+      unknownFields,
+    } = extractGeneralUserUpdate(request.body);
+
+    if (forbiddenFields.length > 0) {
+      return errorHandle(
+        `These fields cannot be updated here: ${forbiddenFields.join(", ")}.`,
+        reply,
+        403,
+      );
+    }
+
+    if (unknownFields.length > 0) {
+      return errorHandle(
+        `Unknown user update fields: ${unknownFields.join(", ")}.`,
+        reply,
+        400,
+      );
+    }
+
+    for (const [field, value] of Object.entries(extractedData)) {
+      if (
+        value !== undefined &&
+        !(
+          ["dob", "middleName", "lastName"].includes(field) && value === null
+        ) &&
+        typeof value !== "string"
+      ) {
+        return errorHandle(`${field} must be a string.`, reply, 400);
+      }
+    }
+
+    const data = extractedData as {
       name?: string;
+      firstName?: string;
+      middleName?: string | null;
+      lastName?: string | null;
       email?: string;
       phone?: string;
       qualification?: string;
       address?: string;
-      dob?: string;
-      role?: Role;
-      roleAssignments?: Array<{
-        subRole: string;
-        projectId?: string;
-        centerId?: string;
-        semesterId?: string;
-        level?: string;
-        committedDays?: string;
-      }>;
+      dob?: string | null;
+      profileImageUrl?: string;
     };
 
     // Validate required fields
-    if (data.name !== undefined && !data.name.trim()) {
-      return errorHandle("Name cannot be empty.", reply, 400);
-    }
-
     if (
       data.email !== undefined &&
       (!data.email.trim() || !/\S+@\S+\.\S+/.test(data.email))
     ) {
       return errorHandle("Valid email is required.", reply, 400);
-    }
-
-    // Only admins can change roles
-    if (data.role && authUser.role !== Role.ADMIN) {
-      return errorHandle("Only admins can change user roles.", reply, 403);
     }
 
     try {
@@ -2011,8 +2869,52 @@ export const updateUserController = asyncHandle(
       }
 
       // Update user basic details
-      const updateData: any = {};
-      if (data.name !== undefined) updateData.name = data.name.trim();
+      const updateData: {
+        name?: string;
+        firstName?: string;
+        middleName?: string | null;
+        lastName?: string | null;
+        email?: string;
+        phone?: string | null;
+        qualification?: string | null;
+        address?: string | null;
+        dob?: Date | null;
+        profileImageUrl?: string | null;
+      } = {};
+      if (
+        ["name", "firstName", "middleName", "lastName"].some((field) =>
+          Object.prototype.hasOwnProperty.call(data, field),
+        )
+      ) {
+        const currentUser = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            name: true,
+            firstName: true,
+            middleName: true,
+            lastName: true,
+          },
+        });
+        if (!currentUser) {
+          return errorHandle("User not found.", reply, 404);
+        }
+
+        const currentName = currentUser.firstName
+          ? {
+              firstName: currentUser.firstName,
+              middleName: currentUser.middleName,
+              lastName: currentUser.lastName,
+            }
+          : parseLegacyPersonName(currentUser.name);
+        try {
+          Object.assign(
+            updateData,
+            resolvePersonNameUpdate(data, currentName) ?? {},
+          );
+        } catch (error) {
+          return errorHandle((error as Error).message, reply, 400);
+        }
+      }
       if (data.email !== undefined) updateData.email = data.email.trim();
       if (data.phone !== undefined)
         updateData.phone = data.phone?.trim() || null;
@@ -2021,7 +2923,8 @@ export const updateUserController = asyncHandle(
       if (data.address !== undefined)
         updateData.address = data.address?.trim() || null;
       if (data.dob !== undefined) updateData.dob = dobDate;
-      if (data.role !== undefined) updateData.role = data.role;
+      if (data.profileImageUrl !== undefined)
+        updateData.profileImageUrl = data.profileImageUrl?.trim() || null;
 
       // Update user in database
       const updatedUser = await prisma.user.update({
@@ -2029,13 +2932,11 @@ export const updateUserController = asyncHandle(
         data: updateData,
       });
 
-      // Update role assignments if provided
-      if (data.roleAssignments && Array.isArray(data.roleAssignments)) {
-        await bulkUpdateUserAssignments(userId, data.roleAssignments);
-      }
-
       // Get full user details with assignments
-      const fullUser = await getUserById(userId);
+      const fullUser =
+        authUser.id === userId
+          ? await getUserById(userId)
+          : await getAdminUserById(userId);
 
       return successHandle(
         {
@@ -2043,11 +2944,11 @@ export const updateUserController = asyncHandle(
           user: fullUser,
         },
         reply,
-        200
+        200,
       );
     } catch (error) {
       console.error("Error updating user:", error);
       return errorHandle("Failed to update user.", reply, 500);
     }
-  }
+  },
 );

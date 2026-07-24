@@ -16,7 +16,7 @@ export const useActiveUsers = (
   date: string,
   projectId: string,
   centerId: string,
-  semesterId: string
+  semesterId: string,
 ) => {
   return useQuery({
     queryKey: [
@@ -35,7 +35,7 @@ export const useActiveUsers = (
         semesterId,
       });
       const response = await api.get<ActiveUsersResponse>(
-        `/attendance/active-users?${params.toString()}`
+        `/attendance/active-users?${params.toString()}`,
       );
       return response.data.users;
     },
@@ -53,6 +53,7 @@ export const useAttendanceRecords = (params: {
   status?: "PRESENT" | "ABSENT" | "NOT_AVAILABLE" | "HOLIDAY";
   page?: number;
   limit?: number;
+  enabled?: boolean;
 }) => {
   return useQuery({
     queryKey: ["attendance", "records", params],
@@ -65,13 +66,13 @@ export const useAttendanceRecords = (params: {
       // Fetch first page to get total pages
       const searchParams = new URLSearchParams();
       Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
+        if (key !== "enabled" && value !== undefined && value !== null) {
           searchParams.append(key, value.toString());
         }
       });
 
       const firstResponse = await api.get<AttendanceRecordsResponse>(
-        `/attendance/records?${searchParams.toString()}`
+        `/attendance/records?${searchParams.toString()}`,
       );
 
       const { totalPages, totalCount } = firstResponse.data;
@@ -88,8 +89,8 @@ export const useAttendanceRecords = (params: {
         pageParams.set("page", page.toString());
         pagePromises.push(
           api.get<AttendanceRecordsResponse>(
-            `/attendance/records?${pageParams.toString()}`
-          )
+            `/attendance/records?${pageParams.toString()}`,
+          ),
         );
       }
 
@@ -109,6 +110,7 @@ export const useAttendanceRecords = (params: {
         totalPages: 1, // Return 1 since we've fetched everything
       };
     },
+    enabled: params.enabled ?? true,
   });
 };
 
@@ -118,11 +120,11 @@ export const useMarkAttendance = () => {
 
   return useMutation({
     mutationFn: async (
-      attendanceData: MarkAttendanceRequest
+      attendanceData: MarkAttendanceRequest,
     ): Promise<MarkAttendanceResponse> => {
       return api.post<MarkAttendanceResponse>(
         "/attendance/mark",
-        attendanceData
+        attendanceData,
       );
     },
     onSuccess: (_, variables) => {
@@ -143,11 +145,11 @@ export const useBulkMarkAttendance = () => {
 
   return useMutation({
     mutationFn: async (
-      bulkAttendanceData: BulkMarkAttendanceRequest
+      bulkAttendanceData: BulkMarkAttendanceRequest,
     ): Promise<BulkMarkAttendanceResponse> => {
       return api.post<BulkMarkAttendanceResponse>(
         "/attendance/bulk-mark",
-        bulkAttendanceData
+        bulkAttendanceData,
       );
     },
     onSuccess: (_, variables) => {
