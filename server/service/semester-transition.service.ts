@@ -866,6 +866,8 @@ export const activateSemesterTransition = async (
       },
     });
     return { semester, queuedEmailCount: emailJobs.length };
+  }, {
+    timeout: 30_000,
   });
 
 export const getCenterSemesterTransitionSummaries = async (

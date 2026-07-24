@@ -46,6 +46,11 @@ test("semester transition activation is transactional and leaves its source unto
   assert.match(service, /semesterRemunerationPeriod\.upsert/);
   assert.match(service, /SemesterStatus\.ACTIVE/);
   assert.match(service, /SemesterTransitionStatus\.COMPLETED/);
+  assert.match(
+    service,
+    /prisma\.\$transaction\([\s\S]+timeout:\s*30_000[\s\S]+\);/,
+    "activation must allow the expected bulk transition workload to exceed Prisma's five-second default",
+  );
   assert.doesNotMatch(
     service,
     /sourceSemester[\s\S]{0,120}\.(?:update|delete)/,
