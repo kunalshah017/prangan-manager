@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
 
 const schemaUrl = new URL("../../prisma/schema.prisma", import.meta.url);
+const migrationsUrl = new URL("../../prisma/migrations/", import.meta.url);
 const migrationUrl = new URL(
   "../../prisma/migrations/20260722120000_expand_managed_semester_levels/migration.sql",
   import.meta.url,
 );
 
-test("managed academic levels expand the schema without removing legacy levels", async () => {
+test("managed academic levels allow new codes in every legacy mirror", async () => {
   const schema = await readFile(schemaUrl, "utf8");
 
   assert.match(schema, /model AcademicLevel \{/);
@@ -34,10 +35,47 @@ test("managed academic levels expand the schema without removing legacy levels",
     assert.match(
       source,
       model === "UserRoleAssignments"
-        ? /level\s+Level\?/
-        : /level\s+Level\b(?!\?)/,
+        ? /level\s+String\?/
+        : /level\s+String\b(?!\?)/,
     );
   }
+});
+
+test("managed level code migration preserves legacy values as text", async () => {
+  const migrationName = (
+    await readdir(migrationsUrl, { withFileTypes: true })
+  ).find(
+    (entry) =>
+      entry.isDirectory() &&
+      entry.name.endsWith("_expand_managed_level_codes_to_text"),
+  )?.name;
+
+  assert.ok(
+    migrationName,
+    "expected a migration that converts legacy Level enum columns to text",
+  );
+  if (!migrationName) return;
+
+  const migration = await readFile(
+    new URL(`${migrationName}/migration.sql`, migrationsUrl),
+    "utf8",
+  );
+  for (const table of [
+    "UserRoleAssignments",
+    "StudentEnrollments",
+    "Syllabus",
+    "Exam",
+  ]) {
+    assert.match(
+      migration,
+      new RegExp(
+        `ALTER TABLE "${table}"\\s+ALTER COLUMN "level" TYPE TEXT USING "level"::text`,
+      ),
+    );
+  }
+  assert.match(migration, /BEGIN;/);
+  assert.match(migration, /COMMIT;/);
+  assert.doesNotMatch(migration, /\bDROP TYPE\b/);
 });
 
 test("expand migration is additive and enforces semester-matched level references", async () => {

@@ -701,14 +701,14 @@ export type EnrollmentScope = {
   centerId: string;
   semesterId: string;
   semesterLevelId: string;
-  level: Level;
+  level: string;
 };
 
 const hydrateVerifiedSemesterLevelScope = async <
   T extends {
     semesterId: string | null;
     semesterLevelId: string | null;
-    level: Level | null;
+    level: string | null;
   },
 >(
   scope: T,
@@ -964,7 +964,7 @@ export const updateEnrollment = async (
     semesterId?: string;
     projectId?: string;
     semesterLevelId?: string;
-    level?: Level;
+    level?: string;
     isActive?: boolean;
   },
 ) => {
@@ -1055,7 +1055,7 @@ type RoleAssignmentInput = {
   centerId?: string | null;
   semesterId?: string | null;
   semesterLevelId?: string | null;
-  level?: Level | null;
+  level?: string | null;
   committedDays?: any;
   isActive?: boolean;
 };
@@ -1323,7 +1323,7 @@ export const bulkUpdateUserAssignments = async (
     centerId?: string;
     semesterId?: string;
     semesterLevelId?: string;
-    level?: Level;
+    level?: string;
     committedDays?: any;
   }>,
 ): Promise<any> => {

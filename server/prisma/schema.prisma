@@ -165,8 +165,8 @@ model UserRoleAssignments {
   projectId     String? // Optional - user can be assigned to specific projects
   centerId      String? // Optional - user can be assigned to specific centers
   semesterId    String? // Optional - user can be assigned to specific semesters
-  semesterLevelId String? // Managed semester level; legacy level remains during migration
-  level         Level? // Only for Educator sub-role, null for others
+  semesterLevelId String? // Managed semester level
+  level         String? // Compatibility mirror of AcademicLevel.code for older clients
   committedDays CommittedDays? // Only for CENTER_MANAGER & EDUCATOR sub-roles, null for others
   isActive      Boolean        @default(true)
   assignedAt    DateTime       @default(now())
@@ -218,9 +218,9 @@ model StudentEnrollments {
   studentId  String
   centerId   String
   semesterId String
-  semesterLevelId String? // Managed semester level; legacy level remains during migration
+  semesterLevelId String? // Managed semester level
   projectId  String // Direct relation to project
-  level      Level // Level at the time of enrollment
+  level      String // Compatibility mirror of AcademicLevel.code
   enrolledAt DateTime  @default(now())
   promotedAt DateTime? // When promoted to next level
   isActive   Boolean   @default(true)
@@ -472,8 +472,8 @@ model Syllabus {
   projectId   String
   centerId    String
   semesterId  String
-  semesterLevelId String? // Managed semester level; legacy level remains during migration
-  level       Level
+  semesterLevelId String? // Managed semester level
+  level       String // Compatibility mirror of AcademicLevel.code
   name        String // e.g., "English SA-1 Syllabus", "Mathematics Complete Syllabus"
   description String?
   isActive    Boolean  @default(true)
@@ -552,8 +552,8 @@ model Exam {
   projectId   String
   centerId    String
   semesterId  String
-  semesterLevelId String? // Managed semester level; legacy level remains during migration
-  level       Level // Level-wise exam
+  semesterLevelId String? // Managed semester level
+  level       String // Compatibility mirror of AcademicLevel.code
   cycle       AssessmentCycle
   name        String // e.g., "SA-1 English Exam", "Mid-Term Mathematics"
   description String?

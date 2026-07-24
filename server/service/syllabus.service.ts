@@ -263,7 +263,7 @@ const verifySyllabusScope = async <
   T extends {
     semesterId: string;
     semesterLevelId: string | null;
-    level: Level;
+    level: string;
   },
 >(
   scope: T | null,

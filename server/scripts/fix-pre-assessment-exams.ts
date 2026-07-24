@@ -7,13 +7,13 @@ import {
 const prisma = new PrismaClient();
 
 // Levels allowed per center name
-const ALLOWED_LEVELS_BY_CENTER: Record<string, Level[]> = {
+const ALLOWED_LEVELS_BY_CENTER: Record<string, string[]> = {
   Lavender: [Level.PRIMARY_B, Level.LEVEL_1, Level.LEVEL_2],
   // Tulip allows all levels — add other centers here if needed
 };
 
 // Display name mapping for level enum values
-const LEVEL_DISPLAY: Record<Level, string> = {
+const LEVEL_DISPLAY: Record<string, string> = {
   [Level.LEVEL_1]: "Level 1",
   [Level.LEVEL_2]: "Level 2",
   [Level.LEVEL_3]: "Level 3",
@@ -49,7 +49,7 @@ async function main() {
     // The semester name in DB is "Semester Year 2025-26", SA-3 exams use "Semester 2025-26"
     // Let's match exactly: strip "Year " if present
     const semesterLabel = semesterName.replace("Year ", ""); // "Semester 2025-26"
-    const newName = `${LEVEL_DISPLAY[exam.level]} l Pre Assessment | ${semesterLabel}`;
+    const newName = `${LEVEL_DISPLAY[exam.level] ?? exam.level} l Pre Assessment | ${semesterLabel}`;
 
     if (exam.name !== newName) {
       await prisma.exam.update({

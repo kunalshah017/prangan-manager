@@ -52,7 +52,7 @@ const loadTarget = (database: Transaction | typeof prisma, semesterId: string) =
 
 type PromotionEnrollment = {
   id: string;
-  level: Level;
+  level: string;
   semesterLevelId: string | null;
   semesterLevel: {
     academicLevel: {
