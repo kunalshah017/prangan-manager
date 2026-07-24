@@ -29,6 +29,9 @@ if (import.meta.env.DEV) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
       .then((registration) => {
+        if (registration.waiting) {
+          requestPwaRecovery('update', registration);
+        }
         registration.update();
         registration.addEventListener('updatefound', () => {
           const newWorker = registration.installing;

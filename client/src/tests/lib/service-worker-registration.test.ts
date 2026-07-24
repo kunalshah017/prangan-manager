@@ -13,4 +13,14 @@ describe("service worker registration", () => {
     expect(source).toContain("registration.unregister()");
     expect(source).toContain("else if ('serviceWorker' in navigator)");
   });
+
+  it("surfaces an update that was already waiting when the app opened", async () => {
+    const source = await readFile(
+      new URL("../../main.tsx", import.meta.url),
+      "utf8",
+    );
+
+    expect(source).toContain("if (registration.waiting)");
+    expect(source).toContain("requestPwaRecovery('update', registration)");
+  });
 });
