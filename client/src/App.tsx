@@ -90,11 +90,22 @@ function App() {
   }, []);
 
   useEffect(() => {
+    let active = true;
     const handlePwaRecovery = (event: Event) => {
       setPwaRecovery((event as CustomEvent<{ kind: 'update' | 'recovery'; registration?: ServiceWorkerRegistration }>).detail);
     };
     window.addEventListener('prangan:pwa-update', handlePwaRecovery);
-    return () => window.removeEventListener('prangan:pwa-update', handlePwaRecovery);
+    if ('serviceWorker' in navigator) {
+      void navigator.serviceWorker.getRegistration().then((registration) => {
+        if (active && registration?.waiting) {
+          setPwaRecovery({ kind: 'update', registration });
+        }
+      });
+    }
+    return () => {
+      active = false;
+      window.removeEventListener('prangan:pwa-update', handlePwaRecovery);
+    };
   }, []);
 
   const applyPwaRecovery = async () => {

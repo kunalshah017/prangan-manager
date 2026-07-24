@@ -21,6 +21,8 @@ describe("PWA recovery UI", () => {
     expect(cacheModal).not.toContain("confirm(");
     expect(cacheModal).toContain("toast.");
     expect(app).toContain("prangan:pwa-update");
+    expect(app).toContain("navigator.serviceWorker.getRegistration()");
+    expect(app).toContain("registration?.waiting");
     expect(app).toContain("ConfirmationModal");
     expect(app).not.toContain("@vercel/analytics");
     expect(app).not.toContain("<Analytics");
