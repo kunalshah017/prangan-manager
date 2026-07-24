@@ -140,7 +140,7 @@ describe("semester dashboard", () => {
     );
   });
 
-  it("keeps global resources out of semester actions", () => {
+  it("keeps administration out while exposing the Library from semester actions", () => {
     const model = readFileSync(
       new URL("../../lib/dashboard.ts", import.meta.url),
       "utf8",
@@ -153,7 +153,8 @@ describe("semester dashboard", () => {
       "utf8",
     );
 
-    expect(model).not.toContain('label: "Library"');
+    expect(model).toContain('label: "Library"');
+    expect(model).toContain('href: "/library"');
     expect(model).not.toContain('label: "Administration"');
     expect(mobileNavigation).not.toContain(">Navigation</p>");
     expect(mobileNavigation).not.toContain(">Prangan Manager</p>");

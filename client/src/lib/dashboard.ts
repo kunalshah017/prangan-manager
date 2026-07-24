@@ -7,6 +7,7 @@ export type DashboardActionIcon =
   | "calendar-days"
   | "book-open"
   | "clipboard-list"
+  | "library"
   | "user-check"
   | "wallet-cards";
 
@@ -170,6 +171,13 @@ export function buildDashboardModel(
           "/exams",
           "clipboard-list",
         ),
+        {
+          label: "Library",
+          mobileLabel: "Library",
+          description: "Browse learning books and classroom resources.",
+          href: "/library",
+          icon: "library",
+        } satisfies DashboardAction,
       ]),
     },
     {

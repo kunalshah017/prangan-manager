@@ -64,6 +64,7 @@ describe("buildDashboardModel", () => {
       "View student attendance",
       "Curriculum",
       "Exams",
+      "Library",
       "Semester users",
       "Mark staff attendance",
       "View staff attendance",
@@ -93,6 +94,7 @@ describe("buildDashboardModel", () => {
       "View student attendance",
       "Curriculum",
       "Exams",
+      "Library",
       "Semester users",
       "Mark staff attendance",
       "View staff attendance",
@@ -119,6 +121,7 @@ describe("buildDashboardModel", () => {
       "View student attendance",
       "Curriculum",
       "Exams",
+      "Library",
     ]);
     expect(
       model.actionGroups.flatMap((group) =>
@@ -130,6 +133,7 @@ describe("buildDashboardModel", () => {
       "Student records",
       "Curriculum",
       "Exams",
+      "Library",
     ]);
   });
 
@@ -144,13 +148,21 @@ describe("buildDashboardModel", () => {
       curriculum: true,
       exams: true,
     });
-    expect(labels(model)).toEqual(["Curriculum", "Exams"]);
+    expect(labels(model)).toEqual(["Curriculum", "Exams", "Library"]);
   });
 
-  it("does not put app-level resources into semester actions", () => {
+  it("shows the Library to roles without academic permissions", () => {
     const model = buildDashboardModel(user("TECH"), context);
 
     expect(Object.values(model.visibility).every((value) => !value)).toBe(true);
-    expect(model.actionGroups).toEqual([]);
+    expect(labels(model)).toEqual(["Library"]);
+    expect(
+      model.actionGroups
+        .flatMap((group) => group.actions)
+        .find((action) => action.label === "Library"),
+    ).toMatchObject({
+      href: "/library",
+      icon: "library",
+    });
   });
 });
