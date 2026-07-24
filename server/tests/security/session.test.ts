@@ -37,6 +37,23 @@ test("production sessions require an explicit client origin", () => {
       "https://prangan-manager.vercel.app",
     ],
   );
+  assert.equal(
+    getAllowedClientOrigin({
+      WEBSITE_SITE_NAME: "prangan-manager-api",
+      CLIENT_ORIGIN: "https://prangan-manager.vercel.app",
+    }),
+    "https://manager.pranganfoundation.org",
+  );
+  assert.deepEqual(
+    getAllowedClientOrigins({
+      WEBSITE_SITE_NAME: "prangan-manager-api",
+      CLIENT_ORIGIN: "https://prangan-manager.vercel.app",
+    }),
+    [
+      "https://manager.pranganfoundation.org",
+      "https://prangan-manager.vercel.app",
+    ],
+  );
   assert.deepEqual(
     getAllowedClientOrigins({
       NODE_ENV: "production",

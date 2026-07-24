@@ -13,15 +13,18 @@ const isProductionEnvironment = (environment: Environment): boolean =>
   environment.NODE_ENV === "production" ||
   Boolean(environment.WEBSITE_SITE_NAME || environment.WEBSITE_HOSTNAME);
 
+const isAzureEnvironment = (environment: Environment): boolean =>
+  Boolean(environment.WEBSITE_SITE_NAME || environment.WEBSITE_HOSTNAME);
+
 export const getAllowedClientOrigin = (
   environment: Environment = process.env,
 ): string => {
-  if (environment.CLIENT_ORIGIN) {
-    return environment.CLIENT_ORIGIN;
+  if (isAzureEnvironment(environment)) {
+    return AZURE_PRODUCTION_CLIENT_ORIGINS[0];
   }
 
-  if (environment.WEBSITE_SITE_NAME || environment.WEBSITE_HOSTNAME) {
-    return AZURE_PRODUCTION_CLIENT_ORIGINS[0];
+  if (environment.CLIENT_ORIGIN) {
+    return environment.CLIENT_ORIGIN;
   }
 
   if (environment.NODE_ENV === "production") {
@@ -34,12 +37,17 @@ export const getAllowedClientOrigin = (
 export const getAllowedClientOrigins = (
   environment: Environment = process.env,
 ): string[] => {
-  if (environment.CLIENT_ORIGIN) {
-    return [environment.CLIENT_ORIGIN];
+  if (isAzureEnvironment(environment)) {
+    return [
+      ...new Set([
+        ...AZURE_PRODUCTION_CLIENT_ORIGINS,
+        ...(environment.CLIENT_ORIGIN ? [environment.CLIENT_ORIGIN] : []),
+      ]),
+    ];
   }
 
-  if (environment.WEBSITE_SITE_NAME || environment.WEBSITE_HOSTNAME) {
-    return [...AZURE_PRODUCTION_CLIENT_ORIGINS];
+  if (environment.CLIENT_ORIGIN) {
+    return [environment.CLIENT_ORIGIN];
   }
 
   return [getAllowedClientOrigin(environment)];
