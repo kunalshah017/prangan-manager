@@ -25,14 +25,14 @@ const fields = [
         name: "middleName",
         label: "Middle name",
         autoComplete: "additional-name",
-        placeholder: "Middle name (optional)",
+        placeholder: "Middle name",
         required: false,
     },
     {
         name: "lastName",
         label: "Last name",
         autoComplete: "family-name",
-        placeholder: "Last name (optional)",
+        placeholder: "Last name",
         required: false,
     },
 ] as const satisfies ReadonlyArray<{

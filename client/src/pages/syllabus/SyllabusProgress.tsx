@@ -522,7 +522,7 @@ const SyllabusProgress = () => {
               </p>
             )}
             <label className="grid gap-2" htmlFor="progress-notes">
-              <span className="text-sm font-medium text-foreground">Notes (optional)</span>
+              <span className="text-sm font-medium text-foreground">Notes</span>
               <textarea
                 id="progress-notes"
                 value={notes}

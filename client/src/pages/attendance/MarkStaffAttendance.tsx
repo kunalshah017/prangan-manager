@@ -527,7 +527,7 @@ export default function MarkStaffAttendance() {
                         value={entry?.notes || ""}
                         onChange={(event) => updateNotes(staff.id, event.target.value)}
                         rows={2}
-                        placeholder="Optional attendance note"
+                        placeholder="Attendance note"
                         className="mt-2 min-h-20 w-full resize-y rounded-md border border-input bg-background p-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       />
                     )}

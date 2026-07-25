@@ -65,7 +65,9 @@ export function SemesterLevelSelect({
     <div className="space-y-2">
       <label htmlFor={selectId} className="block text-sm font-medium text-foreground">
         {label}
-        {required ? <span aria-hidden="true"> *</span> : null}
+        {required ? (
+          <span className="ml-1 text-destructive" aria-hidden="true">*</span>
+        ) : null}
       </label>
       <select
         id={selectId}

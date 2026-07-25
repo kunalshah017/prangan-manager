@@ -328,7 +328,7 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
                             {/* Sub Role */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Sub Role *
+                                    Sub Role <span className="ml-1 text-destructive" aria-hidden="true">*</span>
                                 </label>
                                 <select
                                     value={assignment.subRole}

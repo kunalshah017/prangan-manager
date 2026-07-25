@@ -123,7 +123,7 @@ export function StudentFormLayout({
                         />
                         <div className="mt-5 grid gap-5 sm:grid-cols-2">
                             {mode === "create" && onSemesterLevelChange && (
-                                <Field label="Level" htmlFor="student-level" required error={errors.level}>
+                                <div className="grid content-start gap-2">
                                     <SemesterLevelSelect
                                         id="student-level"
                                         semesterId={semesterId}
@@ -133,9 +133,9 @@ export function StudentFormLayout({
                                         required
                                         includeInactiveCurrent
                                         currentLevel={currentSemesterLevel}
-                                        label=""
                                     />
-                                </Field>
+                                    {errors.level && <p className="text-sm text-destructive" role="alert">{errors.level}</p>}
+                                </div>
                             )}
                             <Field label="Date of birth" htmlFor="student-dob">
                                 <input

@@ -183,7 +183,7 @@ const EnrollmentManager = ({ studentId, studentName }: EnrollmentManagerProps) =
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label className="mb-2 block text-sm font-medium text-foreground">
-                                        Project *
+                                        Project <span className="ml-1 text-destructive" aria-hidden="true">*</span>
                                     </label>
                                     <select
                                         value={formData.projectId}
@@ -208,7 +208,7 @@ const EnrollmentManager = ({ studentId, studentName }: EnrollmentManagerProps) =
 
                                 <div>
                                     <label className="mb-2 block text-sm font-medium text-foreground">
-                                        Center *
+                                        Center <span className="ml-1 text-destructive" aria-hidden="true">*</span>
                                     </label>
                                     <select
                                         value={formData.centerId}
@@ -233,7 +233,7 @@ const EnrollmentManager = ({ studentId, studentName }: EnrollmentManagerProps) =
 
                                 <div>
                                     <label className="mb-2 block text-sm font-medium text-foreground">
-                                        Semester *
+                                        Semester <span className="ml-1 text-destructive" aria-hidden="true">*</span>
                                     </label>
                                     <select
                                         value={formData.semesterId}

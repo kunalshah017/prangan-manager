@@ -213,7 +213,7 @@ const EditUser = () => {
                             {/* Email */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Email Address *
+                                    Email Address <span className="ml-1 text-destructive" aria-hidden="true">*</span>
                                 </label>
                                 <input
                                     type="email"

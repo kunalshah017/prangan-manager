@@ -15,6 +15,7 @@ interface ImageUploadProps {
     disabled?: boolean;
     className?: string;
     label?: string;
+    required?: boolean;
     placeholder?: string;
     variant?: 'default' | 'rounded';
 }
@@ -28,6 +29,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
     disabled = false,
     className,
     label = "Image",
+    required = false,
     placeholder = "Click to upload or drag and drop",
     variant = 'default'
 }) => {
@@ -146,6 +148,9 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
             {label && (
                 <label className="block text-sm font-medium mb-1">
                     {label}
+                    {required && (
+                        <span className="ml-1 text-destructive" aria-hidden="true">*</span>
+                    )}
                 </label>
             )}
 

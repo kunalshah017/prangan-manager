@@ -507,9 +507,9 @@ test("non-admin student creation requires an enrollment, and a matching manager 
   const originalCenterFindUnique = prisma.centers.findUnique;
   const originalSemesterFindUnique = prisma.semesters.findUnique;
   const originalStudentCreate = prisma.students.create;
-  const originalEnrollmentCreate = prisma.studentEnrollments.create;
   const originalSemesterLevelFindFirst = prisma.semesterLevel.findFirst;
   let createdStudents = 0;
+  let enrollmentCreateData: Record<string, unknown> | undefined;
 
   try {
     const forbiddenResponse = createReply();
@@ -531,13 +531,20 @@ test("non-admin student creation requires an enrollment, and a matching manager 
     prisma.semesters.findUnique = (async () => ({
       centerId: "center-1",
     })) as typeof prisma.semesters.findUnique;
-    prisma.students.create = (async () => {
+    prisma.students.create = (async (query: {
+      data: {
+        enrollments?: {
+          create?: Record<string, unknown>[];
+        };
+      };
+    }) => {
       createdStudents += 1;
-      return { id: "student-1", enrollments: [] };
+      enrollmentCreateData = query.data.enrollments?.create?.[0];
+      return {
+        id: "student-1",
+        enrollments: [{ id: "enrollment-1", ...enrollmentCreateData }],
+      };
     }) as typeof prisma.students.create;
-    prisma.studentEnrollments.create = (async () => ({
-      id: "enrollment-1",
-    })) as typeof prisma.studentEnrollments.create;
     prisma.semesterLevel.findFirst = (async () => ({
       id: "semester-1-level-1",
       academicLevel: { code: Level.LEVEL_1 },
@@ -547,18 +554,83 @@ test("non-admin student creation requires an enrollment, and a matching manager 
     await addStudent(
       {
         user: { id: "user-1", role: Role.USER },
-        body: { name: "Enrolled Student", enrollment: studentScope },
+        body: {
+          name: "Enrolled Student",
+          enrollment: {
+            projectId: studentScope.projectId,
+            centerId: studentScope.centerId,
+            semesterId: studentScope.semesterId,
+            semesterLevelId: studentScope.semesterLevelId,
+          },
+        },
       } as any,
       allowedResponse.reply as any,
     );
     assert.equal(allowedResponse.statusCode, 201);
     assert.equal(createdStudents, 1);
+    assert.equal(
+      enrollmentCreateData?.semesterLevelId,
+      "semester-1-level-1",
+    );
+    assert.equal(enrollmentCreateData?.level, Level.LEVEL_1);
   } finally {
     prisma.userRoleAssignments.findMany = originalAssignments;
     prisma.centers.findUnique = originalCenterFindUnique;
     prisma.semesters.findUnique = originalSemesterFindUnique;
     prisma.students.create = originalStudentCreate;
-    prisma.studentEnrollments.create = originalEnrollmentCreate;
+    prisma.semesterLevel.findFirst = originalSemesterLevelFindFirst;
+  }
+});
+
+test("student creation rejects an invalid semester level before creating the student", async () => {
+  const originalAssignments = prisma.userRoleAssignments.findMany;
+  const originalCenterFindUnique = prisma.centers.findUnique;
+  const originalSemesterFindUnique = prisma.semesters.findUnique;
+  const originalStudentCreate = prisma.students.create;
+  const originalSemesterLevelFindFirst = prisma.semesterLevel.findFirst;
+  let createdStudents = 0;
+
+  prisma.userRoleAssignments.findMany = (async () => [
+    assignment(),
+  ]) as typeof prisma.userRoleAssignments.findMany;
+  prisma.centers.findUnique = (async () => ({
+    projectId: studentScope.projectId,
+  })) as typeof prisma.centers.findUnique;
+  prisma.semesters.findUnique = (async () => ({
+    centerId: studentScope.centerId,
+  })) as typeof prisma.semesters.findUnique;
+  prisma.semesterLevel.findFirst = (async () =>
+    null) as typeof prisma.semesterLevel.findFirst;
+  prisma.students.create = (async () => {
+    createdStudents += 1;
+    return { id: "student-1", enrollments: [] };
+  }) as typeof prisma.students.create;
+
+  try {
+    const response = createReply();
+    await addStudent(
+      {
+        user: { id: "user-1", role: Role.USER },
+        body: {
+          name: "Invalid Level Student",
+          enrollment: {
+            projectId: studentScope.projectId,
+            centerId: studentScope.centerId,
+            semesterId: studentScope.semesterId,
+            semesterLevelId: "inactive-semester-level",
+          },
+        },
+      } as any,
+      response.reply as any,
+    );
+
+    assert.equal(response.statusCode, 422);
+    assert.equal(createdStudents, 0);
+  } finally {
+    prisma.userRoleAssignments.findMany = originalAssignments;
+    prisma.centers.findUnique = originalCenterFindUnique;
+    prisma.semesters.findUnique = originalSemesterFindUnique;
+    prisma.students.create = originalStudentCreate;
     prisma.semesterLevel.findFirst = originalSemesterLevelFindFirst;
   }
 });

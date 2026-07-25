@@ -86,6 +86,7 @@ import {
   createAccountTokenRecordInTransaction,
   createAccountTokenInTransaction,
 } from "../service/account-token.service.js";
+import { AcademicLevelServiceError } from "../service/academic-level.service.js";
 import { resolveSemesterLevelInput } from "../service/semester-level.service.js";
 import { enqueueEmail } from "../service/email-queue.service.js";
 import {
@@ -874,9 +875,19 @@ export const addStudent = asyncHandle(
         centerId: string;
         semesterId: string;
         projectId: string;
-        level: Level;
+        semesterLevelId?: string;
+        level?: Level;
       };
     };
+    let resolvedEnrollment:
+      | {
+          centerId: string;
+          semesterId: string;
+          projectId: string;
+          semesterLevelId: string;
+          level: Level;
+        }
+      | undefined;
 
     let resolvedName;
     try {
@@ -899,17 +910,20 @@ export const addStudent = asyncHandle(
         !data.enrollment.centerId ||
         !data.enrollment.semesterId ||
         !data.enrollment.projectId ||
-        !data.enrollment.level
+        (!data.enrollment.semesterLevelId && !data.enrollment.level)
       ) {
         return errorHandle(
-          "All enrollment fields (centerId, semesterId, projectId, level) are required when enrollment is provided.",
+          "All enrollment fields (centerId, semesterId, projectId, and semesterLevelId or level) are required when enrollment is provided.",
           reply,
           400,
         );
       }
 
       // Validate level enum
-      if (!Object.values(Level).includes(data.enrollment.level)) {
+      if (
+        data.enrollment.level &&
+        !Object.values(Level).includes(data.enrollment.level)
+      ) {
         return errorHandle("Invalid level provided in enrollment.", reply, 400);
       }
 
@@ -938,6 +952,22 @@ export const addStudent = asyncHandle(
       const validation = await validateEnrollmentHierarchy(data.enrollment);
       if (validation !== true) {
         return errorHandle(validation, reply, 400);
+      }
+
+      try {
+        const semesterLevel = await resolveSemesterLevelInput(data.enrollment);
+        resolvedEnrollment = {
+          centerId: data.enrollment.centerId,
+          semesterId: data.enrollment.semesterId,
+          projectId: data.enrollment.projectId,
+          semesterLevelId: semesterLevel.id,
+          level: semesterLevel.academicLevel.code as Level,
+        };
+      } catch (error) {
+        if (error instanceof AcademicLevelServiceError) {
+          return errorHandle(error.message, reply, error.statusCode);
+        }
+        throw error;
       }
     }
 
@@ -996,6 +1026,7 @@ export const addStudent = asyncHandle(
       motherOccupation: data.motherOccupation || null,
       familyIncome: data.familyIncome || null,
       futureProfession: data.futureProfession || null,
+      enrollments: resolvedEnrollment ? [resolvedEnrollment] : undefined,
     };
 
     const student = await createStudent(studentData);
@@ -1004,25 +1035,9 @@ export const addStudent = asyncHandle(
       return errorHandle(student, reply, 500);
     }
 
-    // If enrollment data is provided, enroll the student
-    let enrollment = null;
-    if (data.enrollment) {
-      enrollment = await enrollStudent({
-        studentId: student.id,
-        centerId: data.enrollment.centerId,
-        semesterId: data.enrollment.semesterId,
-        projectId: data.enrollment.projectId,
-        level: data.enrollment.level,
-      });
-
-      if (typeof enrollment === "string") {
-        return errorHandle(
-          `Student created but enrollment failed: ${enrollment}`,
-          reply,
-          500,
-        );
-      }
-    }
+    const enrollment = data.enrollment
+      ? ((student as { enrollments?: unknown[] }).enrollments?.[0] ?? null)
+      : null;
 
     const responseMessage = data.enrollment
       ? "Student added and enrolled successfully"

@@ -83,7 +83,7 @@ const RejectionReasonModal: React.FC<RejectionReasonModalProps> = ({
                 <div className="p-6">
                     <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Rejection Reason *
+                            Rejection Reason <span className="ml-1 text-destructive" aria-hidden="true">*</span>
                         </label>
                         <textarea
                             value={rejectionReason}

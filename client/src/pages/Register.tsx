@@ -189,7 +189,8 @@ const Register = () => {
 
                                 <div className="grid gap-2 sm:col-span-2">
                                     <ImageUpload
-                                        label="Profile Image *"
+                                        label="Profile Image"
+                                        required
                                         value={profileImageUrl}
                                         onChange={(url) => {
                                             setProfileImageUrl(url);
@@ -207,7 +208,7 @@ const Register = () => {
 
                                 <div className="grid gap-2">
                                     <label htmlFor="email" className="text-sm font-medium">
-                                        Email *
+                                        Email <span className="ml-1 text-destructive" aria-hidden="true">*</span>
                                     </label>
                                     <input
                                         id="email"
@@ -232,7 +233,7 @@ const Register = () => {
 
                                 <div className="grid gap-2">
                                     <label htmlFor="dateOfBirth" className="text-sm font-medium">
-                                        Date of Birth *
+                                        Date of Birth <span className="ml-1 text-destructive" aria-hidden="true">*</span>
                                     </label>
                                     <input
                                         id="dateOfBirth"
@@ -253,7 +254,7 @@ const Register = () => {
 
                                 <div className="grid gap-2">
                                     <label htmlFor="phone" className="text-sm font-medium">
-                                        Phone Number *
+                                        Phone Number <span className="ml-1 text-destructive" aria-hidden="true">*</span>
                                     </label>
                                     <PhoneInput
                                         id="phone"
@@ -275,7 +276,7 @@ const Register = () => {
 
                                 <div className="grid gap-2">
                                     <label htmlFor="qualification" className="text-sm font-medium">
-                                        Qualification *
+                                        Qualification <span className="ml-1 text-destructive" aria-hidden="true">*</span>
                                     </label>
                                     <input
                                         id="qualification"
@@ -297,7 +298,7 @@ const Register = () => {
 
                                 <div className="grid gap-2 sm:col-span-2">
                                     <label htmlFor="address" className="text-sm font-medium">
-                                        Address *
+                                        Address <span className="ml-1 text-destructive" aria-hidden="true">*</span>
                                     </label>
                                     <textarea
                                         id="address"

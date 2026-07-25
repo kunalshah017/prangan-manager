@@ -97,6 +97,8 @@ describe("Students workspace", () => {
     expect(form).not.toContain("student-record-heading");
     expect(form).not.toContain("lg:grid-cols-[minmax(0,1fr)_20rem]");
     expect(form).toMatch(/id="student-level"[\s\S]*?required/);
+    expect(form).not.toContain('label=""');
+    expect(form).toContain("errors.level &&");
   });
 
   it("keeps enrollment history responsive and visually consistent", () => {
