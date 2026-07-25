@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import PhoneInput from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
-import { ArrowLeft, CheckCircle2, UserPlus } from 'lucide-react';
+import { CheckCircle2, UserPlus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import DoodleBackground from '@/components/DoodleBackground';
+import { StandalonePageNavigation } from '@/components/StandalonePageNavigation';
 import { CustomButton } from '@/components/ui/button';
 import ImageUpload from '@/components/ui/image-upload';
 import { PersonNameFields, type PersonNameField } from '@/components/ui/person-name-fields';
@@ -137,9 +138,13 @@ const Register = () => {
         <main className="min-h-[100dvh] bg-orange-50/60 px-4 py-5 sm:px-6 sm:py-8">
             <DoodleBackground numElements={10} />
             <div className="relative z-10 mx-auto w-full max-w-2xl">
-                <Link to="/" className="mb-6 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-orange-800 hover:text-orange-950">
-                    <ArrowLeft className="h-4 w-4" /> Back to welcome
-                </Link>
+                <StandalonePageNavigation
+                    parentHref="/"
+                    parentLabel="Welcome"
+                    currentLabel="Register"
+                    backLabel="Back to welcome"
+                    className="mb-6"
+                />
                 <section className="border border-orange-100 bg-white p-5 shadow-sm sm:p-8">
                     <div className="flex flex-col items-start space-y-5">
                         <Link to="/" className="flex items-center gap-3">
@@ -336,4 +341,4 @@ const Register = () => {
     );
 };
 
-export default Register; 
+export default Register;

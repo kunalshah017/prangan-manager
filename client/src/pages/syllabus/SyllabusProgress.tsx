@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import {
   AlertTriangle,
-  ArrowLeft,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -301,16 +300,6 @@ const SyllabusProgress = () => {
         description={
           syllabus.description ||
           "Track curriculum delivery across each summative assessment cycle."
-        }
-        action={
-          <button
-            type="button"
-            onClick={() => navigate(listPath)}
-            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-border bg-background px-4 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-auto"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Back to curriculum
-          </button>
         }
       />
 

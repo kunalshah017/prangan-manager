@@ -33,6 +33,11 @@ const current = (label: string): AppBreadcrumb => ({
   isCurrentPage: true,
 });
 
+export const getBreadcrumbBackTarget = (
+  breadcrumbs: AppBreadcrumb[],
+): AppBreadcrumb | undefined =>
+  [...breadcrumbs].reverse().find((item) => item.href);
+
 export function buildBreadcrumbs({
   pathname,
   params,
@@ -42,8 +47,12 @@ export function buildBreadcrumbs({
 
   if (segments[0] === "profile") {
     return segments[1] === "settings"
-      ? [link("Profile", "/profile"), current("Settings")]
-      : [current("Profile")];
+      ? [
+          link("Projects", "/projects"),
+          link("Profile", "/profile"),
+          current("Settings"),
+        ]
+      : [link("Projects", "/projects"), current("Profile")];
   }
 
   if (segments[0] === "registration-requests") {
@@ -51,27 +60,46 @@ export function buildBreadcrumbs({
   }
 
   if (segments[0] === "administration") {
-    return [current("Administration")];
+    return [link("Projects", "/projects"), current("Administration")];
+  }
+
+  if (segments[0] === "academic-levels") {
+    return [
+      link("Administration", "/administration"),
+      current("Academic Levels"),
+    ];
   }
 
   if (segments[0] === "users") {
     if (segments[2] === "details") {
-      return [link("Users", "/users"), current("User Details")];
+      return [
+        link("Administration", "/administration"),
+        link("Users", "/users"),
+        current("User Details"),
+      ];
     }
     if (segments[2] === "edit") {
-      return [link("Users", "/users"), current("Edit User")];
+      return [
+        link("Administration", "/administration"),
+        link("Users", "/users"),
+        current("Edit User"),
+      ];
     }
-    return [current("Users")];
+    return [link("Administration", "/administration"), current("Users")];
   }
 
   if (segments[0] === "library") {
     return segments[1]
-      ? [link("Library", "/library"), current("Book")]
-      : [current("Library")];
+      ? [
+          link("Projects", "/projects"),
+          link("Library", "/library"),
+          current("Book"),
+        ]
+      : [link("Projects", "/projects"), current("Library")];
   }
 
   if (segments[0] !== "projects") return [];
-  if (segments.length === 1) return [];
+  if (segments.length === 1) return [current("Projects")];
 
   const projects = link("Projects", "/projects");
   if (segments[1] === "new") return [projects, current("New Project")];
@@ -82,14 +110,27 @@ export function buildBreadcrumbs({
 
   const projectName = names.projectName || "Project";
   const projectHref = `/projects/${projectId}/dashboard`;
+  const centersHref = `/projects/${projectId}/centers`;
   if (segments[2] === "dashboard") return [projects, current(projectName)];
   if (segments[2] !== "centers") return [projects];
-  if (segments.length === 3) return [projects, current(projectName)];
+  if (segments.length === 3) {
+    return [projects, link(projectName, projectHref), current("Centers")];
+  }
   if (segments[3] === "new") {
-    return [projects, link(projectName, projectHref), current("New Center")];
+    return [
+      projects,
+      link(projectName, projectHref),
+      link("Centers", centersHref),
+      current("New Center"),
+    ];
   }
   if (segments[4] === "edit") {
-    return [projects, link(projectName, projectHref), current("Edit Center")];
+    return [
+      projects,
+      link(projectName, projectHref),
+      link("Centers", centersHref),
+      current("Edit Center"),
+    ];
   }
 
   const centerId = params.centerId;
@@ -104,12 +145,20 @@ export function buildBreadcrumbs({
   }
 
   const semestersHref = `/projects/${projectId}/centers/${centerId}/semesters`;
-  if (segments.length === 5) return [projects, project, current(centerName)];
+  if (segments.length === 5) {
+    return [
+      projects,
+      project,
+      link(centerName, centerHref),
+      current("Semesters"),
+    ];
+  }
   if (segments[5] === "new") {
     return [
       projects,
       project,
       link(centerName, centerHref),
+      link("Semesters", semestersHref),
       current("New Semester"),
     ];
   }
@@ -118,11 +167,21 @@ export function buildBreadcrumbs({
       projects,
       project,
       link(centerName, centerHref),
+      link("Semesters", semestersHref),
       current("Edit Semester"),
     ];
   }
 
   const semesterId = params.semesterId;
+  if (semesterId && segments[6] === "setup") {
+    return [
+      projects,
+      project,
+      link(centerName, centerHref),
+      link("Semesters", semestersHref),
+      current("Semester Setup"),
+    ];
+  }
   if (!semesterId || segments[6] !== "dashboard") {
     return [projects, project, current(centerName)];
   }

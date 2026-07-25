@@ -165,14 +165,8 @@ describe("workspace scope dashboards", () => {
     expect(centerDashboardSource).toContain(
       'semester.status !== "DRAFT"',
     );
-    expect(centersSource).toContain("Back to project dashboard");
-    expect(centersSource).toContain(
-      "to={`/projects/${projectId}/dashboard`}",
-    );
-    expect(semestersSource).toContain("Back to center dashboard");
-    expect(semestersSource).toContain(
-      "to={`/projects/${projectId}/centers/${centerId}/dashboard`}",
-    );
+    expect(centersSource).not.toContain("Back to project dashboard");
+    expect(semestersSource).not.toContain("Back to center dashboard");
     expect(projectsSource).toContain("Open administration");
     expect(projectsSource).toContain('to="/administration"');
   });

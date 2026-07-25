@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import {
     Breadcrumb,
@@ -13,7 +14,11 @@ import {
 import { useCenter } from "@/hooks/useCenterQueries";
 import { useProject } from "@/hooks/useProjectQueries";
 import { useSemester } from "@/hooks/useSemesterQueries";
-import { buildBreadcrumbs, type AppBreadcrumb } from "@/lib/breadcrumbs";
+import {
+    buildBreadcrumbs,
+    getBreadcrumbBackTarget,
+    type AppBreadcrumb,
+} from "@/lib/breadcrumbs";
 
 const shouldCollapse = (breadcrumbCount: number) => {
     const screenWidth = typeof window !== "undefined" ? window.innerWidth : 1024;
@@ -29,6 +34,7 @@ const getCollapsedBreadcrumbs = (breadcrumbs: AppBreadcrumb[]) => [
 
 export default function BreadcrumbNavigation() {
     const location = useLocation();
+    const navigate = useNavigate();
     const params = useParams();
     const [isCollapsed, setIsCollapsed] = useState(false);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -57,6 +63,10 @@ export default function BreadcrumbNavigation() {
         },
     });
     const breadcrumbCount = breadcrumbs.length;
+    const backTarget = getBreadcrumbBackTarget(breadcrumbs);
+    const backLabel = backTarget
+        ? `Back to ${backTarget.label}`
+        : "Go back";
     const collapsible = shouldCollapse(breadcrumbCount);
     const displayBreadcrumbs =
         collapsible && isCollapsed ? getCollapsedBreadcrumbs(breadcrumbs) : breadcrumbs;
@@ -89,14 +99,40 @@ export default function BreadcrumbNavigation() {
         return () => window.clearTimeout(timeoutId);
     }, [breadcrumbSignature, location.pathname]);
 
-    if (breadcrumbs.length <= 1) return null;
+    if (!breadcrumbs.length) return null;
 
     return (
-        <div
-            ref={scrollContainerRef}
-            className="mb-2 flex min-h-9 w-full items-center overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        <Breadcrumb
+            aria-label="Page navigation"
+            className="mb-3 flex min-w-0 items-center gap-2"
         >
-            <Breadcrumb className="w-max min-w-full">
+            {backTarget?.href ? (
+                <Link
+                    to={backTarget.href}
+                    aria-label={backLabel}
+                    className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-3 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                    <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                    <span className="sm:hidden">Back</span>
+                    <span className="hidden max-w-40 truncate sm:inline">
+                        {backLabel}
+                    </span>
+                </Link>
+            ) : (
+                <button
+                    type="button"
+                    onClick={() => navigate(-1)}
+                    aria-label={backLabel}
+                    className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-3 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                    <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                    Back
+                </button>
+            )}
+            <div
+                ref={scrollContainerRef}
+                className="flex min-h-9 min-w-0 flex-1 items-center overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            >
                 <BreadcrumbList className="flex-nowrap">
                     {displayBreadcrumbs.map((breadcrumb, index) => (
                         <Fragment key={`${breadcrumb.label}-${index}`}>
@@ -132,7 +168,7 @@ export default function BreadcrumbNavigation() {
                         </Fragment>
                     ))}
                 </BreadcrumbList>
-            </Breadcrumb>
-        </div>
+            </div>
+        </Breadcrumb>
     );
 }

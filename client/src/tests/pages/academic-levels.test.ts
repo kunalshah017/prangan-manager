@@ -39,7 +39,7 @@ describe("managed academic levels administration", () => {
     });
     expect(appSource).toContain("pages/levels/AcademicLevels");
     expect(appSource).toMatch(
-      /path="\/academic-levels"[\s\S]*?<ProtectedRoute requireAdmin>[\s\S]*?<AcademicLevels \/>/,
+      /path="\/academic-levels"[\s\S]*?<ProtectedRoute requireAdmin standaloneDenied>[\s\S]*?<AcademicLevels \/>/,
     );
   });
 

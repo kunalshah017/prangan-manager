@@ -108,17 +108,8 @@ const Semesters = () => {
                             {center.name} · Choose a semester to open its dashboard and academic work.
                         </p>
                     </div>
-                    <div className="flex w-full gap-2 sm:w-auto">
-                        <Link
-                            to={`/projects/${projectId}/centers/${centerId}/dashboard`}
-                            aria-label="Back to center dashboard"
-                            className={cn(buttonVariants({ variant: "outline" }), "min-h-11 flex-1 gap-2 sm:flex-none")}
-                        >
-                            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                            <span className="sm:hidden">Dashboard</span>
-                            <span className="hidden sm:inline">Back to center dashboard</span>
-                        </Link>
-                        {canManageSemesters && (
+                    {canManageSemesters && (
+                        <div className="flex w-full gap-2 sm:w-auto">
                             <Link
                                 to={`/projects/${projectId}/centers/${centerId}/semesters/new`}
                                 className={cn(buttonVariants(), "min-h-11 flex-1 gap-2 sm:flex-none")}
@@ -126,8 +117,8 @@ const Semesters = () => {
                                 <Plus className="h-4 w-4" aria-hidden="true" />
                                 New semester
                             </Link>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </header>
 
                 {semesterList.length > 0 && (

@@ -30,6 +30,18 @@ describe("navigation recovery", () => {
     expect(primitive).not.toContain('aria-disabled="true"');
   });
 
+  it("uses semantic parent links and history only when a page has no parent", async () => {
+    const navigation = await readFile(
+      new URL("../../components/BreadcrumbNavigation.tsx", import.meta.url),
+      "utf8",
+    );
+
+    expect(navigation).toContain("backTarget.href");
+    expect(navigation).toContain("navigate(-1)");
+    expect(navigation).toContain("aria-label={backLabel}");
+    expect(navigation).toContain('aria-label="Page navigation"');
+  });
+
   it("keeps explicit navigation to the Projects list on the Projects page", async () => {
     const projects = await readFile(
       new URL("../../pages/projects/Projects.tsx", import.meta.url),

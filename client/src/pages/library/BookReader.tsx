@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, List, X, ChevronRight, ChevronLeft, Search } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { books, type Book, type BookStructureItem } from '../../data/books';
@@ -280,22 +280,35 @@ const BookReader: React.FC = () => {
     return (
         <div className="flex flex-col h-screen bg-gray-50 overflow-hidden">
             {/* Header */}
-            <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between z-20 shrink-0">
-                <button
+            <header className="bg-white border-b border-gray-200 px-3 py-2 flex items-center justify-between gap-2 z-20 shrink-0 sm:px-4">
+                <Link
                     aria-label="Back to Library"
-                    onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        navigate(`/library${location.search}`, { replace: true });
-                    }}
-                    className="p-2 hover:bg-orange-100 rounded-full text-orange-700 transition-colors -ml-2"
+                    to={`/library${location.search}`}
+                    className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-orange-700 transition-colors hover:bg-orange-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
                 >
                     <ArrowLeft className="w-5 h-5" />
-                </button>
-                <h1 className="font-bold text-gray-800 truncate mx-4 text-sm sm:text-base flex-1 text-center">
-                    {book.bookInfo.title}
-                </h1>
-                <div className="w-9" /> {/* Spacer for centering */}
+                </Link>
+                <h1 className="sr-only">{book.bookInfo.title}</h1>
+                <nav
+                    aria-label="Book breadcrumb"
+                    className="flex min-w-0 flex-1 items-center justify-center gap-1.5 text-sm"
+                >
+                    <Link
+                        to={`/library${location.search}`}
+                        className="shrink-0 font-semibold text-orange-700 hover:text-orange-900 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+                    >
+                        Library
+                    </Link>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
+                    <span
+                        aria-current="page"
+                        className="min-w-0 truncate font-semibold text-gray-800"
+                        title={book.bookInfo.title}
+                    >
+                        {book.bookInfo.title}
+                    </span>
+                </nav>
+                <div className="h-11 w-11 shrink-0" aria-hidden="true" />
             </header>
 
             {/* PDF Viewer Container */}

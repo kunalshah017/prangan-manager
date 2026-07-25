@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, ArrowLeft, Save } from "lucide-react";
+import { AlertTriangle, Save } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
@@ -377,16 +377,6 @@ const EditSyllabus = () => {
         title="Edit curriculum"
         badge={levelName(syllabus.semesterLevel, syllabus.level)}
         description="Update curriculum details and preserve topic progress across all assessment cycles."
-        action={
-          <button
-            type="button"
-            onClick={() => navigate(listPath)}
-            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-border bg-background px-4 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-auto"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Back to curriculum
-          </button>
-        }
       />
 
       <form onSubmit={handleSubmit} className="min-w-0 space-y-6">

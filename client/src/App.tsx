@@ -141,7 +141,7 @@ function App() {
               <Route
                 path="/administration"
                 element={
-                  <ProtectedRoute requireAdmin>
+                  <ProtectedRoute requireAdmin standaloneDenied>
                     <Layout />
                   </ProtectedRoute>
                 }
@@ -152,7 +152,7 @@ function App() {
               <Route
                 path="/projects"
                 element={
-                  <ProtectedRoute>
+                  <ProtectedRoute standaloneDenied>
                     <Layout />
                   </ProtectedRoute>
                 }
@@ -379,7 +379,7 @@ function App() {
               <Route
                 path="/profile"
                 element={
-                  <ProtectedRoute>
+                  <ProtectedRoute standaloneDenied>
                     <Layout />
                   </ProtectedRoute>
                 }
@@ -392,7 +392,7 @@ function App() {
               <Route
                 path="/academic-levels"
                 element={
-                  <ProtectedRoute requireAdmin>
+                  <ProtectedRoute requireAdmin standaloneDenied>
                     <Layout />
                   </ProtectedRoute>
                 }
@@ -403,7 +403,7 @@ function App() {
               <Route
                 path="/registration-requests"
                 element={
-                  <ProtectedRoute requireAdmin>
+                  <ProtectedRoute requireAdmin standaloneDenied>
                     <Layout />
                   </ProtectedRoute>
                 }
@@ -414,7 +414,7 @@ function App() {
               <Route
                 path="/users"
                 element={
-                  <ProtectedRoute requireAdmin>
+                  <ProtectedRoute requireAdmin standaloneDenied>
                     <Layout />
                   </ProtectedRoute>
                 }
@@ -427,7 +427,7 @@ function App() {
               <Route
                 path="/library"
                 element={
-                  <ProtectedRoute>
+                  <ProtectedRoute standaloneDenied>
                     <Layout />
                   </ProtectedRoute>
                 }
@@ -438,7 +438,7 @@ function App() {
               <Route
                 path="/library/:bookId"
                 element={
-                  <ProtectedRoute>
+                  <ProtectedRoute standaloneDenied>
                     <BookReader />
                   </ProtectedRoute>
                 }

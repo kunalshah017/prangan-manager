@@ -61,7 +61,7 @@ describe("layout workspace navigation", () => {
       ),
     ]);
 
-    expect(source).toContain("mb-2");
+    expect(source).toContain("mb-3");
     expect(source).toContain("min-h-9");
     expect(source).toContain("breadcrumbSignature");
     expect(source).toContain("[breadcrumbSignature, location.pathname]");
@@ -70,6 +70,12 @@ describe("layout workspace navigation", () => {
     expect(source).not.toContain("mb-4 flex min-h-11");
     expect(source).toContain("breadcrumbs.slice(-2)");
     expect(source).toContain("max-w-[120px] sm:max-w-[150px]");
+    expect(source).toContain("ArrowLeft");
+    expect(source).toContain("useNavigate");
+    expect(source).toContain("getBreadcrumbBackTarget");
+    expect(source).toContain("min-h-11");
+    expect(source).toContain("Back to ${backTarget.label}");
+    expect(source).not.toContain("if (breadcrumbs.length <= 1) return null");
     expect(primitiveSource).toContain("flex size-11 items-center justify-center");
   });
 

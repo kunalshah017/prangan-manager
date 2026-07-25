@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
+import { StandalonePageNavigation } from "@/components/StandalonePageNavigation";
 import { api } from "@/lib/api-client";
 
 export const AccountTokenForm = ({ mode }: { mode: "activate" | "reset" }) => {
@@ -45,28 +46,36 @@ export const AccountTokenForm = ({ mode }: { mode: "activate" | "reset" }) => {
   if (!tokenCaptured) return null;
 
   return (
-    <main className="mx-auto flex min-h-[100dvh] max-w-md items-center px-4">
-      <form className="w-full space-y-5 rounded-lg border bg-white p-6 shadow-sm" onSubmit={submit}>
-        <div>
-          <h1 className="text-xl font-semibold">{title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Choose a password with at least 12 characters.</p>
-        </div>
-        <label className="block text-sm font-medium" htmlFor="password">New password</label>
-        <input
-          id="password"
-          className="h-10 w-full rounded-md border px-3"
-          type="password"
-          autoComplete="new-password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          disabled={isSubmitting}
-          required
+    <main className="mx-auto flex min-h-[100dvh] max-w-md items-center px-4 py-5">
+      <div className="w-full">
+        <StandalonePageNavigation
+          parentHref="/login"
+          parentLabel="Sign in"
+          currentLabel={title}
+          backLabel="Back to sign in"
+          className="mb-6"
         />
-        <button className="h-10 w-full rounded-md bg-orange-600 text-white disabled:opacity-50" disabled={isSubmitting} type="submit">
-          {mode === "activate" ? "Activate account" : "Reset password"}
-        </button>
-        <Link className="block text-center text-sm text-orange-700" to="/login">Back to sign in</Link>
-      </form>
+        <form className="w-full space-y-5 rounded-lg border bg-white p-6 shadow-sm" onSubmit={submit}>
+          <div>
+            <h1 className="text-xl font-semibold">{title}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Choose a password with at least 12 characters.</p>
+          </div>
+          <label className="block text-sm font-medium" htmlFor="password">New password</label>
+          <input
+            id="password"
+            className="h-10 w-full rounded-md border px-3"
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            disabled={isSubmitting}
+            required
+          />
+          <button className="h-10 w-full rounded-md bg-orange-600 text-white disabled:opacity-50" disabled={isSubmitting} type="submit">
+            {mode === "activate" ? "Activate account" : "Reset password"}
+          </button>
+        </form>
+      </div>
     </main>
   );
 };

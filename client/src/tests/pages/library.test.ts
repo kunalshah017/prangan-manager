@@ -119,6 +119,10 @@ describe("library PDF performance", () => {
     expect(reader).toContain(
       'className="flex w-full flex-col items-center gap-6"',
     );
+    expect(reader).toContain('aria-label="Back to Library"');
+    expect(reader).toContain('aria-label="Book breadcrumb"');
+    expect(reader).toContain("<Link");
+    expect(reader).toContain("Library");
     expect(reader).toContain('aria-label="Previous page"');
     expect(reader).toContain('aria-label="Next page"');
     expect(reader).toContain('aria-label="Open table of contents"');

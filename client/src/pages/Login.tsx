@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Eye, EyeOff, LogIn } from 'lucide-react';
+import { Eye, EyeOff, LogIn } from 'lucide-react';
 import toast from 'react-hot-toast';
 import DoodleBackground from '@/components/DoodleBackground';
+import { StandalonePageNavigation } from '@/components/StandalonePageNavigation';
 import { CustomButton } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { readLoginPrefill } from '@/lib/login-params';
@@ -56,9 +57,13 @@ const Login = () => {
     <main className="min-h-[100dvh] bg-orange-50/60 px-4 py-5 sm:px-6 sm:py-8">
       <DoodleBackground numElements={10} />
       <div className="relative z-10 mx-auto flex min-h-[calc(100dvh-2.5rem)] w-full max-w-md flex-col justify-center">
-        <Link to="/" className="mb-8 inline-flex min-h-11 items-center gap-2 self-start text-sm font-semibold text-orange-800 hover:text-orange-950">
-          <ArrowLeft className="h-4 w-4" /> Back to welcome
-        </Link>
+        <StandalonePageNavigation
+          parentHref="/"
+          parentLabel="Welcome"
+          currentLabel="Sign in"
+          backLabel="Back to welcome"
+          className="mb-8"
+        />
         <section className="border border-orange-100 bg-white p-5 shadow-sm sm:p-8">
           <div className="flex flex-col items-start space-y-5">
             <Link to="/" className="flex items-center gap-3">
@@ -167,4 +172,4 @@ const Login = () => {
   );
 };
 
-export default Login; 
+export default Login;
