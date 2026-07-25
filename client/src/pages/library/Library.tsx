@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { BookOpen, ChevronRight, Filter } from 'lucide-react';
 import { books } from '../../data/books';
 import { useAuth } from '@/hooks/useAuth';
@@ -13,6 +13,8 @@ import {
 import DoodleBackground from '../../components/DoodleBackground';
 import { motion } from 'framer-motion';
 import { clearLegacyPdfCache } from '../../lib/pdf-storage';
+import { filterBooksBySemesterLevels, getAvailableLibraryLevels, getDefaultLibraryLevel } from '../../lib/library';
+import { useSemesterLevels } from '@/hooks/useAcademicLevelQueries';
 import type { Book } from '../../data/books';
 
 const BookCover = ({ book }: { book: Book }) => {
@@ -33,40 +35,51 @@ const BookCover = ({ book }: { book: Book }) => {
 
 const Library: React.FC = () => {
     const { user } = useAuth();
+    const [searchParams] = useSearchParams();
+    const semesterId = searchParams.get("semesterId") || "";
+    const semesterLevelsQuery = useSemesterLevels(semesterId, {
+        enabled: Boolean(semesterId),
+    });
 
     React.useEffect(() => clearLegacyPdfCache(), []);
 
-    // Determine default level based on user role
-    const getDefaultLevel = () => {
-        // Find educator role assignment with a level
-        const educatorAssignment = user?.roleAssignments?.find(
-            (assignment) => assignment.isActive && assignment.subRole === 'EDUCATOR' && assignment.level
-        );
+    const [selectedLevel, setSelectedLevel] = useState<string>(() => getDefaultLibraryLevel(user));
+    const scopedBooks = useMemo(
+        () =>
+            semesterId
+                ? filterBooksBySemesterLevels(books, semesterLevelsQuery.data || [])
+                : books,
+        [semesterId, semesterLevelsQuery.data],
+    );
 
-        if (educatorAssignment?.level) {
-            // Convert LEVEL_1 to "Level 1" format
-            const levelNum = educatorAssignment.level.replace('LEVEL_', '');
-            return `Level ${levelNum}`;
+    React.useEffect(() => {
+        if (
+            semesterId &&
+            semesterLevelsQuery.data &&
+            selectedLevel !== 'All' &&
+            !scopedBooks.some((book) => book.bookInfo.level === selectedLevel)
+        ) {
+            setSelectedLevel('All');
         }
-
-        return 'All';
-    };
-
-    const [selectedLevel, setSelectedLevel] = useState<string>(getDefaultLevel());
+    }, [scopedBooks, selectedLevel, semesterId, semesterLevelsQuery.data]);
 
     // Filter books by selected level
     const filteredBooks = useMemo(() => {
         if (selectedLevel === 'All') {
-            return books;
+            return scopedBooks;
         }
-        return books.filter(book => book.bookInfo.level === selectedLevel);
-    }, [selectedLevel]);
+        return scopedBooks.filter(book => book.bookInfo.level === selectedLevel);
+    }, [scopedBooks, selectedLevel]);
 
     // Get unique levels from books
-    const availableLevels = useMemo(() => {
-        const levels = Array.from(new Set(books.map(book => book.bookInfo.level)));
-        return ['All', ...levels.sort()];
-    }, []);
+    const availableLevels = useMemo(
+        () =>
+            getAvailableLibraryLevels(
+                scopedBooks,
+                semesterId ? semesterLevelsQuery.data : undefined,
+            ),
+        [scopedBooks, semesterId, semesterLevelsQuery.data],
+    );
 
     return (
         <div className="relative min-h-screen bg-orange-50/50 px-1">
@@ -114,7 +127,13 @@ const Library: React.FC = () => {
                 </header>
 
                 <div className="space-y-4">
-                    {filteredBooks.length === 0 ? (
+                    {semesterId && semesterLevelsQuery.isLoading ? (
+                        <div className="py-12 text-center text-gray-500">Loading semester library…</div>
+                    ) : semesterId && semesterLevelsQuery.isError ? (
+                        <div role="alert" className="py-12 text-center text-red-700">
+                            This semester’s library could not be loaded.
+                        </div>
+                    ) : filteredBooks.length === 0 ? (
                         <div className="text-center py-12">
                             <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                             <p className="text-gray-500 text-lg">No books found for {selectedLevel}</p>
@@ -128,7 +147,10 @@ const Library: React.FC = () => {
                                 transition={{ duration: 0.3, delay: index * 0.1 }}
                             >
                                 <Link
-                                    to={`/library/${book.id}`}
+                                    to={{
+                                        pathname: `/library/${book.id}`,
+                                        search: semesterId ? `?semesterId=${encodeURIComponent(semesterId)}` : '',
+                                    }}
                                     className="block bg-white rounded-xl shadow-sm hover:shadow-md transition-all overflow-hidden border border-orange-100 group"
                                 >
                                     <div className="flex gap-3 sm:gap-4 p-3 sm:p-4">

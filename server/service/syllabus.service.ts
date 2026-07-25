@@ -153,6 +153,7 @@ export const getSyllabi = async (
       ...(semesterLevelId && { semesterLevelId }),
       ...(level && { level }),
       ...(isActive !== undefined && { isActive }),
+      semesterLevel: { isActive: true },
     },
     include: {
       project: {
@@ -787,6 +788,7 @@ export const getSyllabusStatistics = async (
       ...(semesterLevelId && { semesterLevelId }),
       ...(level && { level }),
       isActive: true,
+      semesterLevel: { isActive: true },
     },
     include: {
       topics: true,

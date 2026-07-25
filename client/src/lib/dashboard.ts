@@ -175,7 +175,7 @@ export function buildDashboardModel(
           label: "Library",
           mobileLabel: "Library",
           description: "Browse learning books and classroom resources.",
-          href: "/library",
+          href: `/library?semesterId=${context.semesterId}`,
           icon: "library",
         } satisfies DashboardAction,
       ]),

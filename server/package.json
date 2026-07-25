@@ -13,6 +13,7 @@
     "postinstall": "prisma generate",
     "db:reset:fixtures": "tsx prisma/seed.ts",
     "db:seed:syllabus": "tsx prisma/seed-syllabus.ts",
+    "db:seed:2026-27-curriculum": "tsx scripts/seed-2026-27-curriculum.ts",
     "db:backfill:person-names": "tsx scripts/backfill-person-names.ts",
     "db:backfill:semester-levels": "tsx scripts/backfill-semester-levels.ts",
     "db:verify:semester-levels": "tsx scripts/backfill-semester-levels.ts --verify",

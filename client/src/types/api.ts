@@ -1,11 +1,5 @@
 /** @deprecated Use SemesterLevel references for operational data. */
-export type LegacyLevel =
-  | "LEVEL_1"
-  | "LEVEL_2"
-  | "LEVEL_3"
-  | "LEVEL_4"
-  | "PRIMARY_A"
-  | "PRIMARY_B";
+export type LegacyLevel = string;
 
 export interface AcademicLevel {
   id: string;

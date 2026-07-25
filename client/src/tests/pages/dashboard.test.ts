@@ -31,6 +31,16 @@ describe("semester dashboard", () => {
     expect(dashboard).not.toContain("allowedSubRoles");
   });
 
+  it("derives level ordering and labels from the current semester", () => {
+    expect(dashboard).toContain("semesterQuery.data?.levels");
+    expect(dashboard).toContain("sortByJourneyOrder");
+    expect(dashboard).toContain("resolveSemesterLevelId(student)");
+    expect(dashboard).toContain("levelName(");
+    expect(dashboard).not.toContain("const levelOrder =");
+    expect(dashboard).not.toContain('PRIMARY_A: "Primary A"');
+    expect(dashboard).not.toContain('"LEVEL_4"');
+  });
+
   it("uses a responsive operational layout and semantic tokens", () => {
     expect(dashboard).toContain("lg:grid-cols-12");
     expect(dashboard).toContain("lg:col-span-8");
@@ -154,7 +164,9 @@ describe("semester dashboard", () => {
     );
 
     expect(model).toContain('label: "Library"');
-    expect(model).toContain('href: "/library"');
+    expect(model).toContain(
+      'href: `/library?semesterId=${context.semesterId}`',
+    );
     expect(model).not.toContain('label: "Administration"');
     expect(mobileNavigation).not.toContain(">Navigation</p>");
     expect(mobileNavigation).not.toContain(">Prangan Manager</p>");

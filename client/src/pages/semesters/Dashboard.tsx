@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import {
     AlertTriangle,
     BookOpenCheck,
@@ -25,20 +25,9 @@ import { useStudentsBySemester } from "@/hooks/useStudentQueries";
 import { useSyllabi, useSyllabusStatistics, useSyllabusTopics } from "@/hooks/useSyllabusQueries";
 import { useContextStaff } from "@/hooks/useUserQueries";
 import { buildDashboardModel } from "@/lib/dashboard";
+import { levelName, sortByJourneyOrder } from "@/lib/levels";
 import { cn } from "@/lib/utils";
 import type { ContextStaffUser, Student } from "@/types/api";
-
-const levelOrder = ["PRIMARY_A", "PRIMARY_B", "LEVEL_1", "LEVEL_2", "LEVEL_3", "LEVEL_4"];
-
-const levelLabel = (level: string) =>
-    ({
-        PRIMARY_A: "Primary A",
-        PRIMARY_B: "Primary B",
-        LEVEL_1: "Level 1",
-        LEVEL_2: "Level 2",
-        LEVEL_3: "Level 3",
-        LEVEL_4: "Level 4",
-    })[level] || level.replaceAll("_", " ");
 
 const formatDate = (date: string) =>
     new Date(date).toLocaleDateString("en-GB", {
@@ -105,6 +94,30 @@ export default function Dashboard() {
         isActive: true,
         enabled: dashboardModel.visibility.exams,
     });
+    const semesterLevels = useMemo(
+        () => sortByJourneyOrder((semesterQuery.data?.levels ?? []).filter((level) => level.isActive)),
+        [semesterQuery.data?.levels],
+    );
+    const semesterLevelById = useMemo(
+        () => new Map(semesterLevels.map((level) => [level.id, level])),
+        [semesterLevels],
+    );
+    const semesterLevelIdByCode = useMemo(
+        () => new Map(semesterLevels.map((level) => [level.academicLevel.code, level.id])),
+        [semesterLevels],
+    );
+    const assignedSemesterLevel =
+        semesterLevelById.get(dashboardModel.assignedSemesterLevelId ?? "") ??
+        semesterLevels.find((level) => level.academicLevel.code === dashboardModel.assignedLevel);
+    const resolveSemesterLevelId = useCallback(
+        (reference?: {
+            semesterLevelId?: string | null;
+            level?: string | null;
+        }) =>
+            reference?.semesterLevelId ??
+            (reference?.level ? semesterLevelIdByCode.get(reference.level) : undefined),
+        [semesterLevelIdByCode],
+    );
 
     const visibleSyllabi = useMemo(
         () =>
@@ -122,20 +135,21 @@ export default function Dashboard() {
 
     const students = useMemo(() => {
         const allStudents = studentsQuery.data || [];
-        return dashboardModel.assignedLevel
-            ? allStudents.filter((student) => student.level === dashboardModel.assignedLevel)
+        return assignedSemesterLevel
+            ? allStudents.filter((student) => resolveSemesterLevelId(student) === assignedSemesterLevel.id)
             : allStudents;
-    }, [dashboardModel.assignedLevel, studentsQuery.data]);
+    }, [assignedSemesterLevel, resolveSemesterLevelId, studentsQuery.data]);
 
     const studentsByLevel = useMemo(
         () =>
             students.reduce<Record<string, number>>((counts, student) => {
-                if (student.level) counts[student.level] = (counts[student.level] || 0) + 1;
+                const semesterLevelId = resolveSemesterLevelId(student);
+                if (semesterLevelId) counts[semesterLevelId] = (counts[semesterLevelId] || 0) + 1;
                 return counts;
             }, {}),
-        [students],
+        [resolveSemesterLevelId, students],
     );
-    const sortedLevels = levelOrder.filter((level) => studentsByLevel[level]);
+    const populatedSemesterLevels = semesterLevels.filter((level) => studentsByLevel[level.id]);
 
     const staff = useMemo(() => staffQuery.data || [], [staffQuery.data]);
     const staffCounts = useMemo(() => {
@@ -176,11 +190,13 @@ export default function Dashboard() {
         if (!isWeekend || !dashboardModel.capabilities.markStudentAttendance) return [];
         const marked = new Set(
             (studentAttendanceQuery.data?.attendance || []).flatMap((record) =>
-                record.enrollment?.level ? [record.enrollment.level] : [],
+                resolveSemesterLevelId(record.enrollment)
+                    ? [resolveSemesterLevelId(record.enrollment)!]
+                    : [],
             ),
         );
-        return sortedLevels.filter((level) => !marked.has(level as never));
-    }, [dashboardModel.capabilities.markStudentAttendance, isWeekend, sortedLevels, studentAttendanceQuery.data]);
+        return populatedSemesterLevels.filter((level) => !marked.has(level.id));
+    }, [dashboardModel.capabilities.markStudentAttendance, isWeekend, populatedSemesterLevels, resolveSemesterLevelId, studentAttendanceQuery.data]);
 
     const missingStaffCount = useMemo(() => {
         if (!isWeekend || !dashboardModel.capabilities.markStaffAttendance) return 0;
@@ -208,7 +224,7 @@ export default function Dashboard() {
         missingStudentLevels.length > 0
             ? {
                 title: "Student attendance is pending",
-                detail: missingStudentLevels.map(levelLabel).join(", "),
+                detail: missingStudentLevels.map((level) => levelName(level)).join(", "),
                 href: actionHref("Mark student attendance"),
             }
             : null,
@@ -288,7 +304,7 @@ export default function Dashboard() {
             <WorkspacePageHeader
                 title={semester.name}
                 badge={dashboardModel.roleLabel}
-                description={<>{center.name} · {formatDate(semester.startDate)} – {formatDate(semester.endDate)}{dashboardModel.assignedLevel ? ` · ${levelLabel(dashboardModel.assignedLevel)}` : ""}</>}
+                description={<>{center.name} · {formatDate(semester.startDate)} – {formatDate(semester.endDate)}{assignedSemesterLevel ? ` · ${levelName(assignedSemesterLevel)}` : ""}</>}
             />
 
             {attentionItems.length === 0 && (
@@ -409,23 +425,23 @@ export default function Dashboard() {
                         <div className="border-b border-border py-5">
                             <h2 id="snapshot-title" className="text-xl font-semibold text-foreground">Semester snapshot</h2>
                         </div>
-                        {dashboardModel.visibility.students && <DashboardMetric label="Students" value={students.length} detail={dashboardModel.assignedLevel ? levelLabel(dashboardModel.assignedLevel) : `${sortedLevels.length} active levels`} icon={GraduationCap} />}
+                        {dashboardModel.visibility.students && <DashboardMetric label="Students" value={students.length} detail={assignedSemesterLevel ? levelName(assignedSemesterLevel) : `${populatedSemesterLevels.length} active levels`} icon={GraduationCap} />}
                         {dashboardModel.visibility.staff && <DashboardMetric label="Educators" value={staffCounts.educators} detail={`${staffCounts.managers} center manager${staffCounts.managers === 1 ? "" : "s"}`} icon={Users} />}
                         {dashboardModel.visibility.curriculum && <DashboardMetric label="Curriculum progress" value={`${Math.round(syllabusStatistics?.completionPercentage || 0)}%`} detail={`${syllabusStatistics?.statusBreakdown.completed || 0} of ${syllabusStatistics?.totalTopics || 0} topics completed`} icon={BookOpenCheck} />}
                         {dashboardModel.visibility.exams && <DashboardMetric label="Active exams" value={exams.length} detail={`${upcomingExams} upcoming · ${completedExams} held`} icon={Layers3} />}
                     </section>
 
-                    {dashboardModel.visibility.students && sortedLevels.length > 0 && (
+                    {dashboardModel.visibility.students && populatedSemesterLevels.length > 0 && (
                         <section aria-labelledby="levels-title" className="rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6">
                             <h2 id="levels-title" className="text-base font-semibold text-foreground">Students by level</h2>
                             <div className="mt-4 space-y-3">
-                                {sortedLevels.map((level) => {
-                                    const count = studentsByLevel[level];
+                                {populatedSemesterLevels.map((level) => {
+                                    const count = studentsByLevel[level.id];
                                     const percentage = students.length ? Math.round((count / students.length) * 100) : 0;
                                     return (
-                                        <div key={level}>
+                                        <div key={level.id}>
                                             <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
-                                                <span className="text-muted-foreground">{levelLabel(level)}</span>
+                                                <span className="text-muted-foreground">{levelName(level)}</span>
                                                 <span className="font-semibold tabular-nums text-foreground">{count}</span>
                                             </div>
                                             <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">

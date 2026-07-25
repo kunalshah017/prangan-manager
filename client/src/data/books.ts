@@ -75,7 +75,120 @@ export interface Book {
   specialFeatures: Record<string, string | string[]>;
 }
 
+const createLearnWithCambridgeBook = ({
+  id,
+  isbn,
+  level,
+  semester,
+  coverUrl,
+  pdfUrl,
+}: {
+  id: string;
+  isbn: string;
+  level: "Primary A" | "Primary B" | "Primary C";
+  semester: 1 | 2;
+  coverUrl: string;
+  pdfUrl: string;
+}): Book => ({
+  id,
+  coverUrl,
+  pdfUrl,
+  pdfOffset: 0,
+  bookInfo: {
+    title: `Learn with Cambridge: ${level} — Semester ${semester}`,
+    subtitle: "An Integrated Semester Course",
+    author: "Cambridge University Press & Assessment",
+    consultingEditor: "",
+    publisher: "Cambridge University Press & Assessment",
+    isbn,
+    edition: "Integrated semester edition",
+    level,
+  },
+  structure: [
+    {
+      id: "complete-coursebook",
+      title: `${level} — Semester ${semester}`,
+      type: "coursebook",
+      pageStart: 1,
+      description:
+        "Integrated literacy, numeracy, rhymes, stories, and general awareness coursebook.",
+    },
+  ],
+  grammarTopics: [],
+  vocabularyCategories: [],
+  skillsAndCompetencies: {
+    reading: "Integrated literacy, rhymes, and stories",
+    writing: "Age-appropriate literacy activities",
+    lifeSkills: ["General awareness", "Communication", "Creative thinking"],
+  },
+  specialFeatures: {
+    course: "Integrated semester course",
+    subjects: ["Literacy", "Numeracy", "Rhymes and Stories", "General Awareness"],
+    alignedTo: ["NEP 2020", "NCF 2023"],
+  },
+});
+
 export const books: Book[] = [
+  createLearnWithCambridgeBook({
+    id: "learn-with-cambridge-primary-a-semester-1",
+    isbn: "978-1-009-83214-4",
+    level: "Primary A",
+    semester: 1,
+    coverUrl:
+      "/images/library/learn_with_cambridge_primary_a_semester_1.webp",
+    pdfUrl:
+      "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/learn_with_cambridge_primary_a_semester_1-8dGKA0IabpfdPcieQSR8b6KJNGy2pD.pdf",
+  }),
+  createLearnWithCambridgeBook({
+    id: "learn-with-cambridge-primary-a-semester-2",
+    isbn: "978-1-009-83215-1",
+    level: "Primary A",
+    semester: 2,
+    coverUrl:
+      "/images/library/learn_with_cambridge_primary_a_semester_2.webp",
+    pdfUrl:
+      "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/learn_with_cambridge_primary_a_semester_2-nyIfa47YFcvhQ8IwTENtG7lxWRcUDY.pdf",
+  }),
+  createLearnWithCambridgeBook({
+    id: "learn-with-cambridge-primary-b-semester-1",
+    isbn: "978-1-009-83216-8",
+    level: "Primary B",
+    semester: 1,
+    coverUrl:
+      "/images/library/learn_with_cambridge_primary_b_semester_1.webp",
+    pdfUrl:
+      "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/learn_with_cambridge_primary_b_semester_1-UKcbAB222NwdH4l7z28XLwesrQJ383.pdf",
+  }),
+  createLearnWithCambridgeBook({
+    id: "learn-with-cambridge-primary-b-semester-2",
+    isbn: "978-1-009-83217-5",
+    level: "Primary B",
+    semester: 2,
+    coverUrl:
+      "/images/library/learn_with_cambridge_primary_b_semester_2.webp",
+    pdfUrl:
+      "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/learn_with_cambridge_primary_b_semester_2-iYCjgKDV4AsihizZDnZCFRp1lWXZmv.pdf",
+  }),
+  createLearnWithCambridgeBook({
+    id: "learn-with-cambridge-primary-c-semester-1",
+    isbn: "978-1-009-83218-2",
+    level: "Primary C",
+    semester: 1,
+    coverUrl:
+      "/images/library/learn_with_cambridge_primary_c_semester_1.webp",
+    pdfUrl:
+      "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/learn_with_cambridge_primary_c_semester_1-9oU5I0iBP1r3cmkkuMjBGDtGFmhPoq.pdf",
+  }),
+  createLearnWithCambridgeBook({
+    id: "learn-with-cambridge-primary-c-semester-2",
+    isbn: "978-1-009-83219-9",
+    level: "Primary C",
+    semester: 2,
+    coverUrl:
+      "/images/library/learn_with_cambridge_primary_c_semester_2.webp",
+    pdfUrl:
+      "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/learn_with_cambridge_primary_c_semester_2-ryYDSNm1CoMgBg1jHb7Js4vnwzTEwT.pdf",
+  }),
   {
     id: "communicate-cambridge-1",
     coverUrl: "/images/library/cambridge_english_level_1.webp",

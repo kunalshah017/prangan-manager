@@ -397,6 +397,7 @@ test("topic-scoped statistics resolve the topic syllabus before querying statist
     assert.deepEqual((statisticsQuery as { where: unknown }).where, {
       id: "syllabus-1",
       isActive: true,
+      semesterLevel: { isActive: true },
     });
   } finally {
     prisma.syllabusTopic.findUnique = originalTopicFindUnique;

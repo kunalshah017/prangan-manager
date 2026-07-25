@@ -8,6 +8,8 @@ import {
   createSyllabus,
   createSyllabusTopic,
   getProgressLogs,
+  getSyllabi,
+  getSyllabusStatistics,
   getSyllabusScope,
   getReorderSyllabusScope,
   getTopicScope,
@@ -33,6 +35,50 @@ const mockSemesterLevel = () => {
     prisma.semesterLevel.findFirst = originalFindFirst;
   };
 };
+
+test("semester curriculum lists exclude disabled semester levels", async () => {
+  const originalFindMany = prisma.syllabus.findMany;
+  let query: any;
+  prisma.syllabus.findMany = (async (args: unknown) => {
+    query = args;
+    return [];
+  }) as typeof prisma.syllabus.findMany;
+
+  try {
+    assert.deepEqual(
+      await getSyllabi({
+        projectId: "project-1",
+        centerId: "center-1",
+        semesterId: "semester-1",
+      }),
+      [],
+    );
+    assert.deepEqual(query.where.semesterLevel, { isActive: true });
+  } finally {
+    prisma.syllabus.findMany = originalFindMany;
+  }
+});
+
+test("semester curriculum statistics exclude disabled semester levels", async () => {
+  const originalFindMany = prisma.syllabus.findMany;
+  let query: any;
+  prisma.syllabus.findMany = (async (args: unknown) => {
+    query = args;
+    return [];
+  }) as typeof prisma.syllabus.findMany;
+
+  try {
+    const statistics = await getSyllabusStatistics({
+      projectId: "project-1",
+      centerId: "center-1",
+      semesterId: "semester-1",
+    });
+    assert.equal(statistics.totalTopics, 0);
+    assert.deepEqual(query.where.semesterLevel, { isActive: true });
+  } finally {
+    prisma.syllabus.findMany = originalFindMany;
+  }
+});
 
 test("getSyllabusScope selects only the syllabus authorization context", async () => {
   const restoreSemesterLevel = mockSemesterLevel();

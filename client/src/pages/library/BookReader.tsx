@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, List, X, ChevronRight, ChevronLeft, Search } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { books, type Book } from '../../data/books';
@@ -24,6 +24,7 @@ const PDF_OPTIONS = {
 const BookReader: React.FC = () => {
     const { bookId } = useParams<{ bookId: string }>();
     const navigate = useNavigate();
+    const location = useLocation();
     const [book, setBook] = useState<Book | null>(null);
     const [numPages, setNumPages] = useState<number>(0);
     const [currentPage, setCurrentPage] = useState<number>(1);
@@ -50,10 +51,10 @@ const BookReader: React.FC = () => {
         if (foundBook) {
             setBook(foundBook);
         } else {
-            navigate('/library');
+            navigate(`/library${location.search}`);
         }
 
-    }, [bookId, navigate]);
+    }, [bookId, location.search, navigate]);
 
     const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
         // Subtract the offset pages from total
@@ -160,7 +161,7 @@ const BookReader: React.FC = () => {
                     onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        navigate('/library', { replace: true });
+                        navigate(`/library${location.search}`, { replace: true });
                     }}
                     className="p-2 hover:bg-orange-100 rounded-full text-orange-700 transition-colors -ml-2"
                 >

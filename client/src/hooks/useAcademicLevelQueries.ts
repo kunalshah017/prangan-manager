@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api-client";
+import { sortByJourneyOrder } from "@/lib/levels";
 import { queryKeys } from "@/lib/query-client";
 import type {
   AcademicLevel,
@@ -36,7 +37,7 @@ export const useAcademicLevels = (options: AcademicLevelQueryOptions = {}) => {
         ? "/academic-levels?includeArchived=true"
         : "/academic-levels";
       const response = await api.get<AcademicLevelsResponse>(endpoint);
-      return response.levels;
+      return sortByJourneyOrder(response.levels);
     },
     enabled: options.enabled ?? true,
   });
@@ -103,7 +104,7 @@ export const useSemesterLevels = (
       const response = await api.get<SemesterLevelsResponse>(
         `/semesters/${semesterId}/levels${suffix}`,
       );
-      return response.levels;
+      return sortByJourneyOrder(response.levels);
     },
     enabled: (options.enabled ?? true) && !!semesterId,
   });

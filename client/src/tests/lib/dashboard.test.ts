@@ -161,7 +161,7 @@ describe("buildDashboardModel", () => {
         .flatMap((group) => group.actions)
         .find((action) => action.label === "Library"),
     ).toMatchObject({
-      href: "/library",
+      href: "/library?semesterId=semester-1",
       icon: "library",
     });
   });

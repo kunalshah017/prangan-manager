@@ -22,7 +22,10 @@ import {
 } from "@/hooks/useSemesterTransitionQueries";
 import { useUsers } from "@/hooks/useUserQueries";
 import { buttonVariants } from "@/lib/button-variants";
-import { sortByJourneyOrderThenName } from "@/lib/levels";
+import {
+  sortByJourneyOrder,
+  sortByJourneyOrderThenName,
+} from "@/lib/levels";
 import { cn } from "@/lib/utils";
 import type {
   RoleAssignment,
@@ -96,7 +99,10 @@ const SemesterSetup = () => {
     setStaffDirty(false);
   }, [setupQuery.data]);
 
-  const levels = setupQuery.data?.semester.levels ?? [];
+  const levels = useMemo(
+    () => sortByJourneyOrder(setupQuery.data?.semester.levels ?? []),
+    [setupQuery.data?.semester.levels],
+  );
   const filteredStudents = useMemo(
     () =>
       sortByJourneyOrderThenName(
