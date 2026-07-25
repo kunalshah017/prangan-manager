@@ -13,4 +13,15 @@ describe("account token form", () => {
     expect(source).toContain('setToken(searchParams.get("token"))');
     expect(source).toContain("setSearchParams({}, { replace: true })");
   });
+
+  it("offers an accessible password-link recovery action after activation errors", async () => {
+    const source = await readFile(
+      new URL("../../pages/AccountTokenForm.tsx", import.meta.url),
+      "utf8",
+    );
+
+    expect(source).toContain('role="alert"');
+    expect(source).toContain('to="/reset-password"');
+    expect(source).toContain("Request a new password link");
+  });
 });

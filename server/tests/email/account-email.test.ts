@@ -48,6 +48,8 @@ test("registration decision jobs are stable per reviewed user", async () => {
 
   assert.equal(approval.dedupeKey, "registration-approved:user-1");
   assert.match(approval.html, /activate\?token=secret/);
+  assert.match(approval.html, /24 hours/i);
+  assert.match(approval.html, /request a new password link/i);
   assert.equal(rejection.dedupeKey, "registration-rejected:user-1");
   assert.equal(rejection.subject, "Registration Update - Prangan Foundation");
   assert.match(rejection.html, /No opening is currently available/);
@@ -67,4 +69,5 @@ test("each password reset token gets one independently deduplicated job", async 
   assert.equal(job.dedupeKey, "password-reset:token-7");
   assert.equal(job.subject, "Reset your Prangan password");
   assert.match(job.html, /reset-password\?token=secret/);
+  assert.match(job.html, /one hour/i);
 });

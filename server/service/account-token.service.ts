@@ -7,7 +7,10 @@ import {
   isUsableAccountToken,
 } from "../security/account-token.js";
 
-const ACCOUNT_TOKEN_LIFETIME_MS = 60 * 60 * 1000;
+const ACCOUNT_TOKEN_LIFETIME_MS: Record<AccountTokenType, number> = {
+  [AccountTokenType.ACTIVATION]: 24 * 60 * 60 * 1000,
+  [AccountTokenType.PASSWORD_RESET]: 60 * 60 * 1000,
+};
 
 export const createAccountTokenRecordInTransaction = async (
   transaction: Prisma.TransactionClient,
@@ -25,7 +28,7 @@ export const createAccountTokenRecordInTransaction = async (
       userId,
       type,
       tokenHash: hashAccountToken(rawToken),
-      expiresAt: new Date(Date.now() + ACCOUNT_TOKEN_LIFETIME_MS),
+      expiresAt: new Date(Date.now() + ACCOUNT_TOKEN_LIFETIME_MS[type]),
     },
   });
 

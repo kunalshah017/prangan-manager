@@ -42,6 +42,41 @@ test("internal token creation returns its operation ID without persisting the ra
   assert.match(persistedHash, /^[a-f0-9]{64}$/);
 });
 
+test("activation tokens last 24 hours while password reset tokens last one hour", async () => {
+  const expiries = new Map<AccountTokenType, Date>();
+  const transaction = {
+    accountToken: {
+      updateMany: async () => ({ count: 0 }),
+      create: async ({ data }: any) => {
+        expiries.set(data.type, data.expiresAt);
+        return { id: `token-${data.type}`, ...data };
+      },
+    },
+  };
+  const before = Date.now();
+
+  await accountTokenService.createAccountTokenRecordInTransaction(
+    transaction as any,
+    "user-1",
+    AccountTokenType.ACTIVATION,
+  );
+  await accountTokenService.createAccountTokenRecordInTransaction(
+    transaction as any,
+    "user-1",
+    AccountTokenType.PASSWORD_RESET,
+  );
+
+  const after = Date.now();
+  const activationExpiry = expiries.get(AccountTokenType.ACTIVATION)?.getTime();
+  const resetExpiry = expiries.get(AccountTokenType.PASSWORD_RESET)?.getTime();
+  assert.ok(activationExpiry);
+  assert.ok(resetExpiry);
+  assert.ok(activationExpiry >= before + 24 * 60 * 60 * 1000);
+  assert.ok(activationExpiry <= after + 24 * 60 * 60 * 1000);
+  assert.ok(resetExpiry >= before + 60 * 60 * 1000);
+  assert.ok(resetExpiry <= after + 60 * 60 * 1000);
+});
+
 test("issuing an account token invalidates prior unused tokens of the same type", async () => {
   const originalTransaction = prisma.$transaction;
   let invalidated = false;

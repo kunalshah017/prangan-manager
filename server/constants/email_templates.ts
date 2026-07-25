@@ -63,6 +63,11 @@ export const EMAIL_TEMPLATES = {
         <div class="button-container">
           <a href="${data.activationUrl}" class="login-button">Set your password</a>
         </div>
+
+        <p class="warning">
+          This secure activation link expires in <strong>24 hours</strong>. If it
+          expires, request a new password link from the sign-in page.
+        </p>
         
         <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff8c00;">
           <h3 style="color: #ff8c00; margin: 0 0 10px 0;">📋 Next steps</h3>
@@ -95,6 +100,7 @@ export const EMAIL_TEMPLATES = {
           <h1 style="margin:0 0 12px;font-size:24px;color:#172033">Reset your password</h1>
           <p>Hello ${data.name},</p><p>We received a request to reset your Prangan password. Use the secure, one-time link below to choose a new password.</p>
           <p style="margin:28px 0"><a href="${data.resetUrl}" style="display:inline-block;border-radius:6px;background:#b94e00;color:#fff !important;padding:14px 24px;text-decoration:none;font-weight:700">Reset password</a></p>
+          <p>This link expires in <strong>one hour</strong>.</p>
           <p style="padding:14px 16px;background:#f8fafc;border-left:4px solid #ea7a18">If you did not request this, you can safely ignore this email. Your password will not change.</p>
           <p style="margin:24px 0 0;color:#5d6675;font-size:13px">Prangan Foundation · This is an automated security email.</p>
         </main></body></html>`,
