@@ -1,0 +1,3338 @@
+{
+  "version": 1,
+  "source": "Learn with Cambridge integrated semester coursebooks",
+  "levels": {
+    "PRIMARY_A": [
+      {
+        "isbn": "9781009832144",
+        "semester": 1,
+        "items": [
+          {
+            "sourceNumber": 1,
+            "title": "Scribble!",
+            "page": 2,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 2,
+            "title": "Standing Lines",
+            "page": 3,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 3,
+            "title": "Sleeping Lines",
+            "page": 4,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 4,
+            "title": "Left Slanting Lines",
+            "page": 5,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 5,
+            "title": "Right Slanting Lines",
+            "page": 6,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 6,
+            "title": "Zig-Zag Lines",
+            "page": 7,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 8,
+            "title": "Sleeping and Standing Lines",
+            "page": 9,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 10,
+            "title": "Letters Train",
+            "page": 11,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 11,
+            "title": "Letter Aa",
+            "page": 12,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 12,
+            "title": "Letter Bb",
+            "page": 13,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 13,
+            "title": "Letter Cc",
+            "page": 14,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 16,
+            "title": "Letter Dd",
+            "page": 17,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 17,
+            "title": "Letter Ee",
+            "page": 18,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 19,
+            "title": "Letter Ff",
+            "page": 20,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 20,
+            "title": "Letter Gg",
+            "page": 21,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 22,
+            "title": "Letter Hh",
+            "page": 23,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 23,
+            "title": "Letter Ii",
+            "page": 24,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 25,
+            "title": "Letter Jj",
+            "page": 26,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 26,
+            "title": "Letter Kk",
+            "page": 27,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 28,
+            "title": "Letter Ll",
+            "page": 29,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 29,
+            "title": "Letter Mm",
+            "page": 30,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 32,
+            "title": "Circle",
+            "page": 34,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 33,
+            "title": "Square",
+            "page": 35,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 35,
+            "title": "Far and Near",
+            "page": 37,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 37,
+            "title": "Big and Small",
+            "page": 39,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 39,
+            "title": "Tall and Short",
+            "page": 41,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 41,
+            "title": "Heavy and Light",
+            "page": 43,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 43,
+            "title": "Number 1—ONE",
+            "page": 45,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 44,
+            "title": "Number 2—TWO",
+            "page": 47,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 45,
+            "title": "Number 3—THREE",
+            "page": 49,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 46,
+            "title": "Number 4—FOUR",
+            "page": 51,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 47,
+            "title": "Number 5—FIVE",
+            "page": 53,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 48,
+            "title": "Number 6—SIX",
+            "page": 55,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 49,
+            "title": "Number 7—SEVEN",
+            "page": 57,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 50,
+            "title": "Number 8—EIGHT",
+            "page": 59,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 51,
+            "title": "Number 9—NINE",
+            "page": 61,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 52,
+            "title": "Count and Write",
+            "page": 63,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 54,
+            "title": "Number 0—ZERO",
+            "page": 65,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 55,
+            "title": "The 0 Song",
+            "page": 67,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 57,
+            "title": "Number 10—TEN",
+            "page": 69,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 58,
+            "title": "Numbers 1 to 10",
+            "page": 71,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 60,
+            "title": "Count and Mark",
+            "page": 73,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 61,
+            "title": "Rain, Rain, Go Away",
+            "page": 75,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 62,
+            "title": "Hickory Dickory Dock",
+            "page": 75,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 63,
+            "title": "One, Two, Buckle My Shoe",
+            "page": 76,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 64,
+            "title": "Two Little Dicky Birds",
+            "page": 77,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 65,
+            "title": "I am Special",
+            "page": 77,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 66,
+            "title": "Pat-a-Cake, Pat-a-Cake",
+            "page": 78,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 67,
+            "title": "Head, Shoulders, Knees, and Toes",
+            "page": 79,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 68,
+            "title": "Yummy Lemonade",
+            "page": 80,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 69,
+            "title": "Khichdi Time",
+            "page": 81,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 70,
+            "title": "Tall and Short—Rajat’s Family",
+            "page": 82,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 71,
+            "title": "Picture Talk",
+            "page": 83,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 72,
+            "title": "Meet Me!",
+            "page": 85,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 73,
+            "title": "My Face",
+            "page": 86,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 74,
+            "title": "My Body",
+            "page": 87,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 75,
+            "title": "Fun with Body Movements",
+            "page": 88,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 77,
+            "title": "Emotions",
+            "page": 90,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 78,
+            "title": "Picture Talk",
+            "page": 91,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 79,
+            "title": "Mealtime",
+            "page": 92,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 80,
+            "title": "Family",
+            "page": 93,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 82,
+            "title": "Rooms of the House",
+            "page": 95,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 83,
+            "title": "Classroom",
+            "page": 96,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 85,
+            "title": "Fruits",
+            "page": 98,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 86,
+            "title": "Vegetables",
+            "page": 99,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 88,
+            "title": "The Sense of Taste",
+            "page": 101,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 89,
+            "title": "Green Colour",
+            "page": 102,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 90,
+            "title": "Blue Colour",
+            "page": 103,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 91,
+            "title": "Red Colour",
+            "page": 104,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 92,
+            "title": "Yellow Colour",
+            "page": 105,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 93,
+            "title": "Black Colour",
+            "page": 106,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 94,
+            "title": "White Colour",
+            "page": 107,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 95,
+            "title": "Brown Colour",
+            "page": 108,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 99,
+            "title": "Fun with Yellow and Brown",
+            "page": 111,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 100,
+            "title": "Wild Animals",
+            "page": 112,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 102,
+            "title": "Useful Animals",
+            "page": 114,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 103,
+            "title": "Uses of Animals – Match",
+            "page": 116,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 105,
+            "title": "Sight Words",
+            "page": 119,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          }
+        ]
+      },
+      {
+        "isbn": "9781009832151",
+        "semester": 2,
+        "items": [
+          {
+            "sourceNumber": 1,
+            "title": "Up and Down Curves",
+            "page": 2,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 2,
+            "title": "Left Curve",
+            "page": 3,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 3,
+            "title": "Right Curve",
+            "page": 4,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 4,
+            "title": "Wavy Lines",
+            "page": 5,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 7,
+            "title": "Patterns on Animals",
+            "page": 8,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 9,
+            "title": "Letter Nn",
+            "page": 10,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 10,
+            "title": "Letter Oo",
+            "page": 11,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 11,
+            "title": "Letter Pp",
+            "page": 12,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 13,
+            "title": "Letter Qq",
+            "page": 14,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 14,
+            "title": "Letter Rr",
+            "page": 15,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 15,
+            "title": "Letter Ss",
+            "page": 16,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 17,
+            "title": "Letter Tt",
+            "page": 18,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 18,
+            "title": "Letter Uu",
+            "page": 19,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 19,
+            "title": "Letter Vv",
+            "page": 20,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 21,
+            "title": "Letter Ww",
+            "page": 22,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 22,
+            "title": "Letter Xx",
+            "page": 23,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 23,
+            "title": "Letter Yy",
+            "page": 24,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 24,
+            "title": "Letter Zz",
+            "page": 25,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 35,
+            "title": "Triangle",
+            "page": 37,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 37,
+            "title": "Rectangle",
+            "page": 39,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 39,
+            "title": "Full and Empty",
+            "page": 41,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 41,
+            "title": "Hot and Cold",
+            "page": 43,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 43,
+            "title": "Fast and Slow",
+            "page": 45,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 45,
+            "title": "Up and Down",
+            "page": 47,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 47,
+            "title": "Number 11—ELEVEN",
+            "page": 49,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 48,
+            "title": "Number 12—TWELVE",
+            "page": 50,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 49,
+            "title": "Number 13—THIRTEEN",
+            "page": 51,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 50,
+            "title": "Number 14—FOURTEEN",
+            "page": 52,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 51,
+            "title": "Number 15—FIFTEEN",
+            "page": 53,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 52,
+            "title": "Number 16—SIXTEEN",
+            "page": 54,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 53,
+            "title": "Number 17—SEVENTEEN",
+            "page": 55,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 54,
+            "title": "Number 18—EIGHTEEN",
+            "page": 56,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 55,
+            "title": "Number 19—NINETEEN",
+            "page": 57,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 56,
+            "title": "Number 20—TWENTY",
+            "page": 58,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 60,
+            "title": "More or Less",
+            "page": 62,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 61,
+            "title": "Fun with Numbers",
+            "page": 63,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 62,
+            "title": "One-to-One",
+            "page": 64,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 63,
+            "title": "Number Bingo",
+            "page": 65,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 64,
+            "title": "Board Game",
+            "page": 66,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 65,
+            "title": "Ordering: Small to Big",
+            "page": 67,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 66,
+            "title": "Ordering: Big to Small",
+            "page": 68,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 67,
+            "title": "Order the Picture Story",
+            "page": 69,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 68,
+            "title": "Old MacDonald Had a Farm",
+            "page": 71,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 69,
+            "title": "Jack and Jill",
+            "page": 72,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 70,
+            "title": "Baa, Baa, Black Sheep",
+            "page": 73,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 71,
+            "title": "Row, Row, Row Your Boat",
+            "page": 73,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 72,
+            "title": "If You Are Happy and You Know It",
+            "page": 74,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 73,
+            "title": "Chubby Cheeks",
+            "page": 75,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 74,
+            "title": "The Ants and the Grasshopper",
+            "page": 76,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 75,
+            "title": "The Lion and the Mouse",
+            "page": 78,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 76,
+            "title": "First Day at School",
+            "page": 79,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 77,
+            "title": "Grandfather’s Birthday",
+            "page": 80,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 78,
+            "title": "The Fox and the Stork",
+            "page": 85,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 79,
+            "title": "Be Safe - 1",
+            "page": 88,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 80,
+            "title": "Be Safe - 2",
+            "page": 89,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 81,
+            "title": "Stay Healthy",
+            "page": 90,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 82,
+            "title": "Keeping Tidy",
+            "page": 91,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 83,
+            "title": "Clothes You Wear",
+            "page": 92,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 84,
+            "title": "Living Room",
+            "page": 93,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 85,
+            "title": "Bedroom",
+            "page": 94,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 86,
+            "title": "Bathroom",
+            "page": 95,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 87,
+            "title": "Kitchen",
+            "page": 96,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 88,
+            "title": "In a Park",
+            "page": 97,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 89,
+            "title": "Insects",
+            "page": 98,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 91,
+            "title": "Animal Babies",
+            "page": 100,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 92,
+            "title": "Vehicles",
+            "page": 101,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 93,
+            "title": "Day and Night",
+            "page": 102,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 94,
+            "title": "Fun with Colours",
+            "page": 103,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 95,
+            "title": "Sounds Around Us",
+            "page": 104,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 96,
+            "title": "Texture—Hard or Soft",
+            "page": 105,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 97,
+            "title": "Seasons—Picture Talk",
+            "page": 106,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 100,
+            "title": "Birds",
+            "page": 109,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 101,
+            "title": "Taking Care of Animals",
+            "page": 111,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 104,
+            "title": "Golden Words",
+            "page": 114,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 105,
+            "title": "Words We Use a Lot",
+            "page": 115,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 108,
+            "title": "Fun Fingerprint Art Game",
+            "page": 118,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          }
+        ]
+      }
+    ],
+    "PRIMARY_B": [
+      {
+        "isbn": "9781009832168",
+        "semester": 1,
+        "items": [
+          {
+            "sourceNumber": 1,
+            "title": "Patterns 1",
+            "page": 2,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 2,
+            "title": "Patterns 2",
+            "page": 3,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 3,
+            "title": "Patterns 3",
+            "page": 4,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 4,
+            "title": "A to Z Fun",
+            "page": 5,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 5,
+            "title": "Fun with Aa",
+            "page": 6,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 7,
+            "title": "Fun with Bb",
+            "page": 8,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 10,
+            "title": "Fun with Cc",
+            "page": 11,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 12,
+            "title": "Fun with Dd",
+            "page": 13,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 15,
+            "title": "Fun with Ee",
+            "page": 16,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 17,
+            "title": "Fun with Ff",
+            "page": 18,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 20,
+            "title": "Fun with Gg",
+            "page": 21,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 22,
+            "title": "Fun with Hh",
+            "page": 23,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 25,
+            "title": "Fun with Ii",
+            "page": 26,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 27,
+            "title": "Fun with Jj",
+            "page": 28,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 30,
+            "title": "Fun with Kk",
+            "page": 31,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 32,
+            "title": "Fun with Ll",
+            "page": 33,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 35,
+            "title": "Fun with Mm",
+            "page": 36,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 37,
+            "title": "Fun with Nn",
+            "page": 38,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 40,
+            "title": "Fun with Oo",
+            "page": 41,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 42,
+            "title": "Fun with Pp",
+            "page": 43,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 45,
+            "title": "Action Words - 1",
+            "page": 46,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 46,
+            "title": "Action Words - 2",
+            "page": 47,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 47,
+            "title": "Circle",
+            "page": 49,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 48,
+            "title": "Square",
+            "page": 50,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 52,
+            "title": "Left–Right",
+            "page": 54,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 53,
+            "title": "Less or More",
+            "page": 55,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 54,
+            "title": "Same or Different",
+            "page": 56,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 55,
+            "title": "Long or Short",
+            "page": 57,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 58,
+            "title": "Number 1",
+            "page": 60,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 59,
+            "title": "Number 2",
+            "page": 61,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 60,
+            "title": "Number 3",
+            "page": 62,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 61,
+            "title": "Number 4",
+            "page": 63,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 62,
+            "title": "Number 5",
+            "page": 64,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 63,
+            "title": "Number 6",
+            "page": 65,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 64,
+            "title": "Number 7",
+            "page": 66,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 65,
+            "title": "Number 8",
+            "page": 67,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 66,
+            "title": "Number 9",
+            "page": 68,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 67,
+            "title": "Number 0",
+            "page": 69,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 68,
+            "title": "Number 10",
+            "page": 70,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 69,
+            "title": "Numbers 1 to 10",
+            "page": 71,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 70,
+            "title": "I SPY…Puzzle Time",
+            "page": 72,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 71,
+            "title": "Maths Maze",
+            "page": 73,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 72,
+            "title": "Number Names 1 to 5",
+            "page": 74,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 73,
+            "title": "Number Names 6 to 10",
+            "page": 75,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 74,
+            "title": "Numbers 11 and 12",
+            "page": 76,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 75,
+            "title": "Numbers 13 and 14",
+            "page": 77,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 76,
+            "title": "Numbers 15 and 16",
+            "page": 78,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 77,
+            "title": "Numbers 17 and 18",
+            "page": 79,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 78,
+            "title": "Numbers 19 and 20",
+            "page": 80,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 79,
+            "title": "Fun with Numbers – 1",
+            "page": 81,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 80,
+            "title": "Fun with Numbers – 2",
+            "page": 82,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 81,
+            "title": "Fun with Numbers – 3",
+            "page": 83,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 82,
+            "title": "Fun with Numbers – 4",
+            "page": 84,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 83,
+            "title": "Missing Numbers",
+            "page": 85,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 84,
+            "title": "I Hear Thunder",
+            "page": 87,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 85,
+            "title": "Tiny Miny Spider",
+            "page": 88,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 86,
+            "title": "The Happy Manners Song",
+            "page": 89,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 87,
+            "title": "Aeroplane, Aeroplane",
+            "page": 89,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 88,
+            "title": "A Day in the Garden",
+            "page": 90,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 89,
+            "title": "Tidy Kabir",
+            "page": 91,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 90,
+            "title": "The Smart Little Puppies",
+            "page": 92,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 91,
+            "title": "We Can be friends",
+            "page": 94,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 92,
+            "title": "All About Me",
+            "page": 96,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 93,
+            "title": "My Body",
+            "page": 97,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 94,
+            "title": "Palm Tracing",
+            "page": 98,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 95,
+            "title": "Good Touch–Bad Touch",
+            "page": 99,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 96,
+            "title": "Sense Organs",
+            "page": 100,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 97,
+            "title": "Feelings",
+            "page": 101,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 98,
+            "title": "My Family",
+            "page": 102,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 99,
+            "title": "Family—Picture Talk",
+            "page": 104,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 100,
+            "title": "Day and Night",
+            "page": 105,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 101,
+            "title": "My House",
+            "page": 106,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 104,
+            "title": "Safety at Home",
+            "page": 109,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 105,
+            "title": "My Neighbourhood",
+            "page": 110,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 106,
+            "title": "My School",
+            "page": 112,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 108,
+            "title": "Good Manners",
+            "page": 114,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 109,
+            "title": "Seasons: Picture Talk 1",
+            "page": 115,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 110,
+            "title": "Seasons: Picture Talk 2",
+            "page": 116,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 113,
+            "title": "Sight Words",
+            "page": 119,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          }
+        ]
+      },
+      {
+        "isbn": "9781009832175",
+        "semester": 2,
+        "items": [
+          {
+            "sourceNumber": 1,
+            "title": "Patterns 1",
+            "page": 2,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 2,
+            "title": "Patterns 2",
+            "page": 3,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 3,
+            "title": "Fun with Qq",
+            "page": 4,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 5,
+            "title": "Fun with Rr",
+            "page": 6,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 8,
+            "title": "Fun with Ss",
+            "page": 9,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 10,
+            "title": "Fun with Tt",
+            "page": 11,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 13,
+            "title": "Fun with Uu",
+            "page": 14,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 15,
+            "title": "Fun with Vv",
+            "page": 16,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 18,
+            "title": "Fun with Ww",
+            "page": 19,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 20,
+            "title": "Fun with Xx",
+            "page": 21,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 23,
+            "title": "Fun with Yy",
+            "page": 24,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 25,
+            "title": "Fun with Zz",
+            "page": 26,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 28,
+            "title": "Beginning Letter",
+            "page": 29,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 29,
+            "title": "Say the Alphabet",
+            "page": 30,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 30,
+            "title": "Say, Think, Do – 1",
+            "page": 31,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 31,
+            "title": "Say, Think, Do – 2",
+            "page": 32,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 32,
+            "title": "Vowels and Consonants 1",
+            "page": 33,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 33,
+            "title": "Vowels and Consonants 2",
+            "page": 34,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 34,
+            "title": "Words with ‘a’",
+            "page": 35,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 35,
+            "title": "Reading Time",
+            "page": 37,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 36,
+            "title": "Words with ‘e’",
+            "page": 38,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 38,
+            "title": "Words with ‘i’",
+            "page": 40,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 40,
+            "title": "Words with ‘o’",
+            "page": 43,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 41,
+            "title": "Words with ‘u’",
+            "page": 44,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 43,
+            "title": "Ending Letter",
+            "page": 46,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 44,
+            "title": "Using X or S",
+            "page": 47,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 45,
+            "title": "Action Words – 1",
+            "page": 48,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 46,
+            "title": "Actions Words – 2",
+            "page": 49,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 47,
+            "title": "More to Know",
+            "page": 50,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 49,
+            "title": "Triangle",
+            "page": 53,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 50,
+            "title": "Rectangle",
+            "page": 54,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 51,
+            "title": "Oval",
+            "page": 55,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 54,
+            "title": "Many or Few",
+            "page": 58,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 55,
+            "title": "Thick or Thin",
+            "page": 59,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 56,
+            "title": "In or Out",
+            "page": 60,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 57,
+            "title": "Between",
+            "page": 61,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 58,
+            "title": "Before–After",
+            "page": 62,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 59,
+            "title": "Numbers 1 to 20",
+            "page": 63,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 60,
+            "title": "Connect the Dots",
+            "page": 64,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 61,
+            "title": "Number Names",
+            "page": 65,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 64,
+            "title": "Numbers 21 to 24",
+            "page": 68,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 65,
+            "title": "Numbers 25 to 28",
+            "page": 69,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 66,
+            "title": "Numbers 29 to 32",
+            "page": 70,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 67,
+            "title": "Numbers 33 to 36",
+            "page": 71,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 68,
+            "title": "Numbers 37 to 40",
+            "page": 72,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 69,
+            "title": "Numbers 41 to 50",
+            "page": 73,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 70,
+            "title": "Dot-to-Dot",
+            "page": 74,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 71,
+            "title": "The Wheels on the Bus",
+            "page": 76,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 72,
+            "title": "Fruity Fun",
+            "page": 78,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 73,
+            "title": "Clap Your Hands",
+            "page": 79,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 74,
+            "title": "Traffic Lights Song",
+            "page": 80,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 75,
+            "title": "Little Red Riding Hood",
+            "page": 81,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 77,
+            "title": "Mili’s Summer Vacations",
+            "page": 84,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 78,
+            "title": "We All Are Special",
+            "page": 86,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 79,
+            "title": "The Coin Jar",
+            "page": 88,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 80,
+            "title": "The Rabbit and the Turtle",
+            "page": 89,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 81,
+            "title": "Wild Animals",
+            "page": 92,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 82,
+            "title": "Water Animals",
+            "page": 94,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 83,
+            "title": "Insects",
+            "page": 95,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 85,
+            "title": "Animal Homes",
+            "page": 97,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 87,
+            "title": "Animal Babies",
+            "page": 100,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 88,
+            "title": "Plants",
+            "page": 102,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 89,
+            "title": "Parts of a Plant",
+            "page": 104,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 90,
+            "title": "A Seed Grows",
+            "page": 105,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 91,
+            "title": "Flowers",
+            "page": 106,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 92,
+            "title": "Fruits",
+            "page": 107,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 93,
+            "title": "Vegetables",
+            "page": 108,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 95,
+            "title": "Things We Get From Plants",
+            "page": 110,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 96,
+            "title": "Land Transport",
+            "page": 111,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 97,
+            "title": "Air Transport",
+            "page": 112,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 98,
+            "title": "Water Transport",
+            "page": 113,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 99,
+            "title": "Road Safety Rules",
+            "page": 114,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 100,
+            "title": "Community Helpers",
+            "page": 115,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 101,
+            "title": "Water",
+            "page": 117,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          }
+        ]
+      }
+    ],
+    "PRIMARY_C": [
+      {
+        "isbn": "9781009832182",
+        "semester": 1,
+        "items": [
+          {
+            "sourceNumber": 3,
+            "title": "Alphabet Bingo",
+            "page": 5,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 4,
+            "title": "Vowels and Consonants",
+            "page": 6,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 5,
+            "title": "Beginning Letter – 1",
+            "page": 7,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 6,
+            "title": "Beginning Letter – 2",
+            "page": 8,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 7,
+            "title": "Picture-Letter: Match and Colour",
+            "page": 9,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 9,
+            "title": "A to Z – Animal Pictionary",
+            "page": 11,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 12,
+            "title": "A and An",
+            "page": 14,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 14,
+            "title": "‘a’ Sound",
+            "page": 16,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 15,
+            "title": "‘a’ Word Family",
+            "page": 17,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 16,
+            "title": "‘e’ Sound",
+            "page": 20,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 17,
+            "title": "‘e’ Word Family",
+            "page": 21,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 18,
+            "title": "‘i’ Sound",
+            "page": 22,
+            "section": "Literacy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 19,
+            "title": "‘i’ Word Family",
+            "page": 23,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 21,
+            "title": "‘o’ Sound",
+            "page": 26,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 22,
+            "title": "‘o’ Word Family",
+            "page": 27,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 23,
+            "title": "‘u’ Sound",
+            "page": 29,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 24,
+            "title": "‘u’ Word Family",
+            "page": 30,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 25,
+            "title": "Position Words",
+            "page": 32,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 26,
+            "title": "More Position Words",
+            "page": 33,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 27,
+            "title": "CVC Story: “a”",
+            "page": 34,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 28,
+            "title": "CVC Story: “e”",
+            "page": 35,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 29,
+            "title": "CVC Story: “i”",
+            "page": 36,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 30,
+            "title": "CVC Story: “o”",
+            "page": 37,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 31,
+            "title": "CVC Story: “u”",
+            "page": 38,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 32,
+            "title": "This and That",
+            "page": 39,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 35,
+            "title": "It is",
+            "page": 42,
+            "section": "Literacy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 37,
+            "title": "Tall-Short",
+            "page": 46,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 38,
+            "title": "Shapes",
+            "page": 47,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 39,
+            "title": "Guess the Shape",
+            "page": 48,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 42,
+            "title": "Counting by 10s",
+            "page": 51,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 43,
+            "title": "Tens and Ones (11–14)",
+            "page": 52,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 44,
+            "title": "Tens and Ones (15–20)",
+            "page": 53,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 45,
+            "title": "Number Names 11–20",
+            "page": 54,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 46,
+            "title": "Equal Groups",
+            "page": 55,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 47,
+            "title": "Backward Counting 10–1",
+            "page": 56,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 48,
+            "title": "Greater Than and Less Than",
+            "page": 57,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 49,
+            "title": "Less, More or Equal",
+            "page": 58,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 50,
+            "title": "Numbers 21–30",
+            "page": 59,
+            "section": "Numeracy",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 52,
+            "title": "Ordinal Numbers",
+            "page": 62,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 54,
+            "title": "Numbers 31–40",
+            "page": 64,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 55,
+            "title": "Numbers 41–50",
+            "page": 66,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 56,
+            "title": "Missing Numbers",
+            "page": 68,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 58,
+            "title": "Backward Counting: 50 to 1",
+            "page": 70,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 59,
+            "title": "What Comes After?",
+            "page": 71,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 61,
+            "title": "What Comes Before?",
+            "page": 73,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 63,
+            "title": "What Comes In Between?",
+            "page": 75,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 65,
+            "title": "Most and Least",
+            "page": 77,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 66,
+            "title": "Increasing Order",
+            "page": 78,
+            "section": "Numeracy",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 67,
+            "title": "The Shapes Song",
+            "page": 80,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 68,
+            "title": "Friends at School",
+            "page": 81,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 69,
+            "title": "The Happy Week Parade",
+            "page": 82,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 70,
+            "title": "Hide and Seek",
+            "page": 83,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 71,
+            "title": "Opposites",
+            "page": 87,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 72,
+            "title": "My Wonderful Home",
+            "page": 89,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 73,
+            "title": "The Fox and the Grapes",
+            "page": 91,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 74,
+            "title": "The Foolish Turtle",
+            "page": 92,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 75,
+            "title": "Myself",
+            "page": 94,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 76,
+            "title": "Body Parts",
+            "page": 95,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 77,
+            "title": "Sense Organs and Eyes",
+            "page": 96,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 78,
+            "title": "Sense Organ—Ears",
+            "page": 97,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 79,
+            "title": "Sense Organ—Nose",
+            "page": 98,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 80,
+            "title": "Sense Organs—Tongue",
+            "page": 99,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 81,
+            "title": "Sense Organ—Skin",
+            "page": 100,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 82,
+            "title": "Five Senses: Match",
+            "page": 101,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 83,
+            "title": "Food We Eat or Drink",
+            "page": 102,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 84,
+            "title": "Critical Thinking",
+            "page": 104,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 85,
+            "title": "Art and Craft: House",
+            "page": 105,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 86,
+            "title": "My House",
+            "page": 106,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 87,
+            "title": "My Family",
+            "page": 107,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 88,
+            "title": "My Neighbourhood",
+            "page": 108,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 89,
+            "title": "My Friends",
+            "page": 109,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 90,
+            "title": "Good Manners and Good Habits at School",
+            "page": 110,
+            "section": "General Awareness",
+            "cycle": "SA_1"
+          },
+          {
+            "sourceNumber": 91,
+            "title": "Keeping Safe",
+            "page": 112,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 92,
+            "title": "Health and Hygiene",
+            "page": 113,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 93,
+            "title": "Living Things",
+            "page": 114,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 94,
+            "title": "Types of Plants 1",
+            "page": 115,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 95,
+            "title": "Types of Plants 2",
+            "page": 116,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 96,
+            "title": "Types of Plants 3",
+            "page": 117,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 97,
+            "title": "Outdoor Games",
+            "page": 118,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 98,
+            "title": "Indoor Games",
+            "page": 120,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 99,
+            "title": "Meals",
+            "page": 122,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 100,
+            "title": "Colour Magic",
+            "page": 123,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          },
+          {
+            "sourceNumber": 103,
+            "title": "Cotton Wool Collage",
+            "page": 126,
+            "section": "General Awareness",
+            "cycle": "SA_2"
+          }
+        ]
+      },
+      {
+        "isbn": "9781009832199",
+        "semester": 2,
+        "items": [
+          {
+            "sourceNumber": 1,
+            "title": "Sight Words",
+            "page": 2,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 2,
+            "title": "Action Words",
+            "page": 3,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 4,
+            "title": "Name the Pictures",
+            "page": 5,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 6,
+            "title": "One or Many",
+            "page": 7,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 8,
+            "title": "These and Those",
+            "page": 9,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 10,
+            "title": "Use of ‘and’",
+            "page": 11,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 11,
+            "title": "sh Words",
+            "page": 12,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 12,
+            "title": "sh Words – Match",
+            "page": 13,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 13,
+            "title": "ch Words",
+            "page": 14,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 14,
+            "title": "ch Words – Match",
+            "page": 15,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 15,
+            "title": "th Words",
+            "page": 16,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 16,
+            "title": "Beginning Blends 1",
+            "page": 17,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 17,
+            "title": "Sentence Reading",
+            "page": 18,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 18,
+            "title": "Beginning Blends 2",
+            "page": 19,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 19,
+            "title": "Practising Beginning Blends",
+            "page": 20,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 20,
+            "title": "Beginning Blends 3",
+            "page": 21,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 22,
+            "title": "Ending Blends",
+            "page": 23,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 23,
+            "title": "Practising Ending Blends",
+            "page": 24,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 24,
+            "title": "oo Words",
+            "page": 25,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 25,
+            "title": "Sentence Reading: oo Words",
+            "page": 26,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 26,
+            "title": "ee Words",
+            "page": 27,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 27,
+            "title": "ll Words",
+            "page": 28,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 28,
+            "title": "Question Words",
+            "page": 29,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 29,
+            "title": "Is or Are",
+            "page": 30,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 30,
+            "title": "This and These",
+            "page": 31,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 31,
+            "title": "That and Those",
+            "page": 32,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 32,
+            "title": "There is / There are",
+            "page": 33,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 33,
+            "title": "Opposites",
+            "page": 34,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 37,
+            "title": "Adding –ing to Action Words",
+            "page": 38,
+            "section": "Literacy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 39,
+            "title": "Comparing Numbers",
+            "page": 41,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 40,
+            "title": "Addition Story: One More Than",
+            "page": 42,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 42,
+            "title": "Addition Story: Two More Than",
+            "page": 45,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 44,
+            "title": "Horizontal Addition",
+            "page": 48,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 45,
+            "title": "Addition Using Number Line",
+            "page": 49,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 47,
+            "title": "Vertical Addition",
+            "page": 51,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 49,
+            "title": "Adding 0",
+            "page": 53,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 50,
+            "title": "Addition Word Problems",
+            "page": 54,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 51,
+            "title": "Subtraction Story: One Less Than",
+            "page": 55,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 53,
+            "title": "Subtraction Story: Two Less Than",
+            "page": 58,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 55,
+            "title": "Subtraction",
+            "page": 61,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 57,
+            "title": "Vertical Subtraction",
+            "page": 63,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 59,
+            "title": "Subtraction 0",
+            "page": 65,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 60,
+            "title": "Subtraction Word Problems",
+            "page": 66,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 61,
+            "title": "Time",
+            "page": 67,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 65,
+            "title": "Numbers 51–60",
+            "page": 71,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 66,
+            "title": "Numbers 61–100",
+            "page": 73,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 67,
+            "title": "Skip Count by 2",
+            "page": 74,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 68,
+            "title": "Skip Count by 5 and 10",
+            "page": 75,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 70,
+            "title": "Months of the Year",
+            "page": 77,
+            "section": "Numeracy",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 73,
+            "title": "Two Little Mice",
+            "page": 81,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 74,
+            "title": "The Senses Song",
+            "page": 82,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 75,
+            "title": "The Zoo Song",
+            "page": 83,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 76,
+            "title": "Teddy Bear, Teddy Bear",
+            "page": 84,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 77,
+            "title": "Travel on Tracks",
+            "page": 85,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 78,
+            "title": "Travel by Air",
+            "page": 88,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 79,
+            "title": "The Fancy Dress Competition",
+            "page": 90,
+            "section": "Rhymes and Stories",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 80,
+            "title": "Fruits",
+            "page": 93,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 81,
+            "title": "Vegetables",
+            "page": 94,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 82,
+            "title": "Crossword Time",
+            "page": 95,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 83,
+            "title": "Uses of Flowers",
+            "page": 96,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 84,
+            "title": "Care of Plants",
+            "page": 97,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 85,
+            "title": "Seasons",
+            "page": 98,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 86,
+            "title": "Vehicles on the Road",
+            "page": 99,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 87,
+            "title": "Vehicles in Air and on Tracks",
+            "page": 101,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 88,
+            "title": "Vehicles on Water",
+            "page": 102,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 89,
+            "title": "Places for Vehicles",
+            "page": 103,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 90,
+            "title": "Sources of Water",
+            "page": 104,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 91,
+            "title": "Uses of Water",
+            "page": 105,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 92,
+            "title": "Float or Sink?",
+            "page": 106,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 93,
+            "title": "Mix or Not?",
+            "page": 107,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 94,
+            "title": "Air",
+            "page": 108,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 95,
+            "title": "Uses of Air",
+            "page": 109,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 96,
+            "title": "National Symbols of India",
+            "page": 110,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 97,
+            "title": "Important Days",
+            "page": 112,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 98,
+            "title": "Dot-to-Dot Puzzle",
+            "page": 111,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 99,
+            "title": "Colours",
+            "page": 115,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 100,
+            "title": "Daily Helpers – 1",
+            "page": 116,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 101,
+            "title": "Daily Helpers – 2",
+            "page": 117,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 102,
+            "title": "Daily Helpers – 3",
+            "page": 118,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          },
+          {
+            "sourceNumber": 103,
+            "title": "More Helpers",
+            "page": 119,
+            "section": "General Awareness",
+            "cycle": "SA_3"
+          }
+        ]
+      }
+    ]
+  }
+}

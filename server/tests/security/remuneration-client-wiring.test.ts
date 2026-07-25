@@ -6,11 +6,13 @@ const clientFile = (path: string) =>
   new URL(`../../../client/src/${path}`, import.meta.url);
 
 test("client remuneration data uses a dedicated scoped contract", async () => {
-  const [typesSource, hooksSource, pageSource] = await Promise.all([
-    readFile(clientFile("types/api.ts"), "utf8"),
-    readFile(clientFile("hooks/useUserQueries.ts"), "utf8"),
-    readFile(clientFile("pages/attendance/Remuneration.tsx"), "utf8"),
-  ]);
+  const [typesSource, userHooksSource, expenseHooksSource, pageSource] =
+    await Promise.all([
+      readFile(clientFile("types/api.ts"), "utf8"),
+      readFile(clientFile("hooks/useUserQueries.ts"), "utf8"),
+      readFile(clientFile("hooks/useExpenseQueries.ts"), "utf8"),
+      readFile(clientFile("pages/attendance/Remuneration.tsx"), "utf8"),
+    ]);
 
   assert.match(typesSource, /export interface RemunerationUser/);
   for (const field of [
@@ -26,27 +28,39 @@ test("client remuneration data uses a dedicated scoped contract", async () => {
     assert.match(typesSource, new RegExp(`\\b${field}\\??:`));
   }
 
-  assert.match(hooksSource, /export const useRemunerationUsers/);
-  assert.match(hooksSource, /\/users\/remuneration\?/);
+  assert.match(userHooksSource, /export const useRemunerationUsers/);
+  assert.match(userHooksSource, /\/users\/remuneration\?/);
   assert.match(
-    hooksSource,
+    userHooksSource,
     /queryKey:[\s\S]*projectId[\s\S]*centerId[\s\S]*semesterId/,
   );
   assert.match(
-    hooksSource,
+    userHooksSource,
     /enabled:[\s\S]*projectId[\s\S]*centerId[\s\S]*semesterId/,
   );
 
+  assert.match(expenseHooksSource, /export const useExpenses/);
+  assert.match(expenseHooksSource, /export const useMarkRemunerationPaid/);
+  assert.match(expenseHooksSource, /\/expenses\/remuneration-payments/);
   assert.match(pageSource, /useRemunerationUsers/);
-  assert.match(pageSource, /useSetRemunerationPeriod/);
+  assert.match(pageSource, /useExpenses/);
+  assert.match(pageSource, /useMarkRemunerationPaid/);
   assert.doesNotMatch(pageSource, /\buseUsers\b/);
+  assert.doesNotMatch(pageSource, /useSetRemunerationPeriod/);
   assert.match(pageSource, /buildRemunerationRows/);
   assert.match(pageSource, /payeesQuery\.isLoading/);
   assert.match(pageSource, /payeesQuery\.error/);
-  assert.match(pageSource, /result\.missingRateUserIds/);
-  assert.match(pageSource, /Needs remuneration/);
-  assert.match(pageSource, /Save remuneration/);
-  assert.match(pageSource, /Effective from/);
+  assert.match(pageSource, /Manage remuneration settings/);
+  assert.match(pageSource, /dashboard\/users/);
+  for (const state of ["Ready", "Incomplete", "No payment due", "Paid"]) {
+    assert.match(pageSource, new RegExp(state));
+  }
+  assert.match(pageSource, /Select all ready/);
+  assert.match(pageSource, /Mark selected as paid/);
+  assert.match(pageSource, /Mark as paid/);
+  assert.doesNotMatch(pageSource, /Save remuneration/);
+  assert.doesNotMatch(pageSource, /type="number"/);
+  assert.doesNotMatch(pageSource, /type="date"/);
   assert.doesNotMatch(pageSource, /\|\|\s*500|\?\?\s*500/);
 });
 
@@ -87,7 +101,7 @@ test("attendance exports require successful scoped payee data", async () => {
   assert.doesNotMatch(pageSource, /userReimbursementRates\[userId\] \|\| 500/);
 });
 
-test("remuneration exposes incomplete payee data without inventing an amount", async () => {
+test("remuneration exposes incomplete payee data read-only without inventing an amount", async () => {
   const [pageSource, helperSource] = await Promise.all([
     readFile(clientFile("pages/attendance/Remuneration.tsx"), "utf8"),
     readFile(clientFile("lib/remuneration.ts"), "utf8"),
@@ -105,7 +119,9 @@ test("remuneration exposes incomplete payee data without inventing an amount", a
     helperSource,
     /const amountPerDay = amountForDate/,
   );
-  assert.match(pageSource, /result\.total === null \? "Pending remuneration"/);
-  assert.match(pageSource, /row\.dailyRate === null \? "Needs remuneration"/);
+  assert.match(pageSource, /row\.total === null[\s\S]*"INCOMPLETE"/);
+  assert.match(pageSource, /Applicable schedule/);
+  assert.match(pageSource, /Add missing remuneration in Semester Users/);
+  assert.doesNotMatch(pageSource, /useSetRemunerationPeriod/);
   assert.doesNotMatch(pageSource, /\|\|\s*500|\?\?\s*500/);
 });

@@ -98,6 +98,63 @@ export interface RemunerationPeriod {
   effectiveTo: string | null;
 }
 
+export type ExpenseStatus = "ACTIVE" | "VOIDED";
+export type ExpenseType = "REMUNERATION" | "MANUAL" | string;
+
+export interface Expense {
+  id: string;
+  projectId: string;
+  centerId: string;
+  semesterId: string;
+  expenseType: ExpenseType;
+  category: string;
+  title: string;
+  amount: number;
+  incurredOn: string;
+  notes?: string | null;
+  payeeUserId?: string | null;
+  sourceKey?: string | null;
+  metadata?: Record<string, unknown> | null;
+  status: ExpenseStatus;
+  createdBy: string;
+  createdByUser?: Pick<User, "id" | "name"> | null;
+  payee?: Pick<User, "id" | "name"> | null;
+  voidedBy?: string | null;
+  voidedByUser?: Pick<User, "id" | "name"> | null;
+  voidedAt?: string | null;
+  voidReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExpenseTotals {
+  active: number;
+  remuneration: number;
+  manual: number;
+  voided: number;
+}
+
+export interface ExpenseListResponse {
+  expenses: Expense[];
+  totals: ExpenseTotals;
+  categories: string[];
+}
+
+export interface RemunerationPaymentResult {
+  userId: string;
+  status: "PAID" | "ALREADY_PAID" | "INCOMPLETE" | "NO_PAYMENT_DUE";
+  amount?: number;
+  paidAt?: string;
+  expenseId?: string;
+  missingDates?: string[];
+  reason?: "NOT_ELIGIBLE" | "MISSING_REMUNERATION" | "PROCESSING_FAILED";
+  message?: string;
+}
+
+export interface RemunerationPaymentResponse {
+  results: RemunerationPaymentResult[];
+}
+
 export interface SemesterUser extends ContextStaffUser {
   email: string;
   remunerationPeriods: RemunerationPeriod[];

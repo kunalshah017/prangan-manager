@@ -69,7 +69,7 @@ const semesterDateOnly = (value: string) => {
 };
 
 // Instants are interpreted in the application's operating calendar.
-const instantDateOnly = (value: Date | string) => {
+export const indiaBusinessDate = (value: Date | string) => {
   if (typeof value === "string" && value.length === 10) {
     return semesterDateOnly(value);
   }
@@ -203,7 +203,7 @@ export const selectDefaultSemesterMonth = (
 
   const start = semesterDateOnly(startDate)!;
   const end = semesterDateOnly(endDate)!;
-  const current = instantDateOnly(today);
+  const current = indiaBusinessDate(today);
   return current && current >= start && current <= end
     ? current.slice(0, 7)
     : (months.at(-1)?.value ?? "");

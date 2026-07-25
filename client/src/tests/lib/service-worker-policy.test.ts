@@ -205,7 +205,7 @@ describe("public service worker policy", () => {
     expect(respondWith).toHaveBeenCalledOnce();
     await responsePromise;
     expect(fetchMock).toHaveBeenCalledOnce();
-    expect(caches.open).toHaveBeenCalledWith("prangan-runtime-v6");
+    expect(caches.open).toHaveBeenCalledWith("prangan-runtime-v7");
     expect(runtimeCache.put).toHaveBeenCalledOnce();
   });
 
@@ -235,7 +235,7 @@ describe("public service worker policy", () => {
   );
 
   it("deletes only prior namespaced caches during activation", async () => {
-    const currentCaches = ["prangan-static-v6", "prangan-runtime-v6"];
+    const currentCaches = ["prangan-static-v7", "prangan-runtime-v7"];
     const priorCaches = [
       "prangan-static",
       "prangan-runtime",
@@ -243,6 +243,8 @@ describe("public service worker policy", () => {
       "prangan-runtime-v2",
       "prangan-static-v5",
       "prangan-runtime-v5",
+      "prangan-static-v6",
+      "prangan-runtime-v6",
     ];
     const preservedCaches = ["prangan-pdfs-v2", "unrelated-cache"];
     const { listeners, caches, clients } = await loadWorker([
@@ -302,7 +304,7 @@ describe("public service worker policy", () => {
   it("uses versioned app caches and only removes prior app cache versions", async () => {
     const source = await readWorker();
 
-    expect(source).toContain('const CACHE_VERSION = "v6";');
+    expect(source).toContain('const CACHE_VERSION = "v7";');
     expect(source).toContain(
       "const STATIC_CACHE = `prangan-static-${CACHE_VERSION}`;",
     );

@@ -7,20 +7,20 @@ const pageUrl = new URL(
 );
 
 describe("remuneration page UX", () => {
-  it("uses responsive payee views and effective-dated remuneration", async () => {
+  it("uses a responsive read-only monthly payment workflow", async () => {
     const source = await readFile(pageUrl, "utf8");
 
     expect(source).toContain("Remuneration");
     expect(source).not.toContain("Renumeration");
-    expect(source).toContain("Needs remuneration");
-    expect(source).toContain("Save remuneration");
-    expect(source).toContain("Effective from");
-    expect(source).toContain('type="date"');
-    expect(source).toContain("md:hidden");
-    expect(source).toContain("hidden md:block");
+    expect(source).toContain("Incomplete");
+    expect(source).toContain("Mark as paid");
+    expect(source).toContain("Applicable schedule");
+    expect(source).toContain("Manage remuneration settings");
+    expect(source).not.toContain("Save remuneration");
+    expect(source).not.toContain('type="date"');
+    expect(source).toContain("lg:grid-cols-2");
     expect(source).toContain("min-h-11");
-    expect(source).toContain('inputMode="decimal"');
-    expect(source).toContain("previewPayees");
+    expect(source).not.toContain('inputMode="decimal"');
     expect(source).not.toMatch(/\|\|\s*500/);
   });
 });

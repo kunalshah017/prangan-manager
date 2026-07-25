@@ -42,6 +42,7 @@ const EditStudent = lazy(() => import('./pages/students/EditStudent'))
 const ViewAttendance = lazy(() => import('./pages/attendance/ViewAttendance').then(module => ({ default: module.ViewAttendance })))
 const MarkAttendance = lazy(() => import('./pages/attendance/MarkAttendance').then(module => ({ default: module.MarkAttendance })))
 const Remuneration = lazy(() => import('./pages/attendance/Remuneration').then(module => ({ default: module.Remuneration })))
+const Expenses = lazy(() => import('./pages/expenses/Expenses'))
 const ViewStudentAttendance = lazy(() => import('./pages/student-attendance/ViewStudentAttendance').then(module => ({ default: module.ViewStudentAttendance })))
 const MarkStudentAttendance = lazy(() => import('./pages/student-attendance/MarkStudentAttendance').then(module => ({ default: module.MarkStudentAttendance })))
 const SyllabusManagement = lazy(() => import('./pages/syllabus').then(module => ({ default: module.SyllabusManagement })))
@@ -273,6 +274,11 @@ function App() {
                 <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/attendance/remuneration" element={
                   <ProtectedRoute permission="staffAttendance.read">
                     <Remuneration />
+                  </ProtectedRoute>
+                } />
+                <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/expenses" element={
+                  <ProtectedRoute requireAdmin>
+                    <Expenses />
                   </ProtectedRoute>
                 } />
                 <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/attendance/renumeration" element={

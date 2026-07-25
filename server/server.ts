@@ -11,6 +11,7 @@ import studentAttendanceRoutes from "./routes/student-attendance.routes.js";
 import syllabusRoutes from "./routes/syllabus.routes.js";
 import examRoutes from "./routes/exam.routes.js";
 import { academicLevelRoutes } from "./routes/academic-level.routes.js";
+import { expenseRoutes } from "./routes/expense.routes.js";
 import cookie from "@fastify/cookie";
 import { createCsrfToken, requireCsrfToken } from "./security/csrf.js";
 import {
@@ -66,6 +67,7 @@ fastify.register(studentAttendanceRoutes, {
 fastify.register(syllabusRoutes, { prefix: "/api/v1/syllabus" });
 fastify.register(examRoutes, { prefix: "/api/v1/exams" });
 fastify.register(academicLevelRoutes, { prefix: "/api/v1" });
+fastify.register(expenseRoutes, { prefix: "/api/v1" });
 
 const start = async (): Promise<void> => {
   try {

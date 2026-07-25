@@ -1,3 +1,5 @@
+import cambridgeContents from "./fixtures/learn-with-cambridge-2026-27.json";
+
 export interface BookSection {
   title: string;
   type: string;
@@ -33,6 +35,7 @@ export interface BookStructureItem {
   title: string;
   type: string;
   pageStart: number;
+  children?: BookStructureItem[];
   topics?: string[];
   theme?: string;
   sections?: UnitSections;
@@ -75,6 +78,52 @@ export interface Book {
   specialFeatures: Record<string, string | string[]>;
 }
 
+type CambridgeContents = {
+  levels: Record<
+    string,
+    Array<{
+      semester: number;
+      items: Array<{
+        sourceNumber: number;
+        title: string;
+        page: number;
+        section: string;
+        cycle: string;
+      }>;
+    }>
+  >;
+};
+
+const primaryBookStructure = (
+  level: string,
+  semester: number,
+): BookStructureItem[] => {
+  const levelCode = level.toUpperCase().replaceAll(" ", "_");
+  const volume = (cambridgeContents as CambridgeContents).levels[
+    levelCode
+  ]?.find((item) => item.semester === semester);
+
+  const sections = new Map<string, BookStructureItem>();
+  for (const item of volume?.items ?? []) {
+    const section = sections.get(item.section) ?? {
+      id: `${levelCode.toLowerCase()}-${semester}-${item.section.toLowerCase().replaceAll(" ", "-")}`,
+      title: item.section,
+      type: "section",
+      pageStart: item.page,
+      children: [],
+    };
+    section.children!.push({
+      id: `${levelCode.toLowerCase()}-${semester}-${item.sourceNumber}`,
+      title: item.title,
+      type: "topic",
+      pageStart: item.page,
+      theme: item.cycle.replace("_", "-"),
+    });
+    sections.set(item.section, section);
+  }
+  return [...sections.values()];
+};
+
 const createLearnWithCambridgeBook = ({
   id,
   isbn,
@@ -93,7 +142,7 @@ const createLearnWithCambridgeBook = ({
   id,
   coverUrl,
   pdfUrl,
-  pdfOffset: 0,
+  pdfOffset: 9,
   bookInfo: {
     title: `Learn with Cambridge: ${level} — Semester ${semester}`,
     subtitle: "An Integrated Semester Course",
@@ -104,16 +153,7 @@ const createLearnWithCambridgeBook = ({
     edition: "Integrated semester edition",
     level,
   },
-  structure: [
-    {
-      id: "complete-coursebook",
-      title: `${level} — Semester ${semester}`,
-      type: "coursebook",
-      pageStart: 1,
-      description:
-        "Integrated literacy, numeracy, rhymes, stories, and general awareness coursebook.",
-    },
-  ],
+  structure: primaryBookStructure(level, semester),
   grammarTopics: [],
   vocabularyCategories: [],
   skillsAndCompetencies: {

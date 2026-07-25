@@ -69,6 +69,7 @@ describe("buildDashboardModel", () => {
       "Mark staff attendance",
       "View staff attendance",
       "Remuneration",
+      "Expenses",
     ]);
     expect(model.actionGroups.map((group) => group.label)).not.toContain(
       "Administration",

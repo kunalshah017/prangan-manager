@@ -225,6 +225,15 @@ export function buildDashboardModel(
           "/attendance/remuneration",
           "wallet-cards",
         ),
+        user?.role === "ADMIN"
+          ? {
+              label: "Expenses",
+              mobileLabel: "Expenses",
+              description: "Review remuneration and semester spending.",
+              href: `/projects/${context.projectId}/centers/${context.centerId}/semesters/${context.semesterId}/dashboard/expenses`,
+              icon: "wallet-cards",
+            } satisfies DashboardAction
+          : null,
       ]),
     },
   ].filter((group) => group.actions.length > 0);

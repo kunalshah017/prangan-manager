@@ -52,6 +52,46 @@ describe("library PDF performance", () => {
     );
   });
 
+  it("shows the reviewed table of contents for every Primary book", () => {
+    expect(
+      bookCatalog
+        .slice(0, 6)
+        .map((book) =>
+          book.structure.reduce(
+            (count, section) => count + (section.children?.length ?? 0),
+            0,
+          ),
+        ),
+    ).toEqual([78, 76, 79, 74, 83, 80]);
+    expect(bookCatalog.slice(0, 6).map((book) => book.pdfOffset)).toEqual([
+      9, 9, 9, 9, 9, 9,
+    ]);
+    expect(
+      bookCatalog[0].structure.map((section) => section.title),
+    ).toEqual([
+      "Literacy",
+      "Numeracy",
+      "Rhymes and Stories",
+      "General Awareness",
+    ]);
+
+    expect(bookCatalog[0].structure[0].children?.[0]).toMatchObject({
+      title: "Scribble!",
+      pageStart: 2,
+      theme: "SA-1",
+    });
+    expect(bookCatalog[3].structure.at(-1)?.children?.at(-1)).toMatchObject({
+      title: "Water",
+      pageStart: 117,
+      theme: "SA-3",
+    });
+    expect(bookCatalog[5].structure.at(-1)?.children?.at(-1)).toMatchObject({
+      title: "More Helpers",
+      pageStart: 119,
+      theme: "SA-3",
+    });
+  });
+
   it("streams directly with stable scroll geometry and bounded page rendering", async () => {
     const reader = await readFile(
       new URL("../../pages/library/BookReader.tsx", import.meta.url),
@@ -66,6 +106,11 @@ describe("library PDF performance", () => {
     expect(reader).toContain("aspect-[581/782]");
     expect(reader).toContain("delete pageRefs.current[bookPageNum]");
     expect(reader).toContain("requestAnimationFrame");
+    expect(reader).toContain("readLastReadPage");
+    expect(reader).toContain("writeLastReadPage");
+    expect(reader).toContain("pendingInitialPageRef");
+    expect(reader).toContain("flattenBookStructure");
+    expect(reader).toContain("item.children?.map");
     expect(reader).toContain(
       "rect.top <= readingLine && rect.bottom > readingLine",
     );

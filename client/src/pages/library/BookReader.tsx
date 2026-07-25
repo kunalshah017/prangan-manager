@@ -2,7 +2,11 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, List, X, ChevronRight, ChevronLeft, Search } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { books, type Book } from '../../data/books';
+import { books, type Book, type BookStructureItem } from '../../data/books';
+import {
+    readLastReadPage,
+    writeLastReadPage,
+} from '../../lib/book-progress';
 import { cn } from '../../lib/utils';
 import { Document, Page, pdfjs } from 'react-pdf';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
@@ -21,6 +25,89 @@ const PDF_OPTIONS = {
     isEvalSupported: false,
 };
 
+const flattenBookStructure = (
+    items: BookStructureItem[],
+): BookStructureItem[] =>
+    items.flatMap((item) => [
+        item,
+        ...flattenBookStructure(item.children ?? []),
+    ]);
+
+const matchesContentsSearch = (
+    item: BookStructureItem,
+    query: string,
+): boolean =>
+    item.title.toLowerCase().includes(query) ||
+    Boolean(item.theme?.toLowerCase().includes(query));
+
+const ContentsButton = ({
+    item,
+    label,
+    active,
+    nested = false,
+    onClick,
+    itemRef,
+}: {
+    item: BookStructureItem;
+    label: React.ReactNode;
+    active: boolean;
+    nested?: boolean;
+    onClick: () => void;
+    itemRef?: React.Ref<HTMLButtonElement>;
+}) => (
+    <motion.button
+        ref={itemRef}
+        onClick={onClick}
+        className={cn(
+            "flex min-h-11 w-full items-start gap-3 rounded-lg px-4 py-3 text-left transition-all group",
+            nested && "ml-4 w-[calc(100%-1rem)] border-l-2 border-orange-100",
+            active
+                ? "bg-orange-100 text-orange-800 font-medium shadow-sm"
+                : nested
+                  ? "text-gray-700 hover:bg-orange-50/60"
+                  : "bg-gray-50 text-gray-800 hover:bg-gray-100",
+        )}
+    >
+        <span
+            className={cn(
+                "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+                active
+                    ? "bg-orange-200 text-orange-900"
+                    : nested
+                      ? "bg-white text-gray-600 ring-1 ring-gray-200 group-hover:bg-orange-100"
+                      : "bg-orange-100 text-orange-800",
+            )}
+        >
+            {label}
+        </span>
+        <span className="min-w-0 flex-1">
+            <span className={cn("block font-medium", !nested && "font-semibold")}>
+                {item.title}
+            </span>
+            {item.theme && (
+                <span className="mt-1 block text-xs text-gray-500">
+                    {item.theme}
+                </span>
+            )}
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+            <span
+                className={cn(
+                    "rounded px-2 py-1 text-xs font-medium",
+                    active
+                        ? "bg-orange-200 text-orange-900"
+                        : "bg-white text-gray-600 ring-1 ring-gray-200",
+                )}
+            >
+                Page: {item.pageStart}
+            </span>
+            {active && (
+                <ChevronRight className="h-4 w-4 animate-pulse text-orange-600" />
+            )}
+        </span>
+    </motion.button>
+);
+
 const BookReader: React.FC = () => {
     const { bookId } = useParams<{ bookId: string }>();
     const navigate = useNavigate();
@@ -34,6 +121,7 @@ const BookReader: React.FC = () => {
     const pageRefs = useRef<Record<number, HTMLDivElement>>({});
     const indexListRef = useRef<HTMLDivElement>(null);
     const activeItemRef = useRef<HTMLButtonElement>(null);
+    const pendingInitialPageRef = useRef<number | null>(null);
 
     // PDF offset from book data
     const PDF_OFFSET = book?.pdfOffset || 0;
@@ -49,6 +137,10 @@ const BookReader: React.FC = () => {
     useEffect(() => {
         const foundBook = books.find(b => b.id === bookId);
         if (foundBook) {
+            pageRefs.current = {};
+            setNumPages(0);
+            setCurrentPage(1);
+            pendingInitialPageRef.current = readLastReadPage(foundBook.id);
             setBook(foundBook);
         } else {
             navigate(`/library${location.search}`);
@@ -58,8 +150,34 @@ const BookReader: React.FC = () => {
 
     const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
         // Subtract the offset pages from total
-        setNumPages(numPages - PDF_OFFSET);
+        const readablePages = Math.max(1, numPages - PDF_OFFSET);
+        const restoredPage = Math.min(
+            pendingInitialPageRef.current ?? 1,
+            readablePages,
+        );
+        pendingInitialPageRef.current = restoredPage;
+        setNumPages(readablePages);
+        setCurrentPage(restoredPage);
     };
+
+    useEffect(() => {
+        const initialPage = pendingInitialPageRef.current;
+        if (!numPages || initialPage === null) return;
+
+        requestAnimationFrame(() => {
+            pageRefs.current[initialPage]?.scrollIntoView({
+                behavior: 'auto',
+                block: 'start',
+            });
+            pendingInitialPageRef.current = null;
+        });
+    }, [currentPage, numPages]);
+
+    useEffect(() => {
+        if (book && numPages > 0) {
+            writeLastReadPage(book.id, currentPage);
+        }
+    }, [book, currentPage, numPages]);
 
     const jumpToPage = useCallback((pageNumber: number) => {
         const boundedPage = Math.min(Math.max(pageNumber, 1), numPages);
@@ -90,18 +208,22 @@ const BookReader: React.FC = () => {
         }
     };
 
-    // Track which section is currently active based on scroll position
+    const bookStructure = useMemo(
+        () => flattenBookStructure(book?.structure ?? []),
+        [book],
+    );
+
+    // Track which topic is currently active based on scroll position
     const getCurrentSection = useCallback(() => {
         if (!book) return null;
 
-        // Find the section that matches current page
-        for (let i = book.structure.length - 1; i >= 0; i--) {
-            if (currentPage >= book.structure[i].pageStart) {
-                return book.structure[i];
+        for (let i = bookStructure.length - 1; i >= 0; i--) {
+            if (currentPage >= bookStructure[i].pageStart) {
+                return bookStructure[i];
             }
         }
-        return book.structure[0];
-    }, [book, currentPage]);
+        return bookStructure[0];
+    }, [book, bookStructure, currentPage]);
 
     const activeSection = getCurrentSection();
 
@@ -124,10 +246,13 @@ const BookReader: React.FC = () => {
         if (!searchQuery.trim()) return book.structure;
 
         const query = searchQuery.toLowerCase();
-        return book.structure.filter(item =>
-            item.title.toLowerCase().includes(query) ||
-            (item.theme && item.theme.toLowerCase().includes(query))
-        );
+        return book.structure.flatMap((item) => {
+            if (matchesContentsSearch(item, query)) return [item];
+            const children = item.children?.filter((child) =>
+                matchesContentsSearch(child, query),
+            );
+            return children?.length ? [{ ...item, children }] : [];
+        });
     }, [book, searchQuery]);
 
     // Reset search when index closes
@@ -395,55 +520,32 @@ const BookReader: React.FC = () => {
                                             className="space-y-2"
                                         >
                                             {filteredStructure.map((item, index) => (
-                                                <motion.button
+                                                <motion.div
                                                     key={item.id}
-                                                    ref={activeSection?.id === item.id ? activeItemRef : null}
                                                     initial={{ opacity: 0, x: -20 }}
                                                     animate={{ opacity: 1, x: 0 }}
                                                     transition={{ delay: index * 0.03, duration: 0.2 }}
-                                                    onClick={() => handleSectionClick(item.pageStart)}
-                                                    className={cn(
-                                                        "w-full text-left px-4 py-3 rounded-lg transition-all flex items-start gap-3 group",
-                                                        activeSection?.id === item.id
-                                                            ? "bg-orange-100 text-orange-800 font-medium shadow-sm"
-                                                            : "text-gray-700 hover:bg-gray-50"
-                                                    )}
+                                                    className="space-y-1"
                                                 >
-                                                    <span
-                                                        className={cn(
-                                                            "mt-0.5 w-7 h-7 flex items-center justify-center rounded-full text-xs shrink-0 font-semibold",
-                                                            activeSection?.id === item.id
-                                                                ? "bg-orange-200 text-orange-900"
-                                                                : "bg-gray-100 text-gray-600 group-hover:bg-gray-200"
-                                                        )}
-                                                    >
-                                                        {index + 1}
-                                                    </span>
-                                                    <div className="flex-1 min-w-0">
-                                                        <span className="block font-medium">{item.title}</span>
-                                                        {item.theme && (
-                                                            <span className="text-xs text-gray-500 block mt-1">
-                                                                {item.theme}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex items-center gap-2 shrink-0">
-                                                        <span
-                                                            className={cn(
-                                                                "text-xs font-medium px-2 py-1 rounded",
-                                                                activeSection?.id === item.id
-                                                                    ? "bg-orange-200 text-orange-900"
-                                                                    : "bg-gray-100 text-gray-600 group-hover:bg-gray-200"
-                                                            )}
-                                                        >
-                                                            Page: {' '}
-                                                            {item.pageStart}
-                                                        </span>
-                                                        {activeSection?.id === item.id && (
-                                                            <ChevronRight className="w-4 h-4 text-orange-600 animate-pulse" />
-                                                        )}
-                                                    </div>
-                                                </motion.button>
+                                                    <ContentsButton
+                                                        item={item}
+                                                        label={index + 1}
+                                                        active={activeSection?.id === item.id}
+                                                        itemRef={activeSection?.id === item.id ? activeItemRef : undefined}
+                                                        onClick={() => handleSectionClick(item.pageStart)}
+                                                    />
+                                                    {item.children?.map((topic, topicIndex) => (
+                                                        <ContentsButton
+                                                            key={topic.id}
+                                                            item={topic}
+                                                            label={topicIndex + 1}
+                                                            active={activeSection?.id === topic.id}
+                                                            nested
+                                                            itemRef={activeSection?.id === topic.id ? activeItemRef : undefined}
+                                                            onClick={() => handleSectionClick(topic.pageStart)}
+                                                        />
+                                                    ))}
+                                                </motion.div>
                                             ))}
                                         </motion.div>
                                     )}

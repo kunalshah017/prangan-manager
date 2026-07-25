@@ -162,6 +162,10 @@ export function buildBreadcrumbs({
     return [...workspace, semester, current("Semester users")];
   }
 
+  if (section === "expenses") {
+    return [...workspace, semester, current("Expenses")];
+  }
+
   if (section === "attendance") {
     const labels: Record<string, string> = {
       view: "View Staff Attendance",

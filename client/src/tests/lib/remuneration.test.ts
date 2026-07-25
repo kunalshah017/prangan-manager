@@ -5,6 +5,7 @@ import {
   buildRemunerationRows,
   enumerateSemesterMonths,
   formatINR,
+  indiaBusinessDate,
   previewRemunerationSchedule,
   selectDefaultSemesterMonth,
   validateRemunerationRate,
@@ -272,6 +273,8 @@ describe("semester remuneration calculations", () => {
   });
 
   it("uses Asia/Kolkata calendar dates for instants at month boundaries", () => {
+    expect(indiaBusinessDate("2026-07-31T20:00:00.000Z")).toBe("2026-08-01");
+    expect(indiaBusinessDate("2026-07-31T18:29:59.999Z")).toBe("2026-07-31");
     expect(
       selectDefaultSemesterMonth(
         "2026-07-01",
