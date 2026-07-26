@@ -6,6 +6,10 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/api/v1/:path*",
+      "destination": "https://prangan-manager-api-awbfgggjadahbqc6.centralindia-01.azurewebsites.net/api/v1/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

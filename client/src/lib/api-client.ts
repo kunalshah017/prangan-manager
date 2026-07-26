@@ -9,7 +9,7 @@ export { ApiError } from "./api-error";
 
 const API_BASE_URL =
   process.env.NODE_ENV === "production"
-    ? import.meta.env.VITE_API_BASE_URL
+    ? "/api/v1"
     : import.meta.env.VITE_API_BASE_URL || "http://localhost:4000/api/v1";
 
 // Base fetch wrapper with authentication and error handling

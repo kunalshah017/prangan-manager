@@ -416,7 +416,7 @@ Expected response fields include `status: "OK"`, a timestamp, and
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `VITE_API_BASE_URL` | Production: yes | Full API base URL including `/api/v1`. Development falls back to `http://localhost:4000/api/v1`. |
+| `VITE_API_BASE_URL` | Development override only | Full local API base URL including `/api/v1`. Development falls back to `http://localhost:4000/api/v1`; production uses the same-origin `/api/v1` proxy. |
 | `VITE_CLOUDINARY_CLOUD_NAME` | For uploads | Cloudinary cloud name used by the browser upload helper. |
 | `VITE_CLOUDINARY_UPLOAD_PRESET` | For uploads | Unsigned Cloudinary upload preset. Restrict the preset in Cloudinary. |
 | `VITE_BUILD_TIME` | No | Injected by Vite during build. Do not add it manually unless reproducing build metadata behavior. |
@@ -796,6 +796,7 @@ when changing a book's page alignment or structure.
 
 - `npm run build`
 - `dist` as the output directory
+- a same-origin `/api/v1/*` proxy to the Azure API
 - SPA rewrites to `index.html`
 - no-cache behavior for the service worker and HTML shell
 - immutable caching for hashed assets
@@ -803,12 +804,14 @@ when changing a book's page alignment or structure.
 Required production variables:
 
 ```text
-VITE_API_BASE_URL
 VITE_CLOUDINARY_CLOUD_NAME
 VITE_CLOUDINARY_UPLOAD_PRESET
 ```
 
-`VITE_API_BASE_URL` must include `/api/v1` and target the production Azure API.
+Production browser requests use `https://manager.pranganfoundation.org/api/v1`.
+The API rewrite must remain before the SPA fallback in `client/vercel.json` so
+session and CSRF cookies remain first-party and API requests never receive
+`index.html`.
 
 ### API on Azure App Service
 
@@ -895,12 +898,14 @@ and post-deploy smoke tests.
 
 Check:
 
-1. The server is listening on the same port used by
+1. In production, `/api/v1/auth/csrf` on the frontend domain returns JSON
+   through the Vercel rewrite rather than `index.html`.
+2. The `/api/v1/:path*` rewrite appears before the SPA fallback.
+3. In development, the server is listening on the port used by
    `VITE_API_BASE_URL`.
-2. The URL includes `/api/v1`.
-3. `CLIENT_ORIGIN` exactly matches the browser origin.
-4. Requests send credentials.
-5. The server restarted after environment changes.
+4. `CLIENT_ORIGIN` exactly matches the browser origin.
+5. Requests send credentials.
+6. The server restarted after environment changes.
 
 For local work, the least surprising pair is:
 
