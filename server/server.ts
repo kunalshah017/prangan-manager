@@ -20,6 +20,10 @@ import {
   getCsrfCookieOptions,
 } from "./security/session.js";
 import { startEmailWorker } from "./service/email-worker.js";
+import {
+  EMAIL_JOB_COMMITTED,
+  onCommitTrigger,
+} from "./lib/commit-triggers.js";
 
 // Load environment variables from .env file
 dotenv.config();
@@ -27,6 +31,7 @@ dotenv.config();
 // Create Fastify instance
 const fastify: FastifyInstance = Fastify();
 let emailWorker: ReturnType<typeof startEmailWorker> | undefined;
+let removeEmailCommitTrigger: (() => void) | undefined;
 
 const clientOrigins = getAllowedClientOrigins();
 
@@ -77,6 +82,10 @@ const start = async (): Promise<void> => {
     await fastify.ready();
     await fastify.listen({ port, host });
     emailWorker = startEmailWorker();
+    removeEmailCommitTrigger = onCommitTrigger(
+      EMAIL_JOB_COMMITTED,
+      () => emailWorker?.wake(),
+    );
     console.log(`Server is running on http://${host}:${port}`);
     console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
   } catch (err) {
@@ -87,6 +96,7 @@ const start = async (): Promise<void> => {
 
 process.on("SIGINT", async () => {
   fastify.log.info("Received SIGINT, shutting down gracefully...");
+  removeEmailCommitTrigger?.();
   await emailWorker?.stop();
   await fastify.close();
   process.exit(0);
@@ -94,6 +104,7 @@ process.on("SIGINT", async () => {
 
 process.on("SIGTERM", async () => {
   fastify.log.info("Received SIGTERM, shutting down gracefully...");
+  removeEmailCommitTrigger?.();
   await emailWorker?.stop();
   await fastify.close();
   process.exit(0);

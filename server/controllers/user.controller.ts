@@ -90,6 +90,10 @@ import { AcademicLevelServiceError } from "../service/academic-level.service.js"
 import { resolveSemesterLevelInput } from "../service/semester-level.service.js";
 import { enqueueEmail } from "../service/email-queue.service.js";
 import {
+  EMAIL_JOB_COMMITTED,
+  emitCommitTrigger,
+} from "../lib/commit-triggers.js";
+import {
   buildPasswordResetEmailJob,
   buildRegistrationApprovalEmailJob,
   buildRegistrationRejectionEmailJob,
@@ -515,6 +519,7 @@ export const verifyUser = asyncHandle(
             409,
           );
         }
+        emitCommitTrigger(EMAIL_JOB_COMMITTED);
         return successHandle(
           {
             message:
@@ -657,6 +662,7 @@ export const verifyUser = asyncHandle(
         );
       }
 
+      emitCommitTrigger(EMAIL_JOB_COMMITTED);
       const fullUserDetails = await getAdminUserById(
         transactionResult.userUpdate.id,
       );
@@ -736,6 +742,7 @@ export const requestPasswordReset = asyncHandle(
           });
           await enqueueEmail(emailJob, tx);
         });
+        emitCommitTrigger(EMAIL_JOB_COMMITTED);
       } catch (error) {
         console.error("Password reset queue failed:", error);
       }

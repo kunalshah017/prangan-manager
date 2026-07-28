@@ -8,6 +8,10 @@ import {
   type Prisma,
 } from "../generated/prisma/index.js";
 import { buildSemesterActivationEmailJobs } from "../email/semester-activation-email.js";
+import {
+  EMAIL_JOB_COMMITTED,
+  emitCommitTrigger,
+} from "../lib/commit-triggers.js";
 import { composePersonName } from "../lib/person-name.js";
 import { prisma } from "../lib/prisma.js";
 import {
@@ -619,8 +623,8 @@ export const saveStaffTransitionPlan = async (
 export const activateSemesterTransition = async (
   semesterId: string,
   updatedBy: string,
-) =>
-  prisma.$transaction(async (transaction) => {
+) => {
+  const result = await prisma.$transaction(async (transaction) => {
     const transition = await transaction.semesterTransition.findUnique({
       where: { semesterId },
       include: {
@@ -869,6 +873,11 @@ export const activateSemesterTransition = async (
   }, {
     timeout: 30_000,
   });
+  if (result.queuedEmailCount > 0) {
+    emitCommitTrigger(EMAIL_JOB_COMMITTED);
+  }
+  return result;
+};
 
 export const getCenterSemesterTransitionSummaries = async (
   centerId: string,

@@ -6,6 +6,10 @@ import {
   UserStatus,
 } from "../generated/prisma/index.js";
 import { buildRemunerationPaymentEmailJob } from "../email/remuneration-payment-email.js";
+import {
+  EMAIL_JOB_COMMITTED,
+  emitCommitTrigger,
+} from "../lib/commit-triggers.js";
 import { prisma } from "../lib/prisma.js";
 import type {
   ExpenseListQuery,
@@ -547,6 +551,9 @@ export const markRemunerationPaid = async (
         reason: "PROCESSING_FAILED",
       });
     }
+  }
+  if (results.some((result) => result.status === "PAID")) {
+    emitCommitTrigger(EMAIL_JOB_COMMITTED);
   }
   return { results };
 };

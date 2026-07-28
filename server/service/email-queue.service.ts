@@ -143,6 +143,39 @@ export const claimNextEmailJob = async (
   return null;
 };
 
+export const getNextEmailJobWakeAt = async (): Promise<Date | null> => {
+  const jobs = await prisma.emailJob.findMany({
+    where: {
+      OR: [
+        {
+          status: EmailJobStatus.PENDING,
+          attempts: { lt: EMAIL_JOB_MAX_ATTEMPTS },
+        },
+        {
+          status: EmailJobStatus.PROCESSING,
+          lockedAt: { not: null },
+        },
+      ],
+    },
+    select: {
+      status: true,
+      availableAt: true,
+      lockedAt: true,
+    },
+  });
+  const wakeTimes = jobs.flatMap((job) =>
+    job.status === EmailJobStatus.PENDING
+      ? [job.availableAt]
+      : job.lockedAt
+        ? [new Date(job.lockedAt.getTime() + EMAIL_JOB_LEASE_MS)]
+        : [],
+  );
+
+  return wakeTimes.length
+    ? new Date(Math.min(...wakeTimes.map((date) => date.getTime())))
+    : null;
+};
+
 export const completeEmailJob = async (
   job: Pick<ClaimedEmailJob, "id" | "lockToken">,
   now = new Date(),

@@ -3,11 +3,13 @@ import {
   claimNextEmailJob,
   completeEmailJob,
   failEmailJob,
+  getNextEmailJobWakeAt,
   type ClaimedEmailJob,
 } from "./email-queue.service.js";
 
-type EmailWorkerDependencies = {
+export type EmailWorkerDependencies = {
   claimNext: () => Promise<ClaimedEmailJob | null>;
+  nextWakeAt: () => Promise<Date | null>;
   deliver: (job: ClaimedEmailJob) => Promise<unknown>;
   complete: (job: ClaimedEmailJob) => Promise<unknown>;
   fail: (job: ClaimedEmailJob, error: Error) => Promise<unknown>;
@@ -15,6 +17,7 @@ type EmailWorkerDependencies = {
 
 const defaultDependencies: EmailWorkerDependencies = {
   claimNext: () => claimNextEmailJob(),
+  nextWakeAt: () => getNextEmailJobWakeAt(),
   deliver: (job) =>
     sendEmail(job.to, job.subject, job.html, {
       fromName: job.fromName ?? undefined,
@@ -44,42 +47,70 @@ export const runEmailWorkerOnce = async (
 };
 
 export const startEmailWorker = ({
-  pollIntervalMs = 5_000,
+  failureRetryMs = 60_000,
   dependencies = defaultDependencies,
 }: {
-  pollIntervalMs?: number;
+  failureRetryMs?: number;
   dependencies?: EmailWorkerDependencies;
 } = {}) => {
   let stopped = false;
   let timer: NodeJS.Timeout | undefined;
   let running: Promise<void> | undefined;
+  let wakeRequested = false;
 
   const schedule = (delay: number) => {
     if (stopped) return;
+    if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
+      timer = undefined;
       running = cycle();
-    }, delay);
+    }, Math.max(0, delay));
     timer.unref();
   };
 
   const cycle = async () => {
-    let worked = false;
     try {
-      worked = await runEmailWorkerOnce(dependencies);
+      while (!stopped) {
+        wakeRequested = false;
+        while (!stopped && (await runEmailWorkerOnce(dependencies))) {
+          // Drain every job that is ready now.
+        }
+        if (stopped) break;
+        if (wakeRequested) continue;
+
+        const nextWakeAt = await dependencies.nextWakeAt();
+        if (wakeRequested) continue;
+        if (nextWakeAt) {
+          schedule(nextWakeAt.getTime() - Date.now());
+        }
+        break;
+      }
     } catch (error) {
       console.error("Email worker cycle failed:", asError(error).message);
+      schedule(failureRetryMs);
     } finally {
       running = undefined;
-      schedule(worked ? 0 : pollIntervalMs);
+      if (wakeRequested && !stopped && !timer) schedule(0);
     }
   };
 
   schedule(0);
 
   return {
+    wake: () => {
+      if (stopped) return;
+      wakeRequested = true;
+      if (timer) {
+        clearTimeout(timer);
+        timer = undefined;
+      }
+      if (!running) schedule(0);
+    },
     stop: async () => {
       stopped = true;
+      wakeRequested = false;
       if (timer) clearTimeout(timer);
+      timer = undefined;
       await running;
     },
   };

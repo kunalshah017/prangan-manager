@@ -32,8 +32,8 @@ Email jobs are commonly created inside Prisma transactions. A wake notification
 must happen only after the enclosing transaction succeeds; otherwise, the
 worker could check before the job becomes visible and then return to sleep.
 
-Each transactional workflow will therefore notify the worker immediately after
-its transaction resolves:
+Each transactional workflow will therefore emit an `email-job-committed`
+trigger immediately after its transaction resolves:
 
 - registration approval
 - registration rejection
@@ -43,6 +43,12 @@ its transaction resolves:
 
 The outbox insert remains part of the business transaction, preserving atomicity
 between the business change and its email job.
+
+Commit triggers will use a small reusable registry. A trigger can have one or
+more listeners, and registering a listener returns an unsubscribe function.
+The email worker wake-up is one listener. Future post-commit actions can be
+added or removed by registering or unregistering listeners without changing the
+registry or worker.
 
 ## Retry and Recovery
 
