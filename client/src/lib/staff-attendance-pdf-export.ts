@@ -15,6 +15,13 @@ export type StaffAttendancePdfExportInput = ExportMetadata & {
   records: AttendanceRecord[];
 };
 
+const theme: Record<"primary" | "ink" | "muted" | "surface", [number, number, number]> = {
+  primary: [221, 119, 0],
+  ink: [56, 38, 12],
+  muted: [100, 82, 54],
+  surface: [255, 246, 232],
+};
+
 const statusShortLabel: Record<AttendanceRecord["status"], string> = {
   PRESENT: "P",
   ABSENT: "A",
@@ -32,6 +39,24 @@ const statusLabel: Record<AttendanceRecord["status"], string> = {
 const safeFilenamePart = (value?: string) =>
   (value || "Unknown").replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 
+export const groupStaffAttendanceRecordsByMonth = (
+  records: AttendanceRecord[],
+) => {
+  const groups = new Map<string, AttendanceRecord[]>();
+  for (const record of records) {
+    const key = record.date.slice(0, 7);
+    groups.set(key, [...(groups.get(key) || []), record]);
+  }
+  return Array.from(groups, ([key, monthRecords]) => ({
+    key,
+    label: new Date(`${key}-01T00:00:00`).toLocaleDateString("en-GB", {
+      month: "long",
+      year: "numeric",
+    }),
+    records: monthRecords,
+  })).sort((left, right) => left.key.localeCompare(right.key));
+};
+
 export const getStaffAttendancePdfFilename = ({
   projectName,
   centerName,
@@ -45,35 +70,52 @@ const displayDate = (date: string) =>
     month: "short",
   });
 
-const drawReportHeader = (doc: jsPDF, metadata: ExportMetadata, title: string) => {
-  doc.setFillColor(30, 64, 175);
-  doc.rect(0, 0, 297, 24, "F");
-  doc.setTextColor(255, 255, 255);
+const loadReportLogo = () =>
+  new Promise<HTMLImageElement | null>((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = "/images/logo/prangan-logo-light-mode.png";
+  });
+
+const drawReportHeader = (
+  doc: jsPDF,
+  metadata: ExportMetadata,
+  title: string,
+  logo: HTMLImageElement | null,
+) => {
+  doc.setFillColor(...theme.primary);
+  doc.rect(0, 0, 297, 6, "F");
+  if (logo) doc.addImage(logo, "PNG", 250, 9, 35, 15);
+  doc.setTextColor(...theme.ink);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
-  doc.text(title, 12, 14);
+  doc.text(title, 12, 16);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
+  doc.setTextColor(...theme.muted);
   doc.text(
     [metadata.projectName, metadata.centerName, metadata.semesterName]
       .filter(Boolean)
       .join(" · "),
     12,
-    20,
+    22,
   );
-  doc.setTextColor(55, 65, 81);
-  doc.setFontSize(8);
-  doc.text(`Period: ${metadata.periodLabel}`, 12, 31);
+  doc.text(`Period: ${metadata.periodLabel}`, 12, 28);
 };
 
-export const exportStaffAttendancePdf = (input: StaffAttendancePdfExportInput) => {
-  const model = buildStaffAttendancePdfModel({ records: input.records });
-  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-
-  drawReportHeader(doc, input, "Staff attendance detail");
+const drawMonthDetailPage = (
+  doc: jsPDF,
+  metadata: ExportMetadata,
+  label: string,
+  records: AttendanceRecord[],
+  logo: HTMLImageElement | null,
+) => {
+  const model = buildStaffAttendancePdfModel({ records });
+  drawReportHeader(doc, metadata, `Staff attendance — ${label}`, logo);
   doc.setFontSize(7);
-  doc.setTextColor(75, 85, 99);
-  doc.text("P = Present   A = Absent   NA = Not available   H = Holiday", 12, 37);
+  doc.setTextColor(...theme.muted);
+  doc.text("P = Present   A = Absent   NA = Not available   H = Holiday", 12, 35);
 
   const head = [["Staff member", "Role", ...model.dates.map(displayDate)]];
   const body = model.roleGroups.flatMap((group) =>
@@ -85,17 +127,25 @@ export const exportStaffAttendancePdf = (input: StaffAttendancePdfExportInput) =
   );
 
   autoTable(doc, {
-    startY: 42,
+    startY: 40,
     head,
     body: body.length ? body : [["No attendance records match the selected filters."]],
     styles: { fontSize: 7, cellPadding: 1.6, halign: "center" },
-    headStyles: { fillColor: [30, 64, 175], textColor: 255, fontStyle: "bold" },
+    headStyles: { fillColor: theme.primary, textColor: 255, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: theme.surface },
     columnStyles: { 0: { halign: "left", cellWidth: 48 }, 1: { halign: "left", cellWidth: 30 } },
     margin: { left: 12, right: 12 },
   });
+};
 
-  doc.addPage();
-  drawReportHeader(doc, input, "Attendance insights");
+const drawInsightsPage = (
+  doc: jsPDF,
+  metadata: ExportMetadata,
+  records: AttendanceRecord[],
+  logo: HTMLImageElement | null,
+) => {
+  const model = buildStaffAttendancePdfModel({ records });
+  drawReportHeader(doc, metadata, "Attendance insights", logo);
   const total = Object.values(model.statusTotals).reduce((sum, count) => sum + count, 0);
   const cards = [
     { key: "PRESENT", color: [22, 163, 74], x: 14 },
@@ -115,20 +165,20 @@ export const exportStaffAttendancePdf = (input: StaffAttendancePdfExportInput) =
     doc.text(statusLabel[key], x + 8, 72);
   });
 
-  doc.setTextColor(31, 41, 55);
+  doc.setTextColor(...theme.ink);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
   doc.text("Overall attendance rate", 14, 100);
   doc.setFontSize(30);
-  doc.setTextColor(30, 64, 175);
+  doc.setTextColor(...theme.primary);
   doc.text(`${model.attendanceRate}%`, 14, 119);
   doc.setFont("helvetica", "normal");
-  doc.setTextColor(75, 85, 99);
+  doc.setTextColor(...theme.muted);
   doc.setFontSize(8);
   doc.text("Present ÷ (Present + Absent)", 14, 128);
   doc.text(`${total} recorded attendance entries`, 14, 136);
 
-  doc.setTextColor(31, 41, 55);
+  doc.setTextColor(...theme.ink);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
   doc.text("Role-wise attendance rate", 128, 100);
@@ -136,16 +186,35 @@ export const exportStaffAttendancePdf = (input: StaffAttendancePdfExportInput) =
     const y = 113 + index * 27;
     const rate = Number(group.attendanceRate);
     doc.setFontSize(9);
-    doc.setTextColor(55, 65, 81);
+    doc.setTextColor(...theme.muted);
     doc.text(group.role === "CENTER_MANAGER" ? "Center managers" : "Educators", 128, y);
-    doc.setFillColor(226, 232, 240);
+    doc.setFillColor(242, 229, 207);
     doc.roundedRect(128, y + 4, 130, 8, 2, 2, "F");
-    doc.setFillColor(30, 64, 175);
+    doc.setFillColor(...theme.primary);
     doc.roundedRect(128, y + 4, Math.max(0, Math.min(130, (rate / 100) * 130)), 8, 2, 2, "F");
     doc.setFont("helvetica", "bold");
     doc.text(`${group.attendanceRate}%`, 263, y + 10, { align: "right" });
     doc.setFont("helvetica", "normal");
   });
+};
 
+export const exportStaffAttendancePdf = async (
+  input: StaffAttendancePdfExportInput,
+) => {
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const logo = await loadReportLogo();
+  const months = groupStaffAttendanceRecordsByMonth(input.records);
+
+  if (months.length === 0) {
+    drawMonthDetailPage(doc, input, "Selected period", [], logo);
+  } else {
+    months.forEach((month, index) => {
+      if (index > 0) doc.addPage();
+      drawMonthDetailPage(doc, input, month.label, month.records, logo);
+    });
+  }
+
+  doc.addPage();
+  drawInsightsPage(doc, input, input.records, logo);
   doc.save(getStaffAttendancePdfFilename(input));
 };

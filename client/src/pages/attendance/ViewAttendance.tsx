@@ -418,7 +418,7 @@ export const ViewAttendance = () => {
     }
     setIsExporting(true);
     try {
-      exportStaffAttendancePdf({
+      await exportStaffAttendancePdf({
         records: filteredAttendance,
         projectName: projectQuery.data?.name,
         centerName: centerQuery.data?.name,
