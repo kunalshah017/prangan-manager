@@ -21,8 +21,6 @@ import {
   Users,
 } from "lucide-react";
 import { useParams } from "react-router-dom";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import toast from "react-hot-toast";
 
 import LoadingButterfly from "@/components/LoadingButterfly";
@@ -39,6 +37,7 @@ import { useProject } from "@/hooks/useProjectQueries";
 import { useSemester } from "@/hooks/useSemesterQueries";
 import { useRemunerationUsers } from "@/hooks/useUserQueries";
 import { downloadCsv, type CsvRow } from "@/lib/csv-export";
+import { exportStaffAttendancePdf } from "@/lib/staff-attendance-pdf-export";
 import { cn } from "@/lib/utils";
 import type { AttendanceRecord } from "@/types/api";
 import {
@@ -258,7 +257,7 @@ export const ViewAttendance = () => {
     );
   }, [attendanceQuery.data?.attendances, isPayeesSuccess, payeeIds]);
 
-  const canExport = isPayeesSuccess && missingPayees.length === 0;
+  const canExportCsv = isPayeesSuccess && missingPayees.length === 0;
   const exportBlockedMessage = isPayeesError
     ? payeesError instanceof Error
       ? `Reimbursement rates could not be loaded: ${payeesError.message}`
@@ -279,6 +278,8 @@ export const ViewAttendance = () => {
       );
     });
   }, [attendanceQuery.data?.attendances, roleFilter, search, statusFilter]);
+  const canExportPdf = filteredAttendance.length > 0;
+  const canExport = canExportCsv || canExportPdf;
 
   const stats = useMemo(() => {
     const present = filteredAttendance.filter(
@@ -394,7 +395,7 @@ export const ViewAttendance = () => {
     });
 
     const exportToExcel = async () => {
-    if (!canExport) {
+    if (!canExportCsv) {
       toast.error(exportBlockedMessage);
       return;
     }
@@ -411,56 +412,22 @@ export const ViewAttendance = () => {
     };
 
     const exportToPDF = async () => {
-    if (!canExport) {
-      toast.error(exportBlockedMessage);
+    if (!canExportPdf) {
+      toast.error("No attendance records match the selected filters.");
       return;
     }
     setIsExporting(true);
     try {
-      const doc = new jsPDF({ orientation: "landscape" });
-      doc.setFontSize(16);
-      doc.text("Staff Attendance", 14, 16);
-      doc.setFontSize(9);
-      doc.text(
-        [projectQuery.data?.name, centerQuery.data?.name, semesterQuery.data?.name]
-          .filter(Boolean)
-          .join(" | "),
-        14,
-        23,
-      );
-      autoTable(doc, {
-        startY: 29,
-        head: [[
-          "Name",
-          "Role",
-          "Date",
-          "Status",
-          "Marked by",
-          "Marked at",
-          "Rate",
-          "Remuneration",
-        ]],
-        body: filteredAttendance.map((record) => {
-          const reimbursementRate = payeesById.get(record.userId)?.dailyRate;
-          return [
-            record.userName,
-            roleLabel(record.roleAssignment?.subRole || "EDUCATOR"),
-            record.date.slice(0, 10),
-            statusLabel[record.status],
-            record.markedByName || "System",
-            record.markedAt
-              ? new Date(record.markedAt).toLocaleString()
-              : "",
-            reimbursementRate ?? "Rate not set",
-            record.status === "PRESENT" && reimbursementRate != null
-              ? reimbursementRate
-              : "",
-          ];
-        }),
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [234, 88, 12] },
+      exportStaffAttendancePdf({
+        records: filteredAttendance,
+        projectName: projectQuery.data?.name,
+        centerName: centerQuery.data?.name,
+        semesterName: semesterQuery.data?.name,
+        periodLabel:
+          timeframe === "single"
+            ? dateParams.startDate
+            : `${dateParams.startDate} to ${dateParams.endDate}`,
       });
-      doc.save("Staff_Attendance.pdf");
       toast.success("PDF downloaded");
     } finally {
       setIsExporting(false);
@@ -624,8 +591,8 @@ export const ViewAttendance = () => {
               </button>
               {showExportMenu && (
                 <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-md border border-border bg-popover p-1 shadow-lg">
-                  <button type="button" onClick={() => { setShowExportMenu(false); void exportToExcel(); }} className="flex min-h-11 w-full items-center gap-2 rounded px-3 text-sm font-medium hover:bg-accent"><FileSpreadsheet className="h-4 w-4 text-success" aria-hidden="true" />Export CSV</button>
-                  <button type="button" onClick={() => { setShowExportMenu(false); void exportToPDF(); }} className="flex min-h-11 w-full items-center gap-2 rounded px-3 text-sm font-medium hover:bg-accent"><FileText className="h-4 w-4 text-destructive" aria-hidden="true" />Export PDF</button>
+                  <button type="button" disabled={!canExportCsv} onClick={() => { setShowExportMenu(false); void exportToExcel(); }} className="flex min-h-11 w-full items-center gap-2 rounded px-3 text-sm font-medium hover:bg-accent disabled:opacity-50"><FileSpreadsheet className="h-4 w-4 text-success" aria-hidden="true" />Export CSV</button>
+                  <button type="button" disabled={!canExportPdf} onClick={() => { setShowExportMenu(false); void exportToPDF(); }} className="flex min-h-11 w-full items-center gap-2 rounded px-3 text-sm font-medium hover:bg-accent disabled:opacity-50"><FileText className="h-4 w-4 text-destructive" aria-hidden="true" />Export PDF</button>
                 </div>
               )}
             </div>
