@@ -101,17 +101,6 @@ export function buildDashboardModel(
     can(user, "staffAttendance.write", context);
   const curriculum = can(user, "curriculum.read", context);
   const exams = can(user, "exams.read", context);
-  const canManageSemesterUsers =
-    user?.role === "ADMIN" ||
-    user?.roleAssignments?.some(
-      (item) =>
-        item.isActive &&
-        item.subRole === "CENTER_MANAGER" &&
-        item.projectId === context.projectId &&
-        item.centerId === context.centerId &&
-        item.semesterId === context.semesterId,
-    );
-
   const actionGroups = [
     {
       label: "Student operations",
@@ -183,7 +172,7 @@ export function buildDashboardModel(
     {
       label: "Staff operations",
       actions: compact([
-        canManageSemesterUsers
+        user?.role === "ADMIN"
           ? action(
               user,
               "staffAttendance.read",
@@ -215,16 +204,18 @@ export function buildDashboardModel(
           "/attendance/view",
           "calendar-days",
         ),
-        action(
-          user,
-          "staffAttendance.read",
-          context,
-          "Remuneration",
-          "Pay",
-          "Review attendance-linked remuneration.",
-          "/attendance/remuneration",
-          "wallet-cards",
-        ),
+        user?.role === "ADMIN"
+          ? action(
+              user,
+              "staffAttendance.read",
+              context,
+              "Remuneration",
+              "Pay",
+              "Review attendance-linked remuneration.",
+              "/attendance/remuneration",
+              "wallet-cards",
+            )
+          : null,
         user?.role === "ADMIN"
           ? {
               label: "Expenses",

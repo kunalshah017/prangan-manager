@@ -58,6 +58,7 @@ describe("client access policy", () => {
       can(manager, "students.manage", { ...context, semesterId: "semester-2" }),
     ).toBe(false);
     expect(can(manager, "exams.manage", context)).toBe(true);
+    expect(can(manager, "curriculum.progress.write", context)).toBe(true);
   });
 
   it("restricts an educator to their exact assigned level", () => {

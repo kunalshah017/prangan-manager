@@ -39,6 +39,7 @@ const rolePermissions: Record<Assignment["subRole"], readonly Permission[]> = {
     "studentAttendance.write",
     "studentAttendance.holiday",
     "curriculum.read",
+    "curriculum.progress.write",
     "exams.read",
     "exams.manage",
     "scores.read",

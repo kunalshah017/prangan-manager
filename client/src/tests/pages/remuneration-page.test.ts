@@ -7,6 +7,12 @@ const pageUrl = new URL(
 );
 
 describe("remuneration page UX", () => {
+  it("is restricted to administrators from the semester dashboard route", async () => {
+    const app = await readFile(new URL("../../App.tsx", import.meta.url), "utf8");
+
+    expect(app).toContain('<ProtectedRoute requireAdmin>\n                    <Remuneration');
+  });
+
   it("uses a responsive read-only monthly payment workflow", async () => {
     const source = await readFile(pageUrl, "utf8");
 

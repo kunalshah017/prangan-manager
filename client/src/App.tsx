@@ -240,7 +240,7 @@ function App() {
                 <Route
                   path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/users"
                   element={
-                    <ProtectedRoute permission="staffAttendance.read">
+                    <ProtectedRoute requireAdmin>
                       <SemesterUsers />
                     </ProtectedRoute>
                   }
@@ -272,7 +272,7 @@ function App() {
                   </ProtectedRoute>
                 } />
                 <Route path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/attendance/remuneration" element={
-                  <ProtectedRoute permission="staffAttendance.read">
+                  <ProtectedRoute requireAdmin>
                     <Remuneration />
                   </ProtectedRoute>
                 } />

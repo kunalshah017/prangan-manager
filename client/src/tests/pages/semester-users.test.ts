@@ -9,6 +9,7 @@ describe("semester users workspace", () => {
     ]);
     expect(app).toContain('dashboard/users"');
     expect(app).toContain("<SemesterUsers");
+    expect(app).toContain('<ProtectedRoute requireAdmin>\n                      <SemesterUsers');
     expect(dashboard).toContain('"Semester users"');
   });
 

@@ -76,7 +76,7 @@ describe("buildDashboardModel", () => {
     );
   });
 
-  it("gives center managers student and staff operations without administration", () => {
+  it("gives center managers student and staff operations without admin-only settings or pay", () => {
     const model = buildDashboardModel(user("CENTER_MANAGER"), context);
 
     expect(model.assignedLevel).toBeUndefined();
@@ -96,10 +96,8 @@ describe("buildDashboardModel", () => {
       "Curriculum",
       "Exams",
       "Library",
-      "Semester users",
       "Mark staff attendance",
       "View staff attendance",
-      "Remuneration",
     ]);
   });
 

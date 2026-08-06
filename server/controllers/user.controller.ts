@@ -1919,6 +1919,9 @@ export const getRemunerationUsersController = asyncHandle(
     if (!authUser) {
       return errorHandle("Authentication required.", reply, 401);
     }
+    if (authUser.role !== Role.ADMIN) {
+      return errorHandle("Only admins can administer remuneration.", reply, 403);
+    }
 
     const { projectId, centerId, semesterId } = request.query as {
       projectId?: string;
@@ -1945,28 +1948,6 @@ export const getRemunerationUsersController = asyncHandle(
       centerId: centerId.trim(),
       semesterId: semesterId.trim(),
     };
-    const assignments = isAdmin(authUser)
-      ? []
-      : await getActiveUserScopeAssignments(authUser.id);
-    if (typeof assignments === "string") {
-      return errorHandle(assignments, reply, 500);
-    }
-
-    if (
-      !canAccessScope({
-        identity: authUser,
-        assignments,
-        allowedSubRoles: [SubRole.CENTER_MANAGER],
-        scope,
-      })
-    ) {
-      return errorHandle(
-        "You are not authorized to administer remuneration for this scope.",
-        reply,
-        403,
-      );
-    }
-
     const users = await getRemunerationUsers({
       projectId: scope.projectId,
       centerId: scope.centerId,
@@ -1991,6 +1972,9 @@ export const getSemesterUsersController = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
     const authUser = request.user;
     if (!authUser) return errorHandle("Authentication required.", reply, 401);
+    if (authUser.role !== Role.ADMIN) {
+      return errorHandle("Only admins can view semester users.", reply, 403);
+    }
     const query = request.query as Record<string, unknown>;
     const scope = {
       projectId: typeof query.projectId === "string" ? query.projectId.trim() : "",
@@ -1999,20 +1983,6 @@ export const getSemesterUsersController = asyncHandle(
     };
     if (!scope.projectId || !scope.centerId || !scope.semesterId) {
       return errorHandle("Project, center, and semester are required.", reply, 400);
-    }
-    const assignments = isAdmin(authUser)
-      ? []
-      : await getActiveUserScopeAssignments(authUser.id);
-    if (
-      typeof assignments === "string" ||
-      !canAccessScope({
-        identity: authUser,
-        assignments,
-        allowedSubRoles: [SubRole.CENTER_MANAGER],
-        scope,
-      })
-    ) {
-      return errorHandle("You are not authorized to view semester users.", reply, 403);
     }
     const users = await getSemesterUsers(scope);
     if (typeof users === "string") return errorHandle(users, reply, 500);
@@ -2028,6 +1998,9 @@ export const updateRemunerationRatesController = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
     const authUser = request.user;
     if (!authUser) return errorHandle("Authentication required.", reply, 401);
+    if (authUser.role !== Role.ADMIN) {
+      return errorHandle("Only admins can administer remuneration.", reply, 403);
+    }
 
     const body = request.body as {
       projectId?: unknown;
@@ -2082,26 +2055,6 @@ export const updateRemunerationRatesController = asyncHandle(
     }
 
     const scope = { projectId, centerId, semesterId };
-    const assignments = isAdmin(authUser)
-      ? []
-      : await getActiveUserScopeAssignments(authUser.id);
-    if (typeof assignments === "string") {
-      return errorHandle(assignments, reply, 500);
-    }
-    if (
-      !canAccessScope({
-        identity: authUser,
-        assignments,
-        allowedSubRoles: [SubRole.CENTER_MANAGER],
-        scope,
-      })
-    ) {
-      return errorHandle(
-        "You are not authorized to administer remuneration for this scope.",
-        reply,
-        403,
-      );
-    }
 
     const payees = await getRemunerationUsers(scope);
     if (typeof payees === "string") return errorHandle(payees, reply, 500);
@@ -2131,6 +2084,9 @@ export const setRemunerationPeriodController = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
     const authUser = request.user;
     if (!authUser) return errorHandle("Authentication required.", reply, 401);
+    if (authUser.role !== Role.ADMIN) {
+      return errorHandle("Only admins can administer remuneration.", reply, 403);
+    }
 
     const body = (request.body ?? {}) as Record<string, unknown>;
     const projectId =
@@ -2172,24 +2128,6 @@ export const setRemunerationPeriodController = asyncHandle(
     }
 
     const scope = { projectId, centerId, semesterId };
-    const assignments = isAdmin(authUser)
-      ? []
-      : await getActiveUserScopeAssignments(authUser.id);
-    if (
-      typeof assignments === "string" ||
-      !canAccessScope({
-        identity: authUser,
-        assignments,
-        allowedSubRoles: [SubRole.CENTER_MANAGER],
-        scope,
-      })
-    ) {
-      return errorHandle(
-        "You are not authorized to administer remuneration for this scope.",
-        reply,
-        403,
-      );
-    }
 
     const result = await setSemesterRemunerationPeriod({
       ...scope,

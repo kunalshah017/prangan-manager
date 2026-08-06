@@ -203,7 +203,7 @@ test("access revocation is admin-only, deactivates assignments, and invalidates 
   assert.match(routes, /revokeUserAccessController/);
 });
 
-test("remuneration controller authorizes scope before loading financial data", async () => {
+test("remuneration controller requires an admin before loading financial data", async () => {
   const source = await readController();
   const controllerSource = source.match(
     /export const getRemunerationUsersController[\s\S]*?export const /,
@@ -211,20 +211,11 @@ test("remuneration controller authorizes scope before loading financial data", a
 
   assert.ok(controllerSource, "expected remuneration controller export");
   assert.match(controllerSource, /projectId[\s\S]*centerId[\s\S]*semesterId/);
-  assert.match(controllerSource, /canAccessScope/);
-  assert.match(
-    controllerSource,
-    /isAdmin\(authUser\)[\s\S]*\?[\s\S]*\[\][\s\S]*:[\s\S]*getActiveUserScopeAssignments/,
-  );
+  assert.match(controllerSource, /authUser\.role !== Role\.ADMIN/);
 
-  const assignmentsIndex = controllerSource.indexOf(
-    "getActiveUserScopeAssignments",
-  );
-  const authorizationIndex = controllerSource.indexOf("canAccessScope");
+  const authorizationIndex = controllerSource.indexOf("authUser.role !== Role.ADMIN");
   const payeesIndex = controllerSource.indexOf("getRemunerationUsers({");
 
-  assert.ok(assignmentsIndex >= 0);
-  assert.ok(authorizationIndex > assignmentsIndex);
   assert.ok(payeesIndex > authorizationIndex);
 });
 
