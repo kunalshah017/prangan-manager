@@ -201,11 +201,20 @@ export const selectDefaultSemesterMonth = (
   const months = enumerateSemesterMonths(startDate, endDate);
   if (!months.length) return "";
 
-  const start = semesterDateOnly(startDate)!;
-  const end = semesterDateOnly(endDate)!;
   const current = indiaBusinessDate(today);
-  return current && current >= start && current <= end
-    ? current.slice(0, 7)
+  if (!current) return months.at(-1)?.value ?? "";
+
+  const [year, month] = current.slice(0, 7).split("-").map(Number);
+  const previous = new Date(Date.UTC(year, month - 2, 1));
+  const previousMonth = `${previous.getUTCFullYear()}-${String(
+    previous.getUTCMonth() + 1,
+  ).padStart(2, "0")}`;
+  if (months.some((item) => item.value === previousMonth)) {
+    return previousMonth;
+  }
+
+  return previousMonth < months[0].value
+    ? months[0].value
     : (months.at(-1)?.value ?? "");
 };
 

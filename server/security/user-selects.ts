@@ -95,6 +95,7 @@ export const remunerationUserSelect = (semesterId: string) =>
     firstName: true,
     middleName: true,
     lastName: true,
+    profileImageUrl: true,
     bankAccountNumber: true,
     bankAccountName: true,
     bankIfsc: true,

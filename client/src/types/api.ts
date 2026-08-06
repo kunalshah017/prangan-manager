@@ -81,6 +81,7 @@ export interface RemunerationUser {
   firstName: string;
   middleName?: string | null;
   lastName?: string | null;
+  profileImageUrl?: string | null;
   dailyRate: number | null;
   remunerationPeriods?: RemunerationPeriod[];
   bankAccountNumber?: string | null;

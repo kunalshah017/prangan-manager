@@ -136,6 +136,7 @@ test("remunerationUserSelect exposes only payment administration fields", () => 
     "lastName",
     "middleName",
     "name",
+    "profileImageUrl",
     "remunerationPeriods",
     "remunerationRates",
     "upiId",

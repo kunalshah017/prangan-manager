@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   CalendarDays,
+  Check,
   CheckCircle2,
   Clock3,
   Search,
@@ -12,6 +13,7 @@ import {
 import { Link, useParams } from "react-router-dom";
 
 import LoadingButterfly from "@/components/LoadingButterfly";
+import { ProfilePicture } from "@/components/ui";
 import {
   WorkspacePage,
   WorkspacePageHeader,
@@ -386,7 +388,7 @@ export const Remuneration = () => {
                 return (
                   <article key={row.userId} className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0"><div className="flex items-center gap-2">{isAdmin && <input type="checkbox" aria-label={`Select ${row.userName}`} checked={selected.includes(row.userId)} disabled={paymentState !== "READY" || pay.isPending} onChange={(e) => setSelected((current) => e.target.checked ? [...current, row.userId] : current.filter((id) => id !== row.userId))} className="h-5 w-5 accent-primary" />}<h2 className="truncate font-semibold">{row.userName}</h2></div><p className="mt-1 text-xs text-muted-foreground">{row.present} present · {row.absent} absent · {row.notAvailable} unavailable</p></div>
+                      <div className="min-w-0"><div className="flex items-center gap-3"><ProfilePicture imageUrl={payee?.profileImageUrl ?? undefined} name={row.userName} size="md" colorScheme="orange" /><h2 className="truncate font-semibold">{row.userName}</h2></div><p className="mt-1 text-xs text-muted-foreground">{row.present} present · {row.absent} absent · {row.notAvailable} unavailable</p></div>
                       {isAdmin ? (
                         <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${stateStyle[paymentState]}`}>{paymentState === "PAID" ? <CheckCircle2 className="mr-1 inline h-3.5 w-3.5" /> : paymentState === "READY" ? <Clock3 className="mr-1 inline h-3.5 w-3.5" /> : null}{stateLabel[paymentState]}</span>
                       ) : (
@@ -411,7 +413,7 @@ export const Remuneration = () => {
                                 : "Ready to record after payment is sent."
                               : "Calculated from recorded attendance and schedule."}
                       </p>
-                      {isAdmin && <button type="button" onClick={() => void submitPayment([row.userId])} disabled={pay.isPending || paymentState !== "READY"} className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"><WalletCards className="h-4 w-4" />Mark as paid</button>}
+                      {isAdmin && <div className="flex shrink-0 items-center gap-2"><label className="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-full border border-primary/25 bg-primary/5 transition-colors hover:bg-primary/10 focus-within:ring-2 focus-within:ring-ring"><input type="checkbox" aria-label={`Select ${row.userName} for payment`} checked={selected.includes(row.userId)} disabled={paymentState !== "READY" || pay.isPending} onChange={(e) => setSelected((current) => e.target.checked ? [...current, row.userId] : current.filter((id) => id !== row.userId))} className="peer sr-only" /><span aria-hidden="true" className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-primary/40 bg-background transition-colors peer-checked:border-primary peer-checked:bg-primary"><Check className="h-3.5 w-3.5 text-primary-foreground opacity-0 transition-opacity peer-checked:opacity-100" /></span><span className="sr-only">Select {row.userName} for payment</span></label><button type="button" onClick={() => void submitPayment([row.userId])} disabled={pay.isPending || paymentState !== "READY"} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"><WalletCards className="h-4 w-4" />Mark as paid</button></div>}
                     </div>
                   </article>
                 );

@@ -219,21 +219,21 @@ describe("semester remuneration calculations", () => {
     expect(formatINR(23375)).toContain("23,375");
   });
 
-  it("selects the current semester month and the latest month outside the semester", () => {
+  it("selects the previous calendar month, clamped to the semester", () => {
     expect(
       selectDefaultSemesterMonth(
         "2026-07-12",
         "2026-09-08",
         new Date("2026-08-15T12:00:00Z"),
       ),
-    ).toBe("2026-08");
+    ).toBe("2026-07");
     expect(
       selectDefaultSemesterMonth(
         "2026-07-12",
         "2026-09-08",
         new Date("2026-06-30T23:59:59Z"),
       ),
-    ).toBe("2026-09");
+    ).toBe("2026-07");
     expect(
       selectDefaultSemesterMonth(
         "2026-07-12",
@@ -250,7 +250,7 @@ describe("semester remuneration calculations", () => {
         "2026-08-01",
         new Date("2026-07-31T23:00:00Z"),
       ),
-    ).toBe("2026-08");
+    ).toBe("2026-07");
     expect(
       selectDefaultSemesterMonth(
         "not-a-date",
@@ -281,7 +281,7 @@ describe("semester remuneration calculations", () => {
         "2026-08-31",
         new Date("2026-07-31T20:00:00Z"),
       ),
-    ).toBe("2026-08");
+    ).toBe("2026-07");
     expect(
       enumerateSemesterMonths(
         "2026-07-01T00:00:00.000Z",
