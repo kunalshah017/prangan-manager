@@ -1763,7 +1763,7 @@ export const updateEnrollmentController = asyncHandle(
       centerId: context.centerId,
       semesterId: context.semesterId,
       semesterLevelId: data.semesterLevelId ?? context.semesterLevelId,
-      level: context.level,
+      level: data.level,
       isActive: data.isActive,
     });
 

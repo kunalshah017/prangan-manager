@@ -278,7 +278,7 @@ export const updateExam = async (
     const semesterLevel = await resolveSemesterLevelInput({
       semesterId: exam.semesterId,
       semesterLevelId: data.semesterLevelId ?? exam.semesterLevelId,
-      level: data.level ?? exam.level,
+      level: data.level ?? (data.semesterLevelId ? undefined : exam.level),
     });
     updateData.semesterLevelId = semesterLevel.id;
     updateData.level = semesterLevel.academicLevel.code as Level;

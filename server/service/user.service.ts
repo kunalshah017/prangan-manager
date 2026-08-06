@@ -977,7 +977,7 @@ export const updateEnrollment = async (
     const semesterLevel = await resolveSemesterLevelInput({
       semesterId: context.semesterId,
       semesterLevelId: data.semesterLevelId ?? context.semesterLevelId,
-      level: data.level ?? context.level,
+      level: data.level ?? (data.semesterLevelId ? undefined : context.level),
     });
     const updateData = {
       projectId: context.projectId,

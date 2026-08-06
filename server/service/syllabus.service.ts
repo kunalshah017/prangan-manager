@@ -212,7 +212,8 @@ export const updateSyllabus = async (
       ? await resolveSemesterLevelInput({
           semesterId: current.semesterId,
           semesterLevelId: data.semesterLevelId ?? current.semesterLevelId,
-          level: data.level ?? current.level,
+          level:
+            data.level ?? (data.semesterLevelId ? undefined : current.level),
         })
       : null;
   const syllabus = await prisma.syllabus.update({

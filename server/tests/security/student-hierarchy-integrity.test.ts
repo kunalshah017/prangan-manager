@@ -647,6 +647,66 @@ test("updateEnrollment rejects a partial semester patch that conflicts with its 
   }
 });
 
+test("updateEnrollment derives the legacy level from a newly selected semester level", async () => {
+  const originalEnrollmentFindUnique = prisma.studentEnrollments.findUnique;
+  const originalCenterFindUnique = prisma.centers.findUnique;
+  const originalSemesterFindUnique = prisma.semesters.findUnique;
+  const originalSemesterLevelFindFirst = prisma.semesterLevel.findFirst;
+  const originalTransaction = prisma.$transaction;
+  let updateData: unknown;
+
+  prisma.studentEnrollments.findUnique = (async () => ({
+    projectId: "project-1",
+    centerId: "center-1",
+    semesterId: "semester-1",
+    semesterLevelId: "semester-1-level-1",
+    level: Level.LEVEL_1,
+  })) as typeof prisma.studentEnrollments.findUnique;
+  prisma.centers.findUnique = (async () => ({
+    projectId: "project-1",
+  })) as typeof prisma.centers.findUnique;
+  prisma.semesters.findUnique = (async () => ({
+    centerId: "center-1",
+  })) as typeof prisma.semesters.findUnique;
+  prisma.semesterLevel.findFirst = (async ({ where }: any) => ({
+    id: where.id,
+    academicLevel: {
+      code:
+        where.id === "semester-1-level-2" ? Level.LEVEL_2 : Level.LEVEL_1,
+    },
+  })) as typeof prisma.semesterLevel.findFirst;
+  prisma.$transaction = (async (callback: any) =>
+    callback({
+      studentEnrollments: {
+        findUnique: async () => ({ studentId: "student-1" }),
+        update: async ({ data }: { data: unknown }) => {
+          updateData = data;
+          return { id: "enrollment-1", ...data };
+        },
+      },
+    })) as typeof prisma.$transaction;
+
+  try {
+    await updateEnrollment("enrollment-1", {
+      semesterLevelId: "semester-1-level-2",
+    });
+    assert.deepEqual(updateData, {
+      projectId: "project-1",
+      centerId: "center-1",
+      semesterId: "semester-1",
+      semesterLevelId: "semester-1-level-2",
+      level: Level.LEVEL_2,
+      isActive: undefined,
+    });
+  } finally {
+    prisma.studentEnrollments.findUnique = originalEnrollmentFindUnique;
+    prisma.centers.findUnique = originalCenterFindUnique;
+    prisma.semesters.findUnique = originalSemesterFindUnique;
+    prisma.semesterLevel.findFirst = originalSemesterLevelFindFirst;
+    prisma.$transaction = originalTransaction;
+  }
+});
+
 test("createEnrollment rejects a center outside the requested project before creating", async () => {
   const originalCenterFindUnique = prisma.centers.findUnique;
   const originalSemesterFindUnique = prisma.semesters.findUnique;
