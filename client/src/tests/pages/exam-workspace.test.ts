@@ -123,7 +123,7 @@ describe("exam workspace redesign", () => {
     expect(hooks).toContain("filters?.enabled ??");
   });
 
-  it("uses accessible score editing, completion filters, statistics, and returned IDs", async () => {
+  it("uses accessible score editing, completion filters, and protected score writes", async () => {
     const source = await readExamPage("ExamScores.tsx");
 
     expect(source).toContain("<Modal");
@@ -135,14 +135,10 @@ describe("exam workspace redesign", () => {
     expect(source).toContain("stats.scoresEntered");
     expect(source).toContain("stats.pendingScores");
     expect(source).toContain("stats.absentStudents");
-    expect(source).toContain(
-      "const createdScores = await bulkCreateMutation.mutateAsync",
-    );
-    expect(source).toContain("existingScoreId: createdScores[0]?.id");
-    expect(source).toContain(
-      "const updatedScore = await updateScoreMutation.mutateAsync",
-    );
-    expect(source).toContain("listeningScore: updatedScore.listeningScore");
+    expect(source).toContain("useCreateStudentScore");
+    expect(source).toContain("scoreByEnrollmentId.get(enrollment.id)");
+    expect(source).toContain("scoreId: existing.id");
+    expect(source).toContain("pendingRoster.map");
     expect(source).toContain("records all four skill scores as zero");
     expect(source).toContain("canEditScores");
   });
@@ -157,6 +153,29 @@ describe("exam workspace redesign", () => {
     );
     expect(source).not.toContain("useStudentAttendanceRecords");
     expect(source).not.toContain("attendanceQuery");
+  });
+
+  it("uses touch-friendly exam actions and a real score editor", async () => {
+    const [management, scores] = await Promise.all([
+      readExamPage("ExamManagement.tsx"),
+      readExamPage("ExamScores.tsx"),
+    ]);
+
+    expect(management).toContain("Create exam");
+    expect(management).toContain("Enter scores");
+    expect(scores).toContain("scoreByEnrollmentId");
+    expect(scores).toContain("Save score");
+    expect(scores).toContain("Mark all pending as absent");
+    expect(scores).not.toContain("updatedScorePlaceholder");
+  });
+
+  it("groups create and edit controls into compact assessment sections", async () => {
+    const form = await readExamPage("ExamForm.tsx");
+
+    expect(form).toContain("Assessment details");
+    expect(form).toContain("Maximum marks");
+    expect(form).toContain("useSemesterLevels");
+    expect(form).toContain("rounded-lg border border-border bg-card");
   });
 
   it("uses semester membership IDs and managed names across exam workflows", async () => {

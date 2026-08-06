@@ -29,11 +29,9 @@ export default function CreateExam() {
   const createExam = useCreateExam();
   const examsPath = `/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/exams`;
   const hasPermission = can(user, "exams.manage", { projectId, centerId, semesterId });
-  void assessmentCycleOptions.map((cycle) => cycle.value);
-
-  if (!hasPermission || semesterQuery.isLoading || !semesterQuery.data) {
-    return <WorkspacePage><WorkspacePageHeader title="Create exam" description="Try again if the semester details are unavailable." /></WorkspacePage>;
-  }
+  if (!hasPermission) return <WorkspacePage><WorkspacePageHeader title="Create exam" description="You do not have permission to create assessments in this semester." /></WorkspacePage>;
+  if (semesterQuery.isLoading) return <WorkspacePage><WorkspacePageHeader title="Create exam" description="Loading semester details." /><p className="mt-6 text-sm text-muted-foreground">Preparing the assessment form.</p></WorkspacePage>;
+  if (semesterQuery.isError || !semesterQuery.data) return <WorkspacePage><WorkspacePageHeader title="Create exam" description="Semester details are unavailable." /><button type="button" onClick={() => void semesterQuery.refetch()} className="mt-6 min-h-11 rounded-md border border-input bg-background px-4 text-sm font-medium hover:bg-accent">Try again</button></WorkspacePage>;
 
   const submit = async (value: ExamFormValue) => {
     if (!projectId || !centerId || !semesterId || !value.semesterLevelId) return;
@@ -42,5 +40,5 @@ export default function CreateExam() {
     navigate(examsPath);
   };
 
-  return <WorkspacePage className="max-w-4xl"><WorkspacePageHeader title="Create exam" description={`Add an assessment within ${semesterQuery.data.name}.`} /><div className="min-h-11"><ExamForm initialValue={initialValue} semester={semesterQuery.data} cycleOptions={assessmentCycleOptions} onSubmit={submit} onCancel={() => navigate(examsPath)} isPending={createExam.isPending} submitLabel="Create exam" pendingLabel="Creating exam..." /></div></WorkspacePage>;
+  return <WorkspacePage className="max-w-4xl"><WorkspacePageHeader title="Create exam" description={`Add an assessment within ${semesterQuery.data.name}.`} /><ExamForm initialValue={initialValue} semester={semesterQuery.data} cycleOptions={assessmentCycleOptions} onSubmit={submit} onCancel={() => navigate(examsPath)} isPending={createExam.isPending} submitLabel="Create exam" pendingLabel="Creating exam..." /></WorkspacePage>;
 }

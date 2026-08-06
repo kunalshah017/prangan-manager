@@ -93,8 +93,8 @@ describe("assessment cycle UI primitives", () => {
       "../../pages/syllabus/EditSyllabus.tsx",
     ].map((path) => readFileSync(new URL(path, import.meta.url), "utf8"));
 
-    expect(examSources[0]).toContain("assessmentCycleOptions.map");
-    expect(examSources[1]).toContain("assessmentCycleOptions.map");
+    expect(examSources[0]).toContain("cycleOptions={assessmentCycleOptions}");
+    expect(examSources[1]).toContain("cycleOptions={assessmentCycleOptions}");
     expect(examSources[2]).toContain("getAssessmentCycleLabel");
     expect(examSources[2]).not.toContain("const getCycleDisplay");
 
