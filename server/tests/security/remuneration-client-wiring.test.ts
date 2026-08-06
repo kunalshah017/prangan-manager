@@ -83,12 +83,15 @@ test("attendance exports require successful scoped payee data", async () => {
   assert.match(pageSource, /isPayeesError[\s\S]*payeesError/);
   assert.match(pageSource, /disabled=\{!canExport\}/);
 
-  for (const handler of ["exportToExcel", "exportToPDF"]) {
+  for (const [handler, guard] of [
+    ["exportToExcel", "canExportCsv"],
+    ["exportToPDF", "canExportPdf"],
+  ]) {
     const handlerSource = pageSource.match(
       new RegExp(`const ${handler} = async \\(\\) => \\{[\\s\\S]*?\\n    \\};`),
     )?.[0];
     assert.ok(handlerSource, `expected ${handler}`);
-    const guardIndex = handlerSource.indexOf("if (!canExport)");
+    const guardIndex = handlerSource.indexOf(`if (!${guard})`);
     const exportingIndex = handlerSource.indexOf("setIsExporting(true)");
     assert.ok(guardIndex >= 0, `expected ${handler} payee guard`);
     assert.ok(
