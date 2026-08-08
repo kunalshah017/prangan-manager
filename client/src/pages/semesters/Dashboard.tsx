@@ -24,7 +24,7 @@ import { useStudentAttendanceRecords } from "@/hooks/useStudentAttendanceQueries
 import { useStudentsBySemester } from "@/hooks/useStudentQueries";
 import { useSyllabi, useSyllabusStatistics, useSyllabusTopics } from "@/hooks/useSyllabusQueries";
 import { useContextStaff } from "@/hooks/useUserQueries";
-import { buildDashboardModel } from "@/lib/dashboard";
+import { buildDashboardModel, hasCompleteBankDetails } from "@/lib/dashboard";
 import { levelName, sortByJourneyOrder } from "@/lib/levels";
 import { cn } from "@/lib/utils";
 import type { ContextStaffUser, Student } from "@/types/api";
@@ -47,6 +47,77 @@ const isSameContext = (
     assignment.projectId === projectId &&
     assignment.centerId === centerId &&
     assignment.semesterId === semesterId;
+
+type AttentionItem = {
+    title: string;
+    detail: string;
+    href: string;
+    actionLabel?: string;
+};
+
+function AttentionSection({
+    items,
+    headingId,
+    className,
+}: {
+    items: AttentionItem[];
+    headingId: string;
+    className?: string;
+}) {
+    return (
+        <section
+            aria-labelledby={headingId}
+            className={cn("rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6", className)}
+        >
+            <div className="flex items-center justify-between gap-4">
+                <h2 id={headingId} className="text-xl font-semibold text-foreground">Needs attention</h2>
+                <span
+                    className={cn(
+                        "rounded-full px-2.5 py-1 text-xs font-semibold tabular-nums",
+                        items.length
+                            ? "bg-warning/15 text-warning-foreground"
+                            : "bg-success/15 text-success-foreground",
+                    )}
+                    aria-label={`${items.length} attention item${items.length === 1 ? "" : "s"}`}
+                >
+                    {items.length}
+                </span>
+            </div>
+            {items.length ? (
+                <div className="mt-4 divide-y divide-border">
+                    {items.map((item) => (
+                        <Link
+                            key={item.title}
+                            to={item.href}
+                            className="group flex min-h-11 items-start gap-3 py-4 first:pt-2 last:pb-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-warning/15 text-warning-foreground">
+                                <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-sm font-semibold text-foreground group-hover:text-primary">{item.title}</span>
+                                <span className="mt-1 block text-sm leading-6 text-muted-foreground">{item.detail}</span>
+                                {item.actionLabel && (
+                                    <span className="mt-3 inline-flex min-h-11 items-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground group-hover:bg-primary/90">
+                                        {item.actionLabel}
+                                    </span>
+                                )}
+                            </span>
+                        </Link>
+                    ))}
+                </div>
+            ) : (
+                <div className="mt-4 flex items-start gap-3 rounded-md bg-muted/45 p-4">
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success" aria-hidden="true" />
+                    <div>
+                        <p className="text-sm font-semibold text-foreground">No immediate follow-up</p>
+                        <p className="mt-1 text-sm leading-6 text-muted-foreground">Your permitted semester checks are clear for now.</p>
+                    </div>
+                </div>
+            )}
+        </section>
+    );
+}
 
 export default function Dashboard() {
     const { projectId = "", centerId = "", semesterId = "" } = useParams();
@@ -221,6 +292,14 @@ export default function Dashboard() {
     const actionHref = (label: string) =>
         dashboardModel.actionGroups.flatMap((group) => group.actions).find((action) => action.label === label)?.href;
     const attentionItems = [
+        !hasCompleteBankDetails(user)
+            ? {
+                title: "Complete your bank details",
+                detail: "Add all payment details so your remuneration can be processed.",
+                href: "/profile#payment",
+                actionLabel: "Complete bank details",
+            }
+            : null,
         missingStudentLevels.length > 0
             ? {
                 title: "Student attendance is pending",
@@ -242,7 +321,7 @@ export default function Dashboard() {
                 href: actionHref("Curriculum"),
             }
             : null,
-    ].filter((item): item is { title: string; detail: string; href: string } => Boolean(item?.href));
+    ].filter((item): item is AttentionItem => Boolean(item?.href));
 
     const isLoading =
         semesterQuery.isLoading ||
@@ -307,7 +386,7 @@ export default function Dashboard() {
                 description={<>{center.name} · {formatDate(semester.startDate)} – {formatDate(semester.endDate)}{assignedSemesterLevel ? ` · ${levelName(assignedSemesterLevel)}` : ""}</>}
             />
 
-            {attentionItems.length === 0 && (
+            {attentionItems.length === 0 ? (
                 <div aria-label="Mobile semester status" className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 shadow-sm sm:hidden">
                     <CheckCircle2 className="h-5 w-5 shrink-0 text-success" aria-hidden="true" />
                     <div className="min-w-0">
@@ -315,6 +394,12 @@ export default function Dashboard() {
                         <p className="truncate text-xs text-muted-foreground">No immediate follow-up in your workspace.</p>
                     </div>
                 </div>
+            ) : (
+                <AttentionSection
+                    items={attentionItems}
+                    headingId="mobile-attention-title"
+                    className="sm:hidden"
+                />
             )}
 
             {dashboardActions.length > 0 && (
@@ -343,42 +428,11 @@ export default function Dashboard() {
 
             <div className="grid gap-6 lg:grid-cols-12 lg:items-start">
                 <div className="space-y-6 lg:col-span-8">
-                    <section aria-labelledby="attention-title" className={cn("rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6", attentionItems.length === 0 && "hidden sm:block")}>
-                        <div className="flex items-center justify-between gap-4">
-                            <div>
-                                <h2 id="attention-title" className="text-xl font-semibold text-foreground">Needs attention</h2>
-                            </div>
-                            <span
-                                className={cn("rounded-full px-2.5 py-1 text-xs font-semibold tabular-nums", attentionItems.length ? "bg-warning/15 text-warning-foreground" : "bg-success/15 text-success-foreground")}
-                                aria-label={`${attentionItems.length} attention item${attentionItems.length === 1 ? "" : "s"}`}
-                            >
-                                {attentionItems.length}
-                            </span>
-                        </div>
-                        {attentionItems.length ? (
-                            <div className="mt-4 divide-y divide-border">
-                                {attentionItems.map((item) => (
-                                    <Link key={item.title} to={item.href} className="group flex min-h-11 items-start gap-3 py-4 first:pt-2 last:pb-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                                        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-warning/15 text-warning-foreground">
-                                            <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-                                        </span>
-                                        <span className="min-w-0">
-                                            <span className="block text-sm font-semibold text-foreground group-hover:text-primary">{item.title}</span>
-                                            <span className="mt-1 block text-sm leading-6 text-muted-foreground">{item.detail}</span>
-                                        </span>
-                                    </Link>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="hidden sm:flex mt-4 items-start gap-3 rounded-md bg-muted/45 p-4">
-                                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success" aria-hidden="true" />
-                                <div>
-                                    <p className="text-sm font-semibold text-foreground">No immediate follow-up</p>
-                                    <p className="mt-1 text-sm leading-6 text-muted-foreground">Your permitted semester checks are clear for now.</p>
-                                </div>
-                            </div>
-                        )}
-                    </section>
+                    <AttentionSection
+                        items={attentionItems}
+                        headingId="attention-title"
+                        className="hidden sm:block"
+                    />
 
                     {dashboardModel.actionGroups.length > 0 && (
                         <section aria-labelledby="actions-title" className="hidden rounded-lg border border-border bg-card p-5 shadow-sm sm:block sm:p-6">

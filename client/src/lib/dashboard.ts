@@ -50,6 +50,31 @@ type ExactContext = Required<
   Pick<WorkspaceContext, "projectId" | "centerId" | "semesterId">
 >;
 
+type BankDetails = Pick<
+  User,
+  | "bankAccountNumber"
+  | "bankAccountName"
+  | "bankIfsc"
+  | "bankName"
+  | "bankBranch"
+  | "upiId"
+>;
+
+export const hasCompleteBankDetails = (
+  user: BankDetails | null | undefined,
+) =>
+  Boolean(
+    user &&
+      [
+        user.bankAccountNumber,
+        user.bankAccountName,
+        user.bankIfsc,
+        user.bankName,
+        user.bankBranch,
+        user.upiId,
+      ].every((value) => value?.trim()),
+  );
+
 const action = (
   user: User | null | undefined,
   permission: Permission,

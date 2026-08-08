@@ -15,6 +15,7 @@ import {
     X,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useLocation } from "react-router-dom";
 
 import DoodleBackground from "@/components/DoodleBackground";
 import LoadingButterfly from "@/components/LoadingButterfly";
@@ -80,6 +81,7 @@ function AssignmentItem({ assignment }: { assignment: Assignment }) {
 
 export default function Profile() {
     const { user, isLoading } = useAuth();
+    const location = useLocation();
     const updateProfile = useUpdateMyProfile();
     const updateBank = useUpdateBankDetails();
     const [editingProfile, setEditingProfile] = useState(false);
@@ -134,6 +136,16 @@ export default function Profile() {
     useEffect(() => {
         if (user) resetForms(user);
     }, [user]);
+
+    useEffect(() => {
+        if (!user || location.hash !== "#payment") return;
+
+        const frame = window.requestAnimationFrame(() => {
+            document.getElementById("payment")?.scrollIntoView({ block: "start" });
+        });
+
+        return () => window.cancelAnimationFrame(frame);
+    }, [location.hash, user]);
 
     useEffect(() => {
         const ifsc = payment.bankIfsc.trim().toUpperCase();
