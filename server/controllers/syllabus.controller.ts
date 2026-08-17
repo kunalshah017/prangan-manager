@@ -57,6 +57,7 @@ import {
   parseUpdateTopicStatusRequest,
 } from "../security/syllabus-input.js";
 import { resolveSemesterLevelInput } from "../service/semester-level.service.js";
+import { AcademicLevelServiceError } from "../service/academic-level.service.js";
 import { isValidDateFormat } from "../utils/dateHelpers.js";
 
 // Define AuthenticatedRequest type
@@ -101,6 +102,9 @@ const authorizeSyllabusScope = async (
 
 const sendError = (reply: FastifyReply, error: unknown, fallback: string) => {
   console.error(error);
+  if (error instanceof AcademicLevelServiceError) {
+    return reply.status(error.statusCode).send({ error: error.message });
+  }
   const message = error instanceof Error ? error.message : "";
   if (
     message.includes("already exists") ||

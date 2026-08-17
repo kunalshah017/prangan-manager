@@ -8,23 +8,30 @@ import {
 
 const referenceQuery = `
   WITH operational_references AS (
-    SELECT 'UserRoleAssignments' AS "tableName", "semesterLevelId", "semesterId"
+    SELECT 'UserRoleAssignments' AS "tableName", "semesterLevelId", "semesterId", "subRole"::text AS "subRole"
     FROM "UserRoleAssignments"
     UNION ALL
-    SELECT 'StudentEnrollments', "semesterLevelId", "semesterId"
+    SELECT 'StudentEnrollments', "semesterLevelId", "semesterId", NULL::text
     FROM "StudentEnrollments"
     UNION ALL
-    SELECT 'Syllabus', "semesterLevelId", "semesterId"
+    SELECT 'Syllabus', "semesterLevelId", "semesterId", NULL::text
     FROM "Syllabus"
     UNION ALL
-    SELECT 'Exam', "semesterLevelId", "semesterId"
+    SELECT 'Exam', "semesterLevelId", "semesterId", NULL::text
     FROM "Exam"
   )
   SELECT
     reference."tableName",
     COUNT(*) FILTER (
-      WHERE reference."tableName" <> 'UserRoleAssignments'
-        AND reference."semesterLevelId" IS NULL
+      WHERE (
+        reference."tableName" <> 'UserRoleAssignments'
+        OR (
+          reference."tableName" = 'UserRoleAssignments'
+          AND reference."subRole" = 'EDUCATOR'
+          AND reference."semesterId" IS NOT NULL
+        )
+      )
+      AND reference."semesterLevelId" IS NULL
     ) AS "missingSemesterLevelIds",
     COUNT(*) FILTER (
       WHERE reference."semesterLevelId" IS NOT NULL

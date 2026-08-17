@@ -21,8 +21,8 @@ after the compatibility columns are removed.
 9. Smoke test `/health`, user management, student enrollment, syllabus, exams,
    and attendance before restoring writes.
 
-Do not apply the contract migration if the integrity command reports missing,
-orphaned, cross-semester, or duplicate canonical references. The migration
+Do not apply the contract migration if the integrity command reports missing
+educator scope, orphaned, cross-semester, or duplicate canonical references. The migration
 also checks these conditions while holding exclusive table locks and aborts
 before dropping columns if any check fails.
 

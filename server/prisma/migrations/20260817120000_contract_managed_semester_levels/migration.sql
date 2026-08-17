@@ -14,6 +14,17 @@ DECLARE
   invalid_count BIGINT;
 BEGIN
   SELECT COUNT(*) INTO invalid_count
+  FROM "UserRoleAssignments"
+  WHERE "semesterLevelId" IS NULL
+    AND (
+      "level" IS NOT NULL
+      OR ("subRole" = 'EDUCATOR' AND "semesterId" IS NOT NULL)
+    );
+  IF invalid_count > 0 THEN
+    RAISE EXCEPTION 'Cannot contract managed semester levels: % educator assignments would lose their level scope', invalid_count;
+  END IF;
+
+  SELECT COUNT(*) INTO invalid_count
   FROM "StudentEnrollments"
   WHERE "semesterLevelId" IS NULL;
   IF invalid_count > 0 THEN

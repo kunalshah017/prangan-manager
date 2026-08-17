@@ -1030,6 +1030,13 @@ const normalizeRoleAssignment = async <T extends RoleAssignmentInput>(
     return { ...assignment, semesterLevelId: null };
   }
 
+  if (assignment.semesterId && !assignment.semesterLevelId) {
+    throw new AcademicLevelServiceError(
+      "Educator semester assignments require a semester level",
+      422,
+    );
+  }
+
   if (!assignment.semesterLevelId) {
     return { ...assignment, semesterLevelId: null };
   }
@@ -1151,7 +1158,7 @@ export const createUserRoleAssignment = async (assignmentData: {
     });
     return assignment;
   } catch (error: unknown) {
-    if (error instanceof AcademicLevelServiceError) return error.message;
+    if (error instanceof AcademicLevelServiceError) return error;
     console.error("Error creating user role assignment:", error);
     return "Failed to create user role assignment - Please run 'prisma generate' first";
   }
@@ -1229,7 +1236,7 @@ export const updateUserRoleAssignment = async (
     });
     return assignment;
   } catch (error: unknown) {
-    if (error instanceof AcademicLevelServiceError) return error.message;
+    if (error instanceof AcademicLevelServiceError) return error;
     console.error("Error updating user role assignment:", error);
     return "Failed to update user role assignment - Please run 'prisma generate' first";
   }
@@ -1386,7 +1393,7 @@ export const bulkUpdateUserAssignments = async (
       return reconciledAssignments;
     });
   } catch (error: unknown) {
-    if (error instanceof AcademicLevelServiceError) return error.message;
+    if (error instanceof AcademicLevelServiceError) return error;
     console.error("Error bulk updating user assignments:", error);
     return "Failed to bulk update user assignments - Please run 'prisma generate' first";
   }

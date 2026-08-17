@@ -46,6 +46,14 @@ describe("managed academic level client contracts", () => {
     expect(hooks).toContain("queryClient.invalidateQueries");
     expect(hooks).toContain("queryKeys.academicLevelsRoot");
     expect(hooks).toContain("queryKeys.semesterLevelsRoot(semesterId)");
+
+    const studentHooks = await readFile(
+      new URL("../../hooks/useStudentQueries.ts", import.meta.url),
+      "utf8",
+    );
+    expect(studentHooks).toMatch(
+      /useStudentsBySemesterLevel[\s\S]*?Promise<StudentEnrollment\[]>[\s\S]*?StudentEnrollmentsResponse/,
+    );
   });
 
   it("renders accessible local states and preserves an inactive current value", async () => {

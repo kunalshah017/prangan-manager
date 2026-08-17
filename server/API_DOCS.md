@@ -726,8 +726,8 @@ Authorization: Bearer <jwt_token>
 
 ```json
 {
-  "message": "Students retrieved successfully",
-  "students": [
+  "message": "Student enrollments retrieved successfully",
+  "enrollments": [
     {
       "id": "enrollment_id_1",
       "semesterLevelId": "semester-level-1-id",
@@ -980,7 +980,8 @@ Authorization: Bearer <jwt_token>
 ```json
 {
   "message": "Student enrollments retrieved successfully",
-  "enrollments": [
+  "enrollments": {
+    "all": [
     {
       "id": "enrollment_id_1",
       "studentId": "student_id",
@@ -1027,7 +1028,14 @@ Authorization: Bearer <jwt_token>
         "name": "Project One"
       }
     }
-  ]
+    ],
+    "active": [
+      { "id": "enrollment_id_2", "semesterLevelId": "semester-level-3-id" }
+    ],
+    "inactive": [
+      { "id": "enrollment_id_1", "semesterLevelId": "semester-level-2-id" }
+    ]
+  }
 }
 ```
 

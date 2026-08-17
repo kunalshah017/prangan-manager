@@ -84,6 +84,10 @@ test("student routes expose only canonical semester-level lookup", async () => {
     /\/users\/students\/semester-level\/:semesterLevelId/,
   );
   assert.match(controller, /semesterLevelId: string/);
+  assert.match(
+    controller,
+    /Student enrollments retrieved successfully[\s\S]*?enrollments/,
+  );
   assert.doesNotMatch(controller, /getStudentsByLevelController/);
   assert.match(controller, /getStudentsBySemesterLevelController/);
 });

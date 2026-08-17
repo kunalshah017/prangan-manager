@@ -41,11 +41,11 @@ export const useStudent = (id: string) => {
 export const useStudentsBySemesterLevel = (semesterLevelId: string) => {
   return useQuery({
     queryKey: queryKeys.studentsBySemesterLevel(semesterLevelId),
-    queryFn: async (): Promise<Student[]> => {
-      const response = await api.get<StudentsResponse>(
+    queryFn: async (): Promise<StudentEnrollment[]> => {
+      const response = await api.get<StudentEnrollmentsResponse>(
         `/users/students/semester-level/${semesterLevelId}`,
       );
-      return response.students;
+      return response.enrollments;
     },
     enabled: !!semesterLevelId,
     staleTime: 2 * 60 * 1000,

@@ -4,11 +4,27 @@ import test from "node:test";
 import { SubRole } from "../../generated/prisma/index.js";
 import { ACADEMIC_LEVEL_CODES } from "../helpers/academic-level-codes.js";
 import { prisma } from "../../lib/prisma.js";
+import { updateUserManagementController } from "../../controllers/user.controller.js";
+import { AcademicLevelServiceError } from "../../service/academic-level.service.js";
 import {
   createUserRoleAssignment,
   bulkUpdateUserAssignments,
   getActiveUserScopeAssignments,
 } from "../../service/user.service.js";
+
+const createReply = () => {
+  let statusCode: number | undefined;
+  const reply = {
+    status(code: number) {
+      statusCode = code;
+      return this;
+    },
+    send() {
+      return this;
+    },
+  };
+  return { reply, get statusCode() { return statusCode; } };
+};
 
 const mockHierarchy = () => {
   const originalSemesterFindFirst = prisma.semesters.findFirst;
@@ -174,13 +190,69 @@ test("assignment rejects semesterLevelId without semesterId before Prisma create
       subRole: SubRole.EDUCATOR,
       semesterLevelId: "semester-level-1",
     });
-    assert.equal(
-      result,
-      "Semester is required when semester level is provided",
-    );
+    assert.ok(result instanceof AcademicLevelServiceError);
+    assert.equal(result.message, "Semester is required when semester level is provided");
+    assert.equal(result.statusCode, 422);
     assert.equal(createCalls, 0);
   } finally {
     prisma.userRoleAssignments.create = originalCreate;
+  }
+});
+
+test("semester-scoped educator assignment requires a canonical semester level", async () => {
+  const restoreHierarchy = mockHierarchy();
+  const originalTransaction = prisma.$transaction;
+  let transactionCalls = 0;
+  prisma.$transaction = (async () => {
+    transactionCalls += 1;
+    return [];
+  }) as typeof prisma.$transaction;
+
+  try {
+    const result = await bulkUpdateUserAssignments("educator-1", [
+      {
+        subRole: SubRole.EDUCATOR,
+        projectId: "project-1",
+        centerId: "center-1",
+        semesterId: "semester-1",
+      },
+    ]);
+    assert.ok(result instanceof AcademicLevelServiceError);
+    assert.equal(result.statusCode, 422);
+    assert.equal(transactionCalls, 0);
+  } finally {
+    restoreHierarchy();
+    prisma.$transaction = originalTransaction;
+  }
+});
+
+test("management endpoint preserves invalid semester-level status", async () => {
+  const restoreHierarchy = mockHierarchy();
+  const originalSemesterLevelFindFirst = prisma.semesterLevel.findFirst;
+  prisma.semesterLevel.findFirst = (async () => null) as typeof prisma.semesterLevel.findFirst;
+
+  try {
+    const response = createReply();
+    await updateUserManagementController(
+      {
+        user: { id: "admin-1", role: "ADMIN" },
+        params: { userId: "educator-1" },
+        body: {
+          roleAssignments: [{
+            subRole: SubRole.EDUCATOR,
+            projectId: "project-1",
+            centerId: "center-1",
+            semesterId: "semester-1",
+            semesterLevelId: "missing-level",
+          }],
+        },
+      } as never,
+      response.reply as never,
+    );
+    assert.equal(response.statusCode, 422);
+  } finally {
+    restoreHierarchy();
+    prisma.semesterLevel.findFirst = originalSemesterLevelFindFirst;
   }
 });
 

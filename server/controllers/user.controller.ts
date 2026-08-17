@@ -677,6 +677,9 @@ export const verifyUser = asyncHandle(
       );
     } catch (error) {
       console.error("User approval transaction failed:", error);
+      if (error instanceof AcademicLevelServiceError) {
+        return errorHandle(error.message, reply, error.statusCode);
+      }
       return errorHandle("Database operation failed.", reply, 500);
     }
   },
@@ -1383,15 +1386,15 @@ export const getStudentsBySemesterLevelController = asyncHandle(
       return errorHandle("Semester level ID is required.", reply, 400);
     }
 
-    const students = await getUserAccessibleStudents(user.id, user.role, {
+    const enrollments = await getUserAccessibleStudents(user.id, user.role, {
       semesterLevelId,
     });
-    if (typeof students === "string") {
-      return errorHandle(students, reply, 500);
+    if (typeof enrollments === "string") {
+      return errorHandle(enrollments, reply, 500);
     }
 
     return successHandle(
-      { message: "Students retrieved successfully", students },
+      { message: "Student enrollments retrieved successfully", enrollments },
       reply,
       200,
     );
@@ -2152,6 +2155,9 @@ export const updateSemesterUserAssignmentsController = asyncHandle(
       semesterId,
       assignments,
     });
+    if (result instanceof AcademicLevelServiceError) {
+      return errorHandle(result.message, reply, result.statusCode);
+    }
     if (typeof result === "string") return errorHandle(result, reply, 400);
     return successHandle(
       { message: "Semester roles updated.", assignments: result },
@@ -2285,6 +2291,13 @@ export const updateUserManagementController = asyncHandle(
         data.roleAssignments,
       );
 
+      if (updatedAssignments instanceof AcademicLevelServiceError) {
+        return errorHandle(
+          updatedAssignments.message,
+          reply,
+          updatedAssignments.statusCode,
+        );
+      }
       if (typeof updatedAssignments === "string") {
         return errorHandle(updatedAssignments, reply, 500);
       }
@@ -2365,6 +2378,9 @@ export const createUserAssignmentController = asyncHandle(
 
     const assignment = await createUserRoleAssignment(data);
 
+    if (assignment instanceof AcademicLevelServiceError) {
+      return errorHandle(assignment.message, reply, assignment.statusCode);
+    }
     if (typeof assignment === "string") {
       return errorHandle(assignment, reply, 500);
     }

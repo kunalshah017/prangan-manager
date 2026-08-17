@@ -5,6 +5,7 @@ import test from "node:test";
 import { Role, SubRole } from "../../generated/prisma/index.js";
 import { ACADEMIC_LEVEL_CODES } from "../helpers/academic-level-codes.js";
 import {
+  createSyllabusController,
   createTopicController,
   deleteSyllabusController,
   getProgressLogsController,
@@ -72,6 +73,31 @@ const mockSemesterLevels = () => {
     prisma.semesterLevel.findFirst = originalFindFirst;
   };
 };
+
+test("syllabus creation preserves invalid semester-level status", async () => {
+  const originalFindFirst = prisma.semesterLevel.findFirst;
+  prisma.semesterLevel.findFirst = (async () => null) as typeof prisma.semesterLevel.findFirst;
+
+  try {
+    const response = replyDouble();
+    await createSyllabusController(
+      {
+        user: user(Role.ADMIN),
+        body: {
+          projectId: "project-1",
+          centerId: "center-1",
+          semesterId: "semester-1",
+          semesterLevelId: "missing-level",
+          name: "English",
+        },
+      } as never,
+      response.reply as never,
+    );
+    assert.equal(response.result().statusCode, 422);
+  } finally {
+    prisma.semesterLevel.findFirst = originalFindFirst;
+  }
+});
 
 test("wrong-scope user cannot create a topic before the topic service writes", async () => {
   const restoreSemesterLevels = mockSemesterLevels();

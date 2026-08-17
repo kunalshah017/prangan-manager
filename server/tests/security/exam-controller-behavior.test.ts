@@ -82,7 +82,10 @@ test("exam controllers do not expose caught error details in public responses", 
   );
 
   assert.equal(controllerSource.includes("details: error.message"), false);
-  assert.equal(controllerSource.includes("error: error.message"), false);
+  assert.match(
+    controllerSource,
+    /error instanceof AcademicLevelServiceError[\s\S]*?statusCode[\s\S]*?error\.message/,
+  );
 });
 
 test("a non-admin cannot create a score for an exam outside their active scope", async () => {

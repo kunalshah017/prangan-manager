@@ -292,6 +292,37 @@ test("exam uniqueness races return conflict", async () => {
   }
 });
 
+test("exam creation preserves invalid semester-level status", async () => {
+  const originalSemesterLevelFindFirst = prisma.semesterLevel.findFirst;
+  prisma.semesterLevel.findFirst = (async () => null) as typeof prisma.semesterLevel.findFirst;
+
+  try {
+    const response = createReply();
+    await createExamController(
+      {
+        user: { id: "admin-1", name: "Admin", email: "admin@example.com", role: Role.ADMIN },
+        body: {
+          projectId: "project-1",
+          centerId: "center-1",
+          semesterId: "semester-1",
+          semesterLevelId: "missing-level",
+          cycle: AssessmentCycle.SA_1,
+          name: "English assessment",
+          examDate: "2026-07-25",
+          listeningMaxMarks: 10,
+          speakingMaxMarks: 10,
+          readingMaxMarks: 10,
+          writingMaxMarks: 10,
+        },
+      } as never,
+      response.reply as never,
+    );
+    assert.equal(response.statusCode, 422);
+  } finally {
+    prisma.semesterLevel.findFirst = originalSemesterLevelFindFirst;
+  }
+});
+
 test("Prisma schema uses one required AssessmentCycle contract", () => {
   const schema = readFileSync(
     new URL("../../prisma/schema.prisma", import.meta.url),

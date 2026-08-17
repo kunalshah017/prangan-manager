@@ -10,6 +10,10 @@ const migrationUrl = new URL(
   "../../prisma/migrations/20260817120000_contract_managed_semester_levels/migration.sql",
   import.meta.url,
 );
+const verifierUrl = new URL(
+  "../../scripts/verify-semester-level-integrity.ts",
+  import.meta.url,
+);
 
 test("contract migration aborts when required canonical references are missing", async () => {
   const migration = await readFile(migrationUrl, "utf8");
@@ -25,6 +29,10 @@ test("contract migration aborts when required canonical references are missing",
   assert.match(migration, /canonical references are missing or belong to another semester/);
   assert.match(migration, /duplicate Syllabus canonical keys exist/);
   assert.match(migration, /duplicate Exam canonical keys exist/);
+  assert.match(
+    migration,
+    /FROM "UserRoleAssignments"[\s\S]*?"semesterLevelId" IS NULL[\s\S]*?"subRole" = 'EDUCATOR'[\s\S]*?RAISE EXCEPTION/,
+  );
 });
 
 test("contract migration makes operational references canonical-only", async () => {
@@ -59,6 +67,12 @@ test("canonical integrity report blocks missing, orphaned, cross-semester, and d
   const report = buildSemesterLevelIntegrityReport(
     [
       {
+        tableName: "UserRoleAssignments",
+        missingSemesterLevelIds: 1n,
+        orphanedSemesterLevelIds: 0n,
+        crossSemesterLevelIds: 0n,
+      },
+      {
         tableName: "StudentEnrollments",
         missingSemesterLevelIds: 1n,
         orphanedSemesterLevelIds: 0n,
@@ -89,7 +103,17 @@ test("canonical integrity report blocks missing, orphaned, cross-semester, and d
     crossSemesterLevelIds: 1,
   });
   assert.deepEqual(report.duplicateCanonicalKeys, { Syllabus: 2, Exam: 0 });
+  assert.equal(report.tables.UserRoleAssignments.missingSemesterLevelIds, 1);
   assert.equal(hasSemesterLevelIntegrityViolations(report), true);
+});
+
+test("canonical verifier counts semester-scoped educators without a managed level", async () => {
+  const verifier = await readFile(verifierUrl, "utf8");
+
+  assert.match(
+    verifier,
+    /"tableName" = 'UserRoleAssignments'[\s\S]*?"subRole" = 'EDUCATOR'[\s\S]*?"semesterId" IS NOT NULL[\s\S]*?"semesterLevelId" IS NULL/,
+  );
 });
 
 test("canonical integrity report is clean when every count is zero", () => {
