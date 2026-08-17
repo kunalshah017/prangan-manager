@@ -1,4 +1,5 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
+import { AcademicLevelServiceError } from "../service/academic-level.service.js";
 
 type AsyncHandler = (
   request: FastifyRequest,
@@ -9,8 +10,12 @@ export const asyncHandle = (handler: AsyncHandler) => {
   return async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       await handler(request, reply);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error in async handler:", error);
+      if (error instanceof AcademicLevelServiceError) {
+        reply.status(error.statusCode).send({ message: error.message });
+        return;
+      }
       reply.status(500).send({ error: "Internal Server Error" });
     }
   };

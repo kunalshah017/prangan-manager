@@ -14,7 +14,7 @@ describe("user management filters", () => {
   });
 
   it("preserves and displays managed educator memberships", async () => {
-    const [edit, details, users] = await Promise.all([
+    const [edit, details, users, hooks] = await Promise.all([
       readFile(
         new URL("../../pages/users/EditUser.tsx", import.meta.url),
         "utf8",
@@ -24,16 +24,18 @@ describe("user management filters", () => {
         "utf8",
       ),
       readFile(new URL("../../pages/users/Users.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../../hooks/useUserQueries.ts", import.meta.url), "utf8"),
     ]);
 
     expect(edit).toContain("semesterLevelId: assignment.semesterLevelId");
     expect(edit).toContain("semesterLevel: assignment.semesterLevel");
-    expect(details).toContain(
-      "levelName(assignment.semesterLevel, assignment.level)",
-    );
-    expect(users).toContain(
-      "levelName(assignment.semesterLevel, assignment.level)",
-    );
+    expect(edit).not.toContain("level: assignment.level");
+    expect(hooks).toContain("semesterLevelId?: string");
+    expect(hooks).not.toContain("level?: string");
+    expect(details).toContain("levelName(assignment.semesterLevel)");
+    expect(users).toContain("levelName(assignment.semesterLevel)");
+    expect(details).not.toContain("assignment.level");
+    expect(users).not.toContain("assignment.level");
     expect(details).not.toContain("assignment.level.replace");
     expect(users).not.toContain("assignment.level.replace");
   });

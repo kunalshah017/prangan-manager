@@ -28,7 +28,6 @@ const centerManagerAssignments = [
     projectId: "project-1",
     centerId: "center-1",
     semesterId: "semester-1",
-    level: null,
     isActive: true,
   },
 ] as const;
@@ -39,7 +38,8 @@ const educatorAssignments = [
     projectId: "project-1",
     centerId: "center-1",
     semesterId: "semester-1",
-    level: null,
+    semesterLevelId: "semester-1-level-1",
+    semesterLevel: { isActive: true },
     isActive: true,
   },
 ] as const;

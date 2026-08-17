@@ -57,6 +57,7 @@ import {
   parseUpdateTopicStatusRequest,
 } from "../security/syllabus-input.js";
 import { resolveSemesterLevelInput } from "../service/semester-level.service.js";
+import { AcademicLevelServiceError } from "../service/academic-level.service.js";
 import { isValidDateFormat } from "../utils/dateHelpers.js";
 
 // Define AuthenticatedRequest type
@@ -101,6 +102,9 @@ const authorizeSyllabusScope = async (
 
 const sendError = (reply: FastifyReply, error: unknown, fallback: string) => {
   console.error(error);
+  if (error instanceof AcademicLevelServiceError) {
+    return reply.status(error.statusCode).send({ error: error.message });
+  }
   const message = error instanceof Error ? error.message : "";
   if (
     message.includes("already exists") ||
@@ -151,11 +155,9 @@ const resolveReadScope = async (
   if (typeof query.topicId === "string") return getTopicScope(query.topicId);
   const scope = queryScope(query);
   if (!hasCompleteSyllabusScope(scope)) return null;
-  if (!scope.semesterLevelId && typeof query.level !== "string") return scope;
   const semesterLevel = await resolveSemesterLevelInput({
     semesterId: scope.semesterId,
     semesterLevelId: scope.semesterLevelId,
-    level: typeof query.level === "string" ? query.level : undefined,
   });
   return { ...scope, semesterLevelId: semesterLevel.id };
 };
@@ -788,6 +790,6 @@ export const importTemplateController = async (
         .status(501)
         .send({ error: "Template import not yet implemented" });
     }
-    return reply.status(500).send({ error: "Failed to import syllabus" });
+    return sendError(reply, error, "Failed to import syllabus");
   }
 };

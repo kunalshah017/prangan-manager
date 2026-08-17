@@ -16,7 +16,6 @@ import {
   getStudentActiveEnrollmentScopes,
   updateStudent,
   deleteStudent,
-  getStudentsByLevel,
   getStudentsBySemesterLevel,
   getStudentsByProject,
   getStudentsByCenter,
@@ -48,7 +47,6 @@ import type { UserRegistrationRequest } from "../types/user.types.js";
 import bcryptjs from "bcryptjs";
 import {
   UserStatus,
-  Level,
   Role,
   SubRole,
   CommittedDays,
@@ -371,7 +369,6 @@ type RegistrationRoleAssignment = {
   centerId?: string;
   semesterId?: string;
   semesterLevelId?: string;
-  level?: string;
   committedDays?: string;
 };
 
@@ -416,8 +413,12 @@ const buildRegistrationRoleDetails = async (
           detail += `<p><strong>📅 Semester:</strong> ${semester.name} (${startDate} - ${endDate})</p>`;
         }
       }
-      if (assignment.level && assignment.subRole === "EDUCATOR") {
-        detail += `<p><strong>📚 Teaching Level:</strong> ${assignment.level.replace(/_/g, " ")}</p>`;
+      if (assignment.semesterLevelId && assignment.subRole === "EDUCATOR") {
+        const semesterLevel = await resolveSemesterLevelInput({
+          semesterId: assignment.semesterId,
+          semesterLevelId: assignment.semesterLevelId,
+        });
+        detail += `<p><strong>📚 Teaching Level:</strong> ${semesterLevel.academicLevel.name}</p>`;
       }
       if (
         assignment.committedDays &&
@@ -545,9 +546,9 @@ export const verifyUser = asyncHandle(
           400,
         );
       }
-      if (assignment.level && assignment.subRole !== "EDUCATOR") {
+      if ("level" in assignment) {
         return errorHandle(
-          "Level can only be assigned to EDUCATOR sub-role.",
+          "Legacy level is not supported; use semesterLevelId.",
           reply,
           400,
         );
@@ -615,7 +616,6 @@ export const verifyUser = asyncHandle(
                 ? await resolveSemesterLevelInput({
                     semesterId: assignment.semesterId,
                     semesterLevelId: assignment.semesterLevelId,
-                    level: assignment.level,
                   })
                 : null;
             createdAssignments.push(
@@ -627,7 +627,6 @@ export const verifyUser = asyncHandle(
                   centerId: assignment.centerId || null,
                   semesterId: assignment.semesterId || null,
                   semesterLevelId: semesterLevel?.id || null,
-                  level: semesterLevel?.academicLevel.code ?? null,
                   committedDays: assignment.committedDays
                     ? (assignment.committedDays as CommittedDays)
                     : null,
@@ -678,6 +677,9 @@ export const verifyUser = asyncHandle(
       );
     } catch (error) {
       console.error("User approval transaction failed:", error);
+      if (error instanceof AcademicLevelServiceError) {
+        return errorHandle(error.message, reply, error.statusCode);
+      }
       return errorHandle("Database operation failed.", reply, 500);
     }
   },
@@ -882,8 +884,7 @@ export const addStudent = asyncHandle(
         centerId: string;
         semesterId: string;
         projectId: string;
-        semesterLevelId?: string;
-        level?: Level;
+        semesterLevelId: string;
       };
     };
     let resolvedEnrollment:
@@ -892,7 +893,6 @@ export const addStudent = asyncHandle(
           semesterId: string;
           projectId: string;
           semesterLevelId: string;
-          level: Level;
         }
       | undefined;
 
@@ -917,21 +917,21 @@ export const addStudent = asyncHandle(
         !data.enrollment.centerId ||
         !data.enrollment.semesterId ||
         !data.enrollment.projectId ||
-        (!data.enrollment.semesterLevelId && !data.enrollment.level)
+        !data.enrollment.semesterLevelId
       ) {
         return errorHandle(
-          "All enrollment fields (centerId, semesterId, projectId, and semesterLevelId or level) are required when enrollment is provided.",
+          "All enrollment fields (centerId, semesterId, projectId, and semesterLevelId) are required when enrollment is provided.",
           reply,
           400,
         );
       }
 
-      // Validate level enum
-      if (
-        data.enrollment.level &&
-        !Object.values(Level).includes(data.enrollment.level)
-      ) {
-        return errorHandle("Invalid level provided in enrollment.", reply, 400);
+      if ("level" in data.enrollment) {
+        return errorHandle(
+          "Legacy level is not supported; use semesterLevelId.",
+          reply,
+          400,
+        );
       }
 
       const assignments = await getStudentScopeAssignments(user);
@@ -968,7 +968,6 @@ export const addStudent = asyncHandle(
           semesterId: data.enrollment.semesterId,
           projectId: data.enrollment.projectId,
           semesterLevelId: semesterLevel.id,
-          level: semesterLevel.academicLevel.code as Level,
         };
       } catch (error) {
         if (error instanceof AcademicLevelServiceError) {
@@ -1167,13 +1166,13 @@ export const updateStudentController = asyncHandle(
         centerId: string;
         semesterId: string;
         projectId: string;
-        level: Level;
+        semesterLevelId: string;
       }>;
       enrollment?: {
         centerId?: string;
         semesterId?: string;
         projectId?: string;
-        level?: Level;
+        semesterLevelId?: string;
       };
     };
 
@@ -1197,12 +1196,12 @@ export const updateStudentController = asyncHandle(
       );
     }
 
-    // Validate enrollment level if provided (both single enrollment and enrollments array)
-    if (
-      data.enrollment?.level &&
-      !Object.values(Level).includes(data.enrollment.level)
-    ) {
-      return errorHandle("Invalid level provided in enrollment.", reply, 400);
+    if (data.enrollment && "level" in data.enrollment) {
+      return errorHandle(
+        "Legacy level is not supported; use semesterLevelId.",
+        reply,
+        400,
+      );
     }
 
     // Validate enrollments array if provided
@@ -1216,18 +1215,10 @@ export const updateStudentController = asyncHandle(
           !enrollment.centerId ||
           !enrollment.semesterId ||
           !enrollment.projectId ||
-          !enrollment.level
+          !enrollment.semesterLevelId
         ) {
           return errorHandle(
-            "Each enrollment must have centerId, semesterId, projectId, and level",
-            reply,
-            400,
-          );
-        }
-
-        if (!Object.values(Level).includes(enrollment.level)) {
-          return errorHandle(
-            `Invalid level provided: ${enrollment.level}`,
+            "Each enrollment must have centerId, semesterId, projectId, and semesterLevelId",
             reply,
             400,
           );
@@ -1385,44 +1376,6 @@ export const deleteStudentController = asyncHandle(
   },
 );
 
-export const getStudentsByLevelController = asyncHandle(
-  async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = request.user;
-    if (!user) {
-      return errorHandle("Unauthorized access.", reply, 401);
-    }
-
-    const { level } = request.params as { level: Level };
-
-    if (!level) {
-      return errorHandle("Level is required.", reply, 400);
-    }
-
-    // Validate level enum
-    if (!Object.values(Level).includes(level)) {
-      return errorHandle("Invalid level provided.", reply, 400);
-    }
-
-    // Use role-based access to get students by level
-    const students = await getUserAccessibleStudents(user.id, user.role, {
-      level,
-    });
-
-    if (typeof students === "string") {
-      return errorHandle(students, reply, 500);
-    }
-
-    return successHandle(
-      {
-        message: "Students retrieved successfully",
-        students: students,
-      },
-      reply,
-      200,
-    );
-  },
-);
-
 export const getStudentsBySemesterLevelController = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user;
@@ -1433,15 +1386,15 @@ export const getStudentsBySemesterLevelController = asyncHandle(
       return errorHandle("Semester level ID is required.", reply, 400);
     }
 
-    const students = await getUserAccessibleStudents(user.id, user.role, {
+    const enrollments = await getUserAccessibleStudents(user.id, user.role, {
       semesterLevelId,
     });
-    if (typeof students === "string") {
-      return errorHandle(students, reply, 500);
+    if (typeof enrollments === "string") {
+      return errorHandle(enrollments, reply, 500);
     }
 
     return successHandle(
-      { message: "Students retrieved successfully", students },
+      { message: "Student enrollments retrieved successfully", enrollments },
       reply,
       200,
     );
@@ -1561,8 +1514,7 @@ export const enrollStudentController = asyncHandle(
       centerId: string;
       semesterId: string;
       projectId: string;
-      semesterLevelId?: string;
-      level?: Level;
+      semesterLevelId: string;
     };
 
     if (
@@ -1570,14 +1522,17 @@ export const enrollStudentController = asyncHandle(
       !data.centerId ||
       !data.semesterId ||
       !data.projectId ||
-      (!data.semesterLevelId && !data.level)
+      !data.semesterLevelId
     ) {
       return errorHandle("All enrollment fields are required.", reply, 400);
     }
 
-    // Validate level enum
-    if (data.level && !Object.values(Level).includes(data.level)) {
-      return errorHandle("Invalid level provided.", reply, 400);
+    if ("level" in data) {
+      return errorHandle(
+        "Legacy level is not supported; use semesterLevelId.",
+        reply,
+        400,
+      );
     }
 
     const validation = await validateEnrollmentHierarchy(data);
@@ -1615,8 +1570,7 @@ export const createEnrollmentController = asyncHandle(
       centerId: string;
       semesterId: string;
       projectId: string;
-      semesterLevelId?: string;
-      level?: Level;
+      semesterLevelId: string;
     };
 
     if (!studentId) {
@@ -1627,14 +1581,17 @@ export const createEnrollmentController = asyncHandle(
       !data.centerId ||
       !data.semesterId ||
       !data.projectId ||
-      (!data.semesterLevelId && !data.level)
+      !data.semesterLevelId
     ) {
       return errorHandle("All enrollment fields are required.", reply, 400);
     }
 
-    // Validate level enum
-    if (data.level && !Object.values(Level).includes(data.level)) {
-      return errorHandle("Invalid level provided.", reply, 400);
+    if ("level" in data) {
+      return errorHandle(
+        "Legacy level is not supported; use semesterLevelId.",
+        reply,
+        400,
+      );
     }
 
     const validation = await validateEnrollmentHierarchy(data);
@@ -1647,7 +1604,6 @@ export const createEnrollmentController = asyncHandle(
       data.centerId,
       data.semesterId,
       data.projectId,
-      data.level,
       data.semesterLevelId,
     );
 
@@ -1740,7 +1696,6 @@ export const updateEnrollmentController = asyncHandle(
       semesterId?: string;
       projectId?: string;
       semesterLevelId?: string;
-      level?: Level;
       isActive?: boolean;
     };
 
@@ -1748,9 +1703,12 @@ export const updateEnrollmentController = asyncHandle(
       return errorHandle("Enrollment ID is required.", reply, 400);
     }
 
-    // Validate level enum if provided
-    if (data.level && !Object.values(Level).includes(data.level)) {
-      return errorHandle("Invalid level provided.", reply, 400);
+    if ("level" in data) {
+      return errorHandle(
+        "Legacy level is not supported; use semesterLevelId.",
+        reply,
+        400,
+      );
     }
 
     const context = await resolveEffectiveEnrollmentContext(enrollmentId, data);
@@ -1763,7 +1721,6 @@ export const updateEnrollmentController = asyncHandle(
       centerId: context.centerId,
       semesterId: context.semesterId,
       semesterLevelId: data.semesterLevelId ?? context.semesterLevelId,
-      level: data.level,
       isActive: data.isActive,
     });
 
@@ -2198,6 +2155,9 @@ export const updateSemesterUserAssignmentsController = asyncHandle(
       semesterId,
       assignments,
     });
+    if (result instanceof AcademicLevelServiceError) {
+      return errorHandle(result.message, reply, result.statusCode);
+    }
     if (typeof result === "string") return errorHandle(result, reply, 400);
     return successHandle(
       { message: "Semester roles updated.", assignments: result },
@@ -2257,7 +2217,6 @@ export const updateUserManagementController = asyncHandle(
         centerId?: string;
         semesterId?: string;
         semesterLevelId?: string;
-        level?: Level;
         committedDays?: string;
       }>;
     };
@@ -2293,16 +2252,17 @@ export const updateUserManagementController = asyncHandle(
       if (!Object.values(SubRole).includes(assignment.subRole)) {
         return errorHandle("Invalid sub-role provided.", reply, 400);
       }
-      if (
-        assignment.level &&
-        !Object.values(Level).includes(assignment.level)
-      ) {
-        return errorHandle("Invalid level provided.", reply, 400);
+      if ("level" in assignment) {
+        return errorHandle(
+          "Legacy level is not supported; use semesterLevelId.",
+          reply,
+          400,
+        );
       }
 
-      // Validate that level and committedDays are only set for appropriate roles
+      // Validate that semester level and committedDays are only set for appropriate roles
       if (
-        (assignment.level || assignment.semesterLevelId) &&
+        assignment.semesterLevelId &&
         assignment.subRole !== "EDUCATOR"
       ) {
         return errorHandle(
@@ -2331,6 +2291,13 @@ export const updateUserManagementController = asyncHandle(
         data.roleAssignments,
       );
 
+      if (updatedAssignments instanceof AcademicLevelServiceError) {
+        return errorHandle(
+          updatedAssignments.message,
+          reply,
+          updatedAssignments.statusCode,
+        );
+      }
       if (typeof updatedAssignments === "string") {
         return errorHandle(updatedAssignments, reply, 500);
       }
@@ -2372,7 +2339,6 @@ export const createUserAssignmentController = asyncHandle(
       centerId?: string;
       semesterId?: string;
       semesterLevelId?: string;
-      level?: Level;
       committedDays?: string;
     };
 
@@ -2382,12 +2348,16 @@ export const createUserAssignmentController = asyncHandle(
     if (!Object.values(SubRole).includes(data.subRole)) {
       return errorHandle("Invalid sub-role provided.", reply, 400);
     }
-    if (data.level && !Object.values(Level).includes(data.level)) {
-      return errorHandle("Invalid level provided.", reply, 400);
+    if ("level" in data) {
+      return errorHandle(
+        "Legacy level is not supported; use semesterLevelId.",
+        reply,
+        400,
+      );
     }
 
     // Validate business rules
-    if ((data.level || data.semesterLevelId) && data.subRole !== "EDUCATOR") {
+    if (data.semesterLevelId && data.subRole !== "EDUCATOR") {
       return errorHandle(
         "Semester level can only be set for EDUCATOR sub-role.",
         reply,
@@ -2408,6 +2378,9 @@ export const createUserAssignmentController = asyncHandle(
 
     const assignment = await createUserRoleAssignment(data);
 
+    if (assignment instanceof AcademicLevelServiceError) {
+      return errorHandle(assignment.message, reply, assignment.statusCode);
+    }
     if (typeof assignment === "string") {
       return errorHandle(assignment, reply, 500);
     }

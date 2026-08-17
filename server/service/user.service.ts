@@ -1,6 +1,5 @@
 import {
   UserStatus,
-  Level,
   Role,
   SubRole,
   Prisma,
@@ -334,7 +333,6 @@ export const getSemesterUsers = async ({
             centerId: true,
             semesterId: true,
             semesterLevelId: true,
-            level: true,
             committedDays: true,
             isActive: true,
             semesterLevel: { include: { academicLevel: true } },
@@ -577,32 +575,6 @@ export const deleteStudent = async (id: string) => {
   }
 };
 
-export const getStudentsByLevel = async (level: Level) => {
-  try {
-    // Now get students by their enrollment level, not direct level field
-    const enrollments = await (prisma as any).studentEnrollments.findMany({
-      where: {
-        level,
-        isActive: true,
-      },
-      include: {
-        student: true,
-        center: true,
-        project: true,
-        semester: true,
-        semesterLevel: { include: { academicLevel: true } },
-      },
-      orderBy: {
-        student: { name: "asc" },
-      },
-    });
-    return enrollments;
-  } catch (error: unknown) {
-    console.error("Error fetching students by level:", error);
-    return "Failed to fetch students by level - Please run 'prisma generate' first";
-  }
-};
-
 export const getStudentsBySemesterLevel = async (semesterLevelId: string) => {
   try {
     return await prisma.studentEnrollments.findMany({
@@ -636,6 +608,7 @@ export const getStudentsByProject = async (projectId: string) => {
         center: true,
         project: true,
         semester: true,
+        semesterLevel: { include: { academicLevel: true } },
       },
       orderBy: {
         student: { name: "asc" },
@@ -660,6 +633,7 @@ export const getStudentsByCenter = async (centerId: string) => {
         center: true,
         project: true,
         semester: true,
+        semesterLevel: { include: { academicLevel: true } },
       },
       orderBy: {
         student: { name: "asc" },
@@ -684,6 +658,7 @@ export const getStudentsBySemester = async (semesterId: string) => {
         center: true,
         project: true,
         semester: true,
+        semesterLevel: { include: { academicLevel: true } },
       },
       orderBy: {
         student: { name: "asc" },
@@ -701,14 +676,12 @@ export type EnrollmentScope = {
   centerId: string;
   semesterId: string;
   semesterLevelId: string;
-  level: string;
 };
 
 const hydrateVerifiedSemesterLevelScope = async <
   T extends {
     semesterId: string | null;
     semesterLevelId: string | null;
-    level: string | null;
   },
 >(
   scope: T,
@@ -742,7 +715,6 @@ export const getEnrollmentScope = async (
       centerId: true,
       semesterId: true,
       semesterLevelId: true,
-      level: true,
     },
   });
 
@@ -761,7 +733,6 @@ export const getStudentActiveEnrollmentScopes = async (
       centerId: true,
       semesterId: true,
       semesterLevelId: true,
-      level: true,
     },
   });
   return Promise.all(
@@ -828,8 +799,7 @@ export const enrollStudent = async (enrollmentData: {
   centerId: string;
   semesterId: string;
   projectId: string;
-  semesterLevelId?: string;
-  level?: Level;
+  semesterLevelId: string;
 }) => {
   try {
     const validation = await validateEnrollmentHierarchy(enrollmentData);
@@ -843,7 +813,6 @@ export const enrollStudent = async (enrollmentData: {
       data: {
         ...enrollmentData,
         semesterLevelId: semesterLevel.id,
-        level: semesterLevel.academicLevel.code as Level,
       },
       include: {
         student: true,
@@ -867,8 +836,7 @@ export const createEnrollment = async (
   centerId: string,
   semesterId: string,
   projectId: string,
-  level?: Level,
-  semesterLevelId?: string,
+  semesterLevelId: string,
 ) => {
   try {
     const validation = await validateEnrollmentHierarchy({
@@ -883,7 +851,6 @@ export const createEnrollment = async (
     const semesterLevel = await resolveSemesterLevelInput({
       semesterId,
       semesterLevelId,
-      level,
     });
 
     return await prisma.$transaction(async (tx) => {
@@ -908,7 +875,6 @@ export const createEnrollment = async (
           semesterId,
           semesterLevelId: semesterLevel.id,
           projectId,
-          level: semesterLevel.academicLevel.code as Level,
           isActive: true,
         },
         include: {
@@ -946,6 +912,7 @@ export const getStudentEnrollments = async (
         center: true,
         project: true,
         semester: true,
+        semesterLevel: { include: { academicLevel: true } },
       },
       orderBy: { enrolledAt: "desc" },
     });
@@ -964,7 +931,6 @@ export const updateEnrollment = async (
     semesterId?: string;
     projectId?: string;
     semesterLevelId?: string;
-    level?: string;
     isActive?: boolean;
   },
 ) => {
@@ -977,14 +943,12 @@ export const updateEnrollment = async (
     const semesterLevel = await resolveSemesterLevelInput({
       semesterId: context.semesterId,
       semesterLevelId: data.semesterLevelId ?? context.semesterLevelId,
-      level: data.level ?? (data.semesterLevelId ? undefined : context.level),
     });
     const updateData = {
       projectId: context.projectId,
       centerId: context.centerId,
       semesterId: context.semesterId,
       semesterLevelId: semesterLevel.id,
-      level: semesterLevel.academicLevel.code as Level,
       isActive: data.isActive,
     };
 
@@ -1055,7 +1019,6 @@ type RoleAssignmentInput = {
   centerId?: string | null;
   semesterId?: string | null;
   semesterLevelId?: string | null;
-  level?: string | null;
   committedDays?: any;
   isActive?: boolean;
 };
@@ -1068,18 +1031,24 @@ const normalizeRoleAssignment = async <T extends RoleAssignmentInput>(
   }
 
   if (assignment.subRole !== SubRole.EDUCATOR) {
-    return { ...assignment, semesterLevelId: null, level: null };
+    return { ...assignment, semesterLevelId: null };
   }
 
-  if (!assignment.semesterLevelId && !assignment.level) {
-    return { ...assignment, semesterLevelId: null, level: null };
+  if (assignment.semesterId && !assignment.semesterLevelId) {
+    throw new AcademicLevelServiceError(
+      "Educator semester assignments require a semester level",
+      422,
+    );
+  }
+
+  if (!assignment.semesterLevelId) {
+    return { ...assignment, semesterLevelId: null };
   }
 
   const semesterLevel = await resolveSemesterLevelInput(assignment);
   return {
     ...assignment,
     semesterLevelId: semesterLevel.id,
-    level: semesterLevel.academicLevel.code as Level,
   };
 };
 
@@ -1166,7 +1135,6 @@ export const createUserRoleAssignment = async (assignmentData: {
   centerId?: string;
   semesterId?: string;
   semesterLevelId?: string;
-  level?: Level;
   committedDays?: any; // CommittedDays enum
 }) => {
   try {
@@ -1194,7 +1162,7 @@ export const createUserRoleAssignment = async (assignmentData: {
     });
     return assignment;
   } catch (error: unknown) {
-    if (error instanceof AcademicLevelServiceError) return error.message;
+    if (error instanceof AcademicLevelServiceError) return error;
     console.error("Error creating user role assignment:", error);
     return "Failed to create user role assignment - Please run 'prisma generate' first";
   }
@@ -1222,28 +1190,25 @@ export const getUserRoleAssignments = async (userId: string) => {
 export const getActiveUserScopeAssignments = async (userId: string) => {
   try {
     const assignments = await prisma.userRoleAssignments.findMany({
-      where: { userId, isActive: true },
+      where: {
+        userId,
+        isActive: true,
+        OR: [
+          { subRole: { not: SubRole.EDUCATOR } },
+          { semesterLevel: { is: { isActive: true } } },
+        ],
+      },
       select: {
         subRole: true,
         projectId: true,
         centerId: true,
         semesterId: true,
         semesterLevelId: true,
-        level: true,
+        semesterLevel: { select: { isActive: true } },
         isActive: true,
       },
     });
-    return Promise.all(
-      assignments.map(async (assignment) => {
-        if (
-          assignment.subRole !== SubRole.EDUCATOR ||
-          (!assignment.semesterLevelId && !assignment.level)
-        ) {
-          return assignment;
-        }
-        return hydrateVerifiedSemesterLevelScope(assignment);
-      }),
-    );
+    return assignments;
   } catch (error: unknown) {
     console.error("Error fetching active user scope assignments:", error);
     return "Failed to fetch active user scope assignments";
@@ -1283,7 +1248,7 @@ export const updateUserRoleAssignment = async (
     });
     return assignment;
   } catch (error: unknown) {
-    if (error instanceof AcademicLevelServiceError) return error.message;
+    if (error instanceof AcademicLevelServiceError) return error;
     console.error("Error updating user role assignment:", error);
     return "Failed to update user role assignment - Please run 'prisma generate' first";
   }
@@ -1323,7 +1288,6 @@ export const bulkUpdateUserAssignments = async (
     centerId?: string;
     semesterId?: string;
     semesterLevelId?: string;
-    level?: string;
     committedDays?: any;
   }>,
 ): Promise<any> => {
@@ -1441,7 +1405,7 @@ export const bulkUpdateUserAssignments = async (
       return reconciledAssignments;
     });
   } catch (error: unknown) {
-    if (error instanceof AcademicLevelServiceError) return error.message;
+    if (error instanceof AcademicLevelServiceError) return error;
     console.error("Error bulk updating user assignments:", error);
     return "Failed to bulk update user assignments - Please run 'prisma generate' first";
   }
@@ -1476,7 +1440,6 @@ export const updateSemesterUserAssignments = async ({
       centerId: true,
       semesterId: true,
       semesterLevelId: true,
-      level: true,
       committedDays: true,
     },
   });
@@ -1487,7 +1450,6 @@ export const updateSemesterUserAssignments = async ({
       centerId: assignment.centerId ?? undefined,
       semesterId: assignment.semesterId ?? undefined,
       semesterLevelId: assignment.semesterLevelId ?? undefined,
-      level: assignment.level ?? undefined,
       committedDays: assignment.committedDays ?? undefined,
     })),
     ...assignments.map((assignment) => ({
@@ -1667,7 +1629,6 @@ export const getUserAccessibleStudents = async (
     centerId?: string;
     semesterId?: string;
     semesterLevelId?: string;
-    level?: Level;
   },
 ) => {
   try {
@@ -1680,7 +1641,6 @@ export const getUserAccessibleStudents = async (
       if (filters?.semesterId) whereClause.semesterId = filters.semesterId;
       if (filters?.semesterLevelId)
         whereClause.semesterLevelId = filters.semesterLevelId;
-      if (filters?.level) whereClause.level = filters.level;
 
       const enrollments = await (prisma as any).studentEnrollments.findMany({
         where: whereClause,
@@ -1699,14 +1659,21 @@ export const getUserAccessibleStudents = async (
     } else {
       // USER role - get only students from centers/projects/semesters they're assigned to
       const userAssignments = await prisma.userRoleAssignments.findMany({
-        where: { userId, isActive: true },
+        where: {
+          userId,
+          isActive: true,
+          OR: [
+            { subRole: { not: SubRole.EDUCATOR } },
+            { semesterLevel: { is: { isActive: true } } },
+          ],
+        },
         select: {
           subRole: true,
           projectId: true,
           centerId: true,
           semesterId: true,
           semesterLevelId: true,
-          level: true,
+          semesterLevel: { select: { isActive: true } },
         },
       });
 
@@ -1717,7 +1684,8 @@ export const getUserAccessibleStudents = async (
             !assignment.centerId ||
             !assignment.semesterId ||
             (assignment.subRole === SubRole.EDUCATOR &&
-              !assignment.semesterLevelId)
+              (!assignment.semesterLevelId ||
+                assignment.semesterLevel?.isActive !== true))
           ) {
             return [];
           }
@@ -1750,7 +1718,6 @@ export const getUserAccessibleStudents = async (
       if (filters?.semesterId) whereClause.semesterId = filters.semesterId;
       if (filters?.semesterLevelId)
         whereClause.semesterLevelId = filters.semesterLevelId;
-      if (filters?.level) whereClause.level = filters.level;
 
       const enrollments = await (prisma as any).studentEnrollments.findMany({
         where: whereClause,

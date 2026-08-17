@@ -48,15 +48,15 @@ model Projects {
 }
 
 model Semesters {
-  id                  String                @id @default(cuid())
+  id                  String                       @id @default(cuid())
   name                String
   startDate           DateTime
   endDate             DateTime
   centerId            String
-  status              SemesterStatus        @default(DRAFT)
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
-  center              Centers               @relation(fields: [centerId], references: [id])
+  status              SemesterStatus               @default(DRAFT)
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+  center              Centers                      @relation(fields: [centerId], references: [id])
   enrollments         StudentEnrollments[]
   userRoleAssignments UserRoleAssignments[]
   attendance          UserAttendance[]
@@ -64,53 +64,53 @@ model Semesters {
   syllabi             Syllabus[]
   exams               Exam[]
   levels              SemesterLevel[]
-  transition          SemesterTransition?   @relation("TargetSemesterTransition")
-  sourceTransitions   SemesterTransition[]  @relation("SourceSemesterTransition")
+  transition          SemesterTransition?          @relation("TargetSemesterTransition")
+  sourceTransitions   SemesterTransition[]         @relation("SourceSemesterTransition")
   remunerationRates   SemesterRemunerationRate[]
   remunerationPeriods SemesterRemunerationPeriod[]
   expenses            Expense[]
 }
 
 model User {
-  id                      String                @id @default(cuid())
-  email                   String                @unique
-  name                    String
-  firstName               String?
-  middleName              String?
-  lastName                String?
-  password                String
-  sessionVersion          Int                   @default(0)
-  profileImageUrl         String? // Added new column as optional
-  status                  UserStatus            @default(PENDING)
-  dob                     DateTime?
-  phone                   String?
-  qualification           String?
-  address                 String?
-  role                    Role                  @default(USER)
-  bankAccountNumber       String?
-  bankAccountName         String?
-  bankIfsc                String?
-  bankName                String?
-  bankBranch              String?
-  upiId                   String?
-  reimbursementAmount     Decimal               @default(0) @db.Decimal(10, 2)
-  createdAt               DateTime              @default(now())
-  updatedAt               DateTime              @updatedAt
-  roleAssignments         UserRoleAssignments[]
-  attendance              UserAttendance[]
-  markedAttendance        UserAttendance[]      @relation("AttendanceMarkedBy")
-  markedStudentAttendance StudentAttendance[]   @relation("StudentAttendanceMarkedBy")
-  syllabusProgressLogs    SyllabusProgressLog[]
-  gradedExams             StudentExamScore[]
-  accountTokens           AccountToken[]
-  remunerationRates       SemesterRemunerationRate[]
-  remunerationPeriods     SemesterRemunerationPeriod[] @relation("RemunerationOwner")
+  id                         String                       @id @default(cuid())
+  email                      String                       @unique
+  name                       String
+  firstName                  String?
+  middleName                 String?
+  lastName                   String?
+  password                   String
+  sessionVersion             Int                          @default(0)
+  profileImageUrl            String? // Added new column as optional
+  status                     UserStatus                   @default(PENDING)
+  dob                        DateTime?
+  phone                      String?
+  qualification              String?
+  address                    String?
+  role                       Role                         @default(USER)
+  bankAccountNumber          String?
+  bankAccountName            String?
+  bankIfsc                   String?
+  bankName                   String?
+  bankBranch                 String?
+  upiId                      String?
+  reimbursementAmount        Decimal                      @default(0) @db.Decimal(10, 2)
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime                     @updatedAt
+  roleAssignments            UserRoleAssignments[]
+  attendance                 UserAttendance[]
+  markedAttendance           UserAttendance[]             @relation("AttendanceMarkedBy")
+  markedStudentAttendance    StudentAttendance[]          @relation("StudentAttendanceMarkedBy")
+  syllabusProgressLogs       SyllabusProgressLog[]
+  gradedExams                StudentExamScore[]
+  accountTokens              AccountToken[]
+  remunerationRates          SemesterRemunerationRate[]
+  remunerationPeriods        SemesterRemunerationPeriod[] @relation("RemunerationOwner")
   remunerationPeriodsCreated SemesterRemunerationPeriod[] @relation("RemunerationCreatedBy")
   remunerationPeriodsUpdated SemesterRemunerationPeriod[] @relation("RemunerationUpdatedBy")
-  semesterTransitionsUpdated SemesterTransition[] @relation("SemesterTransitionUpdatedBy")
-  expensesReceived      Expense[] @relation("ExpensePayee")
-  expensesCreated       Expense[] @relation("ExpenseCreatedBy")
-  expensesVoided        Expense[] @relation("ExpenseVoidedBy")
+  semesterTransitionsUpdated SemesterTransition[]         @relation("SemesterTransitionUpdatedBy")
+  expensesReceived           Expense[]                    @relation("ExpensePayee")
+  expensesCreated            Expense[]                    @relation("ExpenseCreatedBy")
+  expensesVoided             Expense[]                    @relation("ExpenseVoidedBy")
 }
 
 enum AccountTokenType {
@@ -131,33 +131,33 @@ enum ExpenseStatus {
 }
 
 model Expense {
-  id            String        @id @default(cuid())
-  projectId     String
-  centerId      String
-  semesterId    String
-  expenseType   String
-  category      String
-  title         String
-  amount        Decimal       @db.Decimal(12, 2)
-  incurredOn    DateTime      @db.Date
-  notes         String?
-  payeeUserId   String?
-  sourceKey     String?       @unique
-  metadata      Json?
-  status        ExpenseStatus @default(ACTIVE)
-  createdBy     String
-  voidedBy      String?
-  voidedAt      DateTime?
-  voidReason    String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id          String        @id @default(cuid())
+  projectId   String
+  centerId    String
+  semesterId  String
+  expenseType String
+  category    String
+  title       String
+  amount      Decimal       @db.Decimal(12, 2)
+  incurredOn  DateTime      @db.Date
+  notes       String?
+  payeeUserId String?
+  sourceKey   String?       @unique
+  metadata    Json?
+  status      ExpenseStatus @default(ACTIVE)
+  createdBy   String
+  voidedBy    String?
+  voidedAt    DateTime?
+  voidReason  String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
-  project     Projects  @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  center      Centers   @relation(fields: [centerId], references: [id], onDelete: Restrict)
-  semester    Semesters @relation(fields: [semesterId], references: [id], onDelete: Restrict)
-  payee       User?     @relation("ExpensePayee", fields: [payeeUserId], references: [id], onDelete: SetNull)
-  createdByUser User    @relation("ExpenseCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict)
-  voidedByUser  User?   @relation("ExpenseVoidedBy", fields: [voidedBy], references: [id], onDelete: Restrict)
+  project       Projects  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  center        Centers   @relation(fields: [centerId], references: [id], onDelete: Restrict)
+  semester      Semesters @relation(fields: [semesterId], references: [id], onDelete: Restrict)
+  payee         User?     @relation("ExpensePayee", fields: [payeeUserId], references: [id], onDelete: SetNull)
+  createdByUser User      @relation("ExpenseCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict)
+  voidedByUser  User?     @relation("ExpenseVoidedBy", fields: [voidedBy], references: [id], onDelete: Restrict)
 
   @@index([projectId, centerId, semesterId, incurredOn])
   @@index([semesterId, expenseType, status, incurredOn])
@@ -204,26 +204,25 @@ model EmailJob {
 }
 
 model UserRoleAssignments {
-  id            String         @id @default(cuid())
-  userId        String
-  subRole       SubRole
-  projectId     String? // Optional - user can be assigned to specific projects
-  centerId      String? // Optional - user can be assigned to specific centers
-  semesterId    String? // Optional - user can be assigned to specific semesters
+  id              String         @id @default(cuid())
+  userId          String
+  subRole         SubRole
+  projectId       String? // Optional - user can be assigned to specific projects
+  centerId        String? // Optional - user can be assigned to specific centers
+  semesterId      String? // Optional - user can be assigned to specific semesters
   semesterLevelId String? // Managed semester level
-  level         String? // Compatibility mirror of AcademicLevel.code for older clients
-  committedDays CommittedDays? // Only for CENTER_MANAGER & EDUCATOR sub-roles, null for others
-  isActive      Boolean        @default(true)
-  assignedAt    DateTime       @default(now())
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  committedDays   CommittedDays? // Only for CENTER_MANAGER & EDUCATOR sub-roles, null for others
+  isActive        Boolean        @default(true)
+  assignedAt      DateTime       @default(now())
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
-  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project    Projects?        @relation(fields: [projectId], references: [id])
-  center     Centers?         @relation(fields: [centerId], references: [id])
-  semester   Semesters?       @relation(fields: [semesterId], references: [id])
-  semesterLevel SemesterLevel? @relation(fields: [semesterLevelId, semesterId], references: [id, semesterId], onDelete: Restrict)
-  attendance UserAttendance[]
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project       Projects?        @relation(fields: [projectId], references: [id])
+  center        Centers?         @relation(fields: [centerId], references: [id])
+  semester      Semesters?       @relation(fields: [semesterId], references: [id])
+  semesterLevel SemesterLevel?   @relation(fields: [semesterLevelId, semesterId], references: [id, semesterId], onDelete: Restrict)
+  attendance    UserAttendance[]
 
   // Index for efficient user queries and prevent exact duplicates
   @@index([userId, isActive])
@@ -259,26 +258,25 @@ model Students {
 }
 
 model StudentEnrollments {
-  id         String    @id @default(cuid())
-  studentId  String
-  centerId   String
-  semesterId String
-  semesterLevelId String? // Managed semester level
-  projectId  String // Direct relation to project
-  level      String // Compatibility mirror of AcademicLevel.code
-  enrolledAt DateTime  @default(now())
-  promotedAt DateTime? // When promoted to next level
-  isActive   Boolean   @default(true)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  studentId       String
+  centerId        String
+  semesterId      String
+  semesterLevelId String // Managed semester level
+  projectId       String // Direct relation to project
+  enrolledAt      DateTime  @default(now())
+  promotedAt      DateTime? // When promoted to next level
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  student    Students            @relation(fields: [studentId], references: [id])
-  center     Centers             @relation(fields: [centerId], references: [id])
-  semester   Semesters           @relation(fields: [semesterId], references: [id])
-  semesterLevel SemesterLevel?   @relation(fields: [semesterLevelId, semesterId], references: [id, semesterId], onDelete: Restrict)
-  project    Projects            @relation(fields: [projectId], references: [id])
-  attendance StudentAttendance[]
-  examScores StudentExamScore[]
+  student       Students            @relation(fields: [studentId], references: [id])
+  center        Centers             @relation(fields: [centerId], references: [id])
+  semester      Semesters           @relation(fields: [semesterId], references: [id])
+  semesterLevel SemesterLevel       @relation(fields: [semesterLevelId, semesterId], references: [id, semesterId], onDelete: Restrict)
+  project       Projects            @relation(fields: [projectId], references: [id])
+  attendance    StudentAttendance[]
+  examScores    StudentExamScore[]
 
   @@unique([studentId, semesterId]) // A student can only be enrolled once per semester
   @@index([semesterLevelId])
@@ -375,15 +373,6 @@ enum SemesterTransitionStatus {
   COMPLETED
 }
 
-enum Level {
-  LEVEL_1
-  LEVEL_2
-  LEVEL_3
-  LEVEL_4
-  PRIMARY_A
-  PRIMARY_B
-}
-
 enum SubRole {
   TRAINING_DEVELOPMENT // Training & Development
   RECRUITMENT // Recruitment
@@ -448,16 +437,16 @@ model SemesterRemunerationRate {
 }
 
 model SemesterRemunerationPeriod {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   userId        String
   semesterId    String
-  amountPerDay  Decimal  @db.Decimal(10, 2)
-  effectiveFrom DateTime @db.Date
+  amountPerDay  Decimal   @db.Decimal(10, 2)
+  effectiveFrom DateTime  @db.Date
   effectiveTo   DateTime? @db.Date
   createdBy     String?
   updatedBy     String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   user          User      @relation("RemunerationOwner", fields: [userId], references: [id], onDelete: Cascade)
   semester      Semesters @relation(fields: [semesterId], references: [id], onDelete: Cascade)
@@ -495,8 +484,8 @@ model SemesterLevel {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  semester      Semesters     @relation(fields: [semesterId], references: [id], onDelete: Cascade)
-  academicLevel AcademicLevel @relation(fields: [academicLevelId], references: [id], onDelete: Restrict)
+  semester      Semesters             @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  academicLevel AcademicLevel         @relation(fields: [academicLevelId], references: [id], onDelete: Restrict)
   enrollments   StudentEnrollments[]
   assignments   UserRoleAssignments[]
   syllabi       Syllabus[]
@@ -513,27 +502,26 @@ model SemesterLevel {
 // ============================================
 
 model Syllabus {
-  id          String   @id @default(cuid())
-  projectId   String
-  centerId    String
-  semesterId  String
-  semesterLevelId String? // Managed semester level
-  level       String // Compatibility mirror of AcademicLevel.code
-  name        String // e.g., "English SA-1 Syllabus", "Mathematics Complete Syllabus"
-  description String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String   @id @default(cuid())
+  projectId       String
+  centerId        String
+  semesterId      String
+  semesterLevelId String // Managed semester level
+  name            String // e.g., "English SA-1 Syllabus", "Mathematics Complete Syllabus"
+  description     String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  project  Projects        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  center   Centers         @relation(fields: [centerId], references: [id], onDelete: Cascade)
-  semester Semesters       @relation(fields: [semesterId], references: [id], onDelete: Cascade)
-  semesterLevel SemesterLevel? @relation(fields: [semesterLevelId, semesterId], references: [id, semesterId], onDelete: Restrict)
-  topics   SyllabusTopic[]
+  project       Projects        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  center        Centers         @relation(fields: [centerId], references: [id], onDelete: Cascade)
+  semester      Semesters       @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  semesterLevel SemesterLevel   @relation(fields: [semesterLevelId, semesterId], references: [id, semesterId], onDelete: Restrict)
+  topics        SyllabusTopic[]
 
   // Ensure unique syllabus per context
-  @@unique([projectId, centerId, semesterId, level, name])
-  @@index([projectId, centerId, semesterId, level])
+  @@unique([projectId, centerId, semesterId, semesterLevelId, name])
+  @@index([projectId, centerId, semesterId, semesterLevelId])
   @@index([semesterLevelId])
 }
 
@@ -593,16 +581,15 @@ enum AssessmentCycle {
 // ============================================
 
 model Exam {
-  id          String          @id @default(cuid())
-  projectId   String
-  centerId    String
-  semesterId  String
-  semesterLevelId String? // Managed semester level
-  level       String // Compatibility mirror of AcademicLevel.code
-  cycle       AssessmentCycle
-  name        String // e.g., "SA-1 English Exam", "Mid-Term Mathematics"
-  description String?
-  examDate    DateTime        @db.Date // When the exam is scheduled
+  id              String          @id @default(cuid())
+  projectId       String
+  centerId        String
+  semesterId      String
+  semesterLevelId String // Managed semester level
+  cycle           AssessmentCycle
+  name            String // e.g., "SA-1 English Exam", "Mid-Term Mathematics"
+  description     String?
+  examDate        DateTime        @db.Date // When the exam is scheduled
 
   // LSRW Skill Marks Distribution
   listeningMaxMarks Int // Maximum marks for Listening
@@ -618,12 +605,12 @@ model Exam {
   project       Projects           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   center        Centers            @relation(fields: [centerId], references: [id], onDelete: Cascade)
   semester      Semesters          @relation(fields: [semesterId], references: [id], onDelete: Cascade)
-  semesterLevel SemesterLevel?     @relation(fields: [semesterLevelId, semesterId], references: [id, semesterId], onDelete: Restrict)
+  semesterLevel SemesterLevel      @relation(fields: [semesterLevelId, semesterId], references: [id, semesterId], onDelete: Restrict)
   studentScores StudentExamScore[]
 
   // Ensure unique exam per context
-  @@unique([projectId, centerId, semesterId, level, cycle, name])
-  @@index([projectId, centerId, semesterId, level, cycle])
+  @@unique([projectId, centerId, semesterId, semesterLevelId, cycle, name])
+  @@index([projectId, centerId, semesterId, semesterLevelId, cycle])
   @@index([semesterLevelId])
 }
 

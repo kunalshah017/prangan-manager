@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { Level, Role } from "../../generated/prisma/index.js";
+import { Role } from "../../generated/prisma/index.js";
 import { prisma } from "../../lib/prisma.js";
 import {
   deleteStudentAttendance,
@@ -88,7 +88,6 @@ const attendanceScope = {
   centerId: "center-1",
   semesterId: "semester-1",
   enrollment: {
-    level: Level.LEVEL_1,
     semesterLevelId: "semester-level-1",
   },
 };
@@ -155,7 +154,7 @@ test("student attendance scope lookup selects only canonical scope and enrollmen
         centerId: true,
         semesterId: true,
         enrollment: {
-          select: { level: true, semesterLevelId: true },
+          select: { semesterLevelId: true },
         },
       },
     });
@@ -212,9 +211,7 @@ test("bulk enrollment preflight rejects swapped student and enrollment pairs", a
 
   prisma.studentEnrollments.findMany = (async (args: unknown) => {
     query = args;
-    return [
-      { id: "enrollment-1", studentId: "student-1", level: Level.LEVEL_1 },
-    ];
+    return [{ id: "enrollment-1", studentId: "student-1" }];
   }) as typeof prisma.studentEnrollments.findMany;
   prisma.$transaction = (async () => {
     transactionCalls += 1;
@@ -260,7 +257,7 @@ test("bulk attendance succeeds with unknown student details when post-commit enr
   const originalStudentsFindMany = prisma.students.findMany;
   const restoreSemesterBounds = mockSemesterBounds();
   prisma.studentEnrollments.findMany = (async () => [
-    { id: "enrollment-1", studentId: "student-1", level: Level.LEVEL_1 },
+    { id: "enrollment-1", studentId: "student-1" },
   ]) as typeof prisma.studentEnrollments.findMany;
   prisma.$transaction = (async () => [
     {

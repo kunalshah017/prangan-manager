@@ -420,7 +420,7 @@ function CurriculumCard({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
-              {levelName(syllabus.semesterLevel, syllabus.level)}
+              {levelName(syllabus.semesterLevel)}
             </span>
             {!syllabus.isActive && (
               <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">

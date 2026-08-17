@@ -2,6 +2,13 @@
 
 A Node.js backend service built with Fastify, Prisma, and PostgreSQL for managing projects, centers, semesters, users, and students.
 
+## Managed level contract
+
+Operational records use `semesterLevelId` as their only level reference. The ID
+must identify a `SemesterLevel` belonging to the same semester. The former
+`level` request and response field is unsupported; clients must load managed
+semester levels and submit the selected membership ID.
+
 ## Environment Setup
 
 Copy the environment variables from `.env.example` to `.env` and configure them:
@@ -142,7 +149,7 @@ Login user and get JWT token.
       {
         "id": "assignment_id",
         "subRole": "EDUCATOR",
-        "level": "LEVEL_2",
+        "semesterLevelId": "semester-level-2-id",
         "committedDays": "BOTH",
         "projectId": "project_id",
         "centerId": "center_id",
@@ -201,7 +208,7 @@ Authorization: Bearer <jwt_token>
       {
         "id": "assignment_id",
         "subRole": "EDUCATOR",
-        "level": "LEVEL_2",
+        "semesterLevelId": "semester-level-2-id",
         "committedDays": "BOTH",
         "projectId": "project_id",
         "centerId": "center_id",
@@ -254,7 +261,7 @@ Authorization: Bearer <admin_jwt_token>
       "projectId": "project_id",
       "centerId": "center_id",
       "semesterId": "semester_id",
-      "level": "LEVEL_2",
+      "semesterLevelId": "semester-level-2-id",
       "committedDays": "BOTH"
     },
     {
@@ -288,7 +295,7 @@ Authorization: Bearer <admin_jwt_token>
 - `projectId` (string, optional): Project assignment
 - `centerId` (string, optional): Center assignment
 - `semesterId` (string, optional): Semester assignment
-- `level` (string, optional): Only for EDUCATOR sub-role (LEVEL_1, LEVEL_2, LEVEL_3, LEVEL_4, PRIMARY_A, PRIMARY_B)
+- `semesterLevelId` (string, optional): Managed semester-level ID; only for the EDUCATOR sub-role
 - `committedDays` (string, optional): Only for CENTER_MANAGER and EDUCATOR sub-roles (SATURDAY, SUNDAY, BOTH)
 
 **Validation Rules:**
@@ -296,7 +303,7 @@ Authorization: Bearer <admin_jwt_token>
 - If `semesterId` is provided, `centerId` must belong to that semester
 - If `centerId` is provided with `projectId`, center must belong to that project
 - If `semesterId` is provided with `projectId`, semester's center must belong to that project
-- `level` can only be set for EDUCATOR sub-role
+- `semesterLevelId` can only be set for EDUCATOR and must belong to `semesterId`
 - `committedDays` can only be set for CENTER_MANAGER and EDUCATOR sub-roles
 
 **Response (200):**
@@ -321,7 +328,7 @@ Authorization: Bearer <admin_jwt_token>
       {
         "id": "assignment_id",
         "subRole": "EDUCATOR",
-        "level": "LEVEL_2",
+        "semesterLevelId": "semester-level-2-id",
         "committedDays": "BOTH",
         "projectId": "project_id",
         "centerId": "center_id",
@@ -347,7 +354,7 @@ Authorization: Bearer <admin_jwt_token>
     {
       "id": "assignment_id",
       "subRole": "EDUCATOR",
-      "level": "LEVEL_2",
+      "semesterLevelId": "semester-level-2-id",
       "committedDays": "BOTH",
       "projectId": "project_id",
       "centerId": "center_id",
@@ -465,7 +472,7 @@ Authorization: Bearer <admin_jwt_token>
     "centerId": "center_id",
     "semesterId": "semester_id",
     "projectId": "project_id",
-    "level": "LEVEL_2"
+    "semesterLevelId": "semester-level-2-id"
   }
 }
 ```
@@ -504,17 +511,9 @@ Authorization: Bearer <admin_jwt_token>
     "centerId": "center_id",
     "semesterId": "semester_id",
     "projectId": "project_id",
-    "level": "LEVEL_2",
+    "semesterLevelId": "semester-level-2-id",
     "isActive": true,
     "enrolledAt": "2024-01-01T00:00:00.000Z"
-  }
-}
-    "whatsappNumber": "+919876541001",
-    "alternateNumber": "+912267891001",
-    "level": "LEVEL_2",
-    "profileImageUrl": "https://example.com/student.jpg",
-    "createdAt": "2024-01-01T00:00:00.000Z",
-    "updatedAt": "2024-01-01T00:00:00.000Z"
   }
 }
 ```
@@ -589,7 +588,7 @@ Authorization: Bearer <jwt_token>
     "phoneNumber": "+919876541001",
     "whatsappNumber": "+919876541001",
     "alternateNumber": "+912267891001",
-    "level": "LEVEL_2",
+    "semesterLevelId": "semester-level-2-id",
     "profileImageUrl": "https://example.com/student.jpg",
     "createdAt": "2024-01-01T00:00:00.000Z",
     "updatedAt": "2024-01-01T00:00:00.000Z"
@@ -631,13 +630,13 @@ Authorization: Bearer <admin_jwt_token>
   "motherOccupation": "Principal",
   "familyIncome": "75000-100000",
   "enrollment": {
-    "level": "LEVEL_3",
+    "semesterLevelId": "semester-level-3-id",
     "centerId": "new_center_id"
   }
 }
 ```
 
-**Note:** The `enrollment` field is optional. If `level` is provided, the student will be promoted. If `centerId` is also provided, they will be moved to that center during promotion.
+**Note:** The `enrollment` field is optional. If `semesterLevelId` is provided, it must belong to the enrollment's semester.
 
 **Response (200):**
 
@@ -671,7 +670,7 @@ Authorization: Bearer <admin_jwt_token>
     "centerId": "new_center_id",
     "semesterId": "semester_id",
     "projectId": "project_id",
-    "level": "LEVEL_3",
+    "semesterLevelId": "semester-level-3-id",
     "isActive": true,
     "enrolledAt": "2024-01-02T00:00:00.000Z",
     "promotedAt": "2024-01-02T00:00:00.000Z"
@@ -701,9 +700,9 @@ Authorization: Bearer <admin_jwt_token>
 }
 ```
 
-#### GET /api/v1/users/students/level/:level
+#### GET /api/v1/users/students/semester-level/:semesterLevelId
 
-Get students by level through their active enrollments.
+Get students by a managed semester level through their active enrollments.
 
 **Headers:**
 
@@ -713,17 +712,26 @@ Authorization: Bearer <jwt_token>
 
 **Parameters:**
 
-- `level` (string): The level (LEVEL_1, LEVEL_2, LEVEL_3, LEVEL_4, PRIMARY_A, PRIMARY_B)
+- `semesterLevelId` (string): Canonical managed semester-level ID
 
 **Response (200):**
 
 ```json
 {
-  "message": "Students retrieved successfully",
-  "students": [
+  "message": "Student enrollments retrieved successfully",
+  "enrollments": [
     {
       "id": "enrollment_id_1",
-      "level": "LEVEL_1",
+      "semesterLevelId": "semester-level-1-id",
+      "semesterLevel": {
+        "id": "semester-level-1-id",
+        "academicLevel": {
+          "id": "academic-level-1-id",
+          "code": "LEVEL_1",
+          "name": "Level 1",
+          "journeyOrder": 3
+        }
+      },
       "isActive": true,
       "enrolledAt": "2024-01-01T00:00:00.000Z",
       "student": {
@@ -780,7 +788,16 @@ Authorization: Bearer <jwt_token>
       "centerId": "center_id_1",
       "semesterId": "semester_id_1",
       "projectId": "project_id",
-      "level": "LEVEL_2",
+      "semesterLevelId": "semester-level-2-id",
+      "semesterLevel": {
+        "id": "semester-level-2-id",
+        "academicLevel": {
+          "id": "academic-level-2-id",
+          "code": "LEVEL_2",
+          "name": "Level 2",
+          "journeyOrder": 4
+        }
+      },
       "isActive": true,
       "enrolledAt": "2024-01-01T00:00:00.000Z",
       "promotedAt": null,
@@ -788,7 +805,6 @@ Authorization: Bearer <jwt_token>
         "id": "student_id_1",
         "name": "Aarav Mehta",
         "dob": "2015-03-12T00:00:00.000Z",
-        "level": "LEVEL_2",
         "profileImageUrl": "https://example.com/student1.jpg"
       },
       "center": {
@@ -833,7 +849,16 @@ Authorization: Bearer <jwt_token>
       "centerId": "center_id",
       "semesterId": "semester_id_1",
       "projectId": "project_id_1",
-      "level": "LEVEL_2",
+      "semesterLevelId": "semester-level-2-id",
+      "semesterLevel": {
+        "id": "semester-level-2-id",
+        "academicLevel": {
+          "id": "academic-level-2-id",
+          "code": "LEVEL_2",
+          "name": "Level 2",
+          "journeyOrder": 4
+        }
+      },
       "isActive": true,
       "enrolledAt": "2024-01-01T00:00:00.000Z",
       "promotedAt": null,
@@ -841,7 +866,6 @@ Authorization: Bearer <jwt_token>
         "id": "student_id_1",
         "name": "Aarav Mehta",
         "dob": "2015-03-12T00:00:00.000Z",
-        "level": "LEVEL_2",
         "profileImageUrl": "https://example.com/student1.jpg"
       },
       "project": {
@@ -886,7 +910,16 @@ Authorization: Bearer <jwt_token>
       "centerId": "center_id_1",
       "semesterId": "semester_id",
       "projectId": "project_id_1",
-      "level": "LEVEL_2",
+      "semesterLevelId": "semester-level-2-id",
+      "semesterLevel": {
+        "id": "semester-level-2-id",
+        "academicLevel": {
+          "id": "academic-level-2-id",
+          "code": "LEVEL_2",
+          "name": "Level 2",
+          "journeyOrder": 4
+        }
+      },
       "isActive": true,
       "enrolledAt": "2024-01-01T00:00:00.000Z",
       "promotedAt": null,
@@ -894,7 +927,6 @@ Authorization: Bearer <jwt_token>
         "id": "student_id_1",
         "name": "Aarav Mehta",
         "dob": "2015-03-12T00:00:00.000Z",
-        "level": "LEVEL_2",
         "profileImageUrl": "https://example.com/student1.jpg"
       },
       "center": {
@@ -912,7 +944,7 @@ Authorization: Bearer <jwt_token>
 }
 ```
 
-#### POST /api/v1/users/students/enroll
+#### POST /api/v1/users/students/:studentId/enrollments
 
 Enroll a student in a project, center, and semester (Admin only).
 
@@ -926,11 +958,10 @@ Authorization: Bearer <admin_jwt_token>
 
 ```json
 {
-  "studentId": "student_id",
   "centerId": "center_id",
   "semesterId": "semester_id",
   "projectId": "project_id",
-  "level": "LEVEL_2"
+  "semesterLevelId": "semester-level-2-id"
 }
 ```
 
@@ -945,7 +976,16 @@ Authorization: Bearer <admin_jwt_token>
     "centerId": "center_id",
     "semesterId": "semester_id",
     "projectId": "project_id",
-    "level": "LEVEL_2",
+    "semesterLevelId": "semester-level-2-id",
+    "semesterLevel": {
+      "id": "semester-level-2-id",
+      "academicLevel": {
+        "id": "academic-level-2-id",
+        "code": "LEVEL_2",
+        "name": "Level 2",
+        "journeyOrder": 4
+      }
+    },
     "isActive": true,
     "enrolledAt": "2024-01-01T00:00:00.000Z",
     "promotedAt": null,
@@ -955,53 +995,7 @@ Authorization: Bearer <admin_jwt_token>
 }
 ```
 
-#### POST /api/v1/users/students/:studentId/promote
-
-Promote a student to a new level (Admin only).
-
-**Headers:**
-
-```
-Authorization: Bearer <admin_jwt_token>
-```
-
-**Parameters:**
-
-- `studentId` (string): The ID of the student to promote
-
-**Body:**
-
-```json
-{
-  "newLevel": "LEVEL_3",
-  "newCenterId": "center_id_2"
-}
-```
-
-**Note:** `newCenterId` is optional. If not provided, the student will be promoted in their current center.
-
-**Response (200):**
-
-```json
-{
-  "message": "Student promoted successfully",
-  "enrollment": {
-    "id": "new_enrollment_id",
-    "studentId": "student_id",
-    "centerId": "center_id_2",
-    "semesterId": "semester_id_1",
-    "projectId": "project_id_1",
-    "level": "LEVEL_3",
-    "isActive": true,
-    "enrolledAt": "2024-01-02T00:00:00.000Z",
-    "promotedAt": "2024-01-02T00:00:00.000Z",
-    "createdAt": "2024-01-02T00:00:00.000Z",
-    "updatedAt": "2024-01-02T00:00:00.000Z"
-  }
-}
-```
-
-#### GET /api/v1/users/students/:studentId/history
+#### GET /api/v1/users/students/:studentId/enrollments
 
 Get the enrollment and promotion history of a student.
 
@@ -1019,15 +1013,25 @@ Authorization: Bearer <jwt_token>
 
 ```json
 {
-  "message": "Student history retrieved successfully",
-  "history": [
+  "message": "Student enrollments retrieved successfully",
+  "enrollments": {
+    "all": [
     {
       "id": "enrollment_id_1",
       "studentId": "student_id",
       "centerId": "center_id_1",
       "semesterId": "semester_id_1",
       "projectId": "project_id_1",
-      "level": "LEVEL_2",
+      "semesterLevelId": "semester-level-2-id",
+      "semesterLevel": {
+        "id": "semester-level-2-id",
+        "academicLevel": {
+          "id": "academic-level-2-id",
+          "code": "LEVEL_2",
+          "name": "Level 2",
+          "journeyOrder": 4
+        }
+      },
       "isActive": false,
       "enrolledAt": "2024-01-01T00:00:00.000Z",
       "promotedAt": "2024-01-02T00:00:00.000Z",
@@ -1050,7 +1054,16 @@ Authorization: Bearer <jwt_token>
       "centerId": "center_id_2",
       "semesterId": "semester_id_1",
       "projectId": "project_id_1",
-      "level": "LEVEL_3",
+      "semesterLevelId": "semester-level-3-id",
+      "semesterLevel": {
+        "id": "semester-level-3-id",
+        "academicLevel": {
+          "id": "academic-level-3-id",
+          "code": "LEVEL_3",
+          "name": "Level 3",
+          "journeyOrder": 5
+        }
+      },
       "isActive": true,
       "enrolledAt": "2024-01-02T00:00:00.000Z",
       "promotedAt": null,
@@ -1067,7 +1080,28 @@ Authorization: Bearer <jwt_token>
         "name": "Project One"
       }
     }
-  ]
+    ],
+    "active": [
+      {
+        "id": "enrollment_id_2",
+        "semesterLevelId": "semester-level-3-id",
+        "semesterLevel": {
+          "id": "semester-level-3-id",
+          "academicLevel": { "id": "academic-level-3-id", "code": "LEVEL_3", "name": "Level 3", "journeyOrder": 5 }
+        }
+      }
+    ],
+    "inactive": [
+      {
+        "id": "enrollment_id_1",
+        "semesterLevelId": "semester-level-2-id",
+        "semesterLevel": {
+          "id": "semester-level-2-id",
+          "academicLevel": { "id": "academic-level-2-id", "code": "LEVEL_2", "name": "Level 2", "journeyOrder": 4 }
+        }
+      }
+    ]
+  }
 }
 ```
 
@@ -1108,7 +1142,7 @@ Authorization: Bearer <admin_jwt_token>
         {
           "id": "assignment_id_1",
           "subRole": "EDUCATOR",
-          "level": "LEVEL_2",
+          "semesterLevelId": "semester-level-2-id",
           "committedDays": "BOTH",
           "isActive": true,
           "assignedAt": "2024-01-01T00:00:00.000Z",
@@ -1194,7 +1228,7 @@ Authorization: Bearer <admin_jwt_token>
       "projectId": "project_id",
       "centerId": "center_id",
       "semesterId": "semester_id",
-      "level": "LEVEL_3",
+      "semesterLevelId": "semester-level-3-id",
       "committedDays": "BOTH"
     },
     {
@@ -1217,7 +1251,7 @@ Authorization: Bearer <admin_jwt_token>
 - `projectId` (string, optional): Project assignment
 - `centerId` (string, optional): Center assignment
 - `semesterId` (string, optional): Semester assignment
-- `level` (string, optional): Only for EDUCATOR sub-role (LEVEL_1, LEVEL_2, LEVEL_3, LEVEL_4, PRIMARY_A, PRIMARY_B)
+- `semesterLevelId` (string, optional): Managed semester-level ID; only for the EDUCATOR sub-role
 - `committedDays` (string, optional): Only for CENTER_MANAGER and EDUCATOR sub-roles (SATURDAY, SUNDAY, BOTH)
 
 **Validation Rules:**
@@ -1225,7 +1259,7 @@ Authorization: Bearer <admin_jwt_token>
 - If `semesterId` is provided, `centerId` must belong to that semester
 - If `centerId` is provided with `projectId`, center must belong to that project
 - If `semesterId` is provided with `projectId`, semester's center must belong to that project
-- `level` can only be set for EDUCATOR sub-role
+- `semesterLevelId` can only be set for EDUCATOR and must belong to `semesterId`
 - `committedDays` can only be set for CENTER_MANAGER and EDUCATOR sub-roles
 - Multiple assignments are allowed for the same user
 
@@ -1238,7 +1272,7 @@ Authorization: Bearer <admin_jwt_token>
     {
       "id": "new_assignment_id_1",
       "subRole": "EDUCATOR",
-      "level": "LEVEL_3",
+      "semesterLevelId": "semester-level-3-id",
       "committedDays": "BOTH",
       "isActive": true,
       "project": {
@@ -1292,7 +1326,7 @@ Authorization: Bearer <admin_jwt_token>
 - `projectId` (string): Project assignment
 - `centerId` (string): Center assignment
 - `semesterId` (string): Semester assignment
-- `level` (string): Only for EDUCATOR sub-role (LEVEL_1, LEVEL_2, LEVEL_3, LEVEL_4, PRIMARY_A, PRIMARY_B)
+- `semesterLevelId` (string): Managed semester-level ID; only for the EDUCATOR sub-role
 - `committedDays` (string): Only for CENTER_MANAGER and EDUCATOR sub-roles (SATURDAY, SUNDAY, BOTH)
 
 **Validation Rules:**
@@ -1300,7 +1334,7 @@ Authorization: Bearer <admin_jwt_token>
 - If `semesterId` is provided, `centerId` must belong to that semester
 - If `centerId` is provided with `projectId`, center must belong to that project
 - If `semesterId` is provided with `projectId`, semester's center must belong to that project
-- `level` can only be set for EDUCATOR sub-role
+- `semesterLevelId` can only be set for EDUCATOR and must belong to `semesterId`
 - `committedDays` can only be set for CENTER_MANAGER and EDUCATOR sub-roles
 
 **Response (201):**
@@ -2025,7 +2059,7 @@ Authorization: Bearer <jwt_token>
           {
             "id": "assignment_id",
             "subRole": "EDUCATOR",
-            "level": "LEVEL_1",
+            "semesterLevelId": "semester-level-1-id",
             "committedDays": "SATURDAY",
             "projectId": "project_id",
             "centerId": "center_id",
@@ -2202,7 +2236,7 @@ Authorization: Bearer <jwt_token>
         "roleAssignment": {
           "id": "assignment_id",
           "subRole": "EDUCATOR",
-          "level": "LEVEL_1",
+          "semesterLevelId": "semester-level-1-id",
           "committedDays": "SATURDAY"
         }
       }
@@ -2330,7 +2364,7 @@ Authorization: Bearer <your_jwt_token>
 - **CURRICULUM_MENTOR**: Curriculum mentors and advisors
 - **TECH**: Technical team members
 - **CENTER_MANAGER**: Center managers (requires committedDays)
-- **EDUCATOR**: Educators and teachers (requires level and committedDays)
+- **EDUCATOR**: Educators and teachers (requires a managed `semesterLevelId` and committedDays)
 
 ## User Status
 
@@ -2349,14 +2383,11 @@ Authorization: Bearer <your_jwt_token>
 - **ACTIVE**: Project is active and available (default)
 - **INACTIVE**: Project is temporarily disabled
 
-## Student Levels
+## Managed Academic Levels
 
-- **LEVEL_1**: Level 1 students
-- **LEVEL_2**: Level 2 students
-- **LEVEL_3**: Level 3 students
-- **LEVEL_4**: Level 4 students
-- **PRIMARY_A**: Primary A students
-- **PRIMARY_B**: Primary B students
+Academic levels are administrator-managed catalog records. Use
+`GET /api/v1/semesters/:semesterId/levels` to retrieve the active
+`SemesterLevel` memberships and use their IDs in operational requests.
 
 ## Email Integration
 

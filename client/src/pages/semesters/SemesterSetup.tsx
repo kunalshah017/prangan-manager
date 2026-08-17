@@ -221,7 +221,6 @@ const SemesterSetup = () => {
       if (patch.subRole && patch.subRole !== "EDUCATOR") {
         delete next.semesterLevelId;
         delete next.semesterLevel;
-        delete next.level;
       }
       if (
         patch.subRole &&

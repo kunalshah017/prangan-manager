@@ -44,6 +44,7 @@ import {
   parseUpdateExamRequest,
 } from "../security/exam-input.js";
 import { resolveSemesterLevelInput } from "../service/semester-level.service.js";
+import { AcademicLevelServiceError } from "../service/academic-level.service.js";
 
 // Define AuthenticatedRequest type
 interface AuthenticatedRequest<
@@ -100,6 +101,9 @@ const sendExamError = (
   fallback: string,
 ) => {
   console.error(error);
+  if (error instanceof AcademicLevelServiceError) {
+    return reply.status(error.statusCode).send({ error: error.message });
+  }
   return reply.status(500).send({ error: fallback });
 };
 
@@ -164,6 +168,9 @@ export const createExamController = async (
     });
   } catch (error: unknown) {
     console.error(error);
+    if (error instanceof AcademicLevelServiceError) {
+      return reply.status(error.statusCode).send({ error: error.message });
+    }
     if (
       isUniqueConstraintError(error) ||
       (error instanceof Error && error.message.includes("already exists"))
@@ -242,14 +249,10 @@ export const getExamsController = async (
       centerId: parsedFilters.centerId,
       semesterId: parsedFilters.semesterId,
     };
-    if (
-      parsedFilters.semesterId &&
-      (parsedFilters.semesterLevelId || parsedFilters.level)
-    ) {
+    if (parsedFilters.semesterId && parsedFilters.semesterLevelId) {
       const semesterLevel = await resolveSemesterLevelInput({
         semesterId: parsedFilters.semesterId,
         semesterLevelId: parsedFilters.semesterLevelId,
-        level: parsedFilters.level,
       });
       scope = { ...scope, semesterLevelId: semesterLevel.id };
       parsedFilters = {
@@ -307,6 +310,9 @@ export const updateExamController = async (
     });
   } catch (error: unknown) {
     console.error(error);
+    if (error instanceof AcademicLevelServiceError) {
+      return reply.status(error.statusCode).send({ error: error.message });
+    }
     if (isUniqueConstraintError(error)) {
       return reply.status(409).send({
         error: "Exam already exists for this context",

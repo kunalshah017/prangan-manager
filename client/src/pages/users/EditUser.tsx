@@ -64,7 +64,6 @@ const EditUser = () => {
                     semesterId: assignment.semesterId || '',
                     semesterLevelId: assignment.semesterLevelId,
                     semesterLevel: assignment.semesterLevel,
-                    level: assignment.level,
                     committedDays: assignment.committedDays
                 })));
             }
@@ -121,7 +120,14 @@ const EditUser = () => {
                     lastName: formData.lastName.trim() || null,
                     dob: formData.dob ? new Date(formData.dob).toISOString() : null
                 },
-                roleAssignments: formData.role === 'ADMIN' ? [] : roleAssignments
+                roleAssignments: formData.role === 'ADMIN' ? [] : roleAssignments.map((assignment) => ({
+                    subRole: assignment.subRole,
+                    projectId: assignment.projectId,
+                    centerId: assignment.centerId,
+                    semesterId: assignment.semesterId,
+                    semesterLevelId: assignment.semesterLevelId ?? undefined,
+                    committedDays: assignment.committedDays,
+                }))
             });
 
             navigate('/users');

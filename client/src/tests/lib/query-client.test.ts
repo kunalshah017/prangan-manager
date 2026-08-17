@@ -65,10 +65,5 @@ describe("queryClient defaults", () => {
       "semester-level",
       "semester-level-1",
     ]);
-    expect(queryKeys.studentsByLevel("LEVEL_1")).toEqual([
-      "students",
-      "level",
-      "LEVEL_1",
-    ]);
   });
 });

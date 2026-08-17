@@ -398,7 +398,7 @@ export const useUpdateUser = () => {
         projectId?: string;
         centerId?: string;
         semesterId?: string;
-        level?: string;
+        semesterLevelId?: string;
         committedDays?: string;
       }>;
     }): Promise<{ message: string; user: User }> => {

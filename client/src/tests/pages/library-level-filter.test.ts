@@ -9,23 +9,27 @@ import {
 import type { User } from "@/types/api";
 
 const educator = (
-  level: NonNullable<User["roleAssignments"]>[number]["level"],
-  code?: string,
+  code: string,
 ): User =>
   ({
     roleAssignments: [
       {
         subRole: "EDUCATOR",
         isActive: true,
-        level,
-        semesterLevel: code
-          ? {
-              academicLevel: {
-                code,
-                name: code.replaceAll("_", " "),
-              },
+        semesterLevelId: `semester-${code}`,
+        semesterLevel: {
+          id: `semester-${code}`,
+          semesterId: "semester-1",
+          academicLevelId: `academic-${code}`,
+          isActive: true,
+          academicLevel: {
+            id: `academic-${code}`,
+            code,
+            name: code.replaceAll("_", " "),
+            journeyOrder: 1,
+            isActive: true,
+          },
             }
-          : undefined,
       },
     ],
   }) as User;
@@ -34,7 +38,7 @@ describe("getDefaultLibraryLevel", () => {
   it("maps managed Primary level codes to their library shelves", () => {
     expect(getDefaultLibraryLevel(educator("PRIMARY_A"))).toBe("Primary A");
     expect(getDefaultLibraryLevel(educator("PRIMARY_B"))).toBe("Primary B");
-    expect(getDefaultLibraryLevel(educator("PRIMARY_B", "PRIMARY_C"))).toBe(
+    expect(getDefaultLibraryLevel(educator("PRIMARY_C"))).toBe(
       "Primary C",
     );
   });

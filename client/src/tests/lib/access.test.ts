@@ -8,7 +8,6 @@ const context = {
   centerId: "center-1",
   semesterId: "semester-1",
   semesterLevelId: "semester-level-1",
-  level: "LEVEL_1" as const,
 };
 
 const user = (assignments: NonNullable<User["roleAssignments"]>): User => ({
@@ -33,7 +32,6 @@ const assignment = (
   centerId: "center-1",
   semesterId: "semester-1",
   semesterLevelId: "semester-level-1",
-  level: "LEVEL_1" as const,
   isActive: true,
   ...overrides,
 });
@@ -48,7 +46,7 @@ describe("client access policy", () => {
   });
 
   it("allows a center manager only in an exact active context", () => {
-    const manager = user([assignment("CENTER_MANAGER", { level: undefined })]);
+    const manager = user([assignment("CENTER_MANAGER")]);
 
     expect(can(manager, "students.manage", context)).toBe(true);
     expect(
@@ -68,7 +66,6 @@ describe("client access policy", () => {
       can(educator, "students.read", {
         ...context,
         semesterLevelId: undefined,
-        level: undefined,
       }),
     ).toBe(true);
     expect(can(educator, "studentAttendance.write", context)).toBe(true);
@@ -81,41 +78,19 @@ describe("client access policy", () => {
     expect(can(educator, "students.manage", context)).toBe(false);
   });
 
-  it("uses semester level IDs before legacy level values", () => {
+  it("requires matching managed semester level IDs when one is supplied", () => {
     const educator = user([assignment("EDUCATOR")]);
 
-    expect(
-      can(educator, "students.read", { ...context, level: "LEVEL_2" }),
-    ).toBe(true);
+    expect(can(educator, "students.read", context)).toBe(true);
     expect(
       can(
         user([
           assignment("EDUCATOR", {
             semesterLevelId: undefined,
-            level: "LEVEL_1",
           }),
         ]),
         "students.read",
         context,
-      ),
-    ).toBe(false);
-  });
-
-  it("falls back to legacy level only when the context has no managed ID", () => {
-    const legacyContext = {
-      ...context,
-      semesterLevelId: undefined,
-      level: "LEVEL_1" as const,
-    };
-
-    expect(
-      can(user([assignment("EDUCATOR")]), "students.read", legacyContext),
-    ).toBe(true);
-    expect(
-      can(
-        user([assignment("EDUCATOR", { level: "LEVEL_2" })]),
-        "students.read",
-        legacyContext,
       ),
     ).toBe(false);
   });

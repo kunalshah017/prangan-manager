@@ -17,7 +17,6 @@ import {
   getStudent,
   updateStudentController,
   deleteStudentController,
-  getStudentsByLevelController,
   getStudentsBySemesterLevelController,
   getStudentsByProjectController,
   getStudentsByCenterController,
@@ -130,11 +129,6 @@ export const userRoutes = async (fastify: FastifyInstance): Promise<void> => {
   );
 
   // Student filtering routes
-  fastify.get(
-    "/users/students/level/:level",
-    { preHandler: authChecker },
-    getStudentsByLevelController,
-  );
   fastify.get(
     "/users/students/semester-level/:semesterLevelId",
     { preHandler: authChecker },

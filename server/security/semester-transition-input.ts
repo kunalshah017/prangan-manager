@@ -1,4 +1,4 @@
-import { CommittedDays, Level, SubRole } from "../generated/prisma/index.js";
+import { CommittedDays, SubRole } from "../generated/prisma/index.js";
 
 export type StudentTransitionDecision = {
   sourceEnrollmentId: string;
@@ -18,7 +18,6 @@ export type TransitionAssignment = {
   centerId: string;
   semesterId: string;
   semesterLevelId?: string;
-  level?: Level;
   committedDays?: CommittedDays;
 };
 
@@ -123,7 +122,6 @@ const parseAssignment = (
       "centerId",
       "semesterId",
       "semesterLevelId",
-      "level",
       "committedDays",
     ])
   ) {
@@ -143,19 +141,15 @@ const parseAssignment = (
   }
 
   const semesterLevelId = nonEmptyString(input.semesterLevelId);
-  const level = input.level;
   const committedDays = input.committedDays;
   if (subRole === SubRole.EDUCATOR && !semesterLevelId) {
     return { error: "Every educator assignment requires a semester level." };
   }
   if (
-    (semesterLevelId || level !== undefined) &&
+    semesterLevelId &&
     subRole !== SubRole.EDUCATOR
   ) {
     return { error: "Only educators can have a semester level." };
-  }
-  if (level !== undefined && !Object.values(Level).includes(level as Level)) {
-    return { error: `Assignment ${index + 1} has an invalid legacy level.` };
   }
   if (
     committedDays !== undefined &&
@@ -180,7 +174,6 @@ const parseAssignment = (
       centerId,
       semesterId,
       ...(semesterLevelId && { semesterLevelId }),
-      ...(level !== undefined && { level: level as Level }),
       ...(committedDays !== undefined && {
         committedDays: committedDays as CommittedDays,
       }),

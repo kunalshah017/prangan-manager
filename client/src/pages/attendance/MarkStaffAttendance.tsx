@@ -29,6 +29,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useSemester } from "@/hooks/useSemesterQueries";
 import { can } from "@/lib/access";
+import { levelName } from "@/lib/levels";
 import { cn } from "@/lib/utils";
 import type { AttendanceUser } from "@/types/api";
 import {
@@ -476,7 +477,9 @@ export default function MarkStaffAttendance() {
                           <p className="truncate text-sm font-semibold text-foreground">{staff.name}</p>
                           <p className="mt-1 text-xs text-muted-foreground">
                             {roleLabel(assignment?.subRole)}
-                            {assignment?.level ? ` · ${assignment.level.replace("_", " ")}` : ""}
+                            {assignment?.semesterLevel
+                              ? ` · ${levelName(assignment.semesterLevel)}`
+                              : ""}
                           </p>
                           <p className="mt-1 text-xs text-muted-foreground">
                             Committed day: {committedDayLabel(assignment?.committedDays)}

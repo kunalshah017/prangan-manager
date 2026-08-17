@@ -38,28 +38,14 @@ export const useStudent = (id: string) => {
   });
 };
 
-export const useStudentsByLevel = (level: string) => {
-  return useQuery({
-    queryKey: queryKeys.studentsByLevel(level),
-    queryFn: async (): Promise<Student[]> => {
-      const response = await api.get<StudentsResponse>(
-        `/users/students/level/${level}`,
-      );
-      return response.students;
-    },
-    enabled: !!level,
-    staleTime: 2 * 60 * 1000,
-  });
-};
-
 export const useStudentsBySemesterLevel = (semesterLevelId: string) => {
   return useQuery({
     queryKey: queryKeys.studentsBySemesterLevel(semesterLevelId),
-    queryFn: async (): Promise<Student[]> => {
-      const response = await api.get<StudentsResponse>(
+    queryFn: async (): Promise<StudentEnrollment[]> => {
+      const response = await api.get<StudentEnrollmentsResponse>(
         `/users/students/semester-level/${semesterLevelId}`,
       );
-      return response.students;
+      return response.enrollments;
     },
     enabled: !!semesterLevelId,
     staleTime: 2 * 60 * 1000,
@@ -76,10 +62,9 @@ export const useStudentsBySemester = (
       const response = await api.get<StudentEnrollmentsResponse>(
         `/users/students/semester/${semesterId}`,
       );
-      // Extract students from enrollments and add level information
+      // Extract students from enrollments and preserve the canonical level relation.
       return response.enrollments.map((enrollment) => ({
         ...enrollment.student!,
-        level: enrollment.level,
         semesterLevelId: enrollment.semesterLevelId,
         semesterLevel: enrollment.semesterLevel,
       }));

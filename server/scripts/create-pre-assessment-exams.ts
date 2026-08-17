@@ -1,19 +1,9 @@
 import {
   AssessmentCycle,
   PrismaClient,
-  Level,
 } from "../generated/prisma/index.js";
 
 const prisma = new PrismaClient();
-
-const ALL_LEVELS: Level[] = [
-  Level.LEVEL_1,
-  Level.LEVEL_2,
-  Level.LEVEL_3,
-  Level.LEVEL_4,
-  Level.PRIMARY_A,
-  Level.PRIMARY_B,
-];
 
 async function main() {
   // 1. Find the 2025-2026 semester (look for semesters whose name contains 2025 or 2026)
@@ -24,7 +14,13 @@ async function main() {
         { name: { contains: "2026", mode: "insensitive" } },
       ],
     },
-    include: { center: true },
+    include: {
+      center: true,
+      levels: {
+        where: { isActive: true },
+        include: { academicLevel: true },
+      },
+    },
     orderBy: { startDate: "desc" },
   });
 
@@ -53,6 +49,7 @@ async function main() {
   // 2. Get SA-3 exams to copy marking schemes
   const sa3Exams = await prisma.exam.findMany({
     where: { cycle: AssessmentCycle.SA_3 },
+    include: { semesterLevel: { include: { academicLevel: true } } },
     orderBy: { createdAt: "desc" },
   });
 
@@ -61,7 +58,7 @@ async function main() {
   );
   sa3Exams.forEach((e) =>
     console.log(
-      `  - [${e.level}] "${e.name}" | L:${e.listeningMaxMarks} S:${e.speakingMaxMarks} R:${e.readingMaxMarks} W:${e.writingMaxMarks} Total:${e.totalMaxMarks}`,
+      `  - [${e.semesterLevel.academicLevel.name}] "${e.name}" | L:${e.listeningMaxMarks} S:${e.speakingMaxMarks} R:${e.readingMaxMarks} W:${e.writingMaxMarks} Total:${e.totalMaxMarks}`,
     ),
   );
 
@@ -79,8 +76,9 @@ async function main() {
   > = {};
 
   for (const exam of sa3Exams) {
-    if (!markingSchemeByLevel[exam.level]) {
-      markingSchemeByLevel[exam.level] = {
+    const code = exam.semesterLevel.academicLevel.code;
+    if (!markingSchemeByLevel[code]) {
+      markingSchemeByLevel[code] = {
         listeningMaxMarks: exam.listeningMaxMarks,
         speakingMaxMarks: exam.speakingMaxMarks,
         readingMaxMarks: exam.readingMaxMarks,
@@ -111,8 +109,10 @@ async function main() {
   let skipped = 0;
 
   for (const semester of allSemesters) {
-    for (const level of ALL_LEVELS) {
-      const scheme = markingSchemeByLevel[level] ?? DEFAULT_SCHEME;
+    for (const semesterLevel of semester.levels) {
+      const levelCode = semesterLevel.academicLevel.code;
+      const levelName = semesterLevel.academicLevel.name;
+      const scheme = markingSchemeByLevel[levelCode] ?? DEFAULT_SCHEME;
       const examName = `Pre Assessment`;
 
       // Check if already exists
@@ -120,7 +120,7 @@ async function main() {
         where: {
           centerId: semester.centerId,
           semesterId: semester.id,
-          level,
+          semesterLevelId: semesterLevel.id,
           cycle: AssessmentCycle.PRE_ASSESSMENT,
           name: examName,
         },
@@ -128,7 +128,7 @@ async function main() {
 
       if (existing) {
         console.log(
-          `  SKIP: Pre Assessment already exists for ${semester.center.name} | ${level} | Semester: ${semester.name}`,
+          `  SKIP: Pre Assessment already exists for ${semester.center.name} | ${levelName} | Semester: ${semester.name}`,
         );
         skipped++;
         continue;
@@ -139,10 +139,10 @@ async function main() {
           projectId: semester.center.projectId,
           centerId: semester.centerId,
           semesterId: semester.id,
-          level,
+          semesterLevelId: semesterLevel.id,
           cycle: AssessmentCycle.PRE_ASSESSMENT,
           name: examName,
-          description: `Pre Assessment exam for ${level.replace("_", " ")} - ${semester.name}`,
+          description: `Pre Assessment exam for ${levelName} - ${semester.name}`,
           examDate: semester.startDate, // Use semester start date as exam date
           ...scheme,
           isActive: true,
@@ -150,7 +150,7 @@ async function main() {
       });
 
       console.log(
-        `  CREATED: Pre Assessment | ${semester.center.name} | ${level} | Semester: ${semester.name}`,
+        `  CREATED: Pre Assessment | ${semester.center.name} | ${levelName} | Semester: ${semester.name}`,
       );
       created++;
     }

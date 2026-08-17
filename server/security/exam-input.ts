@@ -1,4 +1,4 @@
-import { AssessmentCycle, Level } from "../generated/prisma/index.js";
+import { AssessmentCycle } from "../generated/prisma/index.js";
 import type {
   CreateExamRequest,
   UpdateExamRequest,
@@ -28,9 +28,6 @@ const isCanonicalId = (input: unknown): input is string =>
 const isNonblankString = (input: unknown): input is string =>
   typeof input === "string" && input.trim().length > 0;
 
-const isLevel = (input: unknown): input is Level =>
-  typeof input === "string" && Object.values(Level).includes(input as Level);
-
 const isPositiveMark = (input: unknown): input is number =>
   typeof input === "number" && Number.isFinite(input) && input > 0;
 
@@ -50,7 +47,6 @@ const createFields = new Set([
   "centerId",
   "semesterId",
   "semesterLevelId",
-  "level",
   "cycle",
   "name",
   "description",
@@ -65,7 +61,6 @@ const updateFields = new Set([
   "name",
   "description",
   "semesterLevelId",
-  "level",
   "cycle",
   "examDate",
   "listeningMaxMarks",
@@ -88,7 +83,7 @@ export const parseCreateExamRequest = (
     !isCanonicalId(input.projectId) ||
     !isCanonicalId(input.centerId) ||
     !isCanonicalId(input.semesterId) ||
-    (!isCanonicalId(input.semesterLevelId) && !isLevel(input.level)) ||
+    !isCanonicalId(input.semesterLevelId) ||
     !isNonblankString(input.name) ||
     !isWeekendDate(input.examDate) ||
     !isPositiveMark(input.listeningMaxMarks) ||
@@ -110,10 +105,7 @@ export const parseCreateExamRequest = (
       projectId: input.projectId,
       centerId: input.centerId,
       semesterId: input.semesterId,
-      ...(isCanonicalId(input.semesterLevelId) && {
-        semesterLevelId: input.semesterLevelId,
-      }),
-      ...(isLevel(input.level) && { level: input.level }),
+      semesterLevelId: input.semesterLevelId,
       cycle: cycle.data,
       name: input.name,
       ...(typeof input.description === "string" && {
@@ -145,9 +137,6 @@ export const parseUpdateExamRequest = (
   if ("description" in input && typeof input.description !== "string") {
     return { error: "description must be a string" };
   }
-  if ("level" in input && !isLevel(input.level)) {
-    return { error: "Invalid exam level" };
-  }
   if ("semesterLevelId" in input && !isCanonicalId(input.semesterLevelId)) {
     return { error: "semesterLevelId must be a canonical ID" };
   }
@@ -174,7 +163,6 @@ export const parseUpdateExamRequest = (
       ...(typeof input.description === "string" && {
         description: input.description,
       }),
-      ...(isLevel(input.level) && { level: input.level }),
       ...(isCanonicalId(input.semesterLevelId) && {
         semesterLevelId: input.semesterLevelId,
       }),

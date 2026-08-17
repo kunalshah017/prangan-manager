@@ -174,11 +174,13 @@ const seedSyllabus = async (
     projectId: input.target.center.projectId,
     centerId: input.target.centerId,
     semesterId: input.target.id,
-    level: input.code,
+    semesterLevelId: input.semesterLevelId,
     name: input.name,
   };
   const existing = await prisma.syllabus.findUnique({
-    where: { projectId_centerId_semesterId_level_name: key },
+    where: {
+      projectId_centerId_semesterId_semesterLevelId_name: key,
+    },
     select: { id: true, _count: { select: { topics: true } } },
   });
 
@@ -201,7 +203,6 @@ const seedSyllabus = async (
       (await transaction.syllabus.create({
         data: {
           ...key,
-          semesterLevelId: input.semesterLevelId,
           description: input.description,
         },
         select: { id: true },
@@ -243,7 +244,7 @@ export const runCurriculumSeed = async (
 
   const results: Array<{
     center: string;
-    level: string;
+    academicLevelCode: string;
     topics: number;
     action: "create" | "skip" | "disabled";
   }> = [];
@@ -272,7 +273,7 @@ export const runCurriculumSeed = async (
       if (!semesterLevelId) {
         results.push({
           center: target.center.name,
-          level: code,
+          academicLevelCode: code,
           topics: 0,
           action: "disabled",
         });
@@ -282,7 +283,7 @@ export const runCurriculumSeed = async (
         where: {
           projectId: project.id,
           semester: { name: SOURCE_SEMESTER_NAME },
-          level: code,
+          semesterLevel: { academicLevel: { code } },
           isActive: true,
         },
         include: {
@@ -308,7 +309,12 @@ export const runCurriculumSeed = async (
         rows,
         apply: options.apply,
       });
-      results.push({ center: target.center.name, level: code, topics: rows.length, action });
+      results.push({
+        center: target.center.name,
+        academicLevelCode: code,
+        topics: rows.length,
+        action,
+      });
     }
 
     for (const code of PRIMARY_LEVEL_CODES) {
@@ -316,7 +322,7 @@ export const runCurriculumSeed = async (
       if (!semesterLevelId) {
         results.push({
           center: target.center.name,
-          level: code,
+          academicLevelCode: code,
           topics: 0,
           action: "disabled",
         });
@@ -334,7 +340,12 @@ export const runCurriculumSeed = async (
         rows,
         apply: options.apply,
       });
-      results.push({ center: target.center.name, level: code, topics: rows.length, action });
+      results.push({
+        center: target.center.name,
+        academicLevelCode: code,
+        topics: rows.length,
+        action,
+      });
     }
   }
 

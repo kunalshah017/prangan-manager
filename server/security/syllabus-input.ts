@@ -1,6 +1,5 @@
 import {
   AssessmentCycle,
-  Level,
   SyllabusTopicStatus,
 } from "../generated/prisma/index.js";
 import type {
@@ -26,9 +25,6 @@ const isCanonicalId = (input: unknown): input is string =>
 const isNonblankString = (input: unknown): input is string =>
   typeof input === "string" && input.trim().length > 0;
 
-const isLevel = (input: unknown): input is Level =>
-  typeof input === "string" && Object.values(Level).includes(input as Level);
-
 const isTopicStatus = (input: unknown): input is SyllabusTopicStatus =>
   typeof input === "string" &&
   Object.values(SyllabusTopicStatus).includes(input as SyllabusTopicStatus);
@@ -48,18 +44,18 @@ const parseScope = (
 ): ParseResult<
   Pick<
     CreateSyllabusRequest,
-    "projectId" | "centerId" | "semesterId" | "semesterLevelId" | "level"
+    "projectId" | "centerId" | "semesterId" | "semesterLevelId"
   >
 > => {
   if (
     !isCanonicalId(input.projectId) ||
     !isCanonicalId(input.centerId) ||
     !isCanonicalId(input.semesterId) ||
-    (!isCanonicalId(input.semesterLevelId) && !isLevel(input.level))
+    !isCanonicalId(input.semesterLevelId)
   ) {
     return {
       error:
-        "projectId, centerId, semesterId, and semesterLevelId or level are required",
+        "projectId, centerId, semesterId, and semesterLevelId are required",
     };
   }
   return {
@@ -67,10 +63,7 @@ const parseScope = (
       projectId: input.projectId,
       centerId: input.centerId,
       semesterId: input.semesterId,
-      ...(isCanonicalId(input.semesterLevelId) && {
-        semesterLevelId: input.semesterLevelId,
-      }),
-      ...(isLevel(input.level) && { level: input.level }),
+      semesterLevelId: input.semesterLevelId,
     },
   };
 };
@@ -134,7 +127,6 @@ export const parseUpdateSyllabusRequest = (
     "description",
     "isActive",
     "semesterLevelId",
-    "level",
   ];
   if (!Object.keys(input).every((key) => allowed.includes(key)))
     return { error: "Unsupported syllabus update field" };
@@ -148,8 +140,6 @@ export const parseUpdateSyllabusRequest = (
     return { error: "isActive must be a boolean" };
   if ("semesterLevelId" in input && !isCanonicalId(input.semesterLevelId))
     return { error: "semesterLevelId must be a canonical ID" };
-  if ("level" in input && !isLevel(input.level))
-    return { error: "Invalid syllabus level" };
   return {
     data: {
       ...(typeof input.name === "string" && { name: input.name }),
@@ -160,7 +150,6 @@ export const parseUpdateSyllabusRequest = (
       ...(isCanonicalId(input.semesterLevelId) && {
         semesterLevelId: input.semesterLevelId,
       }),
-      ...(isLevel(input.level) && { level: input.level }),
     },
   };
 };

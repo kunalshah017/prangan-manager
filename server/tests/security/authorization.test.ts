@@ -91,6 +91,40 @@ test("inactive assignment is denied", () => {
   );
 });
 
+test("educator access requires an active canonical semester-level relation", () => {
+  const educatorAssignment = {
+    ...centerManagerAssignment,
+    subRole: SubRole.EDUCATOR,
+    semesterLevelId: "semester-1-level-1",
+    semesterLevel: { isActive: true },
+  };
+  const educatorScope = {
+    ...scope,
+    semesterLevelId: "semester-1-level-1",
+  };
+
+  assert.equal(
+    canAccessScope({
+      identity,
+      assignments: [educatorAssignment],
+      allowedSubRoles: [SubRole.EDUCATOR],
+      scope: educatorScope,
+    }),
+    true,
+  );
+  for (const semesterLevel of [{ isActive: false }, null, undefined]) {
+    assert.equal(
+      canAccessScope({
+        identity,
+        assignments: [{ ...educatorAssignment, semesterLevel }],
+        allowedSubRoles: [SubRole.EDUCATOR],
+        scope: educatorScope,
+      }),
+      false,
+    );
+  }
+});
+
 test("wrong subrole is denied", () => {
   assert.equal(
     canAccessScope({
@@ -112,6 +146,7 @@ test("semester level mismatch is denied", () => {
           ...centerManagerAssignment,
           subRole: SubRole.EDUCATOR,
           semesterLevelId: "semester-level-1",
+          semesterLevel: { isActive: true },
         },
       ],
       allowedSubRoles: [SubRole.EDUCATOR],
@@ -130,6 +165,7 @@ test("same academic level in another semester does not authorize", () => {
           ...centerManagerAssignment,
           subRole: SubRole.EDUCATOR,
           semesterLevelId: "semester-1-level-1",
+          semesterLevel: { isActive: true },
         },
       ],
       allowedSubRoles: [SubRole.EDUCATOR],

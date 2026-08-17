@@ -5,7 +5,7 @@ import {
   StudentAttendanceWeekendDateError,
 } from "../service/student-attendance.service.js";
 import { StudentAttendanceFilter } from "../types/student-attendance.types.js";
-import { Level, Role, SubRole } from "../generated/prisma/index.js";
+import { Role, SubRole } from "../generated/prisma/index.js";
 import {
   canManageStudentAttendance,
   hasCompleteAttendanceScope,
@@ -472,10 +472,7 @@ export const updateStudentAttendance = async (
     if (!access || "sent" in access) return;
     if (
       access.allowedSemesterLevelIds &&
-      (!scope.enrollment.semesterLevelId ||
-        !access.allowedSemesterLevelIds.includes(
-          scope.enrollment.semesterLevelId,
-        ))
+      !access.allowedSemesterLevelIds.includes(scope.enrollment.semesterLevelId)
     ) {
       return reply
         .status(403)
@@ -529,10 +526,7 @@ export const deleteStudentAttendance = async (
     if (!access || "sent" in access) return;
     if (
       access.allowedSemesterLevelIds &&
-      (!scope.enrollment.semesterLevelId ||
-        !access.allowedSemesterLevelIds.includes(
-          scope.enrollment.semesterLevelId,
-        ))
+      !access.allowedSemesterLevelIds.includes(scope.enrollment.semesterLevelId)
     ) {
       return reply
         .status(403)

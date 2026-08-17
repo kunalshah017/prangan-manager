@@ -375,7 +375,7 @@ const EditSyllabus = () => {
     <WorkspacePage className="min-w-0 space-y-6">
       <WorkspacePageHeader
         title="Edit curriculum"
-        badge={levelName(syllabus.semesterLevel, syllabus.level)}
+        badge={levelName(syllabus.semesterLevel)}
         description="Update curriculum details and preserve topic progress across all assessment cycles."
       />
 
@@ -396,7 +396,7 @@ const EditSyllabus = () => {
                 id="level-display"
                 className="flex min-h-11 items-center rounded-md border border-border bg-muted/50 px-3 text-sm text-foreground"
               >
-                {levelName(syllabus.semesterLevel, syllabus.level)}
+                {levelName(syllabus.semesterLevel)}
               </output>
             </FormField>
             <FormField label="Curriculum name" htmlFor="name">

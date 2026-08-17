@@ -1,15 +1,36 @@
 # Managed semester levels operations
 
-Managed levels use `semesterLevelId` as the canonical reference. The legacy
-`level` columns remain as text mirrors for older clients, so administrator-defined
-codes are supported without changing a PostgreSQL enum.
+`semesterLevelId` is the only operational level reference. The contract
+migration removes the former compatibility columns from role assignments,
+student enrollments, syllabi, and exams.
 
-1. Take and record a Neon restore point.
-2. Deploy the expand migration: `npx prisma migrate deploy`.
-3. Dry-run: `npm run db:backfill:semester-levels`.
-4. Apply with an absolute protected report path: `npm run db:backfill:semester-levels -- --apply --report=/absolute/path/report.json`.
-5. Verify: `npm run db:verify:semester-level-parity`.
+## Hard-cutover procedure
 
-Do not promote the application if the verifier reports any missing mappings,
-mismatches, inactive active-record references, or blocking errors. A later
-contract migration may remove the text mirrors after all old clients are retired.
+Use a maintenance window because the previous application release cannot run
+after the compatibility columns are removed.
+
+1. Confirm the expand/backfill rollout completed under the previous release.
+2. Take and record a Neon restore point, then test the restore procedure.
+3. Stop operational writes and retain the previous release for rollback.
+4. From the candidate server, run `npm run db:verify:semester-level-cutover`
+   against the expanded database. This must report zero legacy-to-canonical
+   semantic mismatches.
+5. Run `npm run db:verify:semester-level-integrity` and resolve any reported
+   canonical reference or duplicate-key issue.
+6. Review the pending SQL with `npx prisma migrate status`.
+7. Apply it with `npx prisma migrate deploy` using the intended production
+   `DATABASE_URL`.
+8. Deploy the canonical-only server and client together.
+9. Run `npm run db:verify:semester-level-integrity` again.
+10. Smoke test `/health`, user management, student enrollment, syllabus, exams,
+   and attendance before restoring writes.
+
+Do not apply the contract migration if either verifier reports missing educator
+scope, orphaned or cross-semester references, duplicate canonical keys, or
+legacy-to-canonical semantic mismatches. The migration also checks these
+conditions while holding exclusive table locks and aborts before dropping
+columns if any check fails.
+
+The Azure deployment workflow does not apply migrations. An approved operator
+must execute this sequence separately. General migration policy is documented
+in [`OPERATIONS.md`](OPERATIONS.md).

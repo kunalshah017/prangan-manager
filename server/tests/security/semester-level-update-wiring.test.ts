@@ -5,7 +5,7 @@ import test from "node:test";
 const serviceFile = (name: string) =>
   new URL(`../../service/${name}.service.ts`, import.meta.url);
 
-test("level-ID updates do not reuse a stale legacy level", async () => {
+test("level-ID updates contain no stale legacy fallback", async () => {
   const [user, exam, syllabus] = await Promise.all([
     readFile(serviceFile("user"), "utf8"),
     readFile(serviceFile("exam"), "utf8"),
@@ -13,9 +13,9 @@ test("level-ID updates do not reuse a stale legacy level", async () => {
   ]);
 
   for (const source of [user, exam, syllabus]) {
-    assert.match(
+    assert.doesNotMatch(
       source,
-      /data\.level\s*\?\?\s*\(data\.semesterLevelId\s*\?\s*undefined\s*:\s*(?:context|exam|current)\.level\)/,
+      /data\.level\s*\?\?\s*\(data\.semesterLevelId\s*\?\s*undefined\s*:/,
     );
   }
 });

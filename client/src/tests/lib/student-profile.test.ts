@@ -24,7 +24,6 @@ const student = (overrides: Partial<Student> = {}): Student => ({
   futureProfession: "Doctor",
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
-  level: "LEVEL_2",
   ...overrides,
 });
 

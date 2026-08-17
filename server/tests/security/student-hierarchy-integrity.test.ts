@@ -5,7 +5,8 @@ import { deleteCenterController } from "../../controllers/center.controller.js";
 import { deleteProjectController } from "../../controllers/project.controller.js";
 import { deleteSemesterController } from "../../controllers/semester.controller.js";
 import { deleteStudentController } from "../../controllers/user.controller.js";
-import { Level, Role, SubRole } from "../../generated/prisma/index.js";
+import { Role, SubRole } from "../../generated/prisma/index.js";
+import { ACADEMIC_LEVEL_CODES } from "../helpers/academic-level-codes.js";
 import { prisma } from "../../lib/prisma.js";
 import { deleteCenter, getCenterScope } from "../../service/center.service.js";
 import {
@@ -56,7 +57,6 @@ test("scope helpers select only the hierarchy fields needed for authorization", 
       centerId: "center-1",
       semesterId: "semester-1",
       semesterLevelId: "semester-1-level-1",
-      level: Level.LEVEL_1,
     };
   }) as typeof prisma.studentEnrollments.findUnique;
   prisma.studentEnrollments.findMany = (async (query: unknown) => {
@@ -67,13 +67,12 @@ test("scope helpers select only the hierarchy fields needed for authorization", 
         centerId: "center-1",
         semesterId: "semester-1",
         semesterLevelId: "semester-1-level-1",
-        level: Level.LEVEL_1,
       },
     ];
   }) as typeof prisma.studentEnrollments.findMany;
   prisma.semesterLevel.findFirst = (async () => ({
     id: "semester-1-level-1",
-    academicLevel: { code: Level.LEVEL_1 },
+    academicLevel: { code: ACADEMIC_LEVEL_CODES.LEVEL_1 },
   })) as typeof prisma.semesterLevel.findFirst;
 
   try {
@@ -94,7 +93,6 @@ test("scope helpers select only the hierarchy fields needed for authorization", 
       centerId: "center-1",
       semesterId: "semester-1",
       semesterLevelId: "semester-1-level-1",
-      level: Level.LEVEL_1,
     });
     assert.deepEqual(await getStudentActiveEnrollmentScopes("student-1"), [
       {
@@ -102,7 +100,6 @@ test("scope helpers select only the hierarchy fields needed for authorization", 
         centerId: "center-1",
         semesterId: "semester-1",
         semesterLevelId: "semester-1-level-1",
-        level: Level.LEVEL_1,
       },
     ]);
 
@@ -125,7 +122,6 @@ test("scope helpers select only the hierarchy fields needed for authorization", 
         centerId: true,
         semesterId: true,
         semesterLevelId: true,
-        level: true,
       },
     });
     assert.deepEqual(queries.student, {
@@ -135,7 +131,6 @@ test("scope helpers select only the hierarchy fields needed for authorization", 
         centerId: true,
         semesterId: true,
         semesterLevelId: true,
-        level: true,
       },
     });
   } finally {
@@ -148,7 +143,7 @@ test("scope helpers select only the hierarchy fields needed for authorization", 
   }
 });
 
-test("legacy-only enrollment scopes resolve to verified semester level IDs", async () => {
+test("canonical enrollment scopes verify and preserve their semester level IDs", async () => {
   const originalEnrollmentFindUnique = prisma.studentEnrollments.findUnique;
   const originalSemesterLevelFindFirst = prisma.semesterLevel.findFirst;
 
@@ -156,12 +151,11 @@ test("legacy-only enrollment scopes resolve to verified semester level IDs", asy
     projectId: "project-1",
     centerId: "center-1",
     semesterId: "semester-1",
-    semesterLevelId: null,
-    level: Level.LEVEL_1,
+    semesterLevelId: "semester-1-level-1",
   })) as typeof prisma.studentEnrollments.findUnique;
   prisma.semesterLevel.findFirst = (async () => ({
     id: "semester-1-level-1",
-    academicLevel: { code: Level.LEVEL_1 },
+    academicLevel: { code: ACADEMIC_LEVEL_CODES.LEVEL_1 },
   })) as typeof prisma.semesterLevel.findFirst;
 
   try {
@@ -170,7 +164,6 @@ test("legacy-only enrollment scopes resolve to verified semester level IDs", asy
       centerId: "center-1",
       semesterId: "semester-1",
       semesterLevelId: "semester-1-level-1",
-      level: Level.LEVEL_1,
     });
   } finally {
     prisma.studentEnrollments.findUnique = originalEnrollmentFindUnique;
@@ -178,7 +171,7 @@ test("legacy-only enrollment scopes resolve to verified semester level IDs", asy
   }
 });
 
-test("enrollment scope rejects a mismatched semester level ID and legacy code", async () => {
+test("enrollment scope rejects an inactive or cross-semester canonical ID", async () => {
   const originalEnrollmentFindUnique = prisma.studentEnrollments.findUnique;
   const originalSemesterLevelFindFirst = prisma.semesterLevel.findFirst;
 
@@ -187,17 +180,13 @@ test("enrollment scope rejects a mismatched semester level ID and legacy code", 
     centerId: "center-1",
     semesterId: "semester-1",
     semesterLevelId: "semester-1-level-2",
-    level: Level.LEVEL_1,
   })) as typeof prisma.studentEnrollments.findUnique;
-  prisma.semesterLevel.findFirst = (async () => ({
-    id: "semester-1-level-2",
-    academicLevel: { code: Level.LEVEL_2 },
-  })) as typeof prisma.semesterLevel.findFirst;
+  prisma.semesterLevel.findFirst = (async () => null) as typeof prisma.semesterLevel.findFirst;
 
   try {
     await assert.rejects(
       () => getEnrollmentScope("enrollment-1"),
-      /Semester level does not match legacy level/,
+      /Semester level is not active for this semester/,
     );
   } finally {
     prisma.studentEnrollments.findUnique = originalEnrollmentFindUnique;
@@ -215,7 +204,6 @@ test("scoped student detail and history query only active exact enrollment conte
       centerId: "center-1",
       semesterId: "semester-1",
       semesterLevelId: "semester-1-level-1",
-      level: Level.LEVEL_1,
     },
   ];
 
@@ -234,7 +222,7 @@ test("scoped student detail and history query only active exact enrollment conte
 
     const visibleWhere = {
       isActive: true,
-      OR: scopes.map(({ level: _level, ...scope }) => scope),
+      OR: scopes,
     };
     assert.deepEqual(queries.student, {
       where: { id: "student-1" },
@@ -243,6 +231,13 @@ test("scoped student detail and history query only active exact enrollment conte
     assert.deepEqual((queries.enrollments as { where: unknown }).where, {
       studentId: "student-1",
       ...visibleWhere,
+    });
+    assert.deepEqual((queries.enrollments as { include: unknown }).include, {
+      student: true,
+      center: true,
+      project: true,
+      semester: true,
+      semesterLevel: { include: { academicLevel: true } },
     });
   } finally {
     prisma.students.findUnique = originalStudentFindUnique;
@@ -253,27 +248,31 @@ test("scoped student detail and history query only active exact enrollment conte
 test("student list derives complete educator contexts and preserves level restrictions", async () => {
   const originalAssignments = prisma.userRoleAssignments.findMany;
   const originalEnrollmentFindMany = prisma.studentEnrollments.findMany;
+  let assignmentQuery: unknown;
   let enrollmentQuery: unknown;
 
-  prisma.userRoleAssignments.findMany = (async () => [
-    {
-      subRole: SubRole.EDUCATOR,
-      projectId: "project-1",
-      centerId: "center-1",
-      semesterId: "semester-1",
-      semesterLevelId: "semester-1-level-1",
-      level: Level.LEVEL_1,
-      isActive: true,
-    },
-    {
-      subRole: SubRole.CENTER_MANAGER,
-      projectId: "project-incomplete",
-      centerId: null,
-      semesterId: "semester-1",
-      level: null,
-      isActive: true,
-    },
-  ]) as typeof prisma.userRoleAssignments.findMany;
+  prisma.userRoleAssignments.findMany = (async (query: unknown) => {
+    assignmentQuery = query;
+    return [
+      {
+        subRole: SubRole.EDUCATOR,
+        projectId: "project-1",
+        centerId: "center-1",
+        semesterId: "semester-1",
+        semesterLevelId: "semester-1-level-1",
+        semesterLevel: { isActive: true },
+        isActive: true,
+      },
+      {
+        subRole: SubRole.CENTER_MANAGER,
+        projectId: "project-incomplete",
+        centerId: null,
+        semesterId: "semester-1",
+        semesterLevel: null,
+        isActive: true,
+      },
+    ];
+  }) as typeof prisma.userRoleAssignments.findMany;
   prisma.studentEnrollments.findMany = (async (query: unknown) => {
     enrollmentQuery = query;
     return [];
@@ -281,10 +280,21 @@ test("student list derives complete educator contexts and preserves level restri
 
   try {
     await getUserAccessibleStudents("user-1", Role.USER, {
-      level: Level.LEVEL_2,
+      semesterLevelId: "semester-1-level-1",
     });
+    assert.deepEqual(
+      (assignmentQuery as { where: unknown }).where,
+      {
+        userId: "user-1",
+        isActive: true,
+        OR: [
+          { subRole: { not: SubRole.EDUCATOR } },
+          { semesterLevel: { is: { isActive: true } } },
+        ],
+      },
+    );
     assert.deepEqual((enrollmentQuery as { where: unknown }).where, {
-      level: Level.LEVEL_2,
+      semesterLevelId: "semester-1-level-1",
       OR: [
         {
           isActive: true,
@@ -367,11 +377,10 @@ test("resolveEffectiveEnrollmentContext merges a partial patch before validating
     centerId: "center-1",
     semesterId: "semester-1",
     semesterLevelId: "semester-1-level-1",
-    level: Level.LEVEL_1,
   })) as typeof prisma.studentEnrollments.findUnique;
   prisma.semesterLevel.findFirst = (async () => ({
     id: "semester-1-level-1",
-    academicLevel: { code: Level.LEVEL_1 },
+    academicLevel: { code: ACADEMIC_LEVEL_CODES.LEVEL_1 },
   })) as typeof prisma.semesterLevel.findFirst;
   prisma.centers.findUnique = (async () => ({
     projectId: "project-1",
@@ -383,7 +392,6 @@ test("resolveEffectiveEnrollmentContext merges a partial patch before validating
   try {
     assert.equal(
       await resolveEffectiveEnrollmentContext("enrollment-1", {
-        level: Level.LEVEL_2,
       }),
       "Semester does not belong to center",
     );
@@ -616,11 +624,10 @@ test("updateEnrollment rejects a partial semester patch that conflicts with its 
     centerId: "center-1",
     semesterId: "semester-1",
     semesterLevelId: "semester-1-level-1",
-    level: Level.LEVEL_1,
   })) as typeof prisma.studentEnrollments.findUnique;
   prisma.semesterLevel.findFirst = (async () => ({
     id: "semester-1-level-1",
-    academicLevel: { code: Level.LEVEL_1 },
+    academicLevel: { code: ACADEMIC_LEVEL_CODES.LEVEL_1 },
   })) as typeof prisma.semesterLevel.findFirst;
   prisma.centers.findUnique = (async () => ({
     projectId: "project-1",
@@ -647,7 +654,7 @@ test("updateEnrollment rejects a partial semester patch that conflicts with its 
   }
 });
 
-test("updateEnrollment derives the legacy level from a newly selected semester level", async () => {
+test("updateEnrollment writes only a newly selected semester level ID", async () => {
   const originalEnrollmentFindUnique = prisma.studentEnrollments.findUnique;
   const originalCenterFindUnique = prisma.centers.findUnique;
   const originalSemesterFindUnique = prisma.semesters.findUnique;
@@ -660,7 +667,6 @@ test("updateEnrollment derives the legacy level from a newly selected semester l
     centerId: "center-1",
     semesterId: "semester-1",
     semesterLevelId: "semester-1-level-1",
-    level: Level.LEVEL_1,
   })) as typeof prisma.studentEnrollments.findUnique;
   prisma.centers.findUnique = (async () => ({
     projectId: "project-1",
@@ -672,7 +678,7 @@ test("updateEnrollment derives the legacy level from a newly selected semester l
     id: where.id,
     academicLevel: {
       code:
-        where.id === "semester-1-level-2" ? Level.LEVEL_2 : Level.LEVEL_1,
+        where.id === "semester-1-level-2" ? ACADEMIC_LEVEL_CODES.LEVEL_2 : ACADEMIC_LEVEL_CODES.LEVEL_1,
     },
   })) as typeof prisma.semesterLevel.findFirst;
   prisma.$transaction = (async (callback: any) =>
@@ -695,7 +701,6 @@ test("updateEnrollment derives the legacy level from a newly selected semester l
       centerId: "center-1",
       semesterId: "semester-1",
       semesterLevelId: "semester-1-level-2",
-      level: Level.LEVEL_2,
       isActive: undefined,
     });
   } finally {
@@ -732,7 +737,7 @@ test("createEnrollment rejects a center outside the requested project before cre
         "center-1",
         "semester-1",
         "project-1",
-        Level.LEVEL_1,
+        ACADEMIC_LEVEL_CODES.LEVEL_1,
       ),
       "Center does not belong to project",
     );
@@ -768,7 +773,6 @@ test("enrollStudent rejects a semester outside the requested center before creat
         centerId: "center-1",
         semesterId: "semester-1",
         projectId: "project-1",
-        level: Level.LEVEL_1,
       }),
       "Semester does not belong to center",
     );
@@ -780,7 +784,7 @@ test("enrollStudent rejects a semester outside the requested center before creat
   }
 });
 
-test("createEnrollment validates a semester level ID and dual-writes its legacy code", async () => {
+test("createEnrollment validates and writes only a semester level ID", async () => {
   const originalCenterFindUnique = prisma.centers.findUnique;
   const originalSemesterFindUnique = prisma.semesters.findUnique;
   const originalSemesterLevelFindFirst = prisma.semesterLevel.findFirst;
@@ -799,7 +803,7 @@ test("createEnrollment validates a semester level ID and dual-writes its legacy 
     semesterLevelQuery = query;
     return {
       id: "semester-level-1",
-      academicLevel: { code: Level.LEVEL_1 },
+      academicLevel: { code: ACADEMIC_LEVEL_CODES.LEVEL_1 },
     };
   }) as typeof prisma.semesterLevel.findFirst;
   prisma.$transaction = (async (callback: any) =>
@@ -822,7 +826,6 @@ test("createEnrollment validates a semester level ID and dual-writes its legacy 
       "center-1",
       "semester-1",
       "project-1",
-      undefined,
       "semester-level-1",
     );
 
@@ -840,7 +843,6 @@ test("createEnrollment validates a semester level ID and dual-writes its legacy 
       semesterId: "semester-1",
       semesterLevelId: "semester-level-1",
       projectId: "project-1",
-      level: Level.LEVEL_1,
       isActive: true,
     });
     assert.deepEqual((createQuery as any).include.semesterLevel, {
@@ -851,65 +853,6 @@ test("createEnrollment validates a semester level ID and dual-writes its legacy 
       semesterId: "semester-1",
       isActive: true,
     });
-  } finally {
-    prisma.centers.findUnique = originalCenterFindUnique;
-    prisma.semesters.findUnique = originalSemesterFindUnique;
-    prisma.semesterLevel.findFirst = originalSemesterLevelFindFirst;
-    prisma.$transaction = originalTransaction;
-  }
-});
-
-test("createEnrollment resolves a legacy level and dual-writes its semester level ID", async () => {
-  const originalCenterFindUnique = prisma.centers.findUnique;
-  const originalSemesterFindUnique = prisma.semesters.findUnique;
-  const originalSemesterLevelFindFirst = prisma.semesterLevel.findFirst;
-  const originalTransaction = prisma.$transaction;
-  let semesterLevelQuery: unknown;
-  let createData: unknown;
-
-  prisma.centers.findUnique = (async () => ({
-    projectId: "project-1",
-  })) as typeof prisma.centers.findUnique;
-  prisma.semesters.findUnique = (async () => ({
-    centerId: "center-1",
-  })) as typeof prisma.semesters.findUnique;
-  prisma.semesterLevel.findFirst = (async (query: unknown) => {
-    semesterLevelQuery = query;
-    return {
-      id: "semester-level-1",
-      academicLevel: { code: Level.LEVEL_1 },
-    };
-  }) as typeof prisma.semesterLevel.findFirst;
-  prisma.$transaction = (async (callback: any) =>
-    callback({
-      studentEnrollments: {
-        updateMany: async () => ({ count: 0 }),
-        create: async ({ data }: any) => {
-          createData = data;
-          return { id: "enrollment-1" };
-        },
-      },
-    })) as typeof prisma.$transaction;
-
-  try {
-    await createEnrollment(
-      "student-1",
-      "center-1",
-      "semester-1",
-      "project-1",
-      Level.LEVEL_1,
-    );
-
-    assert.deepEqual(semesterLevelQuery, {
-      where: {
-        semesterId: "semester-1",
-        isActive: true,
-        academicLevel: { code: Level.LEVEL_1 },
-      },
-      include: { academicLevel: true },
-    });
-    assert.equal((createData as any).semesterLevelId, "semester-level-1");
-    assert.equal((createData as any).level, Level.LEVEL_1);
   } finally {
     prisma.centers.findUnique = originalCenterFindUnique;
     prisma.semesters.findUnique = originalSemesterFindUnique;

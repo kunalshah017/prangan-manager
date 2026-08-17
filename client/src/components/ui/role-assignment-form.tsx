@@ -94,6 +94,14 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
                 errors.push(`Role assignment ${i + 1} (${roleLabel}): Semester is required`);
             }
 
+            if (
+                assignment.subRole === 'EDUCATOR' &&
+                assignment.semesterId &&
+                !assignment.semesterLevelId
+            ) {
+                errors.push(`Role assignment ${i + 1} (${roleLabel}): Teaching level is required`);
+            }
+
             // Check for exact duplicates
             for (let j = i + 1; j < roleAssignments.length; j++) {
                 const assignment2 = roleAssignments[j];
@@ -152,7 +160,6 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
             assignment.subRole = value as RoleAssignment['subRole'];
             // Clear incompatible fields
             if (value !== 'EDUCATOR') {
-                delete assignment.level;
                 delete assignment.semesterLevelId;
                 delete assignment.semesterLevel;
             }
@@ -414,6 +421,7 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
                                         value={assignment.semesterLevelId || ''}
                                         onChange={(value) => updateRoleAssignment(index, 'semesterLevelId', value || undefined)}
                                         disabled={!assignment.semesterId}
+                                        required
                                         includeInactiveCurrent
                                         currentLevel={assignment.semesterLevel || undefined}
                                     />

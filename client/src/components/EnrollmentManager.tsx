@@ -404,7 +404,7 @@ const EnrollmentManager = ({ studentId, studentName }: EnrollmentManagerProps) =
                                 <li><strong>Project:</strong> {enrollmentToDeactivate.project?.name}</li>
                                 <li><strong>Center:</strong> {enrollmentToDeactivate.center?.name}</li>
                                 <li><strong>Semester:</strong> {enrollmentToDeactivate.semester?.name}</li>
-                                <li><strong>Level:</strong> {levelName(enrollmentToDeactivate.semesterLevel, enrollmentToDeactivate.level)}</li>
+                                <li><strong>Level:</strong> {levelName(enrollmentToDeactivate.semesterLevel)}</li>
                             </ul>
                         </div>
                     )}
@@ -472,7 +472,7 @@ const EnrollmentCard = ({
                             </span>
                         )}
                         <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                            {levelName(enrollment.semesterLevel, enrollment.level)}
+                            {levelName(enrollment.semesterLevel)}
                         </span>
                     </div>
 

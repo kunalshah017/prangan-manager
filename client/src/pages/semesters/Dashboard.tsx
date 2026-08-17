@@ -156,7 +156,7 @@ export default function Dashboard() {
     });
     const syllabusStatisticsQuery = useSyllabusStatistics({
         ...context,
-        level: dashboardModel.assignedLevel,
+        semesterLevelId: dashboardModel.assignedSemesterLevelId,
         enabled: dashboardModel.visibility.curriculum,
     });
     const examsQuery = useExams({
@@ -173,30 +173,17 @@ export default function Dashboard() {
         () => new Map(semesterLevels.map((level) => [level.id, level])),
         [semesterLevels],
     );
-    const semesterLevelIdByCode = useMemo(
-        () => new Map(semesterLevels.map((level) => [level.academicLevel.code, level.id])),
-        [semesterLevels],
+    const assignedSemesterLevel = semesterLevelById.get(
+        dashboardModel.assignedSemesterLevelId ?? "",
     );
-    const assignedSemesterLevel =
-        semesterLevelById.get(dashboardModel.assignedSemesterLevelId ?? "") ??
-        semesterLevels.find((level) => level.academicLevel.code === dashboardModel.assignedLevel);
     const resolveSemesterLevelId = useCallback(
         (reference?: {
             semesterLevelId?: string | null;
-            level?: string | null;
-        }) =>
-            reference?.semesterLevelId ??
-            (reference?.level ? semesterLevelIdByCode.get(reference.level) : undefined),
-        [semesterLevelIdByCode],
+        }) => reference?.semesterLevelId ?? undefined,
+        [],
     );
 
-    const visibleSyllabi = useMemo(
-        () =>
-            (syllabiQuery.data || []).filter(
-                (syllabus) => !dashboardModel.assignedLevel || syllabus.level === dashboardModel.assignedLevel,
-            ),
-        [dashboardModel.assignedLevel, syllabiQuery.data],
-    );
+    const visibleSyllabi = syllabiQuery.data || [];
     const activeSyllabus = visibleSyllabi[0];
     const topicsQuery = useSyllabusTopics({
         syllabusId: activeSyllabus?.id,

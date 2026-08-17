@@ -9,7 +9,6 @@ import {
 import {
   replaceSemesterLevels,
   requireActiveSemesterLevel,
-  resolveLegacyLevelCode,
 } from "../../service/semester-level.service.js";
 
 test("catalog listing uses canonical journey order and excludes archived rows by default", async () => {
@@ -230,27 +229,6 @@ test("active semester membership remains valid when its catalog row is archived"
       id: "membership-1",
       semesterId: "semester-1",
       isActive: true,
-    });
-    assert.deepEqual(received.include, { academicLevel: true });
-  } finally {
-    prisma.semesterLevel.findFirst = originalFindFirst;
-  }
-});
-
-test("legacy level resolution requires an active semester membership but not an active catalog row", async () => {
-  const originalFindFirst = prisma.semesterLevel.findFirst;
-  let received: any;
-  prisma.semesterLevel.findFirst = (async (args: unknown) => {
-    received = args;
-    return { id: "membership-1" };
-  }) as typeof prisma.semesterLevel.findFirst;
-
-  try {
-    await resolveLegacyLevelCode("semester-1", "LEVEL_1");
-    assert.deepEqual(received.where, {
-      semesterId: "semester-1",
-      isActive: true,
-      academicLevel: { code: "LEVEL_1" },
     });
     assert.deepEqual(received.include, { academicLevel: true });
   } finally {

@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("managed academic level client contracts", () => {
-  it("shares managed references across operational types while retaining legacy levels", async () => {
+  it("shares canonical managed references across operational types", async () => {
     const types = await readFile(
       new URL("../../types/api.ts", import.meta.url),
       "utf8",
@@ -15,12 +15,10 @@ describe("managed academic level client contracts", () => {
     expect(types).toContain("roleAssignment?: LevelReference & {");
     expect(types).toContain("enrollment?: LevelReference & {");
     expect(types).toMatch(
-      /interface Syllabus extends LevelReference[\s\S]*?level: Level;/,
+      /export interface LevelReference \{[\s\S]*?semesterLevelId\?: string \| null;[\s\S]*?semesterLevel\?: SemesterLevel \| null;/,
     );
-    expect(types).toContain("export type LegacyLevel = string;");
-    expect(types).not.toMatch(
-      /export type LegacyLevel\s*=\s*[\s\S]*?\|\s*"PRIMARY_A"/,
-    );
+    expect(types).not.toContain("LegacyLevel");
+    expect(types).not.toMatch(/\blevel:\s*Level;/);
   });
 
   it("uses scoped query keys, API endpoints, options, and invalidation", async () => {
@@ -48,6 +46,14 @@ describe("managed academic level client contracts", () => {
     expect(hooks).toContain("queryClient.invalidateQueries");
     expect(hooks).toContain("queryKeys.academicLevelsRoot");
     expect(hooks).toContain("queryKeys.semesterLevelsRoot(semesterId)");
+
+    const studentHooks = await readFile(
+      new URL("../../hooks/useStudentQueries.ts", import.meta.url),
+      "utf8",
+    );
+    expect(studentHooks).toMatch(
+      /useStudentsBySemesterLevel[\s\S]*?Promise<StudentEnrollment\[]>[\s\S]*?StudentEnrollmentsResponse/,
+    );
   });
 
   it("renders accessible local states and preserves an inactive current value", async () => {

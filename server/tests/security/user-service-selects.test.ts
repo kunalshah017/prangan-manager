@@ -194,7 +194,6 @@ test("getContextStaff limits approved staff to an exact active scope", async () 
           projectId: true,
           centerId: true,
           semesterId: true,
-          level: true,
           semesterLevelId: true,
           semesterLevel: {
             include: { academicLevel: true },

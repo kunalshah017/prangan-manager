@@ -1,8 +1,5 @@
 import type { AssessmentCycle } from "./api";
-import type { LegacyLevel, LevelReference } from "./api";
-
-/** @deprecated Use managed level references. */
-export type Level = LegacyLevel;
+import type { LevelReference, SemesterLevel } from "./api";
 
 export type { AssessmentCycle } from "./api";
 
@@ -11,8 +8,8 @@ export interface Exam extends LevelReference {
   projectId: string;
   centerId: string;
   semesterId: string;
-  /** @deprecated Use semesterLevelId and semesterLevel. */
-  level: Level;
+  semesterLevelId: string;
+  semesterLevel: SemesterLevel;
   cycle: AssessmentCycle;
   name: string;
   description?: string;
@@ -62,7 +59,7 @@ export interface StudentExamScore {
     id: string;
     name: string;
     examDate: string;
-    level: Level;
+    semesterLevelId: string;
   };
   student?: {
     id: string;
@@ -79,7 +76,7 @@ export interface CreateExamRequest extends LevelReference {
   projectId: string;
   centerId: string;
   semesterId: string;
-  level?: Level;
+  semesterLevelId: string;
   cycle: AssessmentCycle;
   name: string;
   description?: string;
@@ -93,7 +90,6 @@ export interface CreateExamRequest extends LevelReference {
 export interface UpdateExamRequest extends LevelReference {
   name?: string;
   description?: string;
-  level?: Level;
   cycle?: AssessmentCycle;
   examDate?: string;
   listeningMaxMarks?: number;

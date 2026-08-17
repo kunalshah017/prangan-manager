@@ -17,10 +17,10 @@ describe("semester dashboard", () => {
     expect(dashboard).toContain(
       "enabled: dashboardModel.visibility.staffAttendance",
     );
-    expect(dashboard).toContain("level: dashboardModel.assignedLevel");
     expect(dashboard).toContain(
       "semesterLevelId: dashboardModel.assignedSemesterLevelId",
     );
+    expect(dashboard).not.toContain("dashboardModel.assignedLevel");
     expect(dashboard).not.toContain(
       "semesterLevelId: dashboardModel.assignedLevel",
     );
@@ -35,6 +35,8 @@ describe("semester dashboard", () => {
     expect(dashboard).toContain("semesterQuery.data?.levels");
     expect(dashboard).toContain("sortByJourneyOrder");
     expect(dashboard).toContain("resolveSemesterLevelId(student)");
+    expect(dashboard).not.toContain("semesterLevelIdByCode");
+    expect(dashboard).not.toContain("reference?.level");
     expect(dashboard).toContain("levelName(");
     expect(dashboard).not.toContain("const levelOrder =");
     expect(dashboard).not.toContain('PRIMARY_A: "Primary A"');

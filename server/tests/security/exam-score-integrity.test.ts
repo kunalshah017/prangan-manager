@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { Level } from "../../generated/prisma/index.js";
+import { ACADEMIC_LEVEL_CODES } from "../helpers/academic-level-codes.js";
 import { prisma } from "../../lib/prisma.js";
 import { buildScoreComponents } from "../../security/exam-score-input.js";
 import {
@@ -18,7 +18,6 @@ const exam = {
   centerId: "center-1",
   semesterId: "semester-1",
   semesterLevelId: "semester-1-level-1",
-  level: Level.LEVEL_1,
   listeningMaxMarks: 10,
   speakingMaxMarks: 10,
   readingMaxMarks: 10,
@@ -34,7 +33,6 @@ const enrollment = {
   centerId: "center-1",
   semesterId: "semester-1",
   semesterLevelId: "semester-1-level-1",
-  level: Level.LEVEL_1,
   isActive: true,
 } as never;
 
@@ -373,7 +371,7 @@ test("bulk score creation preflights exact active enrollment pairs before its tr
   }
 });
 
-test("createExam validates a semester level ID and dual-writes its legacy code", async () => {
+test("createExam validates and writes only a managed semester level ID", async () => {
   const originalSemesterLevelFindFirst = prisma.semesterLevel.findFirst;
   const originalExamFindFirst = prisma.exam.findFirst;
   const originalCreate = prisma.exam.create;
@@ -381,7 +379,7 @@ test("createExam validates a semester level ID and dual-writes its legacy code",
 
   prisma.semesterLevel.findFirst = (async () => ({
     id: "semester-1-level-1",
-    academicLevel: { code: Level.LEVEL_1 },
+    academicLevel: { code: ACADEMIC_LEVEL_CODES.LEVEL_1 },
   })) as typeof prisma.semesterLevel.findFirst;
   prisma.exam.findFirst = (async () => null) as typeof prisma.exam.findFirst;
   prisma.exam.create = (async (args: unknown) => {
@@ -407,7 +405,7 @@ test("createExam validates a semester level ID and dual-writes its legacy code",
       (createArgs as any).data.semesterLevelId,
       "semester-1-level-1",
     );
-    assert.equal((createArgs as any).data.level, Level.LEVEL_1);
+    assert.equal("level" in (createArgs as any).data, false);
     assert.deepEqual((createArgs as any).include.semesterLevel, {
       include: { academicLevel: true },
     });

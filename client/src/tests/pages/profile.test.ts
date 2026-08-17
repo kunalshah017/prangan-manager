@@ -30,8 +30,9 @@ describe("unified profile workspace", () => {
 
   it("displays educator assignments from managed semester-level metadata", () => {
     expect(profile).toContain(
-      "levelName(assignment.semesterLevel, assignment.level)",
+      "levelName(assignment.semesterLevel)",
     );
+    expect(profile).not.toContain("assignment.level");
     expect(profile).not.toContain("formatLabel(assignment.level)");
   });
 

@@ -107,6 +107,12 @@ function SemesterUserSettings({
     effectiveFrom < semesterStart || effectiveFrom > semesterEnd
       ? `Choose a date from ${semesterStart} to ${semesterEnd}.`
       : "";
+  const roleError = assignments.some(
+    (assignment) =>
+      assignment.subRole === "EDUCATOR" && !assignment.semesterLevelId,
+  )
+    ? "Choose a teaching level for every educator role."
+    : "";
 
   const saveRemuneration = async () => {
     if (amountError || dateError || !amount.trim()) return;
@@ -123,6 +129,10 @@ function SemesterUserSettings({
   };
 
   const saveRoles = async () => {
+    if (roleError) {
+      toast.error(roleError);
+      return;
+    }
     try {
       await updateAssignments.mutateAsync({
         userId: person.id,
@@ -220,6 +230,7 @@ function SemesterUserSettings({
                       )
                     }
                     disabled={!canManageRoles}
+                    required
                     label="Teaching level"
                   />
                 )}
@@ -270,11 +281,16 @@ function SemesterUserSettings({
             </div>
           ))}
         </div>
+        {roleError && (
+          <p className="mt-3 text-sm text-destructive" role="alert">
+            {roleError}
+          </p>
+        )}
         {canManageRoles && (
           <button
             type="button"
             onClick={() => void saveRoles()}
-            disabled={updateAssignments.isPending}
+            disabled={Boolean(roleError || updateAssignments.isPending)}
             className="mt-4 min-h-11 w-full rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-50 sm:w-auto"
           >
             {updateAssignments.isPending ? "Saving roles…" : "Save semester roles"}

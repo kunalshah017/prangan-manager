@@ -27,10 +27,6 @@ export interface DashboardActionGroup {
 export interface DashboardModel {
   roleLabel: string;
   assignedSemesterLevelId?: string;
-  /** @deprecated Use assignedSemesterLevelId. */
-  assignedLevel?: NonNullable<
-    NonNullable<User["roleAssignments"]>[number]["level"]
-  >;
   capabilities: {
     markStudentAttendance: boolean;
     markStaffAttendance: boolean;
@@ -111,8 +107,6 @@ export function buildDashboardModel(
       item.centerId === context.centerId &&
       item.semesterId === context.semesterId,
   );
-  const assignedLevel =
-    assignment?.subRole === "EDUCATOR" ? assignment.level : undefined;
   const assignedSemesterLevelId =
     assignment?.subRole === "EDUCATOR"
       ? (assignment.semesterLevelId ?? undefined)
@@ -266,7 +260,6 @@ export function buildDashboardModel(
         ? "Admin workspace"
         : roleLabels[assignment?.subRole || ""] || "Semester workspace",
     assignedSemesterLevelId,
-    assignedLevel,
     capabilities: {
       markStudentAttendance: can(user, "studentAttendance.write", context),
       markStaffAttendance: can(user, "staffAttendance.write", context),

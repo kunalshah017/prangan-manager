@@ -67,9 +67,9 @@ function AssignmentItem({ assignment }: { assignment: Assignment }) {
                     {assignment.isActive ? "Active" : "Inactive"}
                 </span>
             </div>
-            {(assignment.semesterLevel || assignment.level || assignment.committedDays) && (
+            {(assignment.semesterLevel || assignment.committedDays) && (
                 <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                    {(assignment.semesterLevel || assignment.level) && <span>{levelName(assignment.semesterLevel, assignment.level)}</span>}
+                    {assignment.semesterLevel && <span>{levelName(assignment.semesterLevel)}</span>}
                     {assignment.committedDays && (
                         <span>{assignment.committedDays === "BOTH" ? "Saturday & Sunday" : formatLabel(assignment.committedDays)}</span>
                     )}

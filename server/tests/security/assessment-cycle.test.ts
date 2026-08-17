@@ -7,7 +7,8 @@ import {
   getExamsController,
   updateExamController,
 } from "../../controllers/exam.controller.js";
-import { AssessmentCycle, Level, Role } from "../../generated/prisma/index.js";
+import { AssessmentCycle, Role } from "../../generated/prisma/index.js";
+import { ACADEMIC_LEVEL_CODES } from "../helpers/academic-level-codes.js";
 import { prisma } from "../../lib/prisma.js";
 import { createExam } from "../../service/exam.service.js";
 import {
@@ -94,7 +95,7 @@ test("exam controllers retain all four cycles and reject unknown cycles before p
     projectId: "project-1",
     centerId: "center-1",
     semesterId: "semester-1",
-    level: Level.LEVEL_1,
+    semesterLevelId: "semester-level-1",
   })) as typeof prisma.exam.findUnique;
   prisma.exam.findMany = (async () => {
     persistenceCalls += 1;
@@ -125,7 +126,6 @@ test("exam controllers retain all four cycles and reject unknown cycles before p
           projectId: "project-1",
           centerId: "center-1",
           semesterId: "semester-1",
-          level: Level.LEVEL_1,
           cycle: "SA-1",
           name: "Exam",
           examDate: "2026-07-25",
@@ -172,7 +172,7 @@ test("exam payload parsing allows only canonical writable fields", () => {
     projectId: "project-1",
     centerId: "center-1",
     semesterId: "semester-1",
-    level: Level.LEVEL_1,
+    semesterLevelId: "semester-level-1",
     cycle: AssessmentCycle.SA_1,
     name: "English assessment",
     examDate: "2026-07-25",
@@ -217,7 +217,7 @@ test("exam uniqueness includes the assessment cycle", async () => {
     data as never) as typeof prisma.exam.create;
   prisma.semesterLevel.findFirst = (async () => ({
     id: "semester-level-1",
-    academicLevel: { code: Level.LEVEL_1 },
+    academicLevel: { code: ACADEMIC_LEVEL_CODES.LEVEL_1 },
   })) as typeof prisma.semesterLevel.findFirst;
 
   try {
@@ -225,7 +225,7 @@ test("exam uniqueness includes the assessment cycle", async () => {
       projectId: "project-1",
       centerId: "center-1",
       semesterId: "semester-1",
-      level: Level.LEVEL_1,
+      semesterLevelId: "semester-level-1",
       cycle: AssessmentCycle.SA_2,
       name: "English assessment",
       examDate: "2026-07-25",
@@ -254,7 +254,7 @@ test("exam uniqueness races return conflict", async () => {
   }) as typeof prisma.exam.create;
   prisma.semesterLevel.findFirst = (async () => ({
     id: "semester-level-1",
-    academicLevel: { code: Level.LEVEL_1 },
+    academicLevel: { code: ACADEMIC_LEVEL_CODES.LEVEL_1 },
   })) as typeof prisma.semesterLevel.findFirst;
 
   try {
@@ -271,7 +271,7 @@ test("exam uniqueness races return conflict", async () => {
           projectId: "project-1",
           centerId: "center-1",
           semesterId: "semester-1",
-          level: Level.LEVEL_1,
+          semesterLevelId: "semester-level-1",
           cycle: AssessmentCycle.SA_1,
           name: "English assessment",
           examDate: "2026-07-25",
@@ -292,6 +292,37 @@ test("exam uniqueness races return conflict", async () => {
   }
 });
 
+test("exam creation preserves invalid semester-level status", async () => {
+  const originalSemesterLevelFindFirst = prisma.semesterLevel.findFirst;
+  prisma.semesterLevel.findFirst = (async () => null) as typeof prisma.semesterLevel.findFirst;
+
+  try {
+    const response = createReply();
+    await createExamController(
+      {
+        user: { id: "admin-1", name: "Admin", email: "admin@example.com", role: Role.ADMIN },
+        body: {
+          projectId: "project-1",
+          centerId: "center-1",
+          semesterId: "semester-1",
+          semesterLevelId: "missing-level",
+          cycle: AssessmentCycle.SA_1,
+          name: "English assessment",
+          examDate: "2026-07-25",
+          listeningMaxMarks: 10,
+          speakingMaxMarks: 10,
+          readingMaxMarks: 10,
+          writingMaxMarks: 10,
+        },
+      } as never,
+      response.reply as never,
+    );
+    assert.equal(response.statusCode, 422);
+  } finally {
+    prisma.semesterLevel.findFirst = originalSemesterLevelFindFirst;
+  }
+});
+
 test("Prisma schema uses one required AssessmentCycle contract", () => {
   const schema = readFileSync(
     new URL("../../prisma/schema.prisma", import.meta.url),
@@ -307,11 +338,11 @@ test("Prisma schema uses one required AssessmentCycle contract", () => {
   assert.match(schema, /model Exam[\s\S]*?cycle\s+AssessmentCycle\b/);
   assert.match(
     schema,
-    /@@unique\(\[projectId, centerId, semesterId, level, cycle, name\]\)/,
+    /@@unique\(\[projectId, centerId, semesterId, semesterLevelId, cycle, name\]\)/,
   );
   assert.match(
     schema,
-    /@@index\(\[projectId, centerId, semesterId, level, cycle\]\)/,
+    /@@index\(\[projectId, centerId, semesterId, semesterLevelId, cycle\]\)/,
   );
 });
 

@@ -1,4 +1,4 @@
-import { AssessmentCycle, Level } from "../generated/prisma/index.js";
+import { AssessmentCycle } from "../generated/prisma/index.js";
 
 // ============================================
 // EXAM TYPES
@@ -8,8 +8,7 @@ export interface CreateExamRequest {
   projectId: string;
   centerId: string;
   semesterId: string;
-  semesterLevelId?: string;
-  level?: Level;
+  semesterLevelId: string;
   cycle: AssessmentCycle;
   name: string;
   description?: string;
@@ -24,7 +23,6 @@ export interface UpdateExamRequest {
   name?: string;
   description?: string;
   semesterLevelId?: string;
-  level?: Level;
   cycle?: AssessmentCycle;
   examDate?: string; // ISO date string
   listeningMaxMarks?: number;
@@ -39,7 +37,6 @@ export interface GetExamsRequest {
   centerId?: string;
   semesterId?: string;
   semesterLevelId?: string;
-  level?: Level;
   cycle?: AssessmentCycle;
   isActive?: boolean;
   startDate?: string; // Filter exams from this date
@@ -52,7 +49,6 @@ export interface ExamResponse {
   centerId: string;
   semesterId: string;
   semesterLevelId: string;
-  level: Level;
   cycle: AssessmentCycle;
   name: string;
   description?: string;
@@ -156,7 +152,7 @@ export interface StudentScoreResponse {
     id: string;
     name: string;
     examDate: Date;
-    level: Level;
+    semesterLevelId: string;
   };
   student?: {
     id: string;

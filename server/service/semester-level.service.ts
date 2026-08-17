@@ -105,26 +105,9 @@ export const requireActiveSemesterLevel = async (input: {
   return row;
 };
 
-export const resolveLegacyLevelCode = async (
-  semesterId: string,
-  code: string,
-) => {
-  const row = await prisma.semesterLevel.findFirst({
-    where: {
-      semesterId,
-      isActive: true,
-      academicLevel: { code },
-    },
-    include: { academicLevel: true },
-  });
-  if (!row) throw new InvalidSemesterLevelError();
-  return row;
-};
-
 export const resolveSemesterLevelInput = async (input: {
   semesterId?: string | null;
   semesterLevelId?: string | null;
-  level?: string | null;
 }) => {
   if (input.semesterLevelId && !input.semesterId) {
     throw new AcademicLevelServiceError(
@@ -132,26 +115,15 @@ export const resolveSemesterLevelInput = async (input: {
       422,
     );
   }
-  if (!input.semesterId || (!input.semesterLevelId && !input.level)) {
+  if (!input.semesterId || !input.semesterLevelId) {
     throw new AcademicLevelServiceError(
       "Semester and semester level are required",
       422,
     );
   }
 
-  const semesterLevel = input.semesterLevelId
-    ? await requireActiveSemesterLevel({
-        semesterId: input.semesterId,
-        semesterLevelId: input.semesterLevelId,
-      })
-    : await resolveLegacyLevelCode(input.semesterId, input.level!);
-
-  if (input.level && semesterLevel.academicLevel.code !== input.level) {
-    throw new AcademicLevelServiceError(
-      "Semester level does not match legacy level",
-      422,
-    );
-  }
-
-  return semesterLevel;
+  return requireActiveSemesterLevel({
+    semesterId: input.semesterId,
+    semesterLevelId: input.semesterLevelId,
+  });
 };
