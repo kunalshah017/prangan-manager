@@ -1,8 +1,9 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { extname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const sourceRoot = new URL("../../", import.meta.url);
+const sourceRoot = fileURLToPath(new URL("../../", import.meta.url));
 
 function collectTsxFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -15,7 +16,7 @@ function collectTsxFiles(directory: string): string[] {
   });
 }
 
-const sources = collectTsxFiles(sourceRoot.pathname).map((path) => ({
+const sources = collectTsxFiles(sourceRoot).map((path) => ({
   path,
   source: readFileSync(path, "utf8"),
 }));

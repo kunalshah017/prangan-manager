@@ -43,7 +43,7 @@ test("the runtime uses only the shared Prisma client constructor", async () => {
     const source = await readFile(file, "utf8");
     const constructors = source.match(/new\s+PrismaClient\s*\(/g) ?? [];
     constructorLocations.push(
-      ...constructors.map(() => relative(serverRoot, file)),
+      ...constructors.map(() => relative(serverRoot, file).split(sep).join("/")),
     );
   }
 
