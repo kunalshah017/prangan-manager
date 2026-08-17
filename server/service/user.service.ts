@@ -1190,13 +1190,21 @@ export const getUserRoleAssignments = async (userId: string) => {
 export const getActiveUserScopeAssignments = async (userId: string) => {
   try {
     const assignments = await prisma.userRoleAssignments.findMany({
-      where: { userId, isActive: true },
+      where: {
+        userId,
+        isActive: true,
+        OR: [
+          { subRole: { not: SubRole.EDUCATOR } },
+          { semesterLevel: { is: { isActive: true } } },
+        ],
+      },
       select: {
         subRole: true,
         projectId: true,
         centerId: true,
         semesterId: true,
         semesterLevelId: true,
+        semesterLevel: { select: { isActive: true } },
         isActive: true,
       },
     });
@@ -1651,13 +1659,21 @@ export const getUserAccessibleStudents = async (
     } else {
       // USER role - get only students from centers/projects/semesters they're assigned to
       const userAssignments = await prisma.userRoleAssignments.findMany({
-        where: { userId, isActive: true },
+        where: {
+          userId,
+          isActive: true,
+          OR: [
+            { subRole: { not: SubRole.EDUCATOR } },
+            { semesterLevel: { is: { isActive: true } } },
+          ],
+        },
         select: {
           subRole: true,
           projectId: true,
           centerId: true,
           semesterId: true,
           semesterLevelId: true,
+          semesterLevel: { select: { isActive: true } },
         },
       });
 
@@ -1668,7 +1684,8 @@ export const getUserAccessibleStudents = async (
             !assignment.centerId ||
             !assignment.semesterId ||
             (assignment.subRole === SubRole.EDUCATOR &&
-              !assignment.semesterLevelId)
+              (!assignment.semesterLevelId ||
+                assignment.semesterLevel?.isActive !== true))
           ) {
             return [];
           }

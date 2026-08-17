@@ -516,14 +516,6 @@ Authorization: Bearer <admin_jwt_token>
     "enrolledAt": "2024-01-01T00:00:00.000Z"
   }
 }
-    "whatsappNumber": "+919876541001",
-    "alternateNumber": "+912267891001",
-    "semesterLevelId": "semester-level-2-id",
-    "profileImageUrl": "https://example.com/student.jpg",
-    "createdAt": "2024-01-01T00:00:00.000Z",
-    "updatedAt": "2024-01-01T00:00:00.000Z"
-  }
-}
 ```
 
 #### GET /api/v1/users/students
@@ -731,6 +723,15 @@ Authorization: Bearer <jwt_token>
     {
       "id": "enrollment_id_1",
       "semesterLevelId": "semester-level-1-id",
+      "semesterLevel": {
+        "id": "semester-level-1-id",
+        "academicLevel": {
+          "id": "academic-level-1-id",
+          "code": "LEVEL_1",
+          "name": "Level 1",
+          "journeyOrder": 3
+        }
+      },
       "isActive": true,
       "enrolledAt": "2024-01-01T00:00:00.000Z",
       "student": {
@@ -788,6 +789,15 @@ Authorization: Bearer <jwt_token>
       "semesterId": "semester_id_1",
       "projectId": "project_id",
       "semesterLevelId": "semester-level-2-id",
+      "semesterLevel": {
+        "id": "semester-level-2-id",
+        "academicLevel": {
+          "id": "academic-level-2-id",
+          "code": "LEVEL_2",
+          "name": "Level 2",
+          "journeyOrder": 4
+        }
+      },
       "isActive": true,
       "enrolledAt": "2024-01-01T00:00:00.000Z",
       "promotedAt": null,
@@ -795,7 +805,6 @@ Authorization: Bearer <jwt_token>
         "id": "student_id_1",
         "name": "Aarav Mehta",
         "dob": "2015-03-12T00:00:00.000Z",
-        "semesterLevelId": "semester-level-2-id",
         "profileImageUrl": "https://example.com/student1.jpg"
       },
       "center": {
@@ -841,6 +850,15 @@ Authorization: Bearer <jwt_token>
       "semesterId": "semester_id_1",
       "projectId": "project_id_1",
       "semesterLevelId": "semester-level-2-id",
+      "semesterLevel": {
+        "id": "semester-level-2-id",
+        "academicLevel": {
+          "id": "academic-level-2-id",
+          "code": "LEVEL_2",
+          "name": "Level 2",
+          "journeyOrder": 4
+        }
+      },
       "isActive": true,
       "enrolledAt": "2024-01-01T00:00:00.000Z",
       "promotedAt": null,
@@ -848,7 +866,6 @@ Authorization: Bearer <jwt_token>
         "id": "student_id_1",
         "name": "Aarav Mehta",
         "dob": "2015-03-12T00:00:00.000Z",
-        "semesterLevelId": "semester-level-2-id",
         "profileImageUrl": "https://example.com/student1.jpg"
       },
       "project": {
@@ -894,6 +911,15 @@ Authorization: Bearer <jwt_token>
       "semesterId": "semester_id",
       "projectId": "project_id_1",
       "semesterLevelId": "semester-level-2-id",
+      "semesterLevel": {
+        "id": "semester-level-2-id",
+        "academicLevel": {
+          "id": "academic-level-2-id",
+          "code": "LEVEL_2",
+          "name": "Level 2",
+          "journeyOrder": 4
+        }
+      },
       "isActive": true,
       "enrolledAt": "2024-01-01T00:00:00.000Z",
       "promotedAt": null,
@@ -901,7 +927,6 @@ Authorization: Bearer <jwt_token>
         "id": "student_id_1",
         "name": "Aarav Mehta",
         "dob": "2015-03-12T00:00:00.000Z",
-        "semesterLevelId": "semester-level-2-id",
         "profileImageUrl": "https://example.com/student1.jpg"
       },
       "center": {
@@ -952,6 +977,15 @@ Authorization: Bearer <admin_jwt_token>
     "semesterId": "semester_id",
     "projectId": "project_id",
     "semesterLevelId": "semester-level-2-id",
+    "semesterLevel": {
+      "id": "semester-level-2-id",
+      "academicLevel": {
+        "id": "academic-level-2-id",
+        "code": "LEVEL_2",
+        "name": "Level 2",
+        "journeyOrder": 4
+      }
+    },
     "isActive": true,
     "enrolledAt": "2024-01-01T00:00:00.000Z",
     "promotedAt": null,
@@ -989,6 +1023,15 @@ Authorization: Bearer <jwt_token>
       "semesterId": "semester_id_1",
       "projectId": "project_id_1",
       "semesterLevelId": "semester-level-2-id",
+      "semesterLevel": {
+        "id": "semester-level-2-id",
+        "academicLevel": {
+          "id": "academic-level-2-id",
+          "code": "LEVEL_2",
+          "name": "Level 2",
+          "journeyOrder": 4
+        }
+      },
       "isActive": false,
       "enrolledAt": "2024-01-01T00:00:00.000Z",
       "promotedAt": "2024-01-02T00:00:00.000Z",
@@ -1012,6 +1055,15 @@ Authorization: Bearer <jwt_token>
       "semesterId": "semester_id_1",
       "projectId": "project_id_1",
       "semesterLevelId": "semester-level-3-id",
+      "semesterLevel": {
+        "id": "semester-level-3-id",
+        "academicLevel": {
+          "id": "academic-level-3-id",
+          "code": "LEVEL_3",
+          "name": "Level 3",
+          "journeyOrder": 5
+        }
+      },
       "isActive": true,
       "enrolledAt": "2024-01-02T00:00:00.000Z",
       "promotedAt": null,
@@ -1030,10 +1082,24 @@ Authorization: Bearer <jwt_token>
     }
     ],
     "active": [
-      { "id": "enrollment_id_2", "semesterLevelId": "semester-level-3-id" }
+      {
+        "id": "enrollment_id_2",
+        "semesterLevelId": "semester-level-3-id",
+        "semesterLevel": {
+          "id": "semester-level-3-id",
+          "academicLevel": { "id": "academic-level-3-id", "code": "LEVEL_3", "name": "Level 3", "journeyOrder": 5 }
+        }
+      }
     ],
     "inactive": [
-      { "id": "enrollment_id_1", "semesterLevelId": "semester-level-2-id" }
+      {
+        "id": "enrollment_id_1",
+        "semesterLevelId": "semester-level-2-id",
+        "semesterLevel": {
+          "id": "semester-level-2-id",
+          "academicLevel": { "id": "academic-level-2-id", "code": "LEVEL_2", "name": "Level 2", "journeyOrder": 4 }
+        }
+      }
     ]
   }
 }

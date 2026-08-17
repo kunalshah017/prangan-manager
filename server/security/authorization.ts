@@ -11,6 +11,7 @@ type ScopedAssignment = {
   centerId?: string | null;
   semesterId?: string | null;
   semesterLevelId?: string | null;
+  semesterLevel?: { isActive: boolean } | null;
   isActive: boolean;
 };
 
@@ -40,6 +41,10 @@ export const canAccessScope = ({
   return assignments.some(
     (assignment) =>
       assignment.isActive &&
+      (assignment.subRole !== "EDUCATOR" ||
+        (assignment.semesterLevelId !== null &&
+          assignment.semesterLevelId !== undefined &&
+          assignment.semesterLevel?.isActive === true)) &&
       allowedSubRoles.includes(assignment.subRole) &&
       (scope.projectId === undefined ||
         assignment.projectId === scope.projectId) &&

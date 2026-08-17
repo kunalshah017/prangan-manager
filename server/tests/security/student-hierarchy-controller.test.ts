@@ -10,8 +10,10 @@ import { getSemesterByIdController } from "../../controllers/semester.controller
 import {
   addStudent,
   deleteStudentController,
+  createEnrollmentController,
   getStudent,
   getStudentEnrollmentsController,
+  updateEnrollmentController,
   updateStudentController,
 } from "../../controllers/user.controller.js";
 import { Role, SubRole } from "../../generated/prisma/index.js";
@@ -51,15 +53,20 @@ const assignment = (
     semesterId: string;
     semesterLevelId: string;
   }> = {},
-) => ({
-  subRole: SubRole.CENTER_MANAGER,
-  projectId: "project-1",
-  centerId: "center-1",
-  semesterId: "semester-1",
-  semesterLevelId: null,
-  isActive: true,
-  ...overrides,
-});
+) => {
+  const subRole = overrides.subRole ?? SubRole.CENTER_MANAGER;
+  return {
+    subRole,
+    projectId: "project-1",
+    centerId: "center-1",
+    semesterId: "semester-1",
+    semesterLevelId: null,
+    semesterLevel:
+      subRole === SubRole.EDUCATOR ? { isActive: true } : null,
+    isActive: true,
+    ...overrides,
+  };
+};
 
 const studentScope = {
   projectId: "project-1",
@@ -630,6 +637,80 @@ test("student creation rejects an invalid semester level before creating the stu
     prisma.centers.findUnique = originalCenterFindUnique;
     prisma.semesters.findUnique = originalSemesterFindUnique;
     prisma.students.create = originalStudentCreate;
+    prisma.semesterLevel.findFirst = originalSemesterLevelFindFirst;
+  }
+});
+
+test("enrollment creation preserves invalid semester-level status", async () => {
+  const originalCenterFindUnique = prisma.centers.findUnique;
+  const originalSemesterFindUnique = prisma.semesters.findUnique;
+  const originalSemesterLevelFindFirst = prisma.semesterLevel.findFirst;
+
+  prisma.centers.findUnique = (async () => ({
+    projectId: studentScope.projectId,
+  })) as typeof prisma.centers.findUnique;
+  prisma.semesters.findUnique = (async () => ({
+    centerId: studentScope.centerId,
+  })) as typeof prisma.semesters.findUnique;
+  prisma.semesterLevel.findFirst = (async () =>
+    null) as typeof prisma.semesterLevel.findFirst;
+
+  try {
+    const response = createReply();
+    await createEnrollmentController(
+      {
+        user: { id: "admin-1", role: Role.ADMIN },
+        params: { studentId: "student-1" },
+        body: studentScope,
+      } as never,
+      response.reply as never,
+    );
+
+    assert.equal(response.statusCode, 422);
+  } finally {
+    prisma.centers.findUnique = originalCenterFindUnique;
+    prisma.semesters.findUnique = originalSemesterFindUnique;
+    prisma.semesterLevel.findFirst = originalSemesterLevelFindFirst;
+  }
+});
+
+test("enrollment update preserves invalid semester-level status", async () => {
+  const originalEnrollmentFindUnique = prisma.studentEnrollments.findUnique;
+  const originalCenterFindUnique = prisma.centers.findUnique;
+  const originalSemesterFindUnique = prisma.semesters.findUnique;
+  const originalSemesterLevelFindFirst = prisma.semesterLevel.findFirst;
+
+  prisma.studentEnrollments.findUnique = (async () => ({
+    id: "enrollment-1",
+    studentId: "student-1",
+    ...studentScope,
+    isActive: true,
+  })) as typeof prisma.studentEnrollments.findUnique;
+  prisma.centers.findUnique = (async () => ({
+    projectId: studentScope.projectId,
+  })) as typeof prisma.centers.findUnique;
+  prisma.semesters.findUnique = (async () => ({
+    centerId: studentScope.centerId,
+  })) as typeof prisma.semesters.findUnique;
+  prisma.semesterLevel.findFirst = (async () =>
+    null) as typeof prisma.semesterLevel.findFirst;
+
+  try {
+    const response = createReply();
+    await updateEnrollmentController(
+      {
+        user: { id: "admin-1", role: Role.ADMIN },
+        params: { enrollmentId: "enrollment-1" },
+        body: { semesterLevelId: studentScope.semesterLevelId },
+      } as never,
+      response.reply as never,
+    );
+
+    assert.equal(response.statusCode, 422);
+  } finally {
+    prisma.studentEnrollments.findUnique = originalEnrollmentFindUnique;
+    prisma.centers.findUnique = originalCenterFindUnique;
+    prisma.semesters.findUnique = originalSemesterFindUnique;
     prisma.semesterLevel.findFirst = originalSemesterLevelFindFirst;
   }
 });

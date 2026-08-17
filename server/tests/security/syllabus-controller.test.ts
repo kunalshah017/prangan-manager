@@ -490,6 +490,30 @@ test("a curriculum mentor with a null assignment level reaches template import",
   }
 });
 
+test("template import preserves invalid semester-level status", async () => {
+  const originalFindFirst = prisma.semesterLevel.findFirst;
+  prisma.semesterLevel.findFirst = (async () =>
+    null) as typeof prisma.semesterLevel.findFirst;
+
+  try {
+    const response = replyDouble();
+    await importTemplateController(
+      {
+        user: user(Role.ADMIN),
+        body: { ...scope, templateName: "LEVEL_1" },
+      } as never,
+      response.reply as never,
+    );
+
+    assert.equal(response.result().statusCode, 422);
+    assert.deepEqual(response.result().payload, {
+      error: "Semester level is not active for this semester",
+    });
+  } finally {
+    prisma.semesterLevel.findFirst = originalFindFirst;
+  }
+});
+
 test("non-admin progress logs require an ID-backed scope before the log service", async () => {
   const source = await readFile(
     new URL("../../controllers/syllabus.controller.ts", import.meta.url),

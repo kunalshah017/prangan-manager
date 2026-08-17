@@ -248,25 +248,31 @@ test("scoped student detail and history query only active exact enrollment conte
 test("student list derives complete educator contexts and preserves level restrictions", async () => {
   const originalAssignments = prisma.userRoleAssignments.findMany;
   const originalEnrollmentFindMany = prisma.studentEnrollments.findMany;
+  let assignmentQuery: unknown;
   let enrollmentQuery: unknown;
 
-  prisma.userRoleAssignments.findMany = (async () => [
-    {
-      subRole: SubRole.EDUCATOR,
-      projectId: "project-1",
-      centerId: "center-1",
-      semesterId: "semester-1",
-      semesterLevelId: "semester-1-level-1",
-      isActive: true,
-    },
-    {
-      subRole: SubRole.CENTER_MANAGER,
-      projectId: "project-incomplete",
-      centerId: null,
-      semesterId: "semester-1",
-      isActive: true,
-    },
-  ]) as typeof prisma.userRoleAssignments.findMany;
+  prisma.userRoleAssignments.findMany = (async (query: unknown) => {
+    assignmentQuery = query;
+    return [
+      {
+        subRole: SubRole.EDUCATOR,
+        projectId: "project-1",
+        centerId: "center-1",
+        semesterId: "semester-1",
+        semesterLevelId: "semester-1-level-1",
+        semesterLevel: { isActive: true },
+        isActive: true,
+      },
+      {
+        subRole: SubRole.CENTER_MANAGER,
+        projectId: "project-incomplete",
+        centerId: null,
+        semesterId: "semester-1",
+        semesterLevel: null,
+        isActive: true,
+      },
+    ];
+  }) as typeof prisma.userRoleAssignments.findMany;
   prisma.studentEnrollments.findMany = (async (query: unknown) => {
     enrollmentQuery = query;
     return [];
@@ -276,6 +282,17 @@ test("student list derives complete educator contexts and preserves level restri
     await getUserAccessibleStudents("user-1", Role.USER, {
       semesterLevelId: "semester-1-level-1",
     });
+    assert.deepEqual(
+      (assignmentQuery as { where: unknown }).where,
+      {
+        userId: "user-1",
+        isActive: true,
+        OR: [
+          { subRole: { not: SubRole.EDUCATOR } },
+          { semesterLevel: { is: { isActive: true } } },
+        ],
+      },
+    );
     assert.deepEqual((enrollmentQuery as { where: unknown }).where, {
       semesterLevelId: "semester-1-level-1",
       OR: [

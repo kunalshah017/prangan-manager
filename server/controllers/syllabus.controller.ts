@@ -790,6 +790,6 @@ export const importTemplateController = async (
         .status(501)
         .send({ error: "Template import not yet implemented" });
     }
-    return reply.status(500).send({ error: "Failed to import syllabus" });
+    return sendError(reply, error, "Failed to import syllabus");
   }
 };

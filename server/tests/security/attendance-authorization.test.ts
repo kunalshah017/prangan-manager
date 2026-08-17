@@ -38,6 +38,8 @@ const educatorAssignments = [
     projectId: "project-1",
     centerId: "center-1",
     semesterId: "semester-1",
+    semesterLevelId: "semester-1-level-1",
+    semesterLevel: { isActive: true },
     isActive: true,
   },
 ] as const;

@@ -29,6 +29,8 @@ const assignment = (subRole: SubRole, semesterLevelId: string | null = null) =>
       centerId: "center-1",
       semesterId: "semester-1",
       semesterLevelId,
+      semesterLevel:
+        subRole === SubRole.EDUCATOR ? { isActive: true } : null,
       isActive: true,
     },
   ] as const;

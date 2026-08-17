@@ -258,23 +258,47 @@ test("management endpoint preserves invalid semester-level status", async () => 
 
 test("canonical educator assignments are returned without legacy hydration", async () => {
   const originalFindMany = prisma.userRoleAssignments.findMany;
+  let assignmentQuery: unknown;
 
-  prisma.userRoleAssignments.findMany = (async () => [
-    {
-      subRole: SubRole.EDUCATOR,
-      projectId: "project-1",
-      centerId: "center-1",
-      semesterId: "semester-1",
-      semesterLevelId: "semester-1-level-1",
-      isActive: true,
-    },
-  ]) as typeof prisma.userRoleAssignments.findMany;
+  prisma.userRoleAssignments.findMany = (async (query: unknown) => {
+    assignmentQuery = query;
+    return [
+      {
+        subRole: SubRole.EDUCATOR,
+        projectId: "project-1",
+        centerId: "center-1",
+        semesterId: "semester-1",
+        semesterLevelId: "semester-1-level-1",
+        semesterLevel: { isActive: true },
+        isActive: true,
+      },
+    ];
+  }) as typeof prisma.userRoleAssignments.findMany;
 
   try {
     const assignments = await getActiveUserScopeAssignments("educator-1");
     assert.notEqual(typeof assignments, "string");
     assert.equal((assignments as any)[0].semesterLevelId, "semester-1-level-1");
     assert.equal("level" in (assignments as any)[0], false);
+    assert.deepEqual(assignmentQuery, {
+      where: {
+        userId: "educator-1",
+        isActive: true,
+        OR: [
+          { subRole: { not: SubRole.EDUCATOR } },
+          { semesterLevel: { is: { isActive: true } } },
+        ],
+      },
+      select: {
+        subRole: true,
+        projectId: true,
+        centerId: true,
+        semesterId: true,
+        semesterLevelId: true,
+        semesterLevel: { select: { isActive: true } },
+        isActive: true,
+      },
+    });
   } finally {
     prisma.userRoleAssignments.findMany = originalFindMany;
   }
