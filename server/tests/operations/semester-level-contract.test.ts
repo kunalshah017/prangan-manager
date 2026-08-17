@@ -33,6 +33,20 @@ test("contract migration aborts when required canonical references are missing",
     migration,
     /FROM "UserRoleAssignments"[\s\S]*?"semesterLevelId" IS NULL[\s\S]*?"subRole" = 'EDUCATOR'[\s\S]*?RAISE EXCEPTION/,
   );
+  assert.match(migration, /IS DISTINCT FROM/);
+  for (const table of [
+    "UserRoleAssignments",
+    "StudentEnrollments",
+    "Syllabus",
+    "Exam",
+  ]) {
+    assert.match(
+      migration,
+      new RegExp(
+        `FROM "${table}"[\\s\\S]*?JOIN "SemesterLevel"[\\s\\S]*?JOIN "AcademicLevel"[\\s\\S]*?"level" IS NOT NULL`,
+      ),
+    );
+  }
 });
 
 test("contract migration makes operational references canonical-only", async () => {
@@ -114,6 +128,21 @@ test("canonical verifier counts semester-scoped educators without a managed leve
     verifier,
     /"tableName" = 'UserRoleAssignments'[\s\S]*?"subRole" = 'EDUCATOR'[\s\S]*?"semesterId" IS NOT NULL[\s\S]*?"semesterLevelId" IS NULL/,
   );
+});
+
+test("pre-contract verifier reports legacy-to-canonical semantic mismatches", async () => {
+  const verifier = await readFile(
+    new URL(
+      "../../scripts/verify-semester-level-cutover.ts",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.match(verifier, /IS DISTINCT FROM/);
+  assert.match(verifier, /"level" IS NOT NULL/);
+  assert.match(verifier, /"AcademicLevel"/);
+  assert.match(verifier, /mismatchCount/);
 });
 
 test("canonical integrity report is clean when every count is zero", () => {

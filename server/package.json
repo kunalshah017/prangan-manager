@@ -14,6 +14,7 @@
     "db:reset:fixtures": "tsx prisma/seed.ts",
     "db:seed:syllabus": "tsx prisma/seed-syllabus.ts",
     "db:seed:2026-27-curriculum": "tsx scripts/seed-2026-27-curriculum.ts",
+    "db:verify:semester-level-cutover": "tsx scripts/verify-semester-level-cutover.ts",
     "db:backfill:person-names": "tsx scripts/backfill-person-names.ts",
     "db:verify:semester-level-integrity": "tsx scripts/verify-semester-level-integrity.ts",
     "db:verify:remuneration-periods": "tsx scripts/verify-remuneration-periods.ts",

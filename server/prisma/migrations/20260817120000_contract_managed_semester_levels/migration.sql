@@ -70,6 +70,49 @@ BEGIN
 
   SELECT COUNT(*) INTO invalid_count
   FROM (
+    SELECT ura."level" AS "legacyLevel", academic_level."code" AS "academicCode"
+    FROM "UserRoleAssignments" ura
+    LEFT JOIN "SemesterLevel" semester_level
+      ON semester_level."id" = ura."semesterLevelId"
+     AND semester_level."semesterId" = ura."semesterId"
+    LEFT JOIN "AcademicLevel" academic_level
+      ON academic_level."id" = semester_level."academicLevelId"
+    WHERE ura."level" IS NOT NULL
+    UNION ALL
+    SELECT enrollment."level", academic_level."code"
+    FROM "StudentEnrollments" enrollment
+    LEFT JOIN "SemesterLevel" semester_level
+      ON semester_level."id" = enrollment."semesterLevelId"
+     AND semester_level."semesterId" = enrollment."semesterId"
+    LEFT JOIN "AcademicLevel" academic_level
+      ON academic_level."id" = semester_level."academicLevelId"
+    WHERE enrollment."level" IS NOT NULL
+    UNION ALL
+    SELECT syllabus."level", academic_level."code"
+    FROM "Syllabus" syllabus
+    LEFT JOIN "SemesterLevel" semester_level
+      ON semester_level."id" = syllabus."semesterLevelId"
+     AND semester_level."semesterId" = syllabus."semesterId"
+    LEFT JOIN "AcademicLevel" academic_level
+      ON academic_level."id" = semester_level."academicLevelId"
+    WHERE syllabus."level" IS NOT NULL
+    UNION ALL
+    SELECT exam."level", academic_level."code"
+    FROM "Exam" exam
+    LEFT JOIN "SemesterLevel" semester_level
+      ON semester_level."id" = exam."semesterLevelId"
+     AND semester_level."semesterId" = exam."semesterId"
+    LEFT JOIN "AcademicLevel" academic_level
+      ON academic_level."id" = semester_level."academicLevelId"
+    WHERE exam."level" IS NOT NULL
+  ) semantic_mismatch
+  WHERE "legacyLevel" IS DISTINCT FROM "academicCode";
+  IF invalid_count > 0 THEN
+    RAISE EXCEPTION 'Cannot contract managed semester levels: % operational rows have legacy level values that do not match canonical academic level codes', invalid_count;
+  END IF;
+
+  SELECT COUNT(*) INTO invalid_count
+  FROM (
     SELECT "projectId", "centerId", "semesterId", "semesterLevelId", "name"
     FROM "Syllabus"
     GROUP BY "projectId", "centerId", "semesterId", "semesterLevelId", "name"
