@@ -337,7 +337,7 @@ export const useSyllabusStatistics = (filters?: {
   projectId?: string;
   centerId?: string;
   semesterId?: string;
-  level?: string;
+  semesterLevelId?: string;
   enabled?: boolean;
 }) => {
   return useQuery({
@@ -348,7 +348,8 @@ export const useSyllabusStatistics = (filters?: {
       if (filters?.projectId) params.append("projectId", filters.projectId);
       if (filters?.centerId) params.append("centerId", filters.centerId);
       if (filters?.semesterId) params.append("semesterId", filters.semesterId);
-      if (filters?.level) params.append("level", filters.level);
+      if (filters?.semesterLevelId)
+        params.append("semesterLevelId", filters.semesterLevelId);
 
       const response = await api.get<SyllabusStatisticsResponse>(
         `/syllabus/statistics?${params.toString()}`,

@@ -4,7 +4,6 @@ import {
   UserStatus,
   ProjectStatus,
   SubRole,
-  Level,
   CommittedDays,
   type Prisma,
 } from "../generated/prisma/index.js";
@@ -121,6 +120,50 @@ async function seedFixtures(
       },
     }),
   ]);
+
+  const levelDefinitions = [
+    { code: "PRIMARY_A", name: "Primary A", journeyOrder: 1 },
+    { code: "PRIMARY_B", name: "Primary B", journeyOrder: 2 },
+    { code: "LEVEL_1", name: "Level 1", journeyOrder: 3 },
+    { code: "LEVEL_2", name: "Level 2", journeyOrder: 4 },
+    { code: "LEVEL_3", name: "Level 3", journeyOrder: 5 },
+    { code: "LEVEL_4", name: "Level 4", journeyOrder: 6 },
+  ] as const;
+  const academicLevels = await Promise.all(
+    levelDefinitions.map((level) =>
+      prisma.academicLevel.upsert({
+        where: { code: level.code },
+        update: {
+          name: level.name,
+          journeyOrder: level.journeyOrder,
+          isActive: true,
+        },
+        create: { ...level, isActive: true },
+      }),
+    ),
+  );
+  const semesterLevels = await Promise.all(
+    semesters.flatMap((semester) =>
+      academicLevels.map((academicLevel) =>
+        prisma.semesterLevel.create({
+          data: {
+            semesterId: semester.id,
+            academicLevelId: academicLevel.id,
+            isActive: true,
+          },
+          include: { academicLevel: true },
+        }),
+      ),
+    ),
+  );
+  const semesterLevelId = (semesterId: string, code: string): string => {
+    const membership = semesterLevels.find(
+      (level) =>
+        level.semesterId === semesterId && level.academicLevel.code === code,
+    );
+    if (!membership) throw new Error(`Missing ${code} in semester ${semesterId}`);
+    return membership.id;
+  };
 
   // Create Users
   console.log("👥 Creating users...");
@@ -698,7 +741,7 @@ async function seedFixtures(
         centerId: centers[0].id, // Tulip
         projectId: projects[0].id,
         semesterId: semesters[0].id, // Tulip semester
-        level: Level.LEVEL_1,
+        semesterLevelId: semesterLevelId(semesters[0].id, "LEVEL_1"),
         committedDays: CommittedDays.BOTH,
       },
     }),
@@ -710,7 +753,7 @@ async function seedFixtures(
         centerId: centers[0].id, // Tulip
         projectId: projects[0].id,
         semesterId: semesters[0].id, // Tulip semester
-        level: Level.LEVEL_2,
+        semesterLevelId: semesterLevelId(semesters[0].id, "LEVEL_2"),
         committedDays: CommittedDays.SATURDAY,
       },
     }),
@@ -722,7 +765,7 @@ async function seedFixtures(
         centerId: centers[0].id, // Tulip
         projectId: projects[0].id,
         semesterId: semesters[0].id, // Tulip semester
-        level: Level.LEVEL_3,
+        semesterLevelId: semesterLevelId(semesters[0].id, "LEVEL_3"),
         committedDays: CommittedDays.SUNDAY,
       },
     }),
@@ -734,7 +777,7 @@ async function seedFixtures(
         centerId: centers[0].id, // Tulip
         projectId: projects[0].id,
         semesterId: semesters[0].id, // Tulip semester
-        level: Level.LEVEL_4,
+        semesterLevelId: semesterLevelId(semesters[0].id, "LEVEL_4"),
         committedDays: CommittedDays.BOTH,
       },
     }),
@@ -746,7 +789,7 @@ async function seedFixtures(
         centerId: centers[0].id, // Tulip
         projectId: projects[0].id,
         semesterId: semesters[0].id, // Tulip semester
-        level: Level.PRIMARY_A,
+        semesterLevelId: semesterLevelId(semesters[0].id, "PRIMARY_A"),
         committedDays: CommittedDays.SATURDAY,
       },
     }),
@@ -758,7 +801,7 @@ async function seedFixtures(
         centerId: centers[0].id, // Tulip
         projectId: projects[0].id,
         semesterId: semesters[0].id, // Tulip semester
-        level: Level.PRIMARY_B,
+        semesterLevelId: semesterLevelId(semesters[0].id, "PRIMARY_B"),
         committedDays: CommittedDays.SUNDAY,
       },
     }),
@@ -770,7 +813,7 @@ async function seedFixtures(
         centerId: centers[0].id, // Tulip
         projectId: projects[0].id,
         semesterId: semesters[0].id, // Tulip semester
-        level: Level.LEVEL_1,
+        semesterLevelId: semesterLevelId(semesters[0].id, "LEVEL_1"),
         committedDays: CommittedDays.BOTH,
       },
     }),
@@ -782,7 +825,7 @@ async function seedFixtures(
         centerId: centers[0].id, // Tulip
         projectId: projects[0].id,
         semesterId: semesters[0].id, // Tulip semester
-        level: Level.LEVEL_2,
+        semesterLevelId: semesterLevelId(semesters[0].id, "LEVEL_2"),
         committedDays: CommittedDays.SATURDAY,
       },
     }),
@@ -794,7 +837,7 @@ async function seedFixtures(
         centerId: centers[0].id, // Tulip
         projectId: projects[0].id,
         semesterId: semesters[0].id, // Tulip semester
-        level: Level.LEVEL_3,
+        semesterLevelId: semesterLevelId(semesters[0].id, "LEVEL_3"),
         committedDays: CommittedDays.SUNDAY,
       },
     }),
@@ -806,7 +849,7 @@ async function seedFixtures(
         centerId: centers[0].id, // Tulip
         projectId: projects[0].id,
         semesterId: semesters[0].id, // Tulip semester
-        level: Level.LEVEL_4,
+        semesterLevelId: semesterLevelId(semesters[0].id, "LEVEL_4"),
         committedDays: CommittedDays.BOTH,
       },
     }),
@@ -819,7 +862,7 @@ async function seedFixtures(
         centerId: centers[1].id, // Lavender
         projectId: projects[0].id,
         semesterId: semesters[1].id, // Lavender semester
-        level: Level.LEVEL_1,
+        semesterLevelId: semesterLevelId(semesters[1].id, "LEVEL_1"),
         committedDays: CommittedDays.BOTH,
       },
     }),
@@ -831,7 +874,7 @@ async function seedFixtures(
         centerId: centers[1].id, // Lavender
         projectId: projects[0].id,
         semesterId: semesters[1].id, // Lavender semester
-        level: Level.LEVEL_2,
+        semesterLevelId: semesterLevelId(semesters[1].id, "LEVEL_2"),
         committedDays: CommittedDays.SATURDAY,
       },
     }),
@@ -843,7 +886,7 @@ async function seedFixtures(
         centerId: centers[1].id, // Lavender
         projectId: projects[0].id,
         semesterId: semesters[1].id, // Lavender semester
-        level: Level.LEVEL_3,
+        semesterLevelId: semesterLevelId(semesters[1].id, "LEVEL_3"),
         committedDays: CommittedDays.SUNDAY,
       },
     }),
@@ -855,7 +898,7 @@ async function seedFixtures(
         centerId: centers[1].id, // Lavender
         projectId: projects[0].id,
         semesterId: semesters[1].id, // Lavender semester
-        level: Level.LEVEL_4,
+        semesterLevelId: semesterLevelId(semesters[1].id, "LEVEL_4"),
         committedDays: CommittedDays.BOTH,
       },
     }),
@@ -867,7 +910,7 @@ async function seedFixtures(
         centerId: centers[1].id, // Lavender
         projectId: projects[0].id,
         semesterId: semesters[1].id, // Lavender semester
-        level: Level.PRIMARY_A,
+        semesterLevelId: semesterLevelId(semesters[1].id, "PRIMARY_A"),
         committedDays: CommittedDays.SATURDAY,
       },
     }),
@@ -879,7 +922,7 @@ async function seedFixtures(
         centerId: centers[1].id, // Lavender
         projectId: projects[0].id,
         semesterId: semesters[1].id, // Lavender semester
-        level: Level.PRIMARY_B,
+        semesterLevelId: semesterLevelId(semesters[1].id, "PRIMARY_B"),
         committedDays: CommittedDays.SUNDAY,
       },
     }),
@@ -891,7 +934,7 @@ async function seedFixtures(
         centerId: centers[1].id, // Lavender
         projectId: projects[0].id,
         semesterId: semesters[1].id, // Lavender semester
-        level: Level.LEVEL_1,
+        semesterLevelId: semesterLevelId(semesters[1].id, "LEVEL_1"),
         committedDays: CommittedDays.BOTH,
       },
     }),
@@ -903,7 +946,7 @@ async function seedFixtures(
         centerId: centers[1].id, // Lavender
         projectId: projects[0].id,
         semesterId: semesters[1].id, // Lavender semester
-        level: Level.LEVEL_2,
+        semesterLevelId: semesterLevelId(semesters[1].id, "LEVEL_2"),
         committedDays: CommittedDays.SATURDAY,
       },
     }),
@@ -915,7 +958,7 @@ async function seedFixtures(
         centerId: centers[1].id, // Lavender
         projectId: projects[0].id,
         semesterId: semesters[1].id, // Lavender semester
-        level: Level.LEVEL_3,
+        semesterLevelId: semesterLevelId(semesters[1].id, "LEVEL_3"),
         committedDays: CommittedDays.SUNDAY,
       },
     }),
@@ -927,7 +970,7 @@ async function seedFixtures(
         centerId: centers[1].id, // Lavender
         projectId: projects[0].id,
         semesterId: semesters[1].id, // Lavender semester
-        level: Level.LEVEL_4,
+        semesterLevelId: semesterLevelId(semesters[1].id, "LEVEL_4"),
         committedDays: CommittedDays.BOTH,
       },
     }),
@@ -1178,7 +1221,7 @@ async function seedFixtures(
           centerId: centerId,
           semesterId: semesterId,
           projectId: projects[0].id,
-          level: Level.LEVEL_1,
+          semesterLevelId: semesterLevelId(semesterId, "LEVEL_1"),
           isActive: true,
         },
       }),
@@ -1196,7 +1239,7 @@ async function seedFixtures(
           centerId: centerId,
           semesterId: semesterId,
           projectId: projects[0].id,
-          level: Level.LEVEL_2,
+          semesterLevelId: semesterLevelId(semesterId, "LEVEL_2"),
           isActive: true,
         },
       }),
@@ -1214,7 +1257,7 @@ async function seedFixtures(
           centerId: centerId,
           semesterId: semesterId,
           projectId: projects[0].id,
-          level: Level.LEVEL_3,
+          semesterLevelId: semesterLevelId(semesterId, "LEVEL_3"),
           isActive: true,
         },
       }),
@@ -1232,7 +1275,7 @@ async function seedFixtures(
           centerId: centerId,
           semesterId: semesterId,
           projectId: projects[0].id,
-          level: Level.LEVEL_4,
+          semesterLevelId: semesterLevelId(semesterId, "LEVEL_4"),
           isActive: true,
         },
       }),
@@ -1250,7 +1293,7 @@ async function seedFixtures(
           centerId: centerId,
           semesterId: semesterId,
           projectId: projects[0].id,
-          level: Level.PRIMARY_A,
+          semesterLevelId: semesterLevelId(semesterId, "PRIMARY_A"),
           isActive: true,
         },
       }),
@@ -1268,7 +1311,7 @@ async function seedFixtures(
           centerId: centerId,
           semesterId: semesterId,
           projectId: projects[0].id,
-          level: Level.PRIMARY_B,
+          semesterLevelId: semesterLevelId(semesterId, "PRIMARY_B"),
           isActive: true,
         },
       }),

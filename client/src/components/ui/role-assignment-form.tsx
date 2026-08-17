@@ -152,7 +152,6 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
             assignment.subRole = value as RoleAssignment['subRole'];
             // Clear incompatible fields
             if (value !== 'EDUCATOR') {
-                delete assignment.level;
                 delete assignment.semesterLevelId;
                 delete assignment.semesterLevel;
             }

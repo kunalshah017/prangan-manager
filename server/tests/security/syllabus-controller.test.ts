@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { Role, SubRole, Level } from "../../generated/prisma/index.js";
+import { Role, SubRole } from "../../generated/prisma/index.js";
+import { ACADEMIC_LEVEL_CODES } from "../helpers/academic-level-codes.js";
 import {
   createTopicController,
   deleteSyllabusController,
@@ -22,7 +23,6 @@ const scope = {
   centerId: "center-1",
   semesterId: "semester-1",
   semesterLevelId: "semester-1-level-1",
-  level: Level.LEVEL_1,
 };
 
 const wrongScopeAssignment = {
@@ -31,7 +31,6 @@ const wrongScopeAssignment = {
   centerId: "center-1",
   semesterId: "semester-1",
   semesterLevelId: null,
-  level: Level.LEVEL_1,
   isActive: true,
 };
 
@@ -65,7 +64,7 @@ const mockSemesterLevels = () => {
     return {
       id,
       academicLevel: {
-        code: id === "semester-1-level-2" ? Level.LEVEL_2 : Level.LEVEL_1,
+        code: id === "semester-1-level-2" ? ACADEMIC_LEVEL_CODES.LEVEL_2 : ACADEMIC_LEVEL_CODES.LEVEL_1,
       },
     };
   }) as typeof prisma.semesterLevel.findFirst;
@@ -132,7 +131,6 @@ test("educator assigned to another level cannot update a topic status", async ()
       ...wrongScopeAssignment,
       subRole: SubRole.EDUCATOR,
       semesterLevelId: "semester-1-level-2",
-      level: Level.LEVEL_2,
     },
   ]) as typeof prisma.userRoleAssignments.findMany;
   prisma.$transaction = (async () => {
@@ -445,7 +443,6 @@ test("a curriculum mentor with a null assignment level reaches template import",
       centerId: scope.centerId,
       semesterId: scope.semesterId,
       semesterLevelId: null,
-      level: null,
       isActive: true,
     },
   ]) as typeof prisma.userRoleAssignments.findMany;

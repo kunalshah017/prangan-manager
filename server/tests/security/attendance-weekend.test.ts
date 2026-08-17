@@ -148,7 +148,6 @@ test("attendance records include the staff profile image used by the client matr
         roleAssignment: {
           id: "assignment-1",
           subRole: "EDUCATOR",
-          level: "LEVEL_2",
           committedDays: "BOTH",
         },
       },

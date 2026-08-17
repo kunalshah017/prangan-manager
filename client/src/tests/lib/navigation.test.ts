@@ -21,7 +21,6 @@ const assignment = (
   projectId: context.projectId,
   centerId: context.centerId,
   semesterId: context.semesterId,
-  level: "LEVEL_1" as const,
   isActive: true,
 });
 

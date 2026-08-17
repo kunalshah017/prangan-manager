@@ -50,8 +50,7 @@ export interface StudentAttendanceWithDetails {
   };
   enrollment: {
     id: string;
-    level: string;
-    semesterLevelId: string | null;
+    semesterLevelId: string;
     semesterLevel: {
       id: string;
       academicLevel: {

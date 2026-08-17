@@ -1,6 +1,3 @@
-/** @deprecated Use SemesterLevel references for operational data. */
-export type LegacyLevel = string;
-
 export interface AcademicLevel {
   id: string;
   code: string;
@@ -24,8 +21,6 @@ export interface SemesterLevel {
 export interface LevelReference {
   semesterLevelId?: string | null;
   semesterLevel?: SemesterLevel | null;
-  /** @deprecated Use semesterLevelId and semesterLevel. */
-  level?: LegacyLevel;
 }
 
 // Base Entity Types
@@ -237,7 +232,6 @@ export interface Student extends LevelReference {
   futureProfessionImageUrl?: string;
   createdAt: string;
   updatedAt: string;
-  // Legacy level remains during page migration.
 }
 
 export interface StudentEnrollment extends LevelReference {
@@ -246,8 +240,8 @@ export interface StudentEnrollment extends LevelReference {
   centerId: string;
   semesterId: string;
   projectId: string;
-  /** @deprecated Use semesterLevelId and semesterLevel. */
-  level: LegacyLevel;
+  semesterLevelId: string;
+  semesterLevel: SemesterLevel;
   isActive: boolean;
   enrolledAt: string;
   promotedAt?: string;
@@ -507,7 +501,9 @@ export type SemesterUsersResponse = EntityListResponse<
 >;
 
 // Role Assignment Types
-export interface RoleAssignment extends LevelReference {
+export interface RoleAssignment {
+  semesterLevelId?: string | null;
+  semesterLevel?: SemesterLevel | null;
   subRole:
     | "TRAINING_DEVELOPMENT"
     | "RECRUITMENT"
@@ -684,8 +680,8 @@ export interface StudentAttendanceRecord {
   };
   enrollment?: LevelReference & {
     id: string;
-    /** @deprecated Use semesterLevelId and semesterLevel. */
-    level: LegacyLevel;
+    semesterLevelId: string;
+    semesterLevel: SemesterLevel;
   };
   project?: {
     id: string;
@@ -842,9 +838,6 @@ export interface ApiError {
 // SYLLABUS TYPES
 // ============================================
 
-/** @deprecated Use managed AcademicLevel and SemesterLevel references. */
-export type Level = LegacyLevel;
-
 export type AssessmentCycle = "PRE_ASSESSMENT" | "SA_1" | "SA_2" | "SA_3";
 export type CurriculumAssessmentCycle = Exclude<
   AssessmentCycle,
@@ -858,8 +851,8 @@ export interface Syllabus extends LevelReference {
   projectId: string;
   centerId: string;
   semesterId: string;
-  /** @deprecated Use semesterLevelId and semesterLevel. */
-  level: Level;
+  semesterLevelId: string;
+  semesterLevel: SemesterLevel;
   name: string;
   description?: string;
   isActive: boolean;
@@ -940,7 +933,7 @@ export interface SyllabusStatistics {
   syllabusDetails?: {
     id: string;
     name: string;
-    level: Level;
+    semesterLevelId: string;
     totalTopics: number;
     completedTopics: number;
     completionPercentage: number;
@@ -952,8 +945,7 @@ export interface CreateSyllabusRequest extends LevelReference {
   projectId: string;
   centerId: string;
   semesterId: string;
-  /** @deprecated Use semesterLevelId. */
-  level?: Level;
+  semesterLevelId: string;
   name: string;
   description?: string;
 }

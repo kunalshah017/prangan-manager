@@ -78,8 +78,6 @@ export const queryKeys = {
   student: (id: string) => ["students", id] as const,
   studentsBySemesterLevel: (semesterLevelId: string) =>
     ["students", "semester-level", semesterLevelId] as const,
-  /** @deprecated Use studentsBySemesterLevel. */
-  studentsByLevel: (level: string) => ["students", "level", level] as const,
 
   // Syllabus
   syllabi: ["syllabi"] as const,

@@ -517,9 +517,9 @@ const UserDetails = () => {
                                                     )}
                                                 </div>
 
-                                                {(assignment.semesterLevel || assignment.level) && assignment.subRole === 'EDUCATOR' && (
+                                                {assignment.semesterLevel && assignment.subRole === 'EDUCATOR' && (
                                                     <p className="text-xs text-gray-600 mt-1">
-                                                        Level: {levelName(assignment.semesterLevel, assignment.level)}
+                                                        Level: {levelName(assignment.semesterLevel)}
                                                     </p>
                                                 )}
                                                 {assignment.committedDays && (assignment.subRole === 'CENTER_MANAGER' || assignment.subRole === 'EDUCATOR') && (

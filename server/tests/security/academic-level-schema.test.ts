@@ -8,8 +8,12 @@ const migrationUrl = new URL(
   "../../prisma/migrations/20260722120000_expand_managed_semester_levels/migration.sql",
   import.meta.url,
 );
+const contractMigrationUrl = new URL(
+  "../../prisma/migrations/20260817120000_contract_managed_semester_levels/migration.sql",
+  import.meta.url,
+);
 
-test("managed academic levels allow new codes in every legacy mirror", async () => {
+test("operational models use only managed semester-level references", async () => {
   const schema = await readFile(schemaUrl, "utf8");
 
   assert.match(schema, /model AcademicLevel \{/);
@@ -30,15 +34,21 @@ test("managed academic levels allow new codes in every legacy mirror", async () 
       new RegExp(`model ${model} \\{[\\s\\S]*?\\n\\}`),
     )?.[0];
     assert.ok(source, `expected ${model} model`);
-    assert.match(source, /semesterLevelId\s+String\?/);
-    assert.match(source, /semesterLevel\s+SemesterLevel\?/);
     assert.match(
       source,
       model === "UserRoleAssignments"
-        ? /level\s+String\?/
-        : /level\s+String\b(?!\?)/,
+        ? /semesterLevelId\s+String\?/
+        : /semesterLevelId\s+String\b(?!\?)/,
     );
+    assert.match(
+      source,
+      model === "UserRoleAssignments"
+        ? /semesterLevel\s+SemesterLevel\?/
+        : /semesterLevel\s+SemesterLevel\b(?!\?)/,
+    );
+    assert.doesNotMatch(source, /\n\s*level\s+String/);
   }
+  assert.doesNotMatch(schema, /enum Level\s*\{/);
 });
 
 test("managed level code migration preserves legacy values as text", async () => {
@@ -103,4 +113,25 @@ test("expand migration is additive and enforces semester-matched level reference
   assert.match(migration, /BEGIN;/);
   assert.match(migration, /COMMIT;/);
   assert.doesNotMatch(migration, /\bDROP\b|\bTRUNCATE\b|\bDELETE FROM\b/);
+});
+
+test("contract migration removes compatibility columns after guarded validation", async () => {
+  const migration = await readFile(contractMigrationUrl, "utf8");
+
+  for (const table of [
+    "UserRoleAssignments",
+    "StudentEnrollments",
+    "Syllabus",
+    "Exam",
+  ]) {
+    assert.match(
+      migration,
+      new RegExp(`ALTER TABLE "${table}"[\\s\\S]*?DROP COLUMN "level"`),
+    );
+  }
+  assert.match(
+    migration,
+    /canonical references are missing or belong to another semester/,
+  );
+  assert.match(migration, /DROP TYPE IF EXISTS "Level"/);
 });

@@ -1,7 +1,6 @@
 import {
   AssessmentCycle,
   PrismaClient,
-  Level,
 } from "../generated/prisma/index.js";
 import { assertAdditiveLocalSeedAllowed } from "./seed-safety.js";
 
@@ -13,7 +12,7 @@ interface TopicData {
 }
 
 interface SyllabusData {
-  level: Level;
+  academicLevelCode: string;
   name: string;
   description: string;
   topics: TopicData[];
@@ -21,7 +20,7 @@ interface SyllabusData {
 
 // Primary A Syllabus Data
 const primaryASyllabus: SyllabusData = {
-  level: "PRIMARY_A",
+  academicLevelCode: "PRIMARY_A",
   name: "Primary A Complete Syllabus",
   description: "Complete syllabus for Primary A level",
   topics: [
@@ -221,7 +220,7 @@ const primaryASyllabus: SyllabusData = {
 
 // Primary B Syllabus Data
 const primaryBSyllabus: SyllabusData = {
-  level: "PRIMARY_B",
+  academicLevelCode: "PRIMARY_B",
   name: "Primary B Complete Syllabus",
   description: "Complete syllabus for Primary B level",
   topics: [
@@ -530,7 +529,7 @@ const primaryBSyllabus: SyllabusData = {
 
 // Level 1 Syllabus Data
 const level1Syllabus: SyllabusData = {
-  level: "LEVEL_1",
+  academicLevelCode: "LEVEL_1",
   name: "Level 1 Complete Syllabus",
   description: "Complete syllabus for Level 1",
   topics: [
@@ -788,7 +787,7 @@ const level1Syllabus: SyllabusData = {
 
 // Level 2 Syllabus Data
 const level2Syllabus: SyllabusData = {
-  level: "LEVEL_2",
+  academicLevelCode: "LEVEL_2",
   name: "Level 2 Complete Syllabus",
   description: "Complete syllabus for Level 2",
   topics: [
@@ -1062,7 +1061,7 @@ const level2Syllabus: SyllabusData = {
 
 // Level 3 Syllabus Data
 const level3Syllabus: SyllabusData = {
-  level: "LEVEL_3",
+  academicLevelCode: "LEVEL_3",
   name: "Level 3 Complete Syllabus",
   description: "Complete syllabus for Level 3",
   topics: [
@@ -1329,7 +1328,7 @@ const level3Syllabus: SyllabusData = {
 
 // Level 4 Syllabus Data
 const level4Syllabus: SyllabusData = {
-  level: "LEVEL_4",
+  academicLevelCode: "LEVEL_4",
   name: "Level 4 Complete Syllabus",
   description: "Complete syllabus for Level 4",
   topics: [
@@ -1644,13 +1643,25 @@ async function seedSyllabiForCenter(
   for (const syllabusData of syllabi) {
     console.log(`\n📖 Creating syllabus: ${syllabusData.name}`);
 
+    const semesterLevel = await prisma.semesterLevel.findFirst({
+      where: {
+        semesterId: semester.id,
+        academicLevel: { code: syllabusData.academicLevelCode },
+      },
+    });
+    if (!semesterLevel) {
+      throw new Error(
+        `Semester ${semester.id} does not include ${syllabusData.academicLevelCode}`,
+      );
+    }
+
     // Check if syllabus already exists
     const existingSyllabus = await prisma.syllabus.findFirst({
       where: {
         projectId: project.id,
         centerId: center.id,
         semesterId: semester.id,
-        level: syllabusData.level,
+        semesterLevelId: semesterLevel.id,
         name: syllabusData.name,
       },
     });
@@ -1666,7 +1677,7 @@ async function seedSyllabiForCenter(
         projectId: project.id,
         centerId: center.id,
         semesterId: semester.id,
-        level: syllabusData.level,
+        semesterLevelId: semesterLevel.id,
         name: syllabusData.name,
         description: syllabusData.description,
         isActive: true,

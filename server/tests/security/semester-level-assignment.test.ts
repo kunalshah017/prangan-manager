@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { Level, SubRole } from "../../generated/prisma/index.js";
+import { SubRole } from "../../generated/prisma/index.js";
+import { ACADEMIC_LEVEL_CODES } from "../helpers/academic-level-codes.js";
 import { prisma } from "../../lib/prisma.js";
 import {
   createUserRoleAssignment,
@@ -24,7 +25,7 @@ const mockHierarchy = () => {
   };
 };
 
-test("educator assignment validates its semester level and dual-writes the legacy code", async () => {
+test("educator assignment validates and writes only its semester level ID", async () => {
   const restoreHierarchy = mockHierarchy();
   const originalSemesterLevelFindFirst = prisma.semesterLevel.findFirst;
   const originalCreate = prisma.userRoleAssignments.create;
@@ -32,7 +33,7 @@ test("educator assignment validates its semester level and dual-writes the legac
 
   prisma.semesterLevel.findFirst = (async () => ({
     id: "semester-level-1",
-    academicLevel: { code: Level.LEVEL_1 },
+    academicLevel: { code: ACADEMIC_LEVEL_CODES.LEVEL_1 },
   })) as typeof prisma.semesterLevel.findFirst;
   prisma.userRoleAssignments.create = (async (args: unknown) => {
     createArgs = args;
@@ -56,8 +57,8 @@ test("educator assignment validates its semester level and dual-writes the legac
       centerId: "center-1",
       semesterId: "semester-1",
       semesterLevelId: "semester-level-1",
-      level: Level.LEVEL_1,
     });
+    assert.equal("level" in (createArgs as any).data, false);
     assert.deepEqual((createArgs as any).include.semesterLevel, {
       include: { academicLevel: true },
     });
@@ -68,7 +69,7 @@ test("educator assignment validates its semester level and dual-writes the legac
   }
 });
 
-test("non-educator bulk assignments clear semester level and legacy level", async () => {
+test("non-educator bulk assignments clear the semester level without a legacy field", async () => {
   const restoreHierarchy = mockHierarchy();
   const originalTransaction = prisma.$transaction;
   let createData: unknown;
@@ -93,12 +94,11 @@ test("non-educator bulk assignments clear semester level and legacy level", asyn
         centerId: "center-1",
         semesterId: "semester-1",
         semesterLevelId: "cached-id",
-        level: Level.LEVEL_1,
       },
     ]);
 
     assert.equal((createData as any).semesterLevelId, null);
-    assert.equal((createData as any).level, null);
+    assert.equal("level" in (createData as any), false);
   } finally {
     restoreHierarchy();
     prisma.$transaction = originalTransaction;
@@ -123,7 +123,6 @@ test("bulk assignment reconciliation preserves unchanged semester assignment IDs
             centerId: "center-1",
             semesterId: "semester-1",
             semesterLevelId: null,
-            level: null,
             committedDays: null,
             isActive: true,
           },
@@ -185,9 +184,8 @@ test("assignment rejects semesterLevelId without semesterId before Prisma create
   }
 });
 
-test("legacy-only educator assignments are resolved before authorization", async () => {
+test("canonical educator assignments are returned without legacy hydration", async () => {
   const originalFindMany = prisma.userRoleAssignments.findMany;
-  const originalSemesterLevelFindFirst = prisma.semesterLevel.findFirst;
 
   prisma.userRoleAssignments.findMany = (async () => [
     {
@@ -195,22 +193,17 @@ test("legacy-only educator assignments are resolved before authorization", async
       projectId: "project-1",
       centerId: "center-1",
       semesterId: "semester-1",
-      semesterLevelId: null,
-      level: Level.LEVEL_1,
+      semesterLevelId: "semester-1-level-1",
       isActive: true,
     },
   ]) as typeof prisma.userRoleAssignments.findMany;
-  prisma.semesterLevel.findFirst = (async () => ({
-    id: "semester-1-level-1",
-    academicLevel: { code: Level.LEVEL_1 },
-  })) as typeof prisma.semesterLevel.findFirst;
 
   try {
     const assignments = await getActiveUserScopeAssignments("educator-1");
     assert.notEqual(typeof assignments, "string");
     assert.equal((assignments as any)[0].semesterLevelId, "semester-1-level-1");
+    assert.equal("level" in (assignments as any)[0], false);
   } finally {
     prisma.userRoleAssignments.findMany = originalFindMany;
-    prisma.semesterLevel.findFirst = originalSemesterLevelFindFirst;
   }
 });

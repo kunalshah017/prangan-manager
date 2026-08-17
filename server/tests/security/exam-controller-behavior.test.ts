@@ -10,7 +10,8 @@ import {
   getStudentScoresController,
   updateStudentScoreController,
 } from "../../controllers/exam.controller.js";
-import { Level, Role, SubRole } from "../../generated/prisma/index.js";
+import { Role, SubRole } from "../../generated/prisma/index.js";
+import { ACADEMIC_LEVEL_CODES } from "../helpers/academic-level-codes.js";
 import { prisma } from "../../lib/prisma.js";
 
 const createReply = () => {
@@ -51,7 +52,6 @@ const wrongAssignment = {
   centerId: "center-2",
   semesterId: "semester-2",
   semesterLevelId: "semester-2-level-2",
-  level: Level.LEVEL_2,
   isActive: true,
 };
 
@@ -60,7 +60,6 @@ const examScope = {
   centerId: "center-1",
   semesterId: "semester-1",
   semesterLevelId: "semester-1-level-1",
-  level: Level.LEVEL_1,
 };
 
 const mockSemesterLevels = () => {
@@ -68,7 +67,7 @@ const mockSemesterLevels = () => {
   prisma.semesterLevel.findFirst = (async ({ where }: any) => ({
     id: where.id,
     academicLevel: {
-      code: where.id?.includes("level-2") ? Level.LEVEL_2 : Level.LEVEL_1,
+      code: where.id?.includes("level-2") ? ACADEMIC_LEVEL_CODES.LEVEL_2 : ACADEMIC_LEVEL_CODES.LEVEL_1,
     },
   })) as typeof prisma.semesterLevel.findFirst;
   return () => {

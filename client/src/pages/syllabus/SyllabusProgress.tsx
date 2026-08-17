@@ -296,7 +296,7 @@ const SyllabusProgress = () => {
     <WorkspacePage className="min-w-0 space-y-6">
       <WorkspacePageHeader
         title={syllabus.name}
-        badge={levelName(syllabus.semesterLevel, syllabus.level)}
+        badge={levelName(syllabus.semesterLevel)}
         description={
           syllabus.description ||
           "Track curriculum delivery across each summative assessment cycle."

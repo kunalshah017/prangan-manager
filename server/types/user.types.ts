@@ -1,10 +1,5 @@
 // Remove custom User interface and export Prisma types
-export type {
-  User,
-  Role,
-  UserStatus,
-  Level,
-} from "../generated/prisma/index.js";
+export type { User, Role, UserStatus } from "../generated/prisma/index.js";
 
 // Optional: Create custom types for API requests if needed
 export interface UserRegistrationRequest {

@@ -107,7 +107,6 @@ export const getActiveUsersForAttendance = async (
     roleAssignments: user.roleAssignments.map((assignment) => ({
       id: assignment.id,
       subRole: assignment.subRole as string,
-      level: (assignment.level as string) || undefined,
       semesterLevelId: assignment.semesterLevelId || undefined,
       semesterLevel: assignment.semesterLevel || undefined,
       committedDays: (assignment.committedDays as CommittedDays) || undefined,
@@ -482,7 +481,6 @@ export const getAttendanceRecords = async (
           select: {
             id: true,
             subRole: true,
-            level: true,
             semesterLevelId: true,
             semesterLevel: { include: { academicLevel: true } },
             committedDays: true,
@@ -528,7 +526,6 @@ export const getAttendanceRecords = async (
     roleAssignment: {
       id: attendance.roleAssignment.id,
       subRole: attendance.roleAssignment.subRole,
-      level: attendance.roleAssignment.level || undefined,
       semesterLevelId: attendance.roleAssignment.semesterLevelId || undefined,
       semesterLevel: attendance.roleAssignment.semesterLevel || undefined,
       committedDays: attendance.roleAssignment.committedDays || undefined,

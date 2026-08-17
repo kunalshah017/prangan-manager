@@ -1,4 +1,3 @@
-import { Level } from "../generated/prisma/index.js";
 import { prisma } from "../lib/prisma.js";
 import { buildScoreComponents } from "../security/exam-score-input.js";
 import {
@@ -19,8 +18,7 @@ import { resolveSemesterLevelInput } from "./semester-level.service.js";
 const verifyExamScope = async <
   T extends {
     semesterId: string;
-    semesterLevelId: string | null;
-    level: string;
+    semesterLevelId: string;
   },
 >(
   scope: T | null,
@@ -38,7 +36,6 @@ export const getExamScope = async (id: string) => {
       centerId: true,
       semesterId: true,
       semesterLevelId: true,
-      level: true,
     },
   });
   return verifyExamScope(scope);
@@ -54,7 +51,6 @@ export const getScoreScope = async (id: string) => {
           centerId: true,
           semesterId: true,
           semesterLevelId: true,
-          level: true,
         },
       },
     },
@@ -77,7 +73,6 @@ export const createExam = async (
     centerId,
     semesterId,
     semesterLevelId,
-    level,
     cycle,
     name,
     description,
@@ -90,7 +85,6 @@ export const createExam = async (
   const semesterLevel = await resolveSemesterLevelInput({
     semesterId,
     semesterLevelId,
-    level,
   });
 
   // Calculate total max marks
@@ -119,7 +113,6 @@ export const createExam = async (
       centerId,
       semesterId,
       semesterLevelId: semesterLevel.id,
-      level: semesterLevel.academicLevel.code as Level,
       cycle,
       name,
       description,
@@ -209,7 +202,6 @@ export const getExams = async (
     centerId,
     semesterId,
     semesterLevelId,
-    level,
     cycle,
     isActive,
     startDate,
@@ -222,7 +214,6 @@ export const getExams = async (
       ...(centerId && { centerId }),
       ...(semesterId && { semesterId }),
       ...(semesterLevelId && { semesterLevelId }),
-      ...(level && { level }),
       ...(cycle && { cycle }),
       ...(isActive !== undefined && { isActive }),
       ...(startDate && {
@@ -274,14 +265,12 @@ export const updateExam = async (
     throw new Error("Exam not found");
   }
 
-  if (data.semesterLevelId || data.level) {
+  if (data.semesterLevelId) {
     const semesterLevel = await resolveSemesterLevelInput({
       semesterId: exam.semesterId,
-      semesterLevelId: data.semesterLevelId ?? exam.semesterLevelId,
-      level: data.level ?? (data.semesterLevelId ? undefined : exam.level),
+      semesterLevelId: data.semesterLevelId,
     });
     updateData.semesterLevelId = semesterLevel.id;
-    updateData.level = semesterLevel.academicLevel.code as Level;
   }
 
   if (
@@ -413,7 +402,6 @@ export const createStudentScore = async (
       centerId: true,
       semesterId: true,
       semesterLevelId: true,
-      level: true,
     },
   });
 
@@ -448,7 +436,7 @@ export const createStudentScore = async (
           id: true,
           name: true,
           examDate: true,
-          level: true,
+          semesterLevelId: true,
         },
       },
       student: {
@@ -520,7 +508,6 @@ export const bulkCreateScores = async (
       centerId: true,
       semesterId: true,
       semesterLevelId: true,
-      level: true,
     },
   });
   const validPairs = new Set(
@@ -568,7 +555,7 @@ export const bulkCreateScores = async (
               id: true,
               name: true,
               examDate: true,
-              level: true,
+              semesterLevelId: true,
             },
           },
           student: {
@@ -613,7 +600,7 @@ export const getStudentScoreById = async (
           id: true,
           name: true,
           examDate: true,
-          level: true,
+          semesterLevelId: true,
         },
       },
       student: {
@@ -664,7 +651,7 @@ export const getStudentScores = async (
           id: true,
           name: true,
           examDate: true,
-          level: true,
+          semesterLevelId: true,
         },
       },
       student: {
@@ -747,7 +734,7 @@ export const updateStudentScore = async (
           id: true,
           name: true,
           examDate: true,
-          level: true,
+          semesterLevelId: true,
         },
       },
       student: {
@@ -821,7 +808,7 @@ export const getExamStatistics = async (
       projectId: exam.projectId,
       centerId: exam.centerId,
       semesterId: exam.semesterId,
-      level: exam.level,
+      semesterLevelId: exam.semesterLevelId,
       isActive: true,
     },
   });

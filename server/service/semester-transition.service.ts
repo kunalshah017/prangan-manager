@@ -1,6 +1,5 @@
 import {
   AssessmentCycle,
-  Level,
   SemesterStatus,
   SemesterTransitionStatus,
   SubRole,
@@ -56,7 +55,6 @@ const loadTarget = (database: Transaction | typeof prisma, semesterId: string) =
 
 type PromotionEnrollment = {
   id: string;
-  level: string;
   semesterLevelId: string | null;
   semesterLevel: {
     academicLevel: {
@@ -97,7 +95,6 @@ const loadPromotionSuggestions = async (
         createdAt: true,
         totalMaxMarks: true,
         semesterLevelId: true,
-        level: true,
         studentScores: {
           where: { enrollmentId: { in: enrollments.map((row) => row.id) } },
           select: {
@@ -113,17 +110,11 @@ const loadPromotionSuggestions = async (
 
   return new Map(
     enrollments.map((enrollment) => {
-      const sourceAcademicLevel =
-        enrollment.semesterLevel?.academicLevel ??
-        activeAcademicLevels.find((level) => level.code === enrollment.level) ??
-        null;
+      const sourceAcademicLevel = enrollment.semesterLevel?.academicLevel ?? null;
       const assessment = selectLatestAssessment(
         exams
           .filter(
-            (candidate) =>
-              (enrollment.semesterLevelId &&
-                candidate.semesterLevelId === enrollment.semesterLevelId) ||
-              candidate.level === enrollment.level,
+            (candidate) => candidate.semesterLevelId === enrollment.semesterLevelId,
           )
           .map((exam) => {
             const score =
@@ -275,7 +266,6 @@ export const initializeSemesterTransition = async (
           ...(assignment.subRole === SubRole.EDUCATOR &&
             targetLevel && {
               semesterLevelId: targetLevel.id,
-              level: targetLevel.academicLevel.code as Level,
             }),
           ...(assignment.committedDays && {
             committedDays: assignment.committedDays,
@@ -712,13 +702,11 @@ export const activateSemesterTransition = async (
           centerId: transition.semester.centerId,
           semesterId,
           semesterLevelId: targetLevel.id,
-          level: targetLevel.academicLevel.code as Level,
           isActive: true,
           ...(decision.decision === "PROMOTE" && { promotedAt: new Date() }),
         },
         update: {
           semesterLevelId: targetLevel.id,
-          level: targetLevel.academicLevel.code as Level,
           isActive: true,
         },
       });
@@ -746,10 +734,6 @@ export const activateSemesterTransition = async (
             semesterLevelId:
               assignment.subRole === SubRole.EDUCATOR
                 ? targetLevel?.id
-                : null,
-            level:
-              assignment.subRole === SubRole.EDUCATOR
-                ? (targetLevel?.academicLevel.code as Level | undefined)
                 : null,
             committedDays: assignment.committedDays,
             isActive: true,

@@ -1,4 +1,4 @@
-import { Level, SyllabusTopicStatus } from "../generated/prisma/index.js";
+import { SyllabusTopicStatus } from "../generated/prisma/index.js";
 import { prisma } from "../lib/prisma.js";
 import {
   CreateSyllabusRequest,
@@ -56,7 +56,6 @@ export const createSyllabus = async (
       centerId,
       semesterId,
       semesterLevelId: semesterLevel.id,
-      level: semesterLevel.academicLevel.code as Level,
       name,
       description,
     },
@@ -142,8 +141,7 @@ export const getSyllabusById = async (
 export const getSyllabi = async (
   filters: GetSyllabusRequest,
 ): Promise<SyllabusResponse[]> => {
-  const { projectId, centerId, semesterId, semesterLevelId, level, isActive } =
-    filters;
+  const { projectId, centerId, semesterId, semesterLevelId, isActive } = filters;
 
   const syllabi = await prisma.syllabus.findMany({
     where: {
@@ -151,7 +149,6 @@ export const getSyllabi = async (
       ...(centerId && { centerId }),
       ...(semesterId && { semesterId }),
       ...(semesterLevelId && { semesterLevelId }),
-      ...(level && { level }),
       ...(isActive !== undefined && { isActive }),
       semesterLevel: { isActive: true },
     },
@@ -208,12 +205,10 @@ export const updateSyllabus = async (
   const current = await prisma.syllabus.findUnique({ where: { id } });
   if (!current) throw new Error("Syllabus not found");
   const semesterLevel =
-    data.semesterLevelId || data.level
+    data.semesterLevelId
       ? await resolveSemesterLevelInput({
           semesterId: current.semesterId,
-          semesterLevelId: data.semesterLevelId ?? current.semesterLevelId,
-          level:
-            data.level ?? (data.semesterLevelId ? undefined : current.level),
+          semesterLevelId: data.semesterLevelId,
         })
       : null;
   const syllabus = await prisma.syllabus.update({
@@ -222,7 +217,6 @@ export const updateSyllabus = async (
       ...data,
       ...(semesterLevel && {
         semesterLevelId: semesterLevel.id,
-        level: semesterLevel.academicLevel.code as Level,
       }),
     },
     include: {
@@ -264,8 +258,7 @@ export const hardDeleteSyllabus = async (id: string): Promise<void> => {
 const verifySyllabusScope = async <
   T extends {
     semesterId: string;
-    semesterLevelId: string | null;
-    level: string;
+    semesterLevelId: string;
   },
 >(
   scope: T | null,
@@ -283,7 +276,6 @@ export const getSyllabusScope = async (id: string) => {
       centerId: true,
       semesterId: true,
       semesterLevelId: true,
-      level: true,
     },
   });
   return verifySyllabusScope(scope);
@@ -299,7 +291,6 @@ export const getTopicScope = async (id: string) => {
           centerId: true,
           semesterId: true,
           semesterLevelId: true,
-          level: true,
         },
       },
     },
@@ -331,7 +322,6 @@ export const getReorderSyllabusScope = async (topicIds: string[]) => {
           centerId: true,
           semesterId: true,
           semesterLevelId: true,
-          level: true,
         },
       },
     },
@@ -776,7 +766,6 @@ export const getSyllabusStatistics = async (
     centerId,
     semesterId,
     semesterLevelId,
-    level,
   } = filters;
 
   // Get all syllabi matching the filters
@@ -787,7 +776,6 @@ export const getSyllabusStatistics = async (
       ...(centerId && { centerId }),
       ...(semesterId && { semesterId }),
       ...(semesterLevelId && { semesterLevelId }),
-      ...(level && { level }),
       isActive: true,
       semesterLevel: { isActive: true },
     },
@@ -842,7 +830,7 @@ export const getSyllabusStatistics = async (
     syllabusDetails.push({
       id: syllabus.id,
       name: syllabus.name,
-      level: syllabus.level,
+      semesterLevelId: syllabus.semesterLevelId,
       totalTopics: topics.length,
       completedTopics: syllabusCompleted,
       completionPercentage:
@@ -886,7 +874,6 @@ export const importSyllabusFromTemplate = async (
     centerId,
     semesterId,
     semesterLevelId,
-    level,
     templateName,
     syllabusName,
     description,
@@ -895,9 +882,8 @@ export const importSyllabusFromTemplate = async (
   const semesterLevel = await resolveSemesterLevelInput({
     semesterId,
     semesterLevelId,
-    level,
   });
-  const templateLevelCode = semesterLevel.academicLevel.code as Level;
+  const templateLevelCode = semesterLevel.academicLevel.code;
 
   // TODO: Load template data from a file or database
   // For now, this is a placeholder that would need to be implemented

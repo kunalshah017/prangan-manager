@@ -23,7 +23,6 @@ export type WorkspaceContext = {
   centerId?: string;
   semesterId?: string;
   semesterLevelId?: string;
-  level?: NonNullable<User["roleAssignments"]>[number]["level"];
 };
 
 type Assignment = NonNullable<User["roleAssignments"]>[number];
@@ -104,10 +103,10 @@ const matchesLevel = (
 ): boolean => {
   if (assignment.subRole !== "EDUCATOR") return true;
   if (!requiresLevel(permission)) return true;
-  if (context.semesterLevelId) {
-    return assignment.semesterLevelId === context.semesterLevelId;
-  }
-  return !context.level || assignment.level === context.level;
+  return (
+    !context.semesterLevelId ||
+    assignment.semesterLevelId === context.semesterLevelId
+  );
 };
 
 export const can = (

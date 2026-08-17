@@ -1,31 +1,24 @@
 import {
   AssessmentCycle,
   PrismaClient,
-  Level,
 } from "../generated/prisma/index.js";
 
 const prisma = new PrismaClient();
 
 // Levels allowed per center name
 const ALLOWED_LEVELS_BY_CENTER: Record<string, string[]> = {
-  Lavender: [Level.PRIMARY_B, Level.LEVEL_1, Level.LEVEL_2],
+  Lavender: ["PRIMARY_B", "LEVEL_1", "LEVEL_2"],
   // Tulip allows all levels — add other centers here if needed
-};
-
-// Display name mapping for level enum values
-const LEVEL_DISPLAY: Record<string, string> = {
-  [Level.LEVEL_1]: "Level 1",
-  [Level.LEVEL_2]: "Level 2",
-  [Level.LEVEL_3]: "Level 3",
-  [Level.LEVEL_4]: "Level 4",
-  [Level.PRIMARY_A]: "Primary A",
-  [Level.PRIMARY_B]: "Primary B",
 };
 
 async function main() {
   const exams = await prisma.exam.findMany({
     where: { cycle: AssessmentCycle.PRE_ASSESSMENT },
-    include: { center: true, semester: true },
+    include: {
+      center: true,
+      semester: true,
+      semesterLevel: { include: { academicLevel: true } },
+    },
   });
 
   console.log(`Found ${exams.length} Pre Assessment exam(s).\n`);
@@ -34,12 +27,14 @@ async function main() {
     const centerName = exam.center.name;
     const semesterName = exam.semester.name; // e.g. "Semester Year 2025-26"
     const allowedLevels = ALLOWED_LEVELS_BY_CENTER[centerName];
+    const levelCode = exam.semesterLevel.academicLevel.code;
+    const levelName = exam.semesterLevel.academicLevel.name;
 
     // Delete if this center has level restrictions and this level isn't allowed
-    if (allowedLevels && !allowedLevels.includes(exam.level)) {
+    if (allowedLevels && !allowedLevels.includes(levelCode)) {
       await prisma.exam.delete({ where: { id: exam.id } });
       console.log(
-        `DELETED: [${centerName}] ${exam.level} — not allowed for this center`,
+        `DELETED: [${centerName}] ${levelName} — not allowed for this center`,
       );
       continue;
     }
@@ -49,7 +44,7 @@ async function main() {
     // The semester name in DB is "Semester Year 2025-26", SA-3 exams use "Semester 2025-26"
     // Let's match exactly: strip "Year " if present
     const semesterLabel = semesterName.replace("Year ", ""); // "Semester 2025-26"
-    const newName = `${LEVEL_DISPLAY[exam.level] ?? exam.level} l Pre Assessment | ${semesterLabel}`;
+    const newName = `${levelName} l Pre Assessment | ${semesterLabel}`;
 
     if (exam.name !== newName) {
       await prisma.exam.update({

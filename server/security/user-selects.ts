@@ -9,7 +9,6 @@ const activeRoleAssignments = {
     centerId: true,
     semesterId: true,
     semesterLevelId: true,
-    level: true,
     committedDays: true,
     isActive: true,
     project: { select: { id: true, name: true } },

@@ -187,7 +187,7 @@ function StudentRosterCard({ student, editHref, context }: { student: Student; e
         <ProfilePicture imageUrl={student.profileImageUrl} name={student.name} size="lg" colorScheme="orange" className="shrink-0" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-2">
-            <div className="min-w-0"><h2 className="truncate text-lg font-semibold text-foreground">{student.name}</h2><p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground"><GraduationCap className="h-4 w-4" aria-hidden="true" />{levelName(student.semesterLevel, student.level) || "Level not assigned"}</p></div>
+            <div className="min-w-0"><h2 className="truncate text-lg font-semibold text-foreground">{student.name}</h2><p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground"><GraduationCap className="h-4 w-4" aria-hidden="true" />{levelName(student.semesterLevel) || "Level not assigned"}</p></div>
             {missing.length > 0 && <span className="rounded-full bg-warning/15 px-2.5 py-1 text-xs font-semibold text-warning-foreground">{completion}% complete</span>}
           </div>
           <div className="mt-3 grid gap-1.5 text-sm text-muted-foreground sm:grid-cols-2">

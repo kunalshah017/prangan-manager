@@ -136,10 +136,10 @@ test("exam scope lookups select only the authorization fields", async () => {
 
   assert.match(
     source,
-    /export const getExamScope[\s\S]*?prisma\.exam\.findUnique\([\s\S]*?select:\s*\{[\s\S]*?projectId:\s*true[\s\S]*?centerId:\s*true[\s\S]*?semesterId:\s*true[\s\S]*?level:\s*true[\s\S]*?\}/,
+    /export const getExamScope[\s\S]*?prisma\.exam\.findUnique\([\s\S]*?select:\s*\{[\s\S]*?projectId:\s*true[\s\S]*?centerId:\s*true[\s\S]*?semesterId:\s*true[\s\S]*?semesterLevelId:\s*true[\s\S]*?\}/,
   );
   assert.match(
     scoreScopeBlock,
-    /prisma\.studentExamScore[\s\S]*?findUnique\([\s\S]*?exam:\s*\{\s*select:\s*\{[\s\S]*?projectId:\s*true[\s\S]*?centerId:\s*true[\s\S]*?semesterId:\s*true[\s\S]*?level:\s*true[\s\S]*?\}/,
+    /prisma\.studentExamScore[\s\S]*?findUnique\([\s\S]*?exam:\s*\{\s*select:\s*\{[\s\S]*?projectId:\s*true[\s\S]*?centerId:\s*true[\s\S]*?semesterId:\s*true[\s\S]*?semesterLevelId:\s*true[\s\S]*?\}/,
   );
 });

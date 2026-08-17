@@ -8,7 +8,6 @@ export interface AttendanceUser {
   roleAssignments: {
     id: string;
     subRole: string;
-    level?: string;
     semesterLevelId?: string;
     semesterLevel?: {
       id: string;
@@ -122,7 +121,6 @@ export interface GetAttendanceResponse {
     roleAssignment: {
       id: string;
       subRole: string;
-      level?: string;
       semesterLevelId?: string;
       semesterLevel?: {
         id: string;

@@ -520,19 +520,22 @@ Before applying:
 The migration policy is described in
 [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
 
-### Managed semester-level rollout
+### Managed semester-level hard cutover
 
-Managed levels use an expand, backfill, verify, and later contract sequence:
+Operational records use only `semesterLevelId`. The contract migration removes
+the former compatibility columns, so apply it in a maintenance window and
+deploy the canonical-only server and client together:
 
 ```bash
 cd server
-npm run db:backfill:semester-levels
-npm run db:backfill:semester-levels -- --apply --report=/absolute/protected/report.json
-npm run db:verify:semester-level-parity
+npm run db:verify:semester-level-integrity
+npx prisma migrate status
+npx prisma migrate deploy
+npm run db:verify:semester-level-integrity
 ```
 
-The report path must be absolute, protected, outside the repository, and
-reviewed before promotion. See
+The verifier must report zero missing, orphaned, cross-semester, and duplicate
+canonical references before and after migration. See
 [`docs/OPERATIONS_MANAGED_LEVELS.md`](docs/OPERATIONS_MANAGED_LEVELS.md).
 
 ## Development commands
@@ -564,9 +567,7 @@ Run from `server/`:
 | `npm run db:seed:syllabus` | Add the local syllabus fixture. |
 | `npm run db:seed:2026-27-curriculum` | Prepare or apply the reviewed curriculum seed. |
 | `npm run db:backfill:person-names` | Dry-run or apply structured person-name backfill. |
-| `npm run db:backfill:semester-levels` | Dry-run or apply managed-level mappings. |
-| `npm run db:verify:semester-levels` | Verify the managed-level backfill. |
-| `npm run db:verify:semester-level-parity` | Verify canonical IDs and compatibility mirrors. |
+| `npm run db:verify:semester-level-integrity` | Verify canonical managed-level references and keys. |
 | `npm run db:verify:remuneration-periods` | Check effective remuneration periods. |
 | `npm run generate-profession-images:trial` | Run a limited future-profession image generation trial. |
 | `npm run generate-profession-images:full` | Run the full profession-image generation process. |

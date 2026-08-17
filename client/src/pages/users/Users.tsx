@@ -43,7 +43,7 @@ const AssignmentSummary = ({ user }: { user: User }) => {
   const assignments = user.roleAssignments?.filter(isActiveAssignment) ?? [];
   if (!assignments.length) return <p className="text-sm text-muted-foreground">No active assignments</p>;
 
-  return <div className="flex flex-wrap gap-2">{assignments.slice(0, 3).map((assignment) => <span key={assignment.id} className="rounded-md bg-muted px-2 py-1 text-xs font-medium text-foreground">{assignment.subRole.replaceAll("_", " ")}{assignment.subRole === "EDUCATOR" && (assignment.semesterLevel || assignment.level) ? ` · ${levelName(assignment.semesterLevel, assignment.level)}` : ""}</span>)}{assignments.length > 3 && <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">+{assignments.length - 3} more</span>}</div>;
+  return <div className="flex flex-wrap gap-2">{assignments.slice(0, 3).map((assignment) => <span key={assignment.id} className="rounded-md bg-muted px-2 py-1 text-xs font-medium text-foreground">{assignment.subRole.replaceAll("_", " ")}{assignment.subRole === "EDUCATOR" && assignment.semesterLevel ? ` · ${levelName(assignment.semesterLevel)}` : ""}</span>)}{assignments.length > 3 && <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">+{assignments.length - 3} more</span>}</div>;
 };
 
 const Users = () => {

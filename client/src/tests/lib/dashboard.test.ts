@@ -14,7 +14,7 @@ const context = {
 
 const user = (
   subRole: NonNullable<User["roleAssignments"]>[number]["subRole"],
-  level?: "LEVEL_2",
+  semesterLevelId?: string,
 ): User => ({
   id: subRole,
   name: subRole,
@@ -30,8 +30,7 @@ const user = (
       subRole,
       isActive: true,
       ...context,
-      semesterLevelId: level ? "semester-level-2" : undefined,
-      level,
+      semesterLevelId,
     },
   ],
 });
@@ -118,7 +117,6 @@ describe("buildDashboardModel", () => {
   it("gives center managers student and staff operations without admin-only settings or pay", () => {
     const model = buildDashboardModel(user("CENTER_MANAGER"), context);
 
-    expect(model.assignedLevel).toBeUndefined();
     expect(model.assignedSemesterLevelId).toBeUndefined();
     expect(model.visibility).toEqual({
       students: true,
@@ -141,9 +139,11 @@ describe("buildDashboardModel", () => {
   });
 
   it("limits educators to assigned-level learning operations", () => {
-    const model = buildDashboardModel(user("EDUCATOR", "LEVEL_2"), context);
+    const model = buildDashboardModel(
+      user("EDUCATOR", "semester-level-2"),
+      context,
+    );
 
-    expect(model.assignedLevel).toBe("LEVEL_2");
     expect(model.assignedSemesterLevelId).toBe("semester-level-2");
     expect(model.visibility).toEqual({
       students: true,

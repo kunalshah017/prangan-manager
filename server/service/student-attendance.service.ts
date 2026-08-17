@@ -166,7 +166,6 @@ export class StudentAttendanceService {
         enrollment: {
           select: {
             id: true,
-            level: true,
             semesterLevelId: true,
             semesterLevel: { include: { academicLevel: true } },
           },
@@ -258,7 +257,6 @@ export class StudentAttendanceService {
           select: {
             id: true,
             studentId: true,
-            level: true,
             semesterLevelId: true,
           },
         }),
@@ -575,7 +573,6 @@ export class StudentAttendanceService {
         enrollment: {
           select: {
             id: true,
-            level: true,
             semesterLevelId: true,
             semesterLevel: { include: { academicLevel: true } },
           },
@@ -717,7 +714,6 @@ export class StudentAttendanceService {
         enrollment: {
           select: {
             id: true,
-            level: true,
             semesterLevelId: true,
             semesterLevel: { include: { academicLevel: true } },
           },
@@ -776,7 +772,7 @@ export class StudentAttendanceService {
         centerId: true,
         semesterId: true,
         enrollment: {
-          select: { level: true, semesterLevelId: true },
+          select: { semesterLevelId: true },
         },
       },
     });
@@ -861,7 +857,6 @@ export class StudentAttendanceService {
       .map((enrollment) => ({
         enrollmentId: enrollment.id,
         student: enrollment.student,
-        level: enrollment.level,
         semesterLevelId: enrollment.semesterLevelId,
         semesterLevel: enrollment.semesterLevel,
         studentId: enrollment.studentId,

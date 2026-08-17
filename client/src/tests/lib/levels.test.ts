@@ -37,9 +37,7 @@ describe("managed level helpers", () => {
     expect(levelCode(semesterLevel())).toBe("PRIMARY_A");
   });
 
-  it("uses an optional legacy level when no managed level is available", () => {
-    expect(levelName(undefined, "LEVEL_1")).toBe("Level 1");
-    expect(levelCode(undefined, "LEVEL_1")).toBe("LEVEL_1");
+  it("returns an empty label and code when managed metadata is unavailable", () => {
     expect(levelName(undefined)).toBe("");
     expect(levelCode(undefined)).toBe("");
   });

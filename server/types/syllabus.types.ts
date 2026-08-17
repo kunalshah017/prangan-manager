@@ -1,6 +1,5 @@
 import {
   AssessmentCycle,
-  Level,
   SyllabusTopicStatus,
 } from "../generated/prisma/index.js";
 
@@ -17,15 +16,13 @@ export interface CreateSyllabusRequest {
   projectId: string;
   centerId: string;
   semesterId: string;
-  semesterLevelId?: string;
-  level?: Level;
+  semesterLevelId: string;
   name: string;
   description?: string;
 }
 
 export interface UpdateSyllabusRequest {
   semesterLevelId?: string;
-  level?: Level;
   name?: string;
   description?: string;
   isActive?: boolean;
@@ -36,7 +33,6 @@ export interface GetSyllabusRequest {
   centerId?: string;
   semesterId?: string;
   semesterLevelId?: string;
-  level?: Level;
   isActive?: boolean;
 }
 
@@ -46,7 +42,6 @@ export interface SyllabusResponse {
   centerId: string;
   semesterId: string;
   semesterLevelId: string;
-  level: Level;
   name: string;
   description?: string;
   isActive: boolean;
@@ -211,8 +206,7 @@ export interface ImportSyllabusFromTemplateRequest {
   projectId: string;
   centerId: string;
   semesterId: string;
-  semesterLevelId?: string;
-  level?: Level;
+  semesterLevelId: string;
   templateName: string; // e.g., "PRIMARY_A", "LEVEL_1"
   syllabusName?: string;
   description?: string;
@@ -220,7 +214,6 @@ export interface ImportSyllabusFromTemplateRequest {
 
 export interface SyllabusTemplate {
   name: string;
-  level: Level;
   topics: {
     serialNumber: string;
     title: string;
@@ -245,7 +238,6 @@ export interface SyllabusStatisticsRequest {
   centerId?: string;
   semesterId?: string;
   semesterLevelId?: string;
-  level?: Level;
 }
 
 export interface SyllabusStatisticsResponse {
@@ -267,7 +259,7 @@ export interface SyllabusStatisticsResponse {
   syllabusDetails?: {
     id: string;
     name: string;
-    level: Level;
+    semesterLevelId: string;
     totalTopics: number;
     completedTopics: number;
     completionPercentage: number;

@@ -151,11 +151,9 @@ const resolveReadScope = async (
   if (typeof query.topicId === "string") return getTopicScope(query.topicId);
   const scope = queryScope(query);
   if (!hasCompleteSyllabusScope(scope)) return null;
-  if (!scope.semesterLevelId && typeof query.level !== "string") return scope;
   const semesterLevel = await resolveSemesterLevelInput({
     semesterId: scope.semesterId,
     semesterLevelId: scope.semesterLevelId,
-    level: typeof query.level === "string" ? query.level : undefined,
   });
   return { ...scope, semesterLevelId: semesterLevel.id };
 };

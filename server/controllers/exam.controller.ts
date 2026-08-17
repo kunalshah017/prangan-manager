@@ -242,14 +242,10 @@ export const getExamsController = async (
       centerId: parsedFilters.centerId,
       semesterId: parsedFilters.semesterId,
     };
-    if (
-      parsedFilters.semesterId &&
-      (parsedFilters.semesterLevelId || parsedFilters.level)
-    ) {
+    if (parsedFilters.semesterId && parsedFilters.semesterLevelId) {
       const semesterLevel = await resolveSemesterLevelInput({
         semesterId: parsedFilters.semesterId,
         semesterLevelId: parsedFilters.semesterLevelId,
-        level: parsedFilters.level,
       });
       scope = { ...scope, semesterLevelId: semesterLevel.id };
       parsedFilters = {

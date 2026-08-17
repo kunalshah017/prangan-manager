@@ -53,9 +53,7 @@ export const getDefaultLibraryLevel = (user?: User | null): string => {
     (assignment) =>
       assignment.isActive && assignment.subRole === "EDUCATOR",
   );
-  const code =
-    educatorAssignment?.semesterLevel?.academicLevel?.code ||
-    educatorAssignment?.level;
+  const code = educatorAssignment?.semesterLevel?.academicLevel?.code;
 
   const level = libraryLevelName(code);
   if (level) return level;

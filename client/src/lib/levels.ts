@@ -1,30 +1,17 @@
-import type { AcademicLevel, LegacyLevel, SemesterLevel } from "@/types/api";
+import type { AcademicLevel, SemesterLevel } from "@/types/api";
 
 type ManagedLevel = AcademicLevel | SemesterLevel;
 
 const academicLevel = (level: ManagedLevel): AcademicLevel =>
   "academicLevel" in level ? level.academicLevel : level;
 
-const legacyName = (level: LegacyLevel): string =>
-  level
-    .split("_")
-    .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
-    .join(" ");
-
 export const levelName = (
   level?: ManagedLevel | null,
-  legacyLevel?: LegacyLevel | null,
-): string =>
-  level
-    ? academicLevel(level).name
-    : legacyLevel
-      ? legacyName(legacyLevel)
-      : "";
+): string => (level ? academicLevel(level).name : "");
 
 export const levelCode = (
   level?: ManagedLevel | null,
-  legacyLevel?: LegacyLevel | null,
-): string => (level ? academicLevel(level).code : (legacyLevel ?? ""));
+): string => (level ? academicLevel(level).code : "");
 
 export const sortByJourneyOrder = <T extends ManagedLevel>(levels: T[]): T[] =>
   [...levels].sort(

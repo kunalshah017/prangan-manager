@@ -14,7 +14,8 @@ import {
   getStudentEnrollmentsController,
   updateStudentController,
 } from "../../controllers/user.controller.js";
-import { Level, Role, SubRole } from "../../generated/prisma/index.js";
+import { Role, SubRole } from "../../generated/prisma/index.js";
+import { ACADEMIC_LEVEL_CODES } from "../helpers/academic-level-codes.js";
 import { prisma } from "../../lib/prisma.js";
 
 const createReply = () => {
@@ -49,7 +50,6 @@ const assignment = (
     centerId: string;
     semesterId: string;
     semesterLevelId: string;
-    level: Level;
   }> = {},
 ) => ({
   subRole: SubRole.CENTER_MANAGER,
@@ -57,7 +57,6 @@ const assignment = (
   centerId: "center-1",
   semesterId: "semester-1",
   semesterLevelId: null,
-  level: null,
   isActive: true,
   ...overrides,
 });
@@ -67,10 +66,9 @@ const studentScope = {
   centerId: "center-1",
   semesterId: "semester-1",
   semesterLevelId: "semester-1-level-1",
-  level: Level.LEVEL_1,
 };
 
-test("student routes retain legacy level lookup and add semester-level lookup", async () => {
+test("student routes expose only canonical semester-level lookup", async () => {
   const routes = await readFile(
     new URL("../../routes/user.route.ts", import.meta.url),
     "utf8",
@@ -80,12 +78,13 @@ test("student routes retain legacy level lookup and add semester-level lookup", 
     "utf8",
   );
 
-  assert.match(routes, /\/users\/students\/level\/:level/);
+  assert.doesNotMatch(routes, /\/users\/students\/level\/:level/);
   assert.match(
     routes,
     /\/users\/students\/semester-level\/:semesterLevelId/,
   );
-  assert.match(controller, /semesterLevelId\?: string/);
+  assert.match(controller, /semesterLevelId: string/);
+  assert.doesNotMatch(controller, /getStudentsByLevelController/);
   assert.match(controller, /getStudentsBySemesterLevelController/);
 });
 
@@ -238,14 +237,13 @@ test("student detail denies an educator assigned to another level before the ful
     assignment({
       subRole: SubRole.EDUCATOR,
       semesterLevelId: "semester-1-level-2",
-      level: Level.LEVEL_2,
     }),
   ]) as typeof prisma.userRoleAssignments.findMany;
   prisma.semesterLevel.findFirst = (async ({ where }: any) => ({
     id: where.id,
     academicLevel: {
       code:
-        where.id === "semester-1-level-2" ? Level.LEVEL_2 : Level.LEVEL_1,
+        where.id === "semester-1-level-2" ? ACADEMIC_LEVEL_CODES.LEVEL_2 : ACADEMIC_LEVEL_CODES.LEVEL_1,
     },
   })) as typeof prisma.semesterLevel.findFirst;
   prisma.studentEnrollments.findMany = (async () => [
@@ -291,7 +289,7 @@ test("a matching center manager can read and update a student", async () => {
   ]) as typeof prisma.studentEnrollments.findMany;
   prisma.semesterLevel.findFirst = (async () => ({
     id: "semester-1-level-1",
-    academicLevel: { code: Level.LEVEL_1 },
+    academicLevel: { code: ACADEMIC_LEVEL_CODES.LEVEL_1 },
   })) as typeof prisma.semesterLevel.findFirst;
   prisma.students.findUnique = (async (query: unknown) => {
     studentQuery = query;
@@ -317,12 +315,11 @@ test("a matching center manager can read and update a student", async () => {
       readResponse.reply as any,
     );
     assert.equal(readResponse.statusCode, 200);
-    const { level: _level, ...authorizedStudentScope } = studentScope;
     assert.deepEqual(studentQuery, {
       where: { id: "student-1" },
       include: {
         enrollments: {
-          where: { isActive: true, OR: [authorizedStudentScope] },
+          where: { isActive: true, OR: [studentScope] },
         },
       },
     });
@@ -369,12 +366,11 @@ test("student detail and history only read matching active educator enrollments"
     assignment({
       subRole: SubRole.EDUCATOR,
       semesterLevelId: "semester-1-level-1",
-      level: Level.LEVEL_1,
     }),
   ]) as typeof prisma.userRoleAssignments.findMany;
   prisma.semesterLevel.findFirst = (async () => ({
     id: "semester-1-level-1",
-    academicLevel: { code: Level.LEVEL_1 },
+    academicLevel: { code: ACADEMIC_LEVEL_CODES.LEVEL_1 },
   })) as typeof prisma.semesterLevel.findFirst;
   prisma.studentEnrollments.findMany = (async (query: unknown) => {
     if ((query as { select?: unknown }).select) return [studentScope];
@@ -401,10 +397,9 @@ test("student detail and history only read matching active educator enrollments"
     );
     assert.equal(historyResponse.statusCode, 200);
 
-    const { level: _level, ...authorizedStudentScope } = studentScope;
     const visibleWhere = {
       isActive: true,
-      OR: [authorizedStudentScope],
+      OR: [studentScope],
     };
     assert.deepEqual(studentQueries, [
       {
@@ -440,7 +435,7 @@ test("student enrollment history denies a mismatched active scope before reading
   }) as typeof prisma.studentEnrollments.findMany;
   prisma.semesterLevel.findFirst = (async () => ({
     id: "semester-1-level-1",
-    academicLevel: { code: Level.LEVEL_1 },
+    academicLevel: { code: ACADEMIC_LEVEL_CODES.LEVEL_1 },
   })) as typeof prisma.semesterLevel.findFirst;
 
   try {
@@ -474,7 +469,7 @@ test("student update without a matching active scope does not mutate", async () 
   ]) as typeof prisma.studentEnrollments.findMany;
   prisma.semesterLevel.findFirst = (async () => ({
     id: "semester-1-level-1",
-    academicLevel: { code: Level.LEVEL_1 },
+    academicLevel: { code: ACADEMIC_LEVEL_CODES.LEVEL_1 },
   })) as typeof prisma.semesterLevel.findFirst;
   prisma.students.update = (async () => {
     updates += 1;
@@ -547,7 +542,7 @@ test("non-admin student creation requires an enrollment, and a matching manager 
     }) as typeof prisma.students.create;
     prisma.semesterLevel.findFirst = (async () => ({
       id: "semester-1-level-1",
-      academicLevel: { code: Level.LEVEL_1 },
+      academicLevel: { code: ACADEMIC_LEVEL_CODES.LEVEL_1 },
     })) as typeof prisma.semesterLevel.findFirst;
 
     const allowedResponse = createReply();
@@ -572,7 +567,7 @@ test("non-admin student creation requires an enrollment, and a matching manager 
       enrollmentCreateData?.semesterLevelId,
       "semester-1-level-1",
     );
-    assert.equal(enrollmentCreateData?.level, Level.LEVEL_1);
+    assert.equal("level" in (enrollmentCreateData ?? {}), false);
   } finally {
     prisma.userRoleAssignments.findMany = originalAssignments;
     prisma.centers.findUnique = originalCenterFindUnique;
