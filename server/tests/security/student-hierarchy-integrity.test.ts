@@ -232,6 +232,13 @@ test("scoped student detail and history query only active exact enrollment conte
       studentId: "student-1",
       ...visibleWhere,
     });
+    assert.deepEqual((queries.enrollments as { include: unknown }).include, {
+      student: true,
+      center: true,
+      project: true,
+      semester: true,
+      semesterLevel: { include: { academicLevel: true } },
+    });
   } finally {
     prisma.students.findUnique = originalStudentFindUnique;
     prisma.studentEnrollments.findMany = originalEnrollmentFindMany;

@@ -23,6 +23,14 @@ describe("semester users workspace", () => {
     expect(source).toContain('type="date"');
     expect(source).toContain("Remuneration schedule");
     expect(source).toContain("min-h-11");
+    expect(source).toContain("const roleError");
+    expect(source).toContain("Choose a teaching level for every educator role.");
+    expect(source).toMatch(
+      /<SemesterLevelSelect[\s\S]*?required[\s\S]*?label="Teaching level"/,
+    );
+    expect(source).toContain(
+      "disabled={Boolean(roleError || updateAssignments.isPending)}",
+    );
     expect(source).not.toContain("Daily rate");
   });
 });

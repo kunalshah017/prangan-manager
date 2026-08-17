@@ -608,6 +608,7 @@ export const getStudentsByProject = async (projectId: string) => {
         center: true,
         project: true,
         semester: true,
+        semesterLevel: { include: { academicLevel: true } },
       },
       orderBy: {
         student: { name: "asc" },
@@ -632,6 +633,7 @@ export const getStudentsByCenter = async (centerId: string) => {
         center: true,
         project: true,
         semester: true,
+        semesterLevel: { include: { academicLevel: true } },
       },
       orderBy: {
         student: { name: "asc" },
@@ -656,6 +658,7 @@ export const getStudentsBySemester = async (semesterId: string) => {
         center: true,
         project: true,
         semester: true,
+        semesterLevel: { include: { academicLevel: true } },
       },
       orderBy: {
         student: { name: "asc" },
@@ -909,6 +912,7 @@ export const getStudentEnrollments = async (
         center: true,
         project: true,
         semester: true,
+        semesterLevel: { include: { academicLevel: true } },
       },
       orderBy: { enrolledAt: "desc" },
     });

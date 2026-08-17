@@ -129,6 +129,10 @@ describe("Students workspace", () => {
     expect(roleAssignment).toContain("SemesterLevelSelect");
     expect(roleAssignment).toContain("assignment.semesterLevelId");
     expect(roleAssignment).toContain("delete assignment.semesterLevelId");
+    expect(roleAssignment).toContain("Teaching level is required");
+    expect(roleAssignment).toMatch(
+      /<SemesterLevelSelect[\s\S]*?required[\s\S]*?includeInactiveCurrent/,
+    );
 
     for (const source of [form, create, enrollment, roleAssignment]) {
       expect(source).not.toMatch(

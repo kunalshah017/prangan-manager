@@ -73,8 +73,8 @@ Project
 Academic levels are managed catalog records with stable IDs, administrator
 defined codes, display names, and journey order. A semester selects the catalog
 levels that are active for that semester. Operational records use
-`semesterLevelId` as the canonical reference. Some tables retain a text `level`
-mirror for compatibility with older clients.
+`semesterLevelId` as their only level reference; operational tables do not
+retain compatibility mirrors.
 
 ### Roles and assignments
 
