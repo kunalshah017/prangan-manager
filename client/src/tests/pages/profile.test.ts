@@ -35,6 +35,14 @@ describe("unified profile workspace", () => {
     expect(profile).not.toContain("formatLabel(assignment.level)");
   });
 
+  it("scrolls to payment details after a hash redirect finishes rendering", () => {
+    expect(profile).toContain("useLocation()");
+    expect(profile).toContain('location.hash !== "#payment"');
+    expect(profile).toContain('document.getElementById("payment")?.scrollIntoView');
+    expect(profile).toContain("window.requestAnimationFrame");
+    expect(profile).toContain("window.cancelAnimationFrame");
+  });
+
   it("uses one responsive workspace without a local breadcrumb or nested parent card", () => {
     expect(profile).toContain("lg:grid-cols-12");
     expect(profile).toContain("lg:col-span-8");

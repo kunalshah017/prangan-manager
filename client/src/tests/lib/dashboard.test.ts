@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { buildDashboardModel } from "@/lib/dashboard";
+import {
+  buildDashboardModel,
+  hasCompleteBankDetails,
+} from "@/lib/dashboard";
 import type { User } from "@/types/api";
 
 const context = {
@@ -45,6 +48,42 @@ const labels = (model: ReturnType<typeof buildDashboardModel>) =>
   model.actionGroups.flatMap((group) =>
     group.actions.map((action) => action.label),
   );
+
+const completeBankDetails = {
+  bankAccountNumber: "1234567890",
+  bankAccountName: "Asha Patil",
+  bankIfsc: "ABCD0123456",
+  bankName: "Example Bank",
+  bankBranch: "Pune",
+  upiId: "asha@example",
+};
+
+describe("hasCompleteBankDetails", () => {
+  it("requires all six payment-detail fields", () => {
+    expect(hasCompleteBankDetails(completeBankDetails)).toBe(true);
+
+    for (const field of Object.keys(completeBankDetails) as Array<
+      keyof typeof completeBankDetails
+    >) {
+      expect(
+        hasCompleteBankDetails({
+          ...completeBankDetails,
+          [field]: null,
+        }),
+      ).toBe(false);
+    }
+  });
+
+  it("treats absent users and whitespace-only values as incomplete", () => {
+    expect(hasCompleteBankDetails(null)).toBe(false);
+    expect(
+      hasCompleteBankDetails({
+        ...completeBankDetails,
+        bankBranch: "   ",
+      }),
+    ).toBe(false);
+  });
+});
 
 describe("buildDashboardModel", () => {
   it("gives admins the complete semester workspace", () => {

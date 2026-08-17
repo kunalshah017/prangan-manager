@@ -4,6 +4,7 @@ import {
   CalendarDays,
   Check,
   CheckCircle2,
+  Copy,
   Clock3,
   Search,
   Settings2,
@@ -92,6 +93,111 @@ const PaidDetails = ({ expense }: { expense?: Expense }) =>
       {formatINR(expense.amount)} paid {dateLabel(expense.createdAt)}
     </p>
   ) : null;
+
+const CopyField = ({ label, value }: { label: string; value?: string | null }) => {
+  const [copied, setCopied] = useState(false);
+  const displayValue = value || "Not added";
+
+  const copy = async () => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard access can be unavailable outside a secure browser context.
+    }
+  };
+
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 flex min-w-0 items-center gap-2">
+        <span className="min-w-0 break-all font-medium">{displayValue}</span>
+        {value && (
+          <button
+            type="button"
+            onClick={() => void copy()}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={`Copy ${label}`}
+            title={`Copy ${label}`}
+          >
+            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+          </button>
+        )}
+      </dd>
+    </div>
+  );
+};
+
+const BankPaymentDetails = ({
+  payee,
+  amount,
+}: {
+  payee?: RemunerationUser;
+  amount: number | null;
+}) => {
+  const [qrCode, setQrCode] = useState("");
+  const hasBankDetails = Boolean(
+    payee?.bankAccountNumber ||
+      payee?.bankAccountName ||
+      payee?.bankIfsc ||
+      payee?.bankName ||
+      payee?.bankBranch ||
+      payee?.upiId,
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!payee?.upiId || amount === null || amount <= 0) {
+      setQrCode("");
+      return;
+    }
+
+    import("qrcode")
+      .then(({ default: QRCode }) =>
+        QRCode.toDataURL(
+          `upi://pay?pa=${encodeURIComponent(payee.upiId as string)}&am=${amount.toFixed(2)}&cu=INR`,
+          { margin: 1, scale: 4 },
+        ),
+      )
+      .then((dataUrl) => {
+        if (!cancelled) setQrCode(dataUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setQrCode("");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [amount, payee?.upiId]);
+
+  return (
+    <details className="mt-4 rounded-xl border border-border/70 bg-background/60">
+      <summary className="cursor-pointer list-none px-3 py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        Payment details
+        <span className="float-right text-muted-foreground">{hasBankDetails ? "View" : "Not added"}</span>
+      </summary>
+      <div className="grid items-start gap-4 border-t px-3 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_auto]">
+        <dl className="grid gap-3">
+          <CopyField label="Account number" value={payee?.bankAccountNumber} />
+          <CopyField label="Name on account" value={payee?.bankAccountName} />
+          <CopyField label="Bank" value={payee?.bankName} />
+          <CopyField label="Branch" value={payee?.bankBranch} />
+          <CopyField label="IFSC" value={payee?.bankIfsc} />
+          <CopyField label="UPI ID" value={payee?.upiId} />
+        </dl>
+        {qrCode && amount !== null && (
+          <div>
+            <img src={qrCode} alt={`UPI QR for ${formatINR(amount)}`} className="h-36 w-36 rounded border" />
+            <p className="mt-1 text-xs text-muted-foreground">Scan to pay {formatINR(amount)}</p>
+          </div>
+        )}
+      </div>
+    </details>
+  );
+};
 
 const paymentResultMessage = (result: RemunerationPaymentResult) => {
   if (result.message) return result.message;
@@ -401,6 +507,7 @@ export const Remuneration = () => {
                       <div className="rounded-xl bg-muted/50 p-3"><p className="text-xs font-semibold text-muted-foreground">Calculated amount</p><p className="mt-1 text-lg font-semibold">{row.total === null ? "—" : formatINR(row.total)}</p>{isAdmin && <PaidDetails expense={row.paidExpense} />}</div>
                       <div className="rounded-xl bg-muted/50 p-3"><p className="text-xs font-semibold text-muted-foreground">Applicable schedule</p><p className="mt-1 text-sm font-medium">{scheduleLabel(payee?.remunerationPeriods, range.startDate, range.endDate)}</p></div>
                     </div>
+                    {isAdmin && <BankPaymentDetails payee={payee} amount={row.total} />}
                     <div className="mt-4 flex items-center justify-between gap-3 border-t pt-4">
                       <p className="text-xs text-muted-foreground">
                         {paymentState === "INCOMPLETE"

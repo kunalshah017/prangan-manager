@@ -144,8 +144,23 @@ describe("semester dashboard", () => {
   it("renders the all-clear attention state as a compact mobile status", () => {
     expect(dashboard).toContain("Mobile semester status");
     expect(dashboard).toContain("All caught up");
-    expect(dashboard).toContain("hidden sm:flex");
+    expect(dashboard).toContain('headingId="attention-title"');
+    expect(dashboard).toContain('className="hidden sm:block"');
     expect(dashboard.indexOf('aria-label="Mobile semester status"')).toBeLessThan(
+      dashboard.indexOf('aria-label="Mobile semester tools"'),
+    );
+  });
+
+  it("puts Needs attention before mobile tools and links incomplete bank details to payment settings", () => {
+    expect(dashboard).toContain("hasCompleteBankDetails(user)");
+    expect(dashboard).toContain('title: "Complete your bank details"');
+    expect(dashboard).toContain('actionLabel: "Complete bank details"');
+    expect(dashboard).toContain('href: "/profile#payment"');
+    expect(dashboard).toContain('className="sm:hidden"');
+    expect(dashboard).toContain('className="hidden sm:block"');
+    expect(
+      dashboard.indexOf('headingId="mobile-attention-title"'),
+    ).toBeLessThan(
       dashboard.indexOf('aria-label="Mobile semester tools"'),
     );
   });
