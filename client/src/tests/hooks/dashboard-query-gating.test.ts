@@ -35,5 +35,7 @@ describe("dashboard query gating", () => {
 
     expect(statistics).toContain("enabled?: boolean;");
     expect(statistics).toContain("enabled: filters?.enabled ?? true");
+    expect(statistics).toContain("semesterLevelId?: string;");
+    expect(statistics).toContain("filters?.semesterLevelId");
   });
 });

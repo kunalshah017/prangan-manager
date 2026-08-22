@@ -530,6 +530,19 @@ test("non-admin progress logs require an ID-backed scope before the log service"
   );
 });
 
+test("semester-scoped statistics allow a center manager without a semester level", async () => {
+  const source = await readFile(
+    new URL("../../controllers/syllabus.controller.ts", import.meta.url),
+    "utf8",
+  );
+  const start = source.indexOf("const resolveReadScope");
+  const end = source.indexOf("// ============================================", start);
+  const block = source.slice(start, end);
+
+  assert.match(block, /const hasLevelFilter/);
+  assert.match(block, /if \(!hasLevelFilter\) return scope/);
+});
+
 test("ID mutations resolve persisted scope before authorization and the service call", async () => {
   const source = await readFile(
     new URL("../../controllers/syllabus.controller.ts", import.meta.url),

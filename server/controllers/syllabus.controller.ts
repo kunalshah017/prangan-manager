@@ -155,6 +155,11 @@ const resolveReadScope = async (
   if (typeof query.topicId === "string") return getTopicScope(query.topicId);
   const scope = queryScope(query);
   if (!hasCompleteSyllabusScope(scope)) return null;
+  // A semester dashboard may request aggregate statistics without selecting
+  // one semester level; level-specific requests are resolved below.
+  const hasLevelFilter =
+    typeof query.semesterLevelId === "string" || typeof query.level === "string";
+  if (!hasLevelFilter) return scope;
   const semesterLevel = await resolveSemesterLevelInput({
     semesterId: scope.semesterId,
     semesterLevelId: scope.semesterLevelId,
