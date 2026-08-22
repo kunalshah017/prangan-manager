@@ -18,7 +18,11 @@ BEGIN
   WHERE "semesterLevelId" IS NULL
     AND (
       "level" IS NOT NULL
-      OR ("subRole" = 'EDUCATOR' AND "semesterId" IS NOT NULL)
+      OR (
+        "subRole" = 'EDUCATOR'
+        AND "semesterId" IS NOT NULL
+        AND "isActive" = true
+      )
     );
   IF invalid_count > 0 THEN
     RAISE EXCEPTION 'Cannot contract managed semester levels: % educator assignments would lose their level scope', invalid_count;

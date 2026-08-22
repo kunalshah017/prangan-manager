@@ -49,6 +49,15 @@ test("contract migration aborts when required canonical references are missing",
   }
 });
 
+test("contract migration ignores inactive educator assignments without a level", async () => {
+  const migration = await readFile(migrationUrl, "utf8");
+
+  assert.match(
+    migration,
+    /"semesterLevelId" IS NULL[\s\S]*?"subRole" = 'EDUCATOR'[\s\S]*?"isActive" = true/,
+  );
+});
+
 test("contract migration makes operational references canonical-only", async () => {
   const migration = await readFile(migrationUrl, "utf8");
 
