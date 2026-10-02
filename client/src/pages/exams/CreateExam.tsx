@@ -35,7 +35,18 @@ export default function CreateExam() {
 
   const submit = async (value: ExamFormValue) => {
     if (!projectId || !centerId || !semesterId || !value.semesterLevelId) return;
-    await createExam.mutateAsync({ projectId, centerId, semesterId, ...value });
+    await createExam.mutateAsync({
+      projectId, centerId, semesterId,
+      semesterLevelId: value.semesterLevelId,
+      cycle: value.cycle,
+      name: value.name,
+      description: value.description,
+      examDate: value.examDate,
+      listeningMaxMarks: value.listeningMaxMarks,
+      speakingMaxMarks: value.speakingMaxMarks,
+      readingMaxMarks: value.readingMaxMarks,
+      writingMaxMarks: value.writingMaxMarks,
+    });
     toast.success("Exam created");
     navigate(examsPath);
   };

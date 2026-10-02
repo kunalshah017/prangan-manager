@@ -15,7 +15,10 @@ interface WeekendDatePickerProps {
     disabled?: boolean;
 }
 
-const parseDate = (date: string) => new Date(`${date}T00:00:00`);
+const parseDate = (date: string) => {
+    const parsed = new Date(`${date.slice(0, 10)}T00:00:00`);
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+};
 
 export function WeekendDatePicker({
     label: fieldLabel,
