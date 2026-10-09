@@ -20,11 +20,14 @@ import { WeekendDatePicker } from "@/components/students/WeekendDatePicker";
 import { ProfilePicture } from "@/components/ui";
 import { WorkspacePage, WorkspacePageHeader } from "@/components/workspace/WorkspacePage";
 import { useSemesterLevels } from "@/hooks/useAcademicLevelQueries";
+import { useCenter } from "@/hooks/useCenterQueries";
+import { useProject } from "@/hooks/useProjectQueries";
 import { useStudentAttendanceRecords } from "@/hooks/useStudentAttendanceQueries";
 import { useSemester } from "@/hooks/useSemesterQueries";
 import { createCsvWorkbook } from "@/lib/csv-export";
 import { levelName, sortByJourneyOrder } from "@/lib/levels";
 import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { StudentAttendanceRecord } from "@/types/api";
 import {
   formatDateToLocal,
@@ -63,6 +66,8 @@ export const ViewStudentAttendance = () => {
   const hasAppliedSemesterDefault = useRef(false);
 
   const { data: semester, isLoading: isLoadingSemester, error: semesterError } = useSemester(semesterId!);
+  const { data: center } = useCenter(centerId ?? "");
+  const { data: project } = useProject(projectId ?? "");
   const semesterLevelsQuery = useSemesterLevels(semesterId!);
   const semesterLevels = useMemo(
     () => sortByJourneyOrder(semesterLevelsQuery.data ?? []),
@@ -248,37 +253,204 @@ export const ViewStudentAttendance = () => {
     setIsExporting(true);
     try {
       const [{ default: JsPDF }, { default: autoTable }] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
-      const doc = new JsPDF({ orientation: "landscape" });
-      doc.text(`Attendance — ${semester?.name ?? "Semester"}`, 14, 14);
-      autoTable(doc, {
-        startY: 20,
-        head: [["Student", "Level", "Date", "Status", "Holiday reason", "Marked by"]],
-        body: exportRows().map((row) => [row["Student Name"], row.Level, row.Date, row.Status, row["Holiday Reason"], row["Marked By"]]),
-      });
-      doc.save(`attendance-${semester?.name ?? "records"}.pdf`);
+      const doc = new JsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const addLogo = async (x: number) => {
+        try {
+          const image = new Image();
+          image.src = "/images/logo/prangan-logo-light-mode.png";
+          await new Promise<void>((resolve, reject) => {
+            image.onload = () => resolve();
+            image.onerror = () => reject(new Error("Logo unavailable"));
+          });
+          doc.addImage(image, "PNG", x, 5, 40, 20);
+        } catch (error) {
+          console.warn("Could not load attendance report logo:", error);
+        }
+      };
+      const safeName = (value: string | undefined, fallback: string) => (value || fallback).replace(/[^a-zA-Z0-9]/g, "_");
+
+      if (timeframe === "single") {
+        await addLogo(240);
+        doc.setFontSize(16);
+        doc.text("Student Attendance Report", 14, 15);
+        doc.setFontSize(10);
+        let y = 25;
+        [`Project: ${project?.name ?? "Unknown Project"}`, `Center: ${center?.name ?? "Unknown Center"}`, `Semester: ${semester?.name ?? "Unknown Semester"}`, `Date: ${singleDate}`,
+          ...(selectedStatus ? [`Status: ${selectedStatus}`] : []), ...(selectedLevel ? [`Level: ${levelLabel(selectedLevel)}`] : []),
+          `Total Records: ${stats.total}, Present: ${stats.present}, Absent: ${stats.absent}, Holidays: ${stats.holidays}`,
+        ].forEach((line) => { doc.text(line, 14, y); y += 5; });
+        autoTable(doc, {
+          head: [["S.No", "Student Name", "Level", "Date", "Status", "Marked By"]],
+          body: exportRows().map((row) => [row["S.No"], row["Student Name"], row.Level, row.Date, row.Status, row["Marked By"]]),
+          startY: y + 5,
+          styles: { fontSize: 8 },
+          headStyles: { fillColor: [255, 152, 0] },
+          columnStyles: { 0: { cellWidth: 15 }, 1: { cellWidth: 50 }, 2: { cellWidth: 35 }, 3: { cellWidth: 30 }, 4: { cellWidth: 25 }, 5: { cellWidth: 40 } },
+        });
+      } else {
+        for (const [index, month] of monthTables.entries()) {
+          if (index) doc.addPage();
+          await addLogo(240);
+          doc.setFontSize(14);
+          doc.text(`Attendance Report - ${month.label}`, 14, 15);
+          doc.setFontSize(9);
+          doc.text(`Project: ${project?.name ?? "Unknown Project"} | Center: ${center?.name ?? "Unknown Center"} | Semester: ${semester?.name ?? "Unknown Semester"}`, 14, 22);
+          const holidayReasons = new Map(month.dates.filter((day) => {
+            const records = month.records.filter((record) => record.date.slice(0, 10) === day);
+            return records.length > 0 && records.every((record) => record.status === "HOLIDAY");
+          }).map((day) => [day, month.records.find((record) => record.date.slice(0, 10) === day)?.holidayReason || "Holiday"]));
+          const head = [["Student Name", ...month.dates.map((day) => {
+            const date = new Date(`${day}T00:00:00`);
+            const label = `${date.toLocaleDateString("en-US", { month: "short" })} ${date.getDate()}`;
+            return holidayReasons.has(day) ? `${label}\nHOLIDAY:\n${holidayReasons.get(day)}` : `${label}\n${date.toLocaleDateString("en-US", { weekday: "short" })}`;
+          })]];
+          const rows = month.levels.flatMap((level) => [
+            [level.label, ...month.dates.map(() => "")],
+            ...level.students.map((student) => [student.name, ...month.dates.map((day) => {
+              if (holidayReasons.has(day)) return "";
+              const status = student.records.get(day)?.status;
+              return status === "PRESENT" ? "PRESENT" : status === "ABSENT" ? "ABSENT" : status === "HOLIDAY" ? "HOLIDAY" : "-";
+            })]),
+          ]);
+          autoTable(doc, {
+            head, body: rows, startY: 28,
+            styles: { fontSize: 6, cellPadding: 1.5, halign: "center" },
+            headStyles: { fillColor: [255, 152, 0], fontStyle: "bold", fontSize: 7 },
+            columnStyles: { 0: { cellWidth: 40, halign: "left" } },
+            didParseCell: ({ section, column, row, cell }) => {
+              const text = cell.text.join(" ");
+              if (section === "head" && column.index > 0 && text.includes("HOLIDAY:")) {
+                cell.styles.fillColor = [219, 234, 254]; cell.styles.textColor = [37, 99, 235]; cell.styles.fontStyle = "bold";
+              }
+              if (section === "body" && column.index === 0 && rows[row.index]?.slice(1).every((value) => value === "")) {
+                cell.styles.fontStyle = "bold"; cell.styles.fillColor = [240, 240, 240]; cell.styles.fontSize = 7;
+              }
+              if (section === "body" && column.index > 0) {
+                if (head[0][column.index]?.includes("HOLIDAY:")) cell.styles.fillColor = [219, 234, 254];
+                else if (text === "PRESENT") { cell.styles.textColor = [0, 128, 0]; cell.styles.fontStyle = "bold"; }
+                else if (text === "ABSENT") { cell.styles.textColor = [220, 38, 38]; cell.styles.fontStyle = "bold"; }
+              }
+            },
+          });
+        }
+
+        const daysDiff = Math.ceil((new Date(`${toDate}T00:00:00`).getTime() - new Date(`${fromDate}T00:00:00`).getTime()) / 86_400_000);
+        if (daysDiff >= 20) {
+          const students = new Map<string, { name: string; level: string; months: Map<string, { present: number; absent: number; holidays: number }> }>();
+          filteredAttendance.forEach((record) => {
+            const id = record.student?.id ?? record.studentId;
+            const month = record.date.slice(0, 7);
+            const student = students.get(id) ?? { name: record.student?.name ?? "Unknown student", level: levelKey(record), months: new Map() };
+            const counts = student.months.get(month) ?? { present: 0, absent: 0, holidays: 0 };
+            if (record.status === "PRESENT") counts.present++;
+            else if (record.status === "ABSENT") counts.absent++;
+            else if (record.status === "HOLIDAY") counts.holidays++;
+            student.months.set(month, counts);
+            students.set(id, student);
+          });
+          const months = monthTables.map(({ key, label }) => ({ key, label }));
+          const levels = Array.from(new Set(Array.from(students.values(), (student) => student.level))).sort(sortLevelKeys);
+          const columns = 1 + months.length * 3 + 2;
+          const summaryRows: (string | number)[][] = [];
+          levels.forEach((level) => {
+            summaryRows.push([levelLabel(level), ...Array(columns - 1).fill("")]);
+            Array.from(students.values()).filter((student) => student.level === level).sort((a, b) => a.name.localeCompare(b.name)).forEach((student) => {
+              let present = 0; let absent = 0; let holidays = 0;
+              const monthly = months.flatMap(({ key }) => {
+                const value = student.months.get(key);
+                if (!value) return ["-", "-", "-"];
+                present += value.present; absent += value.absent; holidays += value.holidays;
+                const total = value.present + value.absent;
+                return [value.present, value.absent, `${total ? (value.present / total * 100).toFixed(1) : "0.0"}%`];
+              });
+              const total = present + absent;
+              const rate = total ? present / total * 100 : 0;
+              summaryRows.push([student.name, ...monthly, `${rate.toFixed(1)}%`, rate >= 90 ? "Excellent" : rate >= 80 ? "Good" : rate >= 70 ? "Satisfactory" : rate >= 60 ? "Needs Improvement" : "Poor - Intervention Required"]);
+            });
+          });
+
+          doc.addPage();
+          await addLogo(240);
+          doc.setFontSize(16);
+          doc.text("Attendance Summary", 14, 15);
+          doc.setFontSize(9);
+          doc.text(`Project: ${project?.name ?? "Unknown Project"} | Center: ${center?.name ?? "Unknown Center"} | Semester: ${semester?.name ?? "Unknown Semester"}`, 14, 22);
+          doc.text(`Period: ${fromDate} to ${toDate}`, 14, 27);
+          const summaryHead = [["Student Name", ...months.flatMap(({ label }) => [label, "", ""]), "Overall Avg%", "Remarks"], ["", ...months.flatMap(() => ["Present", "Absent", "Avg%"]), "", ""]];
+          autoTable(doc, {
+            head: summaryHead, body: summaryRows, startY: 32,
+            styles: { fontSize: 6, cellPadding: 1.2, halign: "center" },
+            headStyles: { fillColor: [255, 152, 0], fontStyle: "bold", fontSize: 6 },
+            columnStyles: { 0: { cellWidth: 32, halign: "left" }, [columns - 2]: { cellWidth: 17 }, [columns - 1]: { cellWidth: 39, halign: "left" } },
+            didParseCell: ({ section, column, row, cell }) => {
+              if (section === "body" && column.index === 0 && levels.includes(String(cell.text[0]))) {
+                cell.styles.fillColor = [255, 224, 178]; cell.styles.fontStyle = "bold";
+              }
+              if (section === "body" && summaryRows[row.index]?.[columns - 1] === "Needs Improvement") {
+                cell.styles.fillColor = [255, 243, 224];
+                cell.styles.textColor = [173, 82, 0];
+                cell.styles.fontStyle = "bold";
+              }
+              if (section === "body" && cell.text[0]?.includes("%")) {
+                const value = Number.parseFloat(cell.text[0]);
+                cell.styles.textColor = value >= 90 ? [0, 97, 0] : value >= 70 ? [133, 100, 4] : [180, 35, 24];
+                cell.styles.fontStyle = "bold";
+              }
+            },
+          });
+
+          const byLevel = levels.map((level) => {
+            const records = filteredAttendance.filter((record) => levelKey(record) === level);
+            const present = records.filter((record) => record.status === "PRESENT").length;
+            const working = records.filter((record) => record.status !== "HOLIDAY").length;
+            return { label: levelLabel(level), rate: working ? present / working * 100 : 0 };
+          });
+          const byMonth = months.map(({ key, label }) => {
+            const records = filteredAttendance.filter((record) => record.date.startsWith(key));
+            const present = records.filter((record) => record.status === "PRESENT").length;
+            const working = records.filter((record) => record.status !== "HOLIDAY").length;
+            return { label: label.replace(/\s+\d{4}$/, ""), rate: working ? present / working * 100 : 0 };
+          });
+          doc.addPage();
+          await addLogo(240);
+          doc.setFontSize(16);
+          doc.text("Attendance Analytics & Insights", 14, 15);
+          doc.setFontSize(9);
+          doc.text(`Project: ${project?.name ?? "Unknown Project"} | Center: ${center?.name ?? "Unknown Center"} | Semester: ${semester?.name ?? "Unknown Semester"}`, 14, 22);
+          doc.text(`Period: ${fromDate} to ${toDate}`, 14, 27);
+          doc.setFontSize(11);
+          doc.text("Overall Attendance", 14, 42);
+          doc.setFontSize(10);
+          doc.text(`Students: ${students.size}     Present: ${stats.present}     Absent: ${stats.absent}     Holidays: ${stats.holidays}     Overall rate: ${stats.attendancePercentage}%`, 14, 50);
+          const drawBars = (title: string, data: Array<{ label: string; rate: number }>, x: number, y: number, width: number) => {
+            doc.setFontSize(11); doc.text(title, x, y);
+            const slot = width / Math.max(data.length, 1);
+            data.forEach((item, i) => {
+              const barHeight = Math.max(1, Math.min(100, item.rate)) * 0.65;
+              const barX = x + i * slot + 3;
+              doc.setFillColor(255, 152, 0); doc.rect(barX, y + 77 - barHeight, Math.max(3, slot - 8), barHeight, "F");
+              doc.setFontSize(7); doc.text(`${item.rate.toFixed(0)}%`, barX, y + 73 - barHeight);
+              doc.text(item.label.slice(0, 16), barX, y + 84, { maxWidth: slot - 2 });
+            });
+            doc.setDrawColor(180, 180, 180); doc.line(x, y + 78, x + width, y + 78);
+          };
+          drawBars("Level-wise Attendance Rate", byLevel, 14, 70, 125);
+          drawBars("Monthly Attendance Trend", byMonth, 155, 70, 125);
+          const best = byLevel.slice().sort((a, b) => b.rate - a.rate)[0];
+          doc.setFillColor(255, 248, 225); doc.roundedRect(14, 173, 268, 20, 2, 2, "F");
+          doc.setFontSize(9);
+          doc.text(`Key insight: ${best ? `${best.label} has the highest attendance rate at ${best.rate.toFixed(1)}%.` : "No level attendance data is available."}`, 20, 185);
+        }
+      }
+      const range = timeframe === "single" ? singleDate : `${fromDate}_to_${toDate}`;
+      doc.save(`Student_Attendance_${safeName(project?.name, "Unknown_Project")}_${safeName(center?.name, "Unknown_Center")}_${safeName(semester?.name, "Unknown_Semester")}_${range.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`);
       toast.success("Attendance PDF downloaded.");
-    } catch {
+    } catch (error) {
+      console.error("Error exporting student attendance PDF:", error);
       toast.error("Unable to export attendance PDF.");
     } finally {
       setIsExporting(false);
     }
-  };
-  const setCurrentMonth = () => {
-    if (!semesterStartDate || !semesterEndDate) return;
-    const today = formatDateToLocal(new Date());
-    const reference = today < semesterStartDate ? semesterStartDate : today > semesterEndDate ? semesterEndDate : today;
-    const parsed = new Date(`${reference}T00:00:00`);
-    const first = formatDateToLocal(new Date(parsed.getFullYear(), parsed.getMonth(), 1));
-    const last = formatDateToLocal(new Date(parsed.getFullYear(), parsed.getMonth() + 1, 0));
-    const start = getWeekendOnOrAfter(first < semesterStartDate ? semesterStartDate : first, last > semesterEndDate ? semesterEndDate : last);
-    const end = getWeekendOnOrBefore(last > semesterEndDate ? semesterEndDate : last, start);
-    setFromDate(start); setToDate(end); setDebouncedFromDate(start); setDebouncedToDate(end);
-  };
-  const setFullSemester = () => {
-    if (!semesterStartDate || !semesterEndDate) return;
-    const start = getWeekendOnOrAfter(semesterStartDate, semesterEndDate);
-    const end = getWeekendOnOrBefore(semesterEndDate, semesterStartDate);
-    setFromDate(start); setToDate(end); setDebouncedFromDate(start); setDebouncedToDate(end);
   };
   const statusIcon = (status: StudentAttendanceRecord["status"]) => status === "PRESENT"
     ? <CheckIcon className="h-4 w-4 text-success" aria-hidden="true" />
@@ -292,16 +464,37 @@ export const ViewStudentAttendance = () => {
     <WorkspacePageHeader title="Student attendance" description="Review attendance by class day, month, and academic level." />
     <section className="mt-6 rounded-lg border border-border bg-card p-4 shadow-sm" aria-labelledby="attendance-filters-heading">
       <div className="mb-4 flex items-center justify-between"><div><h2 id="attendance-filters-heading" className="flex items-center gap-2 text-lg font-semibold"><SlidersHorizontal className="h-5 w-5 text-primary" />Filter records</h2><p className="mt-1 text-sm text-muted-foreground">Choose a class day or date range.</p></div>{hasActiveFilters && <button type="button" onClick={clearFilters} className="min-h-11 px-3 text-sm text-primary">Clear filters</button>}</div>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div><span className="mb-2 block text-sm font-medium">Timeframe</span><div className="mb-3 grid grid-cols-2 rounded-md border border-border bg-muted p-1"><button type="button" className="min-h-11 rounded" onClick={() => setTimeframe("single")}>Single date</button><button type="button" className="min-h-11 rounded" onClick={() => setTimeframe("range")}>Date range</button></div>{timeframe === "single" ? <WeekendDatePicker label="Single date" value={singleDate} min={semesterStartDate} max={semesterEndDate} onChange={setSingleDate} /> : <div className="space-y-2"><div className="grid gap-3 sm:grid-cols-2"><WeekendDatePicker label="From" value={fromDate} min={semesterStartDate} max={semesterEndDate} onChange={setFromDate} /><WeekendDatePicker label="To" value={toDate} min={semesterStartDate} max={semesterEndDate} onChange={setToDate} /></div><div className="flex gap-2"><button type="button" onClick={setCurrentMonth} className="min-h-11 flex-1 rounded-md border border-border">Current month</button><button type="button" onClick={setFullSemester} className="min-h-11 flex-1 rounded-md border border-border">Full semester</button></div></div>}</div>
-        <label className="grid gap-2 text-sm font-medium">Status<select value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value)} className="min-h-11 rounded-md border border-input bg-background px-3"><option value="">All</option><option value="PRESENT">Present</option><option value="ABSENT">Absent</option><option value="HOLIDAY">Holiday</option></select></label>
-        <label className="grid gap-2 text-sm font-medium">Level<select value={selectedLevel} onChange={(event) => setSelectedLevel(event.target.value)} className="min-h-11 rounded-md border border-input bg-background px-3"><option value="">All</option>{semesterLevels.map((level) => <option key={level.id} value={level.id}>{levelName(level)}</option>)}</select></label>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-12">
+        <div className="order-1 md:col-span-2 lg:col-span-4">
+          <span className="mb-2 block text-sm font-medium">Timeframe</span>
+          <div className="grid grid-cols-2 rounded-md border border-border bg-muted p-1">
+            <button type="button" aria-pressed={timeframe === "single"} className={cn("min-h-11 rounded px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", timeframe === "single" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")} onClick={() => setTimeframe("single")}>Single date</button>
+            <button type="button" aria-pressed={timeframe === "range"} className={cn("min-h-11 rounded px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", timeframe === "range" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")} onClick={() => setTimeframe("range")}>Date range</button>
+          </div>
+        </div>
+        <div className="order-3 grid self-start gap-2 text-sm font-medium lg:order-2 lg:col-span-4">
+          <span id="attendance-status-label">Status</span>
+          <Select value={selectedStatus || "ALL"} onValueChange={(value) => setSelectedStatus(value === "ALL" ? "" : value)}>
+            <SelectTrigger aria-labelledby="attendance-status-label" className="h-11 border-input bg-background text-foreground"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="ALL">All</SelectItem><SelectItem value="PRESENT">Present</SelectItem><SelectItem value="ABSENT">Absent</SelectItem><SelectItem value="HOLIDAY">Holiday</SelectItem></SelectContent>
+          </Select>
+        </div>
+        <div className="order-4 grid self-start gap-2 text-sm font-medium lg:order-3 lg:col-span-4">
+          <span id="attendance-level-label">Level</span>
+          <Select value={selectedLevel || "ALL"} onValueChange={(value) => setSelectedLevel(value === "ALL" ? "" : value)}>
+            <SelectTrigger aria-labelledby="attendance-level-label" className="h-11 border-input bg-background text-foreground"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="ALL">All</SelectItem>{semesterLevels.map((level) => <SelectItem key={level.id} value={level.id}>{levelName(level)}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        {timeframe === "single" ? <div className="order-2 grid gap-2 text-sm font-medium md:col-span-2 lg:order-4 lg:col-span-6"><span>Single date</span><WeekendDatePicker label="Single date" value={singleDate} min={semesterStartDate} max={semesterEndDate} onChange={setSingleDate} /></div> : <div className="order-2 grid gap-3 md:col-span-2 md:grid-cols-2 lg:order-4 lg:col-span-12 lg:grid-cols-12">
+          <label className="grid content-start gap-2 text-sm font-medium text-foreground lg:col-span-6">From date<WeekendDatePicker label="From date" value={fromDate} min={semesterStartDate} max={semesterEndDate} onChange={setFromDate} /></label>
+          <label className="grid content-start gap-2 text-sm font-medium text-foreground lg:col-span-6">To date<WeekendDatePicker label="To date" value={toDate} min={semesterStartDate} max={semesterEndDate} onChange={setToDate} /></label>
+        </div>}
       </div>
       <p className={cn("mt-4 text-xs", isAttendanceRangeWithinSemester ? "text-muted-foreground" : "text-destructive")} role={isAttendanceRangeWithinSemester ? undefined : "alert"}>Attendance records are available only between {semesterStartDate} and {semesterEndDate}.</p>
     </section>
     <section className="my-6 grid grid-cols-2 gap-3 lg:grid-cols-5" aria-label="Attendance statistics">{[["Records", stats.total], ["Present", stats.present], ["Absent", stats.absent], ["Holidays", stats.holidays], ["Attendance rate", `${stats.attendancePercentage}%`]].map(([label, value]) => <div key={String(label)} className="rounded-lg border border-border bg-card p-4"><div className="text-2xl font-semibold">{value}</div><div className="text-xs text-muted-foreground">{label}</div></div>)}</section>
     {timeframe === "range" && monthTables.length > 1 && <nav className="mb-4 rounded-lg border border-border bg-card p-4" aria-label="Jump to month"><p className="text-sm font-semibold">Jump to month</p><div className="mt-3 flex gap-2 overflow-x-auto">{monthTables.map((month) => <a key={month.key} href={`#attendance-month-${month.key}`} className="inline-flex min-h-11 shrink-0 items-center rounded-md border border-border px-3 text-sm">{month.label}</a>)}</div></nav>}
-    {filteredAttendance.length > 0 && <div className="mb-4 flex justify-end"><div className="relative" ref={dropdownRef}><button type="button" onClick={() => setShowExportDropdown((open) => !open)} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-border bg-card px-4"><Download className="h-4 w-4" />{isExporting ? "Exporting..." : "Export records"}<ChevronDown className="h-4 w-4" /></button>{showExportDropdown && <div className="absolute right-0 z-50 mt-2 w-48 rounded-md border border-border bg-card p-1 shadow-lg"><button type="button" onClick={() => void exportToExcel()} className="flex min-h-11 w-full items-center gap-2 px-3"><FileSpreadsheet className="h-4 w-4" />Export CSV</button><button type="button" onClick={() => void exportToPDF()} className="flex min-h-11 w-full items-center gap-2 px-3"><FileText className="h-4 w-4" />Export PDF</button></div>}</div></div>}
-    <section aria-labelledby="attendance-records-heading"><h2 id="attendance-records-heading" className="mb-4 flex items-center gap-2 text-lg font-semibold"><Users className="h-5 w-5 text-primary" />Attendance records {isFetching && <span className="text-xs text-muted-foreground">Updating...</span>}</h2>{filteredAttendance.length === 0 ? <div className="rounded-lg border border-border bg-card px-6 py-14 text-center"><UserIcon className="mx-auto h-10 w-10 text-muted-foreground" /><h3 className="mt-4 text-lg font-semibold">No attendance records</h3><p className="mt-2 text-sm text-muted-foreground">{hasActiveFilters ? "No records match the selected filters." : "No attendance was marked during this period."}</p></div> : <div className="space-y-6">{monthTables.map((month) => <article key={month.key} id={`attendance-month-${month.key}`} className="overflow-hidden rounded-lg border border-border bg-card shadow-sm"><header className="border-b border-border p-4"><h3 className="text-xl font-semibold">{month.label}</h3><p className="mt-1 text-sm text-muted-foreground">{month.dates.length} class days · {month.records.length} attendance records · {month.attendanceRate}% rate</p></header><div className="max-w-full overflow-x-auto"><table className="w-full min-w-max border-separate border-spacing-0 text-sm"><thead><tr className="bg-muted"><th scope="col" className="sticky left-0 z-20 min-w-52 border-b border-r border-border bg-muted px-4 py-3 text-left">Student Name</th>{month.dates.map((day) => <th key={day} scope="col" className="min-w-24 border-b border-border px-3 py-3 text-center">{new Date(`${day}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</th>)}</tr></thead><tbody>{month.levels.map((level) => <Fragment key={level.key}><tr className="bg-primary/5"><th scope="rowgroup" className="sticky left-0 z-20 min-w-52 border-y border-r border-border bg-primary/5 px-4 py-2 text-left text-xs font-semibold uppercase text-primary">{level.label}</th><td colSpan={month.dates.length} className="border-y border-border bg-primary/5" /></tr>{level.students.map((student) => <tr key={student.id}><th scope="row" className="sticky left-0 z-10 min-w-52 border-b border-r border-border bg-card px-4 py-3 text-left"><span className="flex items-center gap-3"><ProfilePicture imageUrl={student.profileImageUrl} name={student.name} size="sm" colorScheme="orange" />{student.name}</span></th>{month.dates.map((day) => { const record = student.records.get(day); return <td key={day} className="border-b border-border px-3 py-3 text-center">{record ? statusIcon(record.status) : "–"}</td>; })}</tr>)}</Fragment>)}</tbody></table></div></article>)}</div>}</section>
+    <section aria-labelledby="attendance-records-heading"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 id="attendance-records-heading" className="flex min-w-0 items-center gap-2 text-lg font-semibold"><Users className="h-5 w-5 shrink-0 text-primary" />Attendance records {isFetching && <span className="text-xs text-muted-foreground">Updating...</span>}</h2>{filteredAttendance.length > 0 && <div className="relative shrink-0" ref={dropdownRef}><button type="button" onClick={() => setShowExportDropdown((open) => !open)} className="inline-flex min-h-11 items-center gap-2 whitespace-nowrap rounded-md border border-border bg-card px-4"><Download className="h-4 w-4" />{isExporting ? "Exporting..." : "Export records"}<ChevronDown className="h-4 w-4" /></button>{showExportDropdown && <div className="absolute right-0 z-50 mt-2 w-48 rounded-md border border-border bg-card p-1 shadow-lg"><button type="button" onClick={() => void exportToExcel()} className="flex min-h-11 w-full items-center gap-2 px-3"><FileSpreadsheet className="h-4 w-4" />Export CSV</button><button type="button" onClick={() => void exportToPDF()} className="flex min-h-11 w-full items-center gap-2 px-3"><FileText className="h-4 w-4" />Export PDF</button></div>}</div>}</div>{filteredAttendance.length === 0 ? <div className="rounded-lg border border-border bg-card px-6 py-14 text-center"><UserIcon className="mx-auto h-10 w-10 text-muted-foreground" /><h3 className="mt-4 text-lg font-semibold">No attendance records</h3><p className="mt-2 text-sm text-muted-foreground">{hasActiveFilters ? "No records match the selected filters." : "No attendance was marked during this period."}</p></div> : <div className="space-y-6">{monthTables.map((month) => <article key={month.key} id={`attendance-month-${month.key}`} className="overflow-hidden rounded-lg border border-border bg-card shadow-sm"><header className="border-b border-border p-4"><h3 className="text-xl font-semibold">{month.label}</h3><p className="mt-1 text-sm text-muted-foreground">{month.dates.length} class days · {month.records.length} attendance records · {month.attendanceRate}% rate</p></header><div className="max-w-full overflow-x-auto"><table className="w-full min-w-max border-separate border-spacing-0 text-sm"><thead><tr className="bg-muted"><th scope="col" className="sticky left-0 z-20 min-w-52 border-b border-r border-border bg-muted px-4 py-3 text-left">Student Name</th>{month.dates.map((day) => <th key={day} scope="col" className="min-w-24 border-b border-border px-3 py-3 text-center">{new Date(`${day}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</th>)}</tr></thead><tbody>{month.levels.map((level) => <Fragment key={level.key}><tr className="bg-primary/5"><th scope="rowgroup" className="sticky left-0 z-20 min-w-52 border-y border-r border-border bg-primary/5 px-4 py-2 text-left text-xs font-semibold uppercase text-primary">{level.label}</th><td colSpan={month.dates.length} className="border-y border-border bg-primary/5" /></tr>{level.students.map((student) => <tr key={student.id}><th scope="row" className="sticky left-0 z-10 min-w-52 border-b border-r border-border bg-card px-4 py-3 text-left"><span className="flex items-center gap-3"><ProfilePicture imageUrl={student.profileImageUrl} name={student.name} size="sm" colorScheme="orange" />{student.name}</span></th>{month.dates.map((day) => { const record = student.records.get(day); return <td key={day} className="border-b border-border px-3 py-3 text-center">{record ? statusIcon(record.status) : "–"}</td>; })}</tr>)}</Fragment>)}</tbody></table></div></article>)}</div>}</section>
   </WorkspacePage>;
 };

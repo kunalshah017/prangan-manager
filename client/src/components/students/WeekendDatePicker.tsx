@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CalendarDays, ChevronDown } from "lucide-react";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
@@ -29,6 +29,7 @@ export function WeekendDatePicker({
     disabled = false,
 }: WeekendDatePickerProps) {
     const [open, setOpen] = useState(false);
+    const pickerRef = useRef<HTMLDivElement>(null);
     const minDate = min ? parseDate(min) : undefined;
     const maxDate = max ? parseDate(max) : undefined;
     const selectedDate = value ? parseDate(value) : undefined;
@@ -41,8 +42,17 @@ export function WeekendDatePicker({
         })
         : "Choose a weekend";
 
+    useEffect(() => {
+        if (!open) return;
+        const closeOnOutsidePointer = (event: PointerEvent) => {
+            if (!pickerRef.current?.contains(event.target as Node)) setOpen(false);
+        };
+        document.addEventListener("pointerdown", closeOnOutsidePointer);
+        return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
+    }, [open]);
+
     return (
-        <div className="relative min-w-0">
+        <div ref={pickerRef} className="relative min-w-0">
             <button
                 type="button"
                 onClick={() => setOpen((current) => !current)}
@@ -59,7 +69,7 @@ export function WeekendDatePicker({
             </button>
 
             {open && !disabled && (
-                <div className="absolute right-0 top-full z-50 mt-2 max-w-[calc(100vw-2rem)] overflow-x-auto rounded-md border border-border bg-popover p-2 text-popover-foreground shadow-lg">
+                <div className="absolute left-0 top-full z-50 mt-2 max-w-[calc(100vw-2rem)] overflow-x-auto rounded-md border border-border bg-popover p-2 text-popover-foreground shadow-lg">
                     <DayPicker
                         mode="single"
                         selected={selectedDate}

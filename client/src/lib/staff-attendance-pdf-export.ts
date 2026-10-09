@@ -138,6 +138,73 @@ const drawMonthDetailPage = (
   });
 };
 
+const drawSummaryPage = (
+  doc: jsPDF,
+  metadata: ExportMetadata,
+  records: AttendanceRecord[],
+  logo: HTMLImageElement | null,
+) => {
+  const model = buildStaffAttendancePdfModel({ records });
+  const months = groupStaffAttendanceRecordsByMonth(records);
+  const rows = model.roleGroups.flatMap((group) => group.staff.map((person) => {
+    let present = 0;
+    let absent = 0;
+    const monthlyRates = months.map((month) => {
+      let monthPresent = 0;
+      let monthAbsent = 0;
+      model.dates.forEach((date, index) => {
+        if (!date.startsWith(month.key)) return;
+        if (person.statuses[index] === "PRESENT") monthPresent++;
+        if (person.statuses[index] === "ABSENT") monthAbsent++;
+      });
+      present += monthPresent;
+      absent += monthAbsent;
+      const total = monthPresent + monthAbsent;
+      return total ? `${((monthPresent / total) * 100).toFixed(1)}%` : "–";
+    });
+    const total = present + absent;
+    const percentage = total ? (present / total) * 100 : undefined;
+    const remark = percentage === undefined ? "No working days" : percentage >= 90 ? "Excellent" : percentage >= 80 ? "Good" : percentage >= 70 ? "Satisfactory" : percentage >= 60 ? "Needs Improvement" : "Poor - Intervention Required";
+    return [person.name, person.role === "CENTER_MANAGER" ? "Center manager" : "Educator", ...monthlyRates, percentage === undefined ? "–" : `${percentage.toFixed(1)}%`, remark];
+  }));
+  const headers = ["Staff member", "Role", ...months.map(({ key }) => new Date(`${key}-01T00:00:00`).toLocaleDateString("en-GB", { month: "short", year: "2-digit" })), "Overall Avg%", "Remarks"];
+  if (rows.length === 0) rows.push(["No matching attendance records", "–", ...Array(months.length + 2).fill("–")]);
+  const monthWidth = Math.min(20, 152 / Math.max(months.length, 1));
+  const monthColumns = Object.fromEntries(months.map((_, index) => [index + 2, { cellWidth: monthWidth, halign: "center" as const }]));
+
+  autoTable(doc, {
+    head: [headers],
+    body: rows,
+    startY: 36,
+    margin: { top: 36, left: 12, right: 12, bottom: 12 },
+    styles: { fontSize: 7, cellPadding: 1.6, valign: "middle", halign: "center" },
+    headStyles: { fillColor: theme.primary, textColor: 255, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: theme.surface },
+    columnStyles: {
+      0: { cellWidth: 40, halign: "left" },
+      1: { cellWidth: 25, halign: "left" },
+      ...monthColumns,
+      [months.length + 2]: { cellWidth: 21 },
+      [months.length + 3]: { cellWidth: 35, halign: "left" },
+    },
+    didParseCell: ({ section, row, cell }) => {
+      if (section !== "body") return;
+      const remark = rows[row.index]?.[rows[row.index].length - 1];
+      if (remark === "Needs Improvement" || remark === "Poor - Intervention Required") {
+        cell.styles.fillColor = [255, 235, 213];
+        cell.styles.textColor = [173, 82, 0];
+        cell.styles.fontStyle = "bold";
+      }
+      if (cell.text[0]?.includes("%")) {
+        const rate = Number.parseFloat(cell.text[0]);
+        cell.styles.textColor = rate >= 90 ? [0, 97, 0] : rate >= 70 ? [133, 100, 4] : [180, 35, 24];
+        cell.styles.fontStyle = "bold";
+      }
+    },
+    willDrawPage: () => drawReportHeader(doc, metadata, "Attendance Summary", logo),
+  });
+};
+
 const drawInsightsPage = (
   doc: jsPDF,
   metadata: ExportMetadata,
@@ -145,7 +212,7 @@ const drawInsightsPage = (
   logo: HTMLImageElement | null,
 ) => {
   const model = buildStaffAttendancePdfModel({ records });
-  drawReportHeader(doc, metadata, "Attendance insights", logo);
+  drawReportHeader(doc, metadata, "Attendance Analytics & Insights", logo);
   const total = Object.values(model.statusTotals).reduce((sum, count) => sum + count, 0);
   const cards = [
     { key: "PRESENT", color: [22, 163, 74], x: 14 },
@@ -214,6 +281,8 @@ export const exportStaffAttendancePdf = async (
     });
   }
 
+  doc.addPage();
+  drawSummaryPage(doc, input, input.records, logo);
   doc.addPage();
   drawInsightsPage(doc, input, input.records, logo);
   doc.save(getStaffAttendancePdfFilename(input));

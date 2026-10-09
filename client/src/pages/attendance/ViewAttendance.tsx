@@ -31,6 +31,7 @@ import {
   WorkspacePage,
   WorkspacePageHeader,
 } from "@/components/workspace/WorkspacePage";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAttendanceRecords } from "@/hooks/useAttendanceQueries";
 import { useCenter } from "@/hooks/useCenterQueries";
 import { useProject } from "@/hooks/useProjectQueries";
@@ -148,20 +149,6 @@ export const ViewAttendance = () => {
     setDebouncedFromDate(nextFrom);
     setDebouncedToDate(nextTo);
   }, [semesterEndDate, semesterStartDate]);
-
-  const setFullSemester = () => {
-    if (!semesterStartDate || !semesterEndDate) return;
-    const nextFrom = getWeekendOnOrAfter(
-      semesterStartDate,
-      semesterEndDate,
-    );
-    const nextTo = getWeekendOnOrBefore(semesterEndDate, semesterStartDate);
-    setTimeframe("range");
-    setFromDate(nextFrom);
-    setToDate(nextTo);
-    setDebouncedFromDate(nextFrom);
-    setDebouncedToDate(nextTo);
-  };
 
   useEffect(() => {
     if (
@@ -497,52 +484,48 @@ export const ViewAttendance = () => {
           )}
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-4">
-          <div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-12">
+          <div className="order-1 md:col-span-2 lg:col-span-3">
             <span className="mb-2 block text-sm font-medium text-foreground">Timeframe</span>
-            <div className="mb-3 grid grid-cols-2 rounded-md border border-border bg-muted p-1">
+            <div className="grid grid-cols-2 rounded-md border border-border bg-muted p-1">
               <button type="button" aria-pressed={timeframe === "single"} onClick={() => setTimeframe("single")} className={cn("min-h-11 rounded px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", timeframe === "single" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground")}>Single date</button>
               <button type="button" aria-pressed={timeframe === "range"} onClick={() => setTimeframe("range")} className={cn("min-h-11 rounded px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", timeframe === "range" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground")}>Date range</button>
             </div>
-            {timeframe === "single" ? (
-              <WeekendDatePicker label="Single date" value={singleDate} min={semesterStartDate} max={semesterEndDate} onChange={setSingleDate} />
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                <label className="grid gap-1 text-xs font-medium text-muted-foreground">From<WeekendDatePicker label="From" value={fromDate} min={semesterStartDate} max={semesterEndDate} onChange={setFromDate} /></label>
-                <label className="grid gap-1 text-xs font-medium text-muted-foreground">To<WeekendDatePicker label="To" value={toDate} min={semesterStartDate} max={semesterEndDate} onChange={setToDate} /></label>
-                <div className="grid grid-cols-2 gap-2 sm:col-span-2 lg:col-span-1">
-                  <button type="button" onClick={setCurrentMonth} className="min-h-11 rounded-md border border-border px-3 text-sm font-medium text-foreground hover:bg-accent">Current month</button>
-                  <button type="button" onClick={setFullSemester} className="min-h-11 rounded-md border border-border px-3 text-sm font-medium text-foreground hover:bg-accent">Full semester</button>
-                </div>
-              </div>
-            )}
           </div>
 
-          <label className="grid content-start gap-2 text-sm font-medium text-foreground">
+          {timeframe === "single" ? (
+            <div className="order-2 grid content-start gap-2 text-sm font-medium text-foreground md:col-span-2 lg:order-5 lg:col-span-6">
+              <span>Single date</span>
+              <WeekendDatePicker label="Single date" value={singleDate} min={semesterStartDate} max={semesterEndDate} onChange={setSingleDate} />
+            </div>
+          ) : (
+            <div className="order-2 grid gap-3 md:col-span-2 md:grid-cols-2 lg:order-5 lg:col-span-12 lg:grid-cols-12">
+              <label className="grid content-start gap-2 text-sm font-medium text-foreground lg:col-span-6">From date<WeekendDatePicker label="From date" value={fromDate} min={semesterStartDate} max={semesterEndDate} onChange={setFromDate} /></label>
+              <label className="grid content-start gap-2 text-sm font-medium text-foreground lg:col-span-6">To date<WeekendDatePicker label="To date" value={toDate} min={semesterStartDate} max={semesterEndDate} onChange={setToDate} /></label>
+            </div>
+          )}
+
+          <label className="order-3 grid content-start gap-2 text-sm font-medium text-foreground lg:order-2 lg:col-span-3">
             Search staff
             <span className="relative">
               <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
               <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Staff name" className="min-h-11 w-full rounded-md border border-input bg-background pl-9 pr-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
             </span>
           </label>
-          <label className="grid content-start gap-2 text-sm font-medium text-foreground">
-            Role
-            <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value as RoleFilter)} className="min-h-11 rounded-md border border-input bg-background px-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              <option value="ALL">All roles</option>
-              <option value="CENTER_MANAGER">Center Manager</option>
-              <option value="EDUCATOR">Educator</option>
-            </select>
-          </label>
-          <label className="grid content-start gap-2 text-sm font-medium text-foreground">
-            Status
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)} className="min-h-11 rounded-md border border-input bg-background px-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              <option value="ALL">All statuses</option>
-              <option value="PRESENT">Present</option>
-              <option value="ABSENT">Absent</option>
-              <option value="NOT_AVAILABLE">Not available</option>
-              <option value="HOLIDAY">Holiday</option>
-            </select>
-          </label>
+          <div className="order-4 grid content-start gap-2 text-sm font-medium text-foreground lg:order-3 lg:col-span-3">
+            <span id="staff-role-label">Role</span>
+            <Select value={roleFilter} onValueChange={(value) => setRoleFilter(value as RoleFilter)}>
+              <SelectTrigger aria-labelledby="staff-role-label" className="h-11 border-input bg-background text-foreground"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="ALL">All roles</SelectItem><SelectItem value="CENTER_MANAGER">Center Manager</SelectItem><SelectItem value="EDUCATOR">Educator</SelectItem></SelectContent>
+            </Select>
+          </div>
+          <div className="order-5 grid content-start gap-2 text-sm font-medium text-foreground lg:order-4 lg:col-span-3">
+            <span id="staff-status-label">Status</span>
+            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
+              <SelectTrigger aria-labelledby="staff-status-label" className="h-11 border-input bg-background text-foreground"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="ALL">All statuses</SelectItem><SelectItem value="PRESENT">Present</SelectItem><SelectItem value="ABSENT">Absent</SelectItem><SelectItem value="NOT_AVAILABLE">Not available</SelectItem><SelectItem value="HOLIDAY">Holiday</SelectItem></SelectContent>
+            </Select>
+          </div>
         </div>
       </section>
 
