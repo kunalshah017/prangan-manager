@@ -1,7 +1,7 @@
-import jsPDF from "jspdf";
+import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
-import { buildStaffAttendancePdfModel } from "@/lib/staff-attendance-pdf";
+import { buildStaffAttendanceFollowUp, buildStaffAttendancePdfModel } from "@/lib/staff-attendance-pdf";
 import type { AttendanceRecord } from "@/types/api";
 
 type ExportMetadata = {
@@ -23,11 +23,31 @@ const theme: Record<"primary" | "ink" | "muted" | "surface", [number, number, nu
   surface: [255, 246, 232],
 };
 
-const statusShortLabel: Record<AttendanceRecord["status"], string> = {
-  PRESENT: "P",
-  ABSENT: "A",
-  NOT_AVAILABLE: "NA",
-  HOLIDAY: "H",
+const summaryStatuses = [
+  { label: "P", color: [0, 128, 0] },
+  { label: "A", color: [180, 35, 24] },
+  { label: "NA", color: [173, 82, 0] },
+  { label: "H", color: [37, 99, 235] },
+] as const;
+
+const drawSummaryStatuses = (doc: jsPDF, values: string[], x: number, y: number, width: number) => {
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7);
+  const separator = " / ";
+  const separatorWidth = doc.getTextWidth(separator);
+  const textWidth = values.reduce((sum, value) => sum + doc.getTextWidth(value), 0) + separatorWidth * (values.length - 1);
+  let textX = x + (width - textWidth) / 2;
+  values.forEach((value, index) => {
+    const [red, green, blue] = summaryStatuses[index].color;
+    doc.setTextColor(red, green, blue);
+    doc.text(value, textX, y);
+    textX += doc.getTextWidth(value);
+    if (index < values.length - 1) {
+      doc.setTextColor(...theme.muted);
+      doc.text(separator, textX, y);
+      textX += separatorWidth;
+    }
+  });
 };
 
 const statusLabel: Record<AttendanceRecord["status"], string> = {
@@ -144,7 +164,8 @@ const drawSingleDatePage = (
     startY: 43,
     head: [["S.No", "Name", "Role", "Status", "Time", "Marked by"]],
     body: rows,
-    styles: { fontSize: 9, cellPadding: 3 },
+    theme: "grid",
+    styles: { fontSize: 9, cellPadding: 3, lineWidth: 0.2, lineColor: [190, 180, 165] },
     headStyles: { fillColor: theme.primary, textColor: 255, fontStyle: "bold" },
     alternateRowStyles: { fillColor: theme.surface },
     columnStyles: { 0: { cellWidth: 13 }, 1: { cellWidth: 45 }, 2: { cellWidth: 32 }, 3: { cellWidth: 27 }, 4: { cellWidth: 23 } },
@@ -169,9 +190,6 @@ const drawMonthDetailPage = (
 ) => {
   const model = buildStaffAttendancePdfModel({ records });
   drawReportHeader(doc, metadata, `Staff attendance - ${label}`, logo);
-  doc.setFontSize(7);
-  doc.setTextColor(...theme.muted);
-  doc.text("P = Present   A = Absent   NA = Not available   H = Holiday", 12, 35);
 
   const holidayDates = new Map(model.dates.flatMap((date) => {
     const dayRecords = records.filter((record) => record.date.slice(0, 10) === date);
@@ -188,28 +206,32 @@ const drawMonthDetailPage = (
     [{ content: roleName(group.role).toUpperCase(), colSpan: model.dates.length + 1, styles: { fillColor: [240, 240, 240] as [number, number, number], fontStyle: "bold" as const, halign: "left" as const } }],
     ...group.staff.map((person) => [
       person.name,
-      ...person.statuses.map((status, index) => holidayDates.has(model.dates[index]) ? "" : status ? statusShortLabel[status] : "-"),
+      ...person.statuses.map((status, index) => holidayDates.has(model.dates[index]) ? "" : status ? statusLabel[status] : "-"),
     ]),
   ]);
 
   autoTable(doc, {
-    startY: 40,
+    startY: 35,
     head,
     body: body.length ? body : [["No attendance records match the selected filters."]],
-    styles: { fontSize: 8, cellPadding: 2, halign: "center", overflow: "linebreak" },
+    theme: "grid",
+    styles: { fontSize: 8, cellPadding: 2, halign: "center", overflow: "linebreak", lineWidth: 0.2, lineColor: [190, 180, 165] },
     headStyles: { fillColor: theme.primary, textColor: 255, fontStyle: "bold" },
     alternateRowStyles: { fillColor: theme.surface },
-    columnStyles: { 0: { halign: "left", cellWidth: 48 } },
-    margin: { top: 40, left: 12, right: 12, bottom: 15 },
+    columnStyles: {
+      0: { halign: "left", cellWidth: 48 },
+      ...Object.fromEntries(model.dates.map((_, index) => [index + 1, { cellWidth: 225 / model.dates.length }])),
+    },
+    margin: { top: 35, left: 12, right: 12, bottom: 15 },
     didParseCell: ({ section, column, cell }) => {
       if (column.index === 0) return;
       if (holidayDates.has(model.dates[column.index - 1])) {
         cell.styles.fillColor = [219, 234, 254];
         if (section === "head") cell.styles.textColor = [37, 99, 235];
       } else if (section === "body") {
-        if (cell.text[0] === "P") cell.styles.textColor = [0, 128, 0];
-        if (cell.text[0] === "A") cell.styles.textColor = [180, 35, 24];
-        if (cell.text[0] === "NA") cell.styles.textColor = [173, 82, 0];
+        if (cell.text[0] === "Present") cell.styles.textColor = [0, 128, 0];
+        if (cell.text[0] === "Absent") cell.styles.textColor = [180, 35, 24];
+        if (cell.text[0] === "Not available") cell.styles.textColor = [173, 82, 0];
         cell.styles.fontStyle = "bold";
       }
     },
@@ -225,7 +247,8 @@ const drawSummaryPage = (
 ) => {
   const model = buildStaffAttendancePdfModel({ records });
   const months = groupStaffAttendanceRecordsByMonth(records);
-  const chunks = Array.from({ length: Math.max(1, Math.ceil(months.length / 2)) }, (_, index) => months.slice(index * 2, index * 2 + 2));
+  const monthsPerPage = 7;
+  const chunks = Array.from({ length: Math.max(1, Math.ceil(months.length / monthsPerPage)) }, (_, index) => months.slice(index * monthsPerPage, index * monthsPerPage + monthsPerPage));
   chunks.forEach((chunk, chunkIndex) => {
     if (chunkIndex > 0) doc.addPage("a4", "landscape");
     const showOverall = chunkIndex === chunks.length - 1;
@@ -236,38 +259,48 @@ const drawSummaryPage = (
           if (date.startsWith(month.key) && person.statuses[index]) counts[person.statuses[index] as AttendanceRecord["status"]]++;
         });
         const basis = counts.PRESENT + counts.ABSENT;
-        return [String(counts.PRESENT), String(counts.ABSENT), String(counts.NOT_AVAILABLE), String(counts.HOLIDAY), basis ? `${((counts.PRESENT / basis) * 100).toFixed(1)}%` : "-"];
+        return `${counts.PRESENT}/${counts.ABSENT}/${counts.NOT_AVAILABLE}/${counts.HOLIDAY}|${basis ? `${((counts.PRESENT / basis) * 100).toFixed(1)}%` : "-"}`;
       });
       const present = person.statuses.filter((status) => status === "PRESENT").length;
       const absent = person.statuses.filter((status) => status === "ABSENT").length;
       const percentage = present + absent ? (present / (present + absent)) * 100 : undefined;
       const remark = percentage === undefined ? "No working days" : percentage >= 90 ? "Excellent" : percentage >= 80 ? "Good" : percentage >= 70 ? "Satisfactory" : percentage >= 60 ? "Needs Improvement" : "Poor - Intervention Required";
-      return [person.name, roleName(person.role), ...monthCells, ...(showOverall ? [percentage === undefined ? "-" : `${percentage.toFixed(1)}%`, remark] : [])];
+      return [person.name, ...monthCells, ...(showOverall ? [percentage === undefined ? "-" : `${percentage.toFixed(1)}%`, remark] : [])];
     }));
     const monthColumns = Object.fromEntries(chunk.flatMap((_, monthIndex) => [
-      ...[0, 1, 2, 3].map((offset) => [2 + monthIndex * 5 + offset, { cellWidth: 12 }] as const),
-      [2 + monthIndex * 5 + 4, { cellWidth: 25 }] as const,
+      [1 + monthIndex, { cellWidth: 27 }] as const,
     ]));
-    const headers = ["Staff member", "Role", ...chunk.flatMap(({ key }) => {
+    const headers = ["Staff member", ...chunk.flatMap(({ key }) => {
       const month = new Date(`${key}-01T00:00:00`).toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
-      return ["P", "A", "NA", "H", `${month} Avg%`];
+      return [month];
     }), ...(showOverall ? ["Overall Avg%", "Remarks"] : [])];
-    const width = 40 + 25 + chunk.length * 73 + (showOverall ? 61 : 0);
+    const width = 35 + chunk.length * 27 + (showOverall ? 52 : 0);
     autoTable(doc, {
       head: [headers],
       body: rows.length ? rows : [["No matching attendance records"]],
       startY: 40,
       margin: { top: 40, left: (297 - width) / 2, right: (297 - width) / 2, bottom: 15 },
-      styles: { fontSize: 7, cellPadding: 1.7, valign: "middle", halign: "center" },
+      theme: "grid",
+      styles: { fontSize: 7, cellPadding: 1.7, valign: "middle", halign: "center", overflow: "linebreak", lineWidth: 0.2, lineColor: [190, 180, 165] },
       headStyles: { fillColor: theme.primary, textColor: 255, fontStyle: "bold" },
       alternateRowStyles: { fillColor: theme.surface },
       columnStyles: {
-        0: { cellWidth: 40, halign: "left" },
-        1: { cellWidth: 25, halign: "left" },
+        0: { cellWidth: 35, halign: "left" },
         ...monthColumns,
-        ...(showOverall ? { [2 + chunk.length * 5]: { cellWidth: 24 }, [3 + chunk.length * 5]: { cellWidth: 37, halign: "left" as const } } : {}),
+        ...(showOverall ? { [1 + chunk.length]: { cellWidth: 22 }, [2 + chunk.length]: { cellWidth: 30, halign: "left" as const } } : {}),
       },
-      didParseCell: ({ section, row, cell }) => {
+      didParseCell: ({ section, row, column, cell }) => {
+        const isMonthColumn = column.index >= 1 && column.index <= chunk.length;
+        if (isMonthColumn && section === "head") {
+          cell.styles.fillColor = theme.surface;
+          cell.styles.textColor = theme.ink;
+          cell.styles.valign = "top";
+          cell.styles.minCellHeight = 12;
+        }
+        if (isMonthColumn && section === "body" && rows[row.index]) {
+          cell.text = [];
+          cell.styles.minCellHeight = 11;
+        }
         if (section !== "body") return;
         const remark = showOverall ? rows[row.index]?.[rows[row.index].length - 1] : undefined;
         if (remark === "Needs Improvement" || remark === "Poor - Intervention Required") {
@@ -281,6 +314,19 @@ const drawSummaryPage = (
           cell.styles.fontStyle = "bold";
         }
       },
+      didDrawCell: ({ section, row, column, cell }) => {
+        if (column.index < 1 || column.index > chunk.length) return;
+        if (section === "head") {
+          drawSummaryStatuses(doc, summaryStatuses.map(({ label }) => label), cell.x, cell.y + cell.height - 2, cell.width);
+        } else if (section === "body" && rows[row.index]) {
+          const [counts, average] = rows[row.index][column.index].split("|");
+          drawSummaryStatuses(doc, counts.split("/"), cell.x, cell.y + 4, cell.width);
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(7);
+          doc.setTextColor(...theme.muted);
+          doc.text(`Avg ${average}`, cell.x + cell.width / 2, cell.y + 8, { align: "center" });
+        }
+      },
       willDrawPage: () => drawReportHeader(doc, metadata, chunkIndex ? `Attendance Summary - Part ${chunkIndex + 1}` : "Attendance Summary", logo),
     });
   });
@@ -292,57 +338,62 @@ const drawInsightsPage = (
   records: AttendanceRecord[],
   logo: HTMLImageElement | null,
 ) => {
-  const model = buildStaffAttendancePdfModel({ records });
-  drawReportHeader(doc, metadata, "Attendance Analytics & Insights", logo);
-  const total = Object.values(model.statusTotals).reduce((sum, count) => sum + count, 0);
-  const cards = [
-    { key: "PRESENT", color: [22, 163, 74], x: 14 },
-    { key: "ABSENT", color: [220, 38, 38], x: 83 },
-    { key: "NOT_AVAILABLE", color: [217, 119, 6], x: 152 },
-    { key: "HOLIDAY", color: [79, 70, 229], x: 221 },
-  ] as const;
+  const followUp = buildStaffAttendanceFollowUp({ records });
+  drawReportHeader(doc, metadata, "Attendance follow-up", logo);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(...theme.muted);
+  doc.text("Review repeated staff absences and dates with the largest staffing gaps. Holiday records are excluded.", 12, 35);
 
-  cards.forEach(({ key, color, x }) => {
-    doc.setFillColor(color[0], color[1], color[2]);
-    doc.roundedRect(x, 46, 61, 34, 3, 3, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
-    doc.text(String(model.statusTotals[key]), x + 8, 61);
-    doc.setFontSize(8);
-    doc.text(statusLabel[key], x + 8, 72);
+  if (!followUp.staff.length) {
+    doc.setFontSize(10);
+    doc.setTextColor(...theme.ink);
+    doc.text("No absences or unavailable days were recorded in the selected period.", 12, 52);
+    return;
+  }
+
+  const topStaff = followUp.staff.slice(0, 8);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(...theme.ink);
+  doc.text(`Staff needing follow-up (${topStaff.length} of ${followUp.staff.length})`, 12, 46);
+  autoTable(doc, {
+    startY: 50,
+    head: [["Staff member", "Absent days", "Not available days", "Most recent gap"]],
+    body: topStaff.map((person) => [person.name, String(person.absent), String(person.unavailable), displayDate(person.lastExceptionDate)]),
+    theme: "grid",
+    styles: { fontSize: 7.5, cellPadding: 1.5, lineWidth: 0.2, lineColor: [190, 180, 165] },
+    headStyles: { fillColor: theme.primary, textColor: 255, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: theme.surface },
+    columnStyles: { 0: { cellWidth: 110 }, 1: { cellWidth: 45 }, 2: { cellWidth: 55 }, 3: { cellWidth: 63 } },
+    margin: { top: 40, left: 12, right: 12, bottom: 15 },
+    willDrawPage: () => drawReportHeader(doc, metadata, "Attendance follow-up", logo),
   });
 
-  doc.setTextColor(...theme.ink);
+  const staffTableEnd = (doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? 110;
+  const topDates = followUp.dates.slice(0, 8);
+  const datesTitleY = staffTableEnd + 11;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.text("Overall attendance rate", 14, 100);
-  doc.setFontSize(30);
-  doc.setTextColor(...theme.primary);
-  doc.text(`${model.attendanceRate}%`, 14, 119);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(...theme.muted);
-  doc.setFontSize(8);
-  doc.text("Present / (Present + Absent)", 14, 128);
-  doc.text(`${total} recorded attendance entries`, 14, 136);
-
+  doc.setFontSize(11);
   doc.setTextColor(...theme.ink);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.text("Role-wise attendance rate", 128, 100);
-  model.roleGroups.forEach((group, index) => {
-    const y = 113 + index * 27;
-    const rate = Number(group.attendanceRate);
-    doc.setFontSize(9);
-    doc.setTextColor(...theme.muted);
-    doc.text(group.role === "CENTER_MANAGER" ? "Center managers" : "Educators", 128, y);
-    doc.setFillColor(242, 229, 207);
-    doc.roundedRect(128, y + 4, 130, 8, 2, 2, "F");
-    doc.setFillColor(...theme.primary);
-    doc.roundedRect(128, y + 4, Math.max(0, Math.min(130, (rate / 100) * 130)), 8, 2, 2, "F");
-    doc.setFont("helvetica", "bold");
-    doc.text(`${group.attendanceRate}%`, 263, y + 10, { align: "right" });
-    doc.setFont("helvetica", "normal");
+  doc.text(`Dates with coverage gaps (${topDates.length} of ${followUp.dates.length})`, 12, datesTitleY);
+  autoTable(doc, {
+    startY: datesTitleY + 4,
+    head: [["Date", "Absent", "Not available", "Present", "Affected staff"]],
+    body: topDates.map((date) => [
+      displayDate(date.date),
+      String(date.absent),
+      String(date.unavailable),
+      String(date.present),
+      `${date.affectedStaff.slice(0, 5).join(", ")}${date.affectedStaff.length > 5 ? ` +${date.affectedStaff.length - 5} more` : ""}`,
+    ]),
+    theme: "grid",
+    styles: { fontSize: 7.5, cellPadding: 1.5, lineWidth: 0.2, lineColor: [190, 180, 165] },
+    headStyles: { fillColor: theme.primary, textColor: 255, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: theme.surface },
+    columnStyles: { 0: { cellWidth: 30 }, 1: { cellWidth: 27 }, 2: { cellWidth: 35 }, 3: { cellWidth: 27 }, 4: { cellWidth: 154 } },
+    margin: { top: 40, left: 12, right: 12, bottom: 15 },
+    willDrawPage: () => drawReportHeader(doc, metadata, "Attendance follow-up", logo),
   });
 };
 
@@ -368,12 +419,12 @@ export const exportStaffAttendancePdf = async (
   drawSummaryPage(doc, input, input.records, logo);
   doc.addPage("a4", "landscape");
   drawInsightsPage(doc, input, input.records, logo);
-  for (let page = 1; page <= doc.internal.getNumberOfPages(); page++) {
+  for (let page = 1; page <= doc.getNumberOfPages(); page++) {
     doc.setPage(page);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(...theme.muted);
-    doc.text(`Page ${page} of ${doc.internal.getNumberOfPages()}`, doc.internal.pageSize.getWidth() - 12, doc.internal.pageSize.getHeight() - 7, { align: "right" });
+    doc.text(`Page ${page} of ${doc.getNumberOfPages()}`, doc.internal.pageSize.getWidth() - 12, doc.internal.pageSize.getHeight() - 7, { align: "right" });
   }
   doc.save(getStaffAttendancePdfFilename(input));
 };

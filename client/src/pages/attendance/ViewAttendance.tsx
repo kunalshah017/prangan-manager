@@ -69,13 +69,6 @@ type StaffRow = {
 const roleLabel = (role: string) =>
   role === "CENTER_MANAGER" ? "Center Manager" : "Educator";
 
-const statusShortLabel: Record<AttendanceRecord["status"], string> = {
-  PRESENT: "P",
-  ABSENT: "A",
-  NOT_AVAILABLE: "NA",
-  HOLIDAY: "H",
-};
-
 const statusLabel: Record<AttendanceRecord["status"], string> = {
   PRESENT: "Present",
   ABSENT: "Absent",
@@ -564,28 +557,27 @@ export const ViewAttendance = () => {
         </nav>
       )}
 
-      {filteredAttendance.length > 0 && (
-        <ProtectedComponent requireAdmin>
-          <div className="mt-5 flex justify-end">
-            <div ref={exportMenuRef} className="relative">
-              <button type="button" disabled={!canExport} aria-disabled={!canExport || isExporting} onClick={() => { if (!isExporting) setShowExportMenu((current) => !current); }} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-border bg-card px-4 text-sm font-semibold text-foreground shadow-sm hover:bg-accent disabled:opacity-50" aria-expanded={showExportMenu}>
-                <Download className="h-4 w-4" aria-hidden="true" />
-                {isExporting ? "Exporting..." : "Export records"}
-                <ChevronDown className="h-4 w-4" aria-hidden="true" />
-              </button>
-              {showExportMenu && (
-                <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-md border border-border bg-popover p-1 shadow-lg">
-                  <button type="button" disabled={!canExportCsv} onClick={() => { setShowExportMenu(false); void exportToExcel(); }} className="flex min-h-11 w-full items-center gap-2 rounded px-3 text-sm font-medium hover:bg-accent disabled:opacity-50"><FileSpreadsheet className="h-4 w-4 text-success" aria-hidden="true" />Export CSV</button>
-                  <button type="button" disabled={!canExportPdf} onClick={() => { setShowExportMenu(false); void exportToPDF(); }} className="flex min-h-11 w-full items-center gap-2 rounded px-3 text-sm font-medium hover:bg-accent disabled:opacity-50"><FileText className="h-4 w-4 text-destructive" aria-hidden="true" />Export PDF</button>
-                </div>
-              )}
-            </div>
-          </div>
-        </ProtectedComponent>
-      )}
-
       <section className="mt-6" aria-labelledby="staff-records-title">
-        <h2 id="staff-records-title" className="flex items-center gap-2 text-lg font-semibold text-foreground"><Users className="h-5 w-5 text-primary" aria-hidden="true" />Attendance records</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 id="staff-records-title" className="flex min-w-0 items-center gap-2 text-lg font-semibold text-foreground"><Users className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />Attendance records</h2>
+          {filteredAttendance.length > 0 && (
+            <ProtectedComponent requireAdmin>
+              <div ref={exportMenuRef} className="relative shrink-0">
+                <button type="button" disabled={!canExport} aria-disabled={!canExport || isExporting} onClick={() => { if (!isExporting) setShowExportMenu((current) => !current); }} className="inline-flex min-h-11 items-center gap-2 whitespace-nowrap rounded-md border border-border bg-card px-4 disabled:opacity-50" aria-expanded={showExportMenu}>
+                  <Download className="h-4 w-4" aria-hidden="true" />
+                  {isExporting ? "Exporting..." : "Export records"}
+                  <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                </button>
+                {showExportMenu && (
+                  <div className="absolute right-0 z-50 mt-2 w-48 rounded-md border border-border bg-card p-1 shadow-lg">
+                    <button type="button" disabled={!canExportCsv} onClick={() => { setShowExportMenu(false); void exportToExcel(); }} className="flex min-h-11 w-full items-center gap-2 px-3 disabled:opacity-50"><FileSpreadsheet className="h-4 w-4" aria-hidden="true" />Export CSV</button>
+                    <button type="button" disabled={!canExportPdf} onClick={() => { setShowExportMenu(false); void exportToPDF(); }} className="flex min-h-11 w-full items-center gap-2 px-3 disabled:opacity-50"><FileText className="h-4 w-4" aria-hidden="true" />Export PDF</button>
+                  </div>
+                )}
+              </div>
+            </ProtectedComponent>
+          )}
+        </div>
         {filteredAttendance.length === 0 ? (
           <div className="mt-4 rounded-lg border border-dashed border-border bg-card px-6 py-14 text-center">
             <CalendarDays className="mx-auto h-10 w-10 text-muted-foreground" aria-hidden="true" />
@@ -661,7 +653,7 @@ function StatusCell({ record, label }: { record: AttendanceRecord; label: string
   return (
     <span className={cn("inline-flex min-h-8 min-w-8 items-center justify-center gap-1 rounded-full border px-2 text-xs font-bold shadow-sm", config.className)} aria-label={label} title={label}>
       <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-      {statusShortLabel[record.status]}
+      {statusLabel[record.status]}
     </span>
   );
 }

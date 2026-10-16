@@ -23,6 +23,11 @@ export type StaffAttendancePdfModel = {
   attendanceRate: string;
 };
 
+export type StaffAttendanceFollowUp = {
+  staff: Array<{ name: string; absent: number; unavailable: number; lastExceptionDate: string }>;
+  dates: Array<{ date: string; present: number; absent: number; unavailable: number; affectedStaff: string[] }>;
+};
+
 const roles: StaffAttendanceRole[] = ["CENTER_MANAGER", "EDUCATOR"];
 
 const toRate = (present: number, absent: number) => {
@@ -93,4 +98,38 @@ export const buildStaffAttendancePdfModel = ({
     statusTotals,
     attendanceRate: toRate(statusTotals.PRESENT, statusTotals.ABSENT),
   };
+};
+
+export const buildStaffAttendanceFollowUp = ({ records }: { records: AttendanceRecord[] }): StaffAttendanceFollowUp => {
+  const model = buildStaffAttendancePdfModel({ records });
+  const people = model.roleGroups.flatMap((group) => group.staff);
+
+  const staff = people.map((person) => {
+    let absent = 0;
+    let unavailable = 0;
+    let lastExceptionDate = "";
+    person.statuses.forEach((status, index) => {
+      if (status === "ABSENT") absent++;
+      if (status === "NOT_AVAILABLE") unavailable++;
+      if (status === "ABSENT" || status === "NOT_AVAILABLE") lastExceptionDate = model.dates[index];
+    });
+    return { name: person.name, absent, unavailable, lastExceptionDate };
+  }).filter((person) => person.absent + person.unavailable > 0)
+    .sort((left, right) => right.absent - left.absent || right.unavailable - left.unavailable || left.name.localeCompare(right.name));
+
+  const dates = model.dates.map((date, index) => {
+    const present = people.filter((person) => person.statuses[index] === "PRESENT").length;
+    const absentPeople = people.filter((person) => person.statuses[index] === "ABSENT");
+    const unavailablePeople = people.filter((person) => person.statuses[index] === "NOT_AVAILABLE");
+    return {
+      date,
+      present,
+      absent: absentPeople.length,
+      unavailable: unavailablePeople.length,
+      affectedStaff: [...absentPeople, ...unavailablePeople].map((person) => person.name).sort((left, right) => left.localeCompare(right)),
+    };
+  }).filter((date) => date.absent + date.unavailable > 0)
+    .sort((left, right) => (right.absent + right.unavailable) - (left.absent + left.unavailable) || right.absent - left.absent || left.date.localeCompare(right.date));
+
+  return { staff, dates };
 };

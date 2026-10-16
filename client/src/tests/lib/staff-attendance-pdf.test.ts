@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildStaffAttendancePdfModel } from "@/lib/staff-attendance-pdf";
+import { buildStaffAttendanceFollowUp, buildStaffAttendancePdfModel } from "@/lib/staff-attendance-pdf";
 import type { AttendanceRecord } from "@/types/api";
 
 const record = (
@@ -96,5 +96,35 @@ describe("staff attendance PDF model", () => {
         HOLIDAY: 0,
       },
     });
+  });
+});
+
+describe("staff attendance follow-up", () => {
+  it("ranks staff and dates with coverage gaps while excluding holidays", () => {
+    const records = [
+      record({ id: "a1", date: "2026-07-04", status: "ABSENT" }),
+      record({ id: "a2", date: "2026-07-05", status: "ABSENT" }),
+      record({ id: "a3", date: "2026-07-11", status: "NOT_AVAILABLE" }),
+      record({ id: "d1", userId: "manager-1", userName: "Dev", date: "2026-07-04", status: "ABSENT", roleAssignment: { id: "assignment-2", subRole: "CENTER_MANAGER" } }),
+      record({ id: "d2", userId: "manager-1", userName: "Dev", date: "2026-07-05", status: "PRESENT", roleAssignment: { id: "assignment-2", subRole: "CENTER_MANAGER" } }),
+      record({ id: "d3", userId: "manager-1", userName: "Dev", date: "2026-07-11", status: "NOT_AVAILABLE", roleAssignment: { id: "assignment-2", subRole: "CENTER_MANAGER" } }),
+      record({ id: "h1", userId: "educator-2", userName: "Isha", date: "2026-07-04", status: "HOLIDAY" }),
+    ];
+
+    const followUp = buildStaffAttendanceFollowUp({ records });
+
+    expect(followUp.staff).toEqual([
+      { name: "Asha", absent: 2, unavailable: 1, lastExceptionDate: "2026-07-11" },
+      { name: "Dev", absent: 1, unavailable: 1, lastExceptionDate: "2026-07-11" },
+    ]);
+    expect(followUp.dates).toEqual([
+      { date: "2026-07-04", present: 0, absent: 2, unavailable: 0, affectedStaff: ["Asha", "Dev"] },
+      { date: "2026-07-11", present: 0, absent: 0, unavailable: 2, affectedStaff: ["Asha", "Dev"] },
+      { date: "2026-07-05", present: 1, absent: 1, unavailable: 0, affectedStaff: ["Asha"] },
+    ]);
+  });
+
+  it("returns no follow-up items when records have no coverage gaps", () => {
+    expect(buildStaffAttendanceFollowUp({ records: [record({ status: "PRESENT" }), record({ id: "h1", date: "2026-07-05", status: "HOLIDAY" })] })).toEqual({ staff: [], dates: [] });
   });
 });
