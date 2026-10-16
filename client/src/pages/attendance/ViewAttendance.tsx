@@ -407,6 +407,7 @@ export const ViewAttendance = () => {
     try {
       await exportStaffAttendancePdf({
         records: filteredAttendance,
+        timeframe,
         projectName: projectQuery.data?.name,
         centerName: centerQuery.data?.name,
         semesterName: semesterQuery.data?.name,
