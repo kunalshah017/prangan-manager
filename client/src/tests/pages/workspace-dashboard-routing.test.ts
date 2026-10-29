@@ -10,7 +10,6 @@ const read = (path: string) =>
 
 const appSource = read("../../App.tsx");
 const projectsSource = read("../../pages/projects/Projects.tsx");
-const centersSource = read("../../pages/centers/Centers.tsx");
 const administrationPath = new URL(
   "../../pages/AdministrationDashboard.tsx",
   import.meta.url,
@@ -23,7 +22,7 @@ const centerDashboardPath = new URL(
   "../../pages/centers/CenterDashboard.tsx",
   import.meta.url,
 );
-const semestersSource = read("../../pages/semesters/Semesters.tsx");
+const semestersSource = read("../../pages/centers/CenterDashboard.tsx");
 const transitionHooksSource = read(
   "../../hooks/useSemesterTransitionQueries.ts",
 );
@@ -66,8 +65,10 @@ describe("workspace scope dashboards", () => {
 
   it("opens project and center dashboards from workspace cards", () => {
     expect(projectsSource).toContain("projectCardDestination(project.id)");
-    expect(centersSource).toContain(
-      "centerCardDestination(projectId, center.id)",
+    // The project dashboard is the centre list; the old URL redirects to it.
+    expect(appSource).toContain('element={<ProjectCentresRedirect />}');
+    expect(read("../../components/workspace/CentreList.tsx")).toContain(
+      "centerCardDestination(projectId, centre.id)",
     );
   });
 
@@ -116,13 +117,13 @@ describe("workspace scope dashboards", () => {
     }
 
     const administrationSource = read("../../pages/AdministrationDashboard.tsx");
-    expect(administrationSource).toContain("useProjects()");
-    expect(administrationSource).toContain("useUsers()");
+    // Only the pending count is shown, and the tools never wait for it.
+    expect(administrationSource).not.toContain("useProjects()");
+    expect(administrationSource).not.toContain("useUsers()");
     expect(administrationSource).toContain("useRegistrationRequests()");
     expect(administrationSource).toContain("Registration requests");
-    expect(administrationSource).toContain("Academic levels");
-    expect(administrationSource).toContain("No projects yet");
-    expect(administrationSource).toContain("Try again");
+    expect(administrationSource).toContain("Level catalogue");
+    expect(administrationSource).toContain("waiting");
 
     const projectDashboardSource = read(
       "../../pages/projects/ProjectDashboard.tsx",
@@ -131,15 +132,12 @@ describe("workspace scope dashboards", () => {
     expect(projectDashboardSource).toContain(
       "useCentersByProject(projectId)",
     );
-    expect(projectDashboardSource).toContain("New center");
-    expect(projectDashboardSource).toContain("View all centers");
+    expect(projectDashboardSource).toContain("New centre");
+    expect(projectDashboardSource).not.toContain("View all centers");
     expect(projectDashboardSource).toContain("<ExpandableText");
-    expect(projectDashboardSource).toContain("compact");
+    expect(projectDashboardSource).toContain("<CentreList");
     expect(projectDashboardSource).not.toContain('title="Project tools"');
     expect(projectDashboardSource).not.toContain("<WorkspaceToolGrid");
-    expect(projectDashboardSource).toContain(
-      "centerCardDestination(projectId, center.id)",
-    );
 
     const centerDashboardSource = read(
       "../../pages/centers/CenterDashboard.tsx",
@@ -149,9 +147,10 @@ describe("workspace scope dashboards", () => {
       "useSemestersByCenter(centerId)",
     );
     expect(centerDashboardSource).toContain("semesterCardDestination(");
-    expect(centerDashboardSource).toContain("View all semesters");
+    expect(centerDashboardSource).not.toContain("View all semesters");
+    expect(appSource).toContain("element={<CentreSemestersRedirect />}");
     expect(centerDashboardSource).toContain("<ExpandableText");
-    expect(centerDashboardSource).toContain("compact");
+    expect(centerDashboardSource).toContain("semesterTiming(semester)");
     expect(centerDashboardSource).not.toContain('title="Center tools"');
     expect(centerDashboardSource).not.toContain("<WorkspaceToolGrid");
     expect(centerDashboardSource).toContain("useSemesterSetupSummaries(");
@@ -165,10 +164,9 @@ describe("workspace scope dashboards", () => {
     expect(centerDashboardSource).toContain(
       'semester.status !== "DRAFT"',
     );
-    expect(centersSource).not.toContain("Back to project dashboard");
-    expect(semestersSource).not.toContain("Back to center dashboard");
-    expect(projectsSource).toContain("Open administration");
-    expect(projectsSource).toContain('to="/administration"');
+    // Administration sits beside New project, so it never drifts down the list.
+    expect(projectsSource).toContain("secondary={{");
+    expect(projectsSource).toContain("to: '/administration'");
   });
 
   it("loads count-only setup summaries for administrators without loading full plans", () => {
@@ -212,13 +210,9 @@ describe("workspace scope dashboards", () => {
   });
 
   it("does not expose draft setup destinations to non-administrators", () => {
-    expect(semestersSource).toContain("const canManageSemesters = isAdmin()");
-    expect(semestersSource).toContain(
-      'canManageSemesters || semester.status !== "DRAFT"',
-    );
-    expect(semestersSource).toContain(
-      "{canManageSemesters && (",
-    );
+    expect(semestersSource).toContain("const canManageCenter = isAdmin()");
+    expect(semestersSource).toContain("const draftSummaries = canManageCenter");
+    expect(semestersSource).toContain('semester.status !== "DRAFT"');
   });
 
   it("keeps setup-summary loading and errors inside the draft section", () => {

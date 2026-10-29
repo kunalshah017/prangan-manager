@@ -15,6 +15,7 @@
     "db:seed:syllabus": "tsx prisma/seed-syllabus.ts",
     "db:seed:2026-27-curriculum": "tsx scripts/seed-2026-27-curriculum.ts",
     "db:update:level-2-syllabus": "tsx scripts/update-level-2-communicate-syllabus.ts",
+    "db:end-finished-semester-roles": "tsx scripts/end-finished-semester-assignments.ts",
     "db:verify:semester-level-cutover": "tsx scripts/verify-semester-level-cutover.ts",
     "db:backfill:person-names": "tsx scripts/backfill-person-names.ts",
     "db:verify:semester-level-integrity": "tsx scripts/verify-semester-level-integrity.ts",

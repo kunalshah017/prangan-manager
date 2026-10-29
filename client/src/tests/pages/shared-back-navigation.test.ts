@@ -6,19 +6,18 @@ const source = (path: string) =>
 
 describe("shared back navigation", () => {
   it("does not duplicate the shared rail in workspace page headers", async () => {
-    const [centers, semesters, userDetails, editUser, examScores] =
+    const [userDetails, editUser, examScores] =
       await Promise.all([
-        source("centers/Centers.tsx"),
-        source("semesters/Semesters.tsx"),
         source("users/UserDetails.tsx"),
         source("users/EditUser.tsx"),
         source("exams/ExamScores.tsx"),
       ]);
 
-    expect(centers).not.toContain('aria-label="Back to project dashboard"');
-    expect(semesters).not.toContain('aria-label="Back to center dashboard"');
-    expect(userDetails.match(/<ArrowLeft/g)).toHaveLength(1);
-    expect(editUser.match(/<ArrowLeft/g)).toHaveLength(1);
+    // Recovery goes through the shared error state, not a duplicate back rail.
+    expect(userDetails).not.toContain("<ArrowLeft");
+    expect(userDetails).toContain('backHref="/users"');
+    expect(editUser).not.toContain("<ArrowLeft");
+    expect(editUser).toContain('backHref="/users"');
     expect(examScores).not.toContain("navigate(-1)");
   });
 

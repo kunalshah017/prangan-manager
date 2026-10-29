@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/breadcrumb';
 import { CustomButton } from '@/components/ui/custom-button';
 import { toast } from 'react-hot-toast';
+import { PageTitle } from "@/components/navigation/PageTitle";
 
 // Lazy import QR decode/generate utilities without adding heavy deps to bundle size aggressively
 // We'll attempt to use a lightweight dynamic import for qrcode for generation; for decoding, we'll use a canvas approach
@@ -251,7 +252,7 @@ const BankDetails: React.FC = () => {
     }
 
     return (
-        <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-orange-50 to-amber-50 py-4 sm:py-6 md:py-8">
+        <div className="min-h-[calc(100vh-4rem)] py-4 sm:py-6 md:py-8">
             <DoodleBackground numElements={8} />
             <div className="relative z-10 max-w-3xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
                 <div className="mb-4 sm:mb-6">
@@ -272,31 +273,28 @@ const BankDetails: React.FC = () => {
                     </Breadcrumb>
                 </div>
 
-                <div className="bg-white/80 backdrop-blur-sm rounded-xl sm:rounded-2xl shadow-xl border border-white/50 overflow-hidden">
+                <div className="bg-card/80 backdrop-blur-sm rounded-xl sm:rounded-2xl shadow-xl border border-white/50 overflow-hidden">
                     <div className="px-4 sm:px-6 md:px-8 py-6 sm:py-8">
-                        <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-2">Bank Details</h1>
-                        <p className="text-sm text-gray-600 mb-6">
-                            Please provide your correct bank details, so that renumation can be processed smoothly!
-                        </p>
+                        <PageTitle title="Bank details" />
                         <form onSubmit={onSubmit} className="space-y-5">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label htmlFor="bankAccountNumber" className="block text-sm font-medium text-gray-700 mb-1">Account Number</label>
+                                    <label htmlFor="bankAccountNumber" className="block text-sm font-medium text-foreground mb-1">Account Number</label>
                                     <input className="w-full border rounded-md px-3 py-2" name="bankAccountNumber" id="bankAccountNumber" value={form.bankAccountNumber} onChange={onChange} placeholder="Enter account number" />
                                 </div>
                                 <div>
-                                    <label htmlFor="confirmBankAccountNumber" className="block text-sm font-medium text-gray-700 mb-1">Confirm Account Number</label>
+                                    <label htmlFor="confirmBankAccountNumber" className="block text-sm font-medium text-foreground mb-1">Confirm Account Number</label>
                                     <input className="w-full border rounded-md px-3 py-2" name="confirmBankAccountNumber" id="confirmBankAccountNumber" value={form.confirmBankAccountNumber} onChange={onChange} placeholder="Re-enter account number" />
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label htmlFor="bankAccountName" className="block text-sm font-medium text-gray-700 mb-1">Name on Account</label>
+                                    <label htmlFor="bankAccountName" className="block text-sm font-medium text-foreground mb-1">Name on Account</label>
                                     <input className="w-full border rounded-md px-3 py-2" name="bankAccountName" id="bankAccountName" value={form.bankAccountName} onChange={onChange} placeholder="As per bank records" />
                                 </div>
                                 <div>
-                                    <label htmlFor="bankIfsc" className="block text-sm font-medium text-gray-700 mb-1">IFSC Code</label>
+                                    <label htmlFor="bankIfsc" className="block text-sm font-medium text-foreground mb-1">IFSC Code</label>
                                     <input
                                         className="w-full border rounded-md px-3 py-2"
                                         name="bankIfsc"
@@ -306,22 +304,22 @@ const BankDetails: React.FC = () => {
                                         placeholder="e.g., HDFC0001234"
                                     />
                                     {isFetchingIfsc && (
-                                        <p className="text-xs text-orange-600 mt-1">Fetching bank details…</p>
+                                        <p className="text-xs text-primary mt-1">Fetching bank details…</p>
                                     )}
                                     {form.bankIfsc && !isValidIFSC && (
                                         <p className="text-xs text-red-600 mt-1">Invalid IFSC format</p>
                                     )}
                                     {ifscInfoMessage && isValidIFSC && !isFetchingIfsc && (
-                                        <p className="text-xs text-gray-600 mt-1">{ifscInfoMessage}</p>
+                                        <p className="text-xs text-muted-foreground mt-1">{ifscInfoMessage}</p>
                                     )}
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label htmlFor="bankName" className="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
+                                    <label htmlFor="bankName" className="block text-sm font-medium text-foreground mb-1">Bank Name</label>
                                     <input
-                                        className="w-full border rounded-md px-3 py-2 disabled:bg-gray-100 disabled:text-gray-600"
+                                        className="w-full border rounded-md px-3 py-2 disabled:bg-muted disabled:text-muted-foreground"
                                         name="bankName"
                                         id="bankName"
                                         value={form.bankName}
@@ -331,9 +329,9 @@ const BankDetails: React.FC = () => {
                                     />
                                 </div>
                                 <div>
-                                    <label htmlFor="bankBranch" className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
+                                    <label htmlFor="bankBranch" className="block text-sm font-medium text-foreground mb-1">Branch</label>
                                     <input
-                                        className="w-full border rounded-md px-3 py-2 disabled:bg-gray-100 disabled:text-gray-600"
+                                        className="w-full border rounded-md px-3 py-2 disabled:bg-muted disabled:text-muted-foreground"
                                         name="bankBranch"
                                         id="bankBranch"
                                         value={form.bankBranch}
@@ -347,7 +345,7 @@ const BankDetails: React.FC = () => {
                             {(upiSupported || !!upiId) && (
                                 <div className="grid grid-cols-1 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">UPI QR</label>
+                                        <label className="block text-sm font-medium text-foreground mb-1">UPI QR</label>
                                         <input
                                             ref={fileInputRef}
                                             type="file"
@@ -360,7 +358,7 @@ const BankDetails: React.FC = () => {
                                                 {upiId ? 'Re-upload UPI QR' : 'Upload UPI QR'}
                                             </CustomButton>
                                             {upiId && (
-                                                <span className="text-sm text-gray-700">UPI ID: <span className="font-medium">{upiId}</span></span>
+                                                <span className="text-sm text-foreground">UPI ID: <span className="font-medium">{upiId}</span></span>
                                             )}
                                         </div>
                                         {upiId && (
@@ -379,7 +377,7 @@ const BankDetails: React.FC = () => {
                             </div>
                         </form>
 
-                        <div className="border-t border-gray-200 mt-6 pt-4">
+                        <div className="border-t border-border mt-6 pt-4">
                             <AppVersion />
                         </div>
                     </div>

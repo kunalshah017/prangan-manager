@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { openSemesterAssignment } from "../../lib/role-assignments.js";
+
 import { SubRole } from "../../generated/prisma/index.js";
 import { ACADEMIC_LEVEL_CODES } from "../helpers/academic-level-codes.js";
 import { prisma } from "../../lib/prisma.js";
@@ -25,6 +27,8 @@ const createReply = () => {
   };
   return { reply, get statusCode() { return statusCode; } };
 };
+
+const openSemester = { name: "Semester Year 2026-27", status: "ACTIVE", endDate: new Date("2999-04-30T23:59:59.999Z") };
 
 const mockHierarchy = () => {
   const originalSemesterFindFirst = prisma.semesters.findFirst;
@@ -92,6 +96,7 @@ test("non-educator bulk assignments clear the semester level without a legacy fi
 
   prisma.$transaction = (async (callback: any) =>
     callback({
+      semesters: { findUnique: async () => openSemester },
       userRoleAssignments: {
         findMany: async () => [],
         updateMany: async () => ({ count: 0 }),
@@ -129,6 +134,7 @@ test("bulk assignment reconciliation preserves unchanged semester assignment IDs
 
   prisma.$transaction = (async (callback: any) =>
     callback({
+      semesters: { findUnique: async () => openSemester },
       userRoleAssignments: {
         findMany: async () => [
           {
@@ -288,6 +294,7 @@ test("canonical educator assignments are returned without legacy hydration", asy
           { subRole: { not: SubRole.EDUCATOR } },
           { semesterLevel: { is: { isActive: true } } },
         ],
+        AND: [openSemesterAssignment()],
       },
       select: {
         subRole: true,

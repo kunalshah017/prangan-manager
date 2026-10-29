@@ -127,7 +127,10 @@ describe("library PDF performance", () => {
     expect(reader).toContain('aria-label="Next page"');
     expect(reader).toContain('aria-label="Open table of contents"');
     expect(reader).toContain("file={book.pdfUrl}");
-    expect(reader).toContain("navigate(`/library${location.search}`");
+    expect(reader).toContain("navigate(libraryHref)");
+    expect(reader).toContain("`${semesterDashboardHref}/library`");
+    expect(reader).toContain('aria-label="Zoom in"');
+    expect(reader).toContain("devicePixelRatio={PAGE_PIXEL_RATIO}");
     expect(reader).toContain("pdfjs-dist/build/pdf.worker.min.mjs");
     expect(reader).not.toContain(
       "GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist",

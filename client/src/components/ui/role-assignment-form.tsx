@@ -1,11 +1,12 @@
 import React, { useMemo } from 'react';
 import { Plus, X, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { buttonVariants } from '@/lib/button-variants';
+import { isSemesterFinished } from '@/lib/workspace-display';
 import { useProjects } from '@/hooks/useProjectQueries';
 import { useCenters } from '@/hooks/useCenterQueries';
 import { useSemesters } from '@/hooks/useSemesterQueries';
 import { SemesterLevelSelect } from '@/components/levels/SemesterLevelSelect';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { RoleAssignment, Center, Semester } from '@/types/api';
 
 interface RoleAssignmentFormProps {
@@ -13,22 +14,24 @@ interface RoleAssignmentFormProps {
     onChange: (roleAssignments: RoleAssignment[]) => void;
     userRole: 'USER' | 'ADMIN';
     onValidationChange?: (isValid: boolean, errors: string[]) => void;
+    // A new form can wait until the first attempt to list what is missing.
+    showErrors?: boolean;
 }
 
 const SUB_ROLES = [
-    { value: 'TRAINING_DEVELOPMENT', label: 'Training & Development' },
-    { value: 'RECRUITMENT', label: 'Recruitment' },
-    { value: 'GROWTH_DEVELOPMENT', label: 'Growth & Development' },
-    { value: 'CURRICULUM_MENTOR', label: 'Curriculum Mentor' },
-    { value: 'TECH', label: 'Tech' },
-    { value: 'CENTER_MANAGER', label: 'Center Manager' },
     { value: 'EDUCATOR', label: 'Educator' },
+    { value: 'CENTER_MANAGER', label: 'Centre manager' },
+    { value: 'CURRICULUM_MENTOR', label: 'Curriculum mentor' },
+    { value: 'TRAINING_DEVELOPMENT', label: 'Training and development' },
+    { value: 'RECRUITMENT', label: 'Recruitment' },
+    { value: 'GROWTH_DEVELOPMENT', label: 'Growth and development' },
+    { value: 'TECH', label: 'Tech' },
 ] as const;
 
 const COMMITTED_DAYS = [
-    { value: 'SATURDAY', label: 'Saturday' },
-    { value: 'SUNDAY', label: 'Sunday' },
-    { value: 'BOTH', label: 'Both Saturday & Sunday' },
+    { value: 'SATURDAY', label: 'Saturdays' },
+    { value: 'SUNDAY', label: 'Sundays' },
+    { value: 'BOTH', label: 'Saturdays and Sundays' },
 ] as const;
 
 const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
@@ -36,6 +39,7 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
     onChange,
     userRole,
     onValidationChange,
+    showErrors = true,
 }) => {
     const { data: projects = [] } = useProjects();
 
@@ -79,19 +83,19 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
 
             // Check mandatory fields
             if (!assignment.subRole) {
-                errors.push(`Role assignment ${i + 1}: Sub-role is required`);
+                errors.push(`Assignment ${i + 1}: choose a role.`);
             }
 
             if (!assignment.projectId) {
-                errors.push(`Role assignment ${i + 1} (${roleLabel}): Project is required`);
+                errors.push(`Assignment ${i + 1} (${roleLabel}): choose a project.`);
             }
 
             if (!assignment.centerId) {
-                errors.push(`Role assignment ${i + 1} (${roleLabel}): Center is required`);
+                errors.push(`Assignment ${i + 1} (${roleLabel}): choose a centre.`);
             }
 
             if (!assignment.semesterId) {
-                errors.push(`Role assignment ${i + 1} (${roleLabel}): Semester is required`);
+                errors.push(`Assignment ${i + 1} (${roleLabel}): choose a semester.`);
             }
 
             if (
@@ -99,7 +103,7 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
                 assignment.semesterId &&
                 !assignment.semesterLevelId
             ) {
-                errors.push(`Role assignment ${i + 1} (${roleLabel}): Teaching level is required`);
+                errors.push(`Assignment ${i + 1} (${roleLabel}): choose a level.`);
             }
 
             // Check for exact duplicates
@@ -119,13 +123,30 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
                     if (!duplicates.includes(i)) duplicates.push(i);
                     if (!duplicates.includes(j)) duplicates.push(j);
 
-                    const projectLabel = projects.find(p => p.id === assignment.projectId)?.name || 'No project';
-                    const centerLabel = allCenters.find(c => c.id === assignment.centerId)?.name || 'No center';
+                    const projectLabel = projects.find(p => p.id === assignment.projectId)?.name || 'no project';
+                    const centerLabel = allCenters.find(c => c.id === assignment.centerId)?.name || 'no centre';
 
-                    errors.push(`Duplicate role assignment found: ${roleLabel} in ${projectLabel} - ${centerLabel}`);
+                    errors.push(`${roleLabel} at ${centerLabel} (${projectLabel}) is listed twice.`);
                 }
             }
         }
+
+        // Matches the server: one educator level per centre and semester.
+        const levelByPlace = new Map<string, { index: number; level: string }>();
+        roleAssignments.forEach((assignment, index) => {
+            if (assignment.subRole !== 'EDUCATOR' || !assignment.centerId || !assignment.semesterId) return;
+            const place = `${assignment.centerId}|${assignment.semesterId}`;
+            const level = assignment.semesterLevelId ?? '';
+            const first = levelByPlace.get(place);
+            if (!first) {
+                levelByPlace.set(place, { index, level });
+                return;
+            }
+            if (first.level === level) return;
+            for (const clash of [first.index, index]) if (!duplicates.includes(clash)) duplicates.push(clash);
+            const centerLabel = allCenters.find(c => c.id === assignment.centerId)?.name || 'this centre';
+            errors.push(`Assignments ${first.index + 1} and ${index + 1}: an educator teaches one level per semester at ${centerLabel}. Keep one.`);
+        });
 
         const isValid = errors.length === 0;
 
@@ -141,7 +162,7 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
 
     const addRoleAssignment = () => {
         const newAssignment: RoleAssignment = {
-            subRole: 'TRAINING_DEVELOPMENT',
+            subRole: 'EDUCATOR',
         };
         onChange([...roleAssignments, newAssignment]);
     };
@@ -248,230 +269,157 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
     };
 
     if (userRole === 'ADMIN') {
-        return (
-            <div className="bg-blue-50 p-4 rounded-lg">
-                <div className="flex items-center gap-2">
-                    <AlertCircle className="h-5 w-5 text-blue-600" />
-                    <span className="text-sm text-blue-800">
-                        Admin users don't require role assignments. They have full access to all features.
-                    </span>
-                </div>
-            </div>
-        );
+        return <p className="text-sm text-muted-foreground">Administrators work across everything, so they need no assignments.</p>;
     }
 
     return (
-        <div className="space-y-4">
-            <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-700">
-                    Role Assignments
-                </label>
-                <button
-                    type="button"
-                    onClick={addRoleAssignment}
-                    className={cn(
-                        buttonVariants({ variant: 'outline', size: 'sm' }),
-                        "text-orange-600 border-orange-200 hover:bg-orange-50"
-                    )}
-                >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add Role
-                </button>
-            </div>
-
-            {/* Validation Errors */}
-            {!validateRoleAssignments.isValid && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <div className="flex items-start gap-2">
-                        <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
-                        <div>
-                            <h4 className="text-sm font-medium text-red-800">Duplicate Role Assignments Found</h4>
-                            <ul className="mt-2 text-sm text-red-700 space-y-1">
-                                {validateRoleAssignments.errors.map((error, index) => (
-                                    <li key={index}>• {error}</li>
-                                ))}
-                            </ul>
-                        </div>
-                    </div>
+        <div className="space-y-3">
+            {showErrors && !validateRoleAssignments.isValid && (
+                <div id="assignment-errors" className="scroll-mt-24 rounded-lg border border-destructive/30 bg-destructive/5 p-3" role="alert">
+                    <p className="flex items-center gap-2 text-sm font-semibold text-destructive">
+                        <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        Fix these to continue
+                    </p>
+                    <ul className="mt-1.5 space-y-1 pl-6 text-sm text-destructive">
+                        {validateRoleAssignments.errors.map((error) => <li key={error}>{error}</li>)}
+                    </ul>
                 </div>
             )}
 
             {roleAssignments.length === 0 && (
-                <div className="bg-gray-50 p-4 rounded-lg text-center">
-                    <p className="text-sm text-gray-600">No role assignments yet. Click "Add Role" to get started.</p>
-                </div>
+                <p className="rounded-lg bg-muted p-4 text-center text-sm text-muted-foreground">No assignments yet.</p>
             )}
 
             {roleAssignments.map((assignment, index) => {
                 const isDuplicate = validateRoleAssignments.duplicates.includes(index);
+                const fieldId = (name: string) => `assignment-${index}-${name}`;
 
                 return (
-                    <div
+                    <fieldset
                         key={index}
-                        className={cn(
-                            "bg-white border rounded-lg p-4 space-y-4",
-                            isDuplicate && "border-red-300 bg-red-50"
-                        )}
+                        className={cn('space-y-3 rounded-lg border p-3', isDuplicate ? 'border-destructive/50 bg-destructive/5' : 'border-border')}
                     >
-                        <div className="flex items-center justify-between">
-                            <h4 className={cn(
-                                "text-sm font-medium",
-                                isDuplicate ? "text-red-700" : "text-gray-700"
-                            )}>
-                                Role Assignment #{index + 1}
-                                {isDuplicate && <span className="ml-2 text-red-600">(Duplicate)</span>}
-                            </h4>
+                        <legend className="sr-only">Assignment {index + 1}</legend>
+                        <div className="flex items-center justify-between gap-2">
+                            <p className="text-base font-semibold text-foreground" aria-hidden="true">
+                                Assignment {index + 1}
+                                {isDuplicate && <span className="ml-2 text-sm font-normal text-destructive">Conflict</span>}
+                            </p>
                             <button
                                 type="button"
                                 onClick={() => removeRoleAssignment(index)}
-                                className="text-red-600 hover:text-red-700 p-1"
-                                title="Remove role assignment"
+                                aria-label={`Remove assignment ${index + 1}`}
+                                className="-mr-1 inline-flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             >
-                                <X className="h-4 w-4" />
+                                <X className="h-5 w-5" aria-hidden="true" />
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Sub Role */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Sub Role <span className="ml-1 text-destructive" aria-hidden="true">*</span>
-                                </label>
-                                <select
-                                    value={assignment.subRole}
-                                    onChange={(e) => updateRoleAssignment(index, 'subRole', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                                    aria-label="Sub Role"
-                                >
-                                    {SUB_ROLES.map((role) => (
-                                        <option key={role.value} value={role.value}>
-                                            {role.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Project */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Project
-                                </label>
-                                <select
-                                    value={assignment.projectId || ''}
-                                    onChange={(e) => updateRoleAssignment(index, 'projectId', e.target.value || undefined)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                                    aria-label="Project"
-                                >
-                                    <option value="">Select a project</option>
-                                    {projects.map((project) => (
-                                        <option key={project.id} value={project.id}>
-                                            {project.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Center */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Center
-                                </label>
-                                <select
-                                    value={assignment.centerId || ''}
-                                    onChange={(e) => updateRoleAssignment(index, 'centerId', e.target.value || undefined)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                                    disabled={!assignment.projectId}
-                                    aria-label="Center"
-                                >
-                                    <option value="">Select a center</option>
-                                    {assignment.projectId && centersByProject[assignment.projectId]?.map((center) => (
-                                        <option key={center.id} value={center.id}>
-                                            {center.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Semester */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Semester
-                                </label>
-                                <select
-                                    value={assignment.semesterId || ''}
-                                    onChange={(e) => updateRoleAssignment(index, 'semesterId', e.target.value || undefined)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                                    disabled={!assignment.centerId}
-                                    aria-label="Semester"
-                                >
-                                    <option value="">Select a semester</option>
-                                    {assignment.centerId && semestersByCenter[assignment.centerId]?.map((semester) => (
-                                        <option key={semester.id} value={semester.id}>
-                                            {semester.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Level - Only for Educator */}
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            <ChoiceField
+                                id={fieldId('role')}
+                                label="Role"
+                                value={assignment.subRole}
+                                onChange={(value) => updateRoleAssignment(index, 'subRole', value)}
+                                options={SUB_ROLES.map((role) => ({ value: role.value, label: role.label }))}
+                            />
+                            <ChoiceField
+                                id={fieldId('project')}
+                                label="Project"
+                                placeholder="Choose a project"
+                                value={assignment.projectId}
+                                onChange={(value) => updateRoleAssignment(index, 'projectId', value)}
+                                options={projects.map((project) => ({ value: project.id, label: project.name }))}
+                            />
+                            <ChoiceField
+                                id={fieldId('centre')}
+                                label="Centre"
+                                placeholder={assignment.projectId ? 'Choose a centre' : 'Choose a project first'}
+                                value={assignment.centerId}
+                                disabled={!assignment.projectId}
+                                onChange={(value) => updateRoleAssignment(index, 'centerId', value)}
+                                options={(assignment.projectId ? centersByProject[assignment.projectId] ?? [] : []).map((center) => ({ value: center.id, label: center.name }))}
+                            />
+                            <ChoiceField
+                                id={fieldId('semester')}
+                                label="Semester"
+                                placeholder={assignment.centerId ? 'Choose a semester' : 'Choose a centre first'}
+                                value={assignment.semesterId}
+                                disabled={!assignment.centerId}
+                                onChange={(value) => updateRoleAssignment(index, 'semesterId', value)}
+                                options={(assignment.centerId ? semestersByCenter[assignment.centerId] ?? [] : [])
+                                    .filter((semester) => semester.id === assignment.semesterId || !isSemesterFinished(semester))
+                                    .map((semester) => ({ value: semester.id, label: semester.name }))}
+                            />
                             {assignment.subRole === 'EDUCATOR' && (
-                                <div>
-                                    <SemesterLevelSelect
-                                        semesterId={assignment.semesterId || ''}
-                                        value={assignment.semesterLevelId || ''}
-                                        onChange={(value) => updateRoleAssignment(index, 'semesterLevelId', value || undefined)}
-                                        disabled={!assignment.semesterId}
-                                        required
-                                        includeInactiveCurrent
-                                        currentLevel={assignment.semesterLevel || undefined}
-                                    />
-                                </div>
+                                <SemesterLevelSelect
+                                    id={fieldId('level')}
+                                    semesterId={assignment.semesterId || ''}
+                                    value={assignment.semesterLevelId || ''}
+                                    onChange={(value) => updateRoleAssignment(index, 'semesterLevelId', value || undefined)}
+                                    disabled={!assignment.semesterId}
+                                    required
+                                    includeInactiveCurrent
+                                    currentLevel={assignment.semesterLevel || undefined}
+                                />
                             )}
-
-                            {/* Committed Days - Only for Center Manager and Educator */}
                             {(assignment.subRole === 'CENTER_MANAGER' || assignment.subRole === 'EDUCATOR') && (
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Committed Days
-                                    </label>
-                                    <select
-                                        value={assignment.committedDays || ''}
-                                        onChange={(e) => updateRoleAssignment(index, 'committedDays', e.target.value || undefined)}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                                        aria-label="Committed Days"
-                                    >
-                                        <option value="">Select committed days</option>
-                                        {COMMITTED_DAYS.map((day) => (
-                                            <option key={day.value} value={day.value}>
-                                                {day.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
+                                <ChoiceField
+                                    id={fieldId('days')}
+                                    label="Days"
+                                    placeholder="Choose days"
+                                    value={assignment.committedDays}
+                                    onChange={(value) => updateRoleAssignment(index, 'committedDays', value)}
+                                    options={COMMITTED_DAYS.map((day) => ({ value: day.value, label: day.label }))}
+                                />
                             )}
                         </div>
-                    </div>
+                    </fieldset>
                 );
             })}
 
-            {/* Add Role Button at the End */}
-            {roleAssignments.length > 0 && (
-                <div className="flex justify-center pt-2">
-                    <button
-                        type="button"
-                        onClick={addRoleAssignment}
-                        className={cn(
-                            buttonVariants({ variant: 'outline', size: 'sm' }),
-                            "text-orange-600 border-orange-200 hover:bg-orange-50"
-                        )}
-                    >
-                        <Plus className="h-4 w-4 mr-1" />
-                        Add Another Role
-                    </button>
-                </div>
-            )}
+            <button
+                type="button"
+                onClick={addRoleAssignment}
+                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-primary/50 text-base font-semibold text-primary hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+                <Plus className="h-5 w-5" aria-hidden="true" />
+                {roleAssignments.length === 0 ? 'Add assignment' : 'Add another assignment'}
+            </button>
         </div>
     );
 };
+
+// A labelled shared Select. Radix reserves the empty string for "nothing
+// chosen", which is what an unset field shows.
+function ChoiceField({
+    id,
+    label,
+    value,
+    onChange,
+    options,
+    placeholder,
+    disabled = false,
+}: {
+    id: string;
+    label: string;
+    value?: string | null;
+    onChange: (value: string) => void;
+    options: Array<{ value: string; label: string }>;
+    placeholder?: string;
+    disabled?: boolean;
+}) {
+    return (
+        <div className="space-y-2">
+            <label htmlFor={id} className="block text-sm font-semibold text-foreground">{label}</label>
+            <Select value={value ?? ''} onValueChange={onChange} disabled={disabled}>
+                <SelectTrigger id={id}><SelectValue placeholder={placeholder} /></SelectTrigger>
+                <SelectContent>
+                    {options.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                </SelectContent>
+            </Select>
+        </div>
+    );
+}
 
 export default RoleAssignmentForm;

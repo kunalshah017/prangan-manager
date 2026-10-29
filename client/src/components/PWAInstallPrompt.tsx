@@ -121,29 +121,29 @@ const PWAInstallPrompt: React.FC = () => {
               animate={{ y: 0, opacity: 1, scale: 1 }}
               exit={{ y: 100, opacity: 0, scale: 0.9 }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="bg-white rounded-lg shadow-xl max-w-md w-full mx-auto"
+              className="bg-card rounded-lg shadow-xl max-w-md w-full mx-auto"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <div className="flex items-center justify-between p-4 border-b border-border">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
-                    <Smartphone className="w-5 h-5 text-orange-600" />
+                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                    <Smartphone className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">
+                    <h3 className="text-lg font-semibold text-foreground">
                       Install Prangan Manager
                     </h3>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                       Get the app experience
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={handleDismiss}
-                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                  className="p-2 hover:bg-muted rounded-full transition-colors"
                 >
-                  <X className="w-5 h-5 text-gray-400" />
+                  <X className="w-5 h-5 text-muted-foreground" />
                 </button>
               </div>
 
@@ -153,13 +153,13 @@ const PWAInstallPrompt: React.FC = () => {
                   <img
                     src="/pwa-icon-192.png"
                     alt="Prangan Manager"
-                    className="w-12 h-12 rounded-lg border border-gray-200"
+                    className="w-12 h-12 rounded-lg border border-border"
                   />
                   <div className="flex-1">
-                    <h4 className="font-medium text-gray-900 mb-1">
+                    <h4 className="font-medium text-foreground mb-1">
                       Prangan Manager
                     </h4>
-                    <p className="text-sm text-gray-600 leading-relaxed">
+                    <p className="text-sm text-muted-foreground leading-relaxed">
                       Install this app on your device for a better experience. Access it quickly from your home screen, work offline, and get faster performance.
                     </p>
                   </div>
@@ -167,15 +167,15 @@ const PWAInstallPrompt: React.FC = () => {
 
                 {/* Features */}
                 <div className="space-y-2 mb-6">
-                  <div className="flex items-center text-sm text-gray-600">
+                  <div className="flex items-center text-sm text-muted-foreground">
                     <div className="w-2 h-2 bg-green-500 rounded-full mr-3"></div>
                     <span>Works offline when no internet connection</span>
                   </div>
-                  <div className="flex items-center text-sm text-gray-600">
+                  <div className="flex items-center text-sm text-muted-foreground">
                     <div className="w-2 h-2 bg-green-500 rounded-full mr-3"></div>
                     <span>Faster loading and better performance</span>
                   </div>
-                  <div className="flex items-center text-sm text-gray-600">
+                  <div className="flex items-center text-sm text-muted-foreground">
                     <div className="w-2 h-2 bg-green-500 rounded-full mr-3"></div>
                     <span>Easy access from your home screen</span>
                   </div>
@@ -185,7 +185,7 @@ const PWAInstallPrompt: React.FC = () => {
                 <div className="flex space-x-3">
                   <button
                     onClick={handleDismiss}
-                    className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+                    className="flex-1 px-4 py-2 text-foreground bg-muted hover:bg-muted rounded-lg font-medium transition-colors"
                   >
                     Maybe Later
                   </button>

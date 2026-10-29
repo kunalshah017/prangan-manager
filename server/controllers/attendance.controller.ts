@@ -331,7 +331,10 @@ export const getAttendanceController = async (
 
     const scope = { projectId, centerId, semesterId };
     const isAdmin = request.user.role === Role.ADMIN;
-    if (!isAdmin) {
+    // Anyone may read their own attendance (their profile shows it). Every
+    // other non-admin read still needs a complete scope the caller manages.
+    const isOwnRecords = Boolean(userId) && userId === request.user.id;
+    if (!isAdmin && !isOwnRecords) {
       if (!hasCompleteAttendanceScope(scope)) {
         return reply.status(403).send({
           error: "You are not authorized to manage user attendance",
@@ -355,6 +358,9 @@ export const getAttendanceController = async (
       status,
       page: page ? parseInt(page) : undefined,
       limit: limit ? parseInt(limit) : undefined,
+      // A volunteer's own history covers only the roles they hold now; ended
+      // roles and their attendance are admin-only.
+      activeAssignmentsOnly: !isAdmin && isOwnRecords,
     };
 
     const result = await getAttendanceRecords(requestData);

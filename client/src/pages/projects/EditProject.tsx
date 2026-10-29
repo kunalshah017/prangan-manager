@@ -98,7 +98,7 @@ const EditProject = () => {
                     <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
                         <RefreshCw className="h-5 w-5" aria-hidden="true" />
                     </div>
-                    <h1 className="text-2xl font-semibold text-foreground">Project could not be loaded</h1>
+                    <h2 className="text-2xl font-semibold text-foreground">Project could not be loaded</h2>
                     <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
                         The project may no longer exist, or the request could not be completed.
                     </p>

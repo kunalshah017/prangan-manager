@@ -89,6 +89,18 @@ test("currentUserSelect preserves financial fields without selecting password", 
   assert.equal(currentUserSelect.roleAssignments.orderBy.assignedAt, "desc");
 });
 
+test("profile selectors carry the person's own rate periods with their semester", () => {
+  for (const selector of [currentUserSelect, adminUserDetailSelect]) {
+    assert.deepEqual(selector.remunerationPeriods.select, {
+      id: true,
+      semesterId: true,
+      amountPerDay: true,
+      effectiveFrom: true,
+      effectiveTo: true,
+    });
+  }
+});
+
 test("adminUserSelect supports profile management without financial data", () => {
   assertExcludes(adminUserSelect, [
     ...alwaysForbiddenFields,

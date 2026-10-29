@@ -13,6 +13,8 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import BreadcrumbNavigation from "@/components/BreadcrumbNavigation";
 import { MobileNavigation } from "@/components/navigation/MobileNavigation";
+import { PageTitleProvider } from "@/components/navigation/PageTitle";
+import { useCurrentPageTitle } from "@/components/navigation/page-title-context";
 import { NavItem } from "@/components/navigation/NavItem";
 import { WorkspaceTree } from "@/components/navigation/WorkspaceTree";
 import PWAInstallButton from "@/components/PWAInstallButton";
@@ -26,8 +28,16 @@ import {
     isAdministrationPathActive,
 } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
+import { ThemedLogo } from "@/components/ThemedLogo";
 
-const Layout = () => {
+const Layout = () => (
+    <PageTitleProvider>
+        <LayoutShell />
+    </PageTitleProvider>
+);
+
+const LayoutShell = () => {
+    const pageTitle = useCurrentPageTitle();
     const location = useLocation();
     const navigate = useNavigate();
     const { user, logout } = useAuth();
@@ -104,11 +114,11 @@ const Layout = () => {
                         <Menu className="h-5 w-5" aria-hidden="true" />
                     </button>
 
-                    <Link to="/" className="mr-7 flex items-center" aria-label="Prangan home">
-                        <img src="/images/logo/prangan-logo-light-mode.png" alt="Prangan" className="h-8 w-auto" />
+                    <Link to="/" className={cn("mr-7 items-center", pageTitle ? "hidden md:flex" : "flex")} aria-label="Prangan home">
+                        <ThemedLogo className="h-8" />
                     </Link>
 
-                    <nav className="hidden min-w-0 flex-1 items-center gap-1 md:flex" aria-label="Primary navigation">
+                    <nav className="hidden shrink-0 items-center gap-1 md:flex" aria-label="Primary navigation">
                         {canViewWorkspace && (
                             <DesktopDisclosure
                                 label="Workspace"
@@ -154,7 +164,7 @@ const Layout = () => {
                                 active={isAdministrationPathActive(location.pathname)}
                                 narrow
                             >
-                                <PanelHeader title="Administration" description="Manage people and access requests." />
+                                <PanelHeader title="Administration" description="Manage users and access requests." />
                                 <div className="space-y-0.5 p-2">
                                     {navigationModel.administration.map((item) => (
                                         <NavItem key={item.href} item={item} compact />
@@ -164,7 +174,16 @@ const Layout = () => {
                         )}
                     </nav>
 
-                    <div ref={profileRef} className="relative ml-auto">
+                    {pageTitle && (
+                        <>
+                            <span className="mx-4 hidden h-6 w-px shrink-0 bg-border md:block" aria-hidden="true" />
+                            <h1 className="min-w-0 flex-1 truncate text-lg font-semibold leading-tight text-foreground md:text-base">
+                                {pageTitle}
+                            </h1>
+                        </>
+                    )}
+
+                    <div ref={profileRef} className="relative ml-auto hidden md:block">
                         <button
                             type="button"
                             onClick={() => {

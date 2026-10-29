@@ -43,6 +43,21 @@ export interface User {
     semesterId: string;
     dailyRate: number | string;
   }>;
+  // The person's own daily-rate history (own profile and admin view only).
+  remunerationPeriods?: Array<{
+    id: string;
+    semesterId: string;
+    amountPerDay: number | string;
+    effectiveFrom: string;
+    effectiveTo: string | null;
+  }>;
+  // Admin view only: bank details without the account number.
+  bankSummary?: {
+    accountLast4: string | null;
+    bankName: string | null;
+    bankIfsc: string | null;
+    hasUpi: boolean;
+  };
   // Optional bank details
   bankAccountNumber?: string | null;
   bankAccountName?: string | null;
@@ -52,7 +67,12 @@ export interface User {
   upiId?: string | null;
   createdAt: string;
   updatedAt: string;
-  roleAssignments?: (LevelReference & {
+  roleAssignments?: UserAssignment[];
+  // Own profile and admin view only: assignments that have ended.
+  pastRoleAssignments?: UserAssignment[];
+}
+
+export type UserAssignment = LevelReference & {
     id: string;
     subRole:
       | "TRAINING_DEVELOPMENT"
@@ -67,8 +87,12 @@ export interface User {
     semesterId?: string;
     committedDays?: "SATURDAY" | "SUNDAY" | "BOTH";
     isActive: boolean;
-  })[];
-}
+    project?: { id: string; name: string } | null;
+    center?: { id: string; name: string } | null;
+    semester?: { id: string; name: string } | null;
+    assignedAt?: string;
+    endedAt?: string | null;
+};
 
 export interface RemunerationUser {
   id: string;
@@ -184,6 +208,7 @@ export interface Center {
   id: string;
   name: string;
   address: string;
+  imageUrl?: string | null;
   projectId?: string;
   project?: {
     id: string;
@@ -342,11 +367,11 @@ export type UpdateProjectResponse = EntityResponse<Project, "project">;
 // Center API Types
 export type CreateCenterRequest = CreateRequest<
   Center,
-  "name" | "address" | "projectId" | "metadata"
+  "name" | "address" | "imageUrl" | "projectId" | "metadata"
 >;
 export type UpdateCenterRequest = UpdateRequest<
   Center,
-  "name" | "address" | "metadata"
+  "name" | "address" | "imageUrl" | "metadata"
 >;
 export type CreateCenterResponse = EntityResponse<Center, "center">;
 export type CentersResponse = EntityListResponse<Center, "centers">;

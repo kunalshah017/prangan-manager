@@ -35,7 +35,7 @@ const Home = () => {
     }, [prefersReducedMotion]);
 
     return (
-        <main className="min-h-[100dvh] bg-orange-50 text-gray-950">
+        <main className="min-h-[100dvh] bg-orange-950 text-white">
             <section className="relative isolate flex min-h-[100dvh] overflow-hidden">
                 <AnimatePresence initial={false} mode="sync">
                     <motion.img

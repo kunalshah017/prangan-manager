@@ -11,6 +11,8 @@ interface PersonNameFieldsProps {
     disabled?: boolean;
     idPrefix: string;
     className?: string;
+    // Fields that must be filled; only the first name unless a form needs more.
+    requiredFields?: readonly PersonNameField[];
 }
 
 const fields = [
@@ -19,28 +21,24 @@ const fields = [
         label: "First name",
         autoComplete: "given-name",
         placeholder: "First name",
-        required: true,
     },
     {
         name: "middleName",
         label: "Middle name",
         autoComplete: "additional-name",
         placeholder: "Middle name",
-        required: false,
     },
     {
         name: "lastName",
         label: "Last name",
         autoComplete: "family-name",
         placeholder: "Last name",
-        required: false,
     },
 ] as const satisfies ReadonlyArray<{
     name: PersonNameField;
     label: string;
     autoComplete: string;
     placeholder: string;
-    required: boolean;
 }>;
 
 export function PersonNameFields({
@@ -52,6 +50,7 @@ export function PersonNameFields({
     disabled = false,
     idPrefix,
     className,
+    requiredFields = ["firstName"],
 }: PersonNameFieldsProps) {
     const values = { firstName, middleName, lastName };
 
@@ -62,12 +61,13 @@ export function PersonNameFields({
                 const inputId = `${idPrefix}-${field.name}`;
                 const errorId = `${inputId}-error`;
                 const error = errors[field.name];
+                const required = requiredFields.includes(field.name);
 
                 return (
                     <div key={field.name} className="grid content-start gap-2">
                         <label htmlFor={inputId} className="text-sm font-medium text-foreground">
                             {field.label}
-                            {field.required && (
+                            {required && (
                                 <span className="ml-1 text-destructive" aria-hidden="true">*</span>
                             )}
                         </label>
@@ -78,7 +78,7 @@ export function PersonNameFields({
                             value={values[field.name]}
                             onChange={(event) => onChange(field.name, event.target.value)}
                             disabled={disabled}
-                            required={field.required}
+                            required={required}
                             aria-invalid={Boolean(error)}
                             aria-describedby={error ? errorId : undefined}
                             placeholder={field.placeholder}

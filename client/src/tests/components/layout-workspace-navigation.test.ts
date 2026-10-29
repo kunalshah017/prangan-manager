@@ -73,7 +73,9 @@ describe("layout workspace navigation", () => {
     expect(source).toContain("ArrowLeft");
     expect(source).toContain("useNavigate");
     expect(source).toContain("getBreadcrumbBackTarget");
-    expect(source).toContain("min-h-11");
+    // Phones go back through the trail; the back link is desktop-only.
+    expect(source).toContain("sm:inline-flex");
+    expect(source).toContain('breadcrumb.isCurrentPage && "max-sm:hidden"');
     expect(source).toContain("Back to ${backTarget.label}");
     expect(source).not.toContain("if (breadcrumbs.length <= 1) return null");
     expect(primitiveSource).toContain("flex size-11 items-center justify-center");

@@ -30,10 +30,10 @@ const admin: User = {
 };
 
 describe("managed academic levels administration", () => {
-  it("adds an admin-only Levels destination and lazy route", () => {
+  it("adds an admin-only Level catalogue destination and lazy route", () => {
     const model = buildNavigationModel(admin);
     expect(model.administration).toContainEqual({
-      label: "Levels",
+      label: "Level catalogue",
       href: "/academic-levels",
       icon: "layers",
     });

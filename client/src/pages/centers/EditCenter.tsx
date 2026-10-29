@@ -16,18 +16,20 @@ const EditCenter = () => {
     const navigate = useNavigate();
     const [name, setName] = useState('');
     const [address, setAddress] = useState('');
+    const [imageUrl, setImageUrl] = useState('');
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     const { data: center, isLoading: centerLoading, error: centerError, refetch: refetchCenter } = useCenter(id || '');
     const { data: project, isLoading: projectLoading, error: projectError, refetch: refetchProject } = useProject(projectId || '');
     const updateCenterMutation = useUpdateCenter();
     const deleteCenterMutation = useDeleteCenter();
-    const centersUrl = `/projects/${projectId}/centers`;
+    const centersUrl = `/projects/${projectId}/dashboard`;
 
     useEffect(() => {
         if (!center) return;
         setName(center.name);
         setAddress(center.address);
+        setImageUrl(center.imageUrl || '');
     }, [center]);
 
     const contextMismatch = Boolean(center?.projectId && center.projectId !== projectId);
@@ -46,6 +48,7 @@ const EditCenter = () => {
         const updateData: UpdateCenterRequest = {
             name: trimmedName,
             address: trimmedAddress,
+            imageUrl: imageUrl || null,
         };
 
         try {
@@ -127,9 +130,11 @@ const EditCenter = () => {
                 projectName={project.name}
                 name={name}
                 address={address}
+                imageUrl={imageUrl}
                 isPending={updateCenterMutation.isPending}
                 onNameChange={setName}
                 onAddressChange={setAddress}
+                onImageChange={setImageUrl}
                 onSubmit={handleSubmit}
                 onCancel={() => navigate(centersUrl)}
                 onDelete={() => setShowDeleteConfirm(true)}
@@ -150,7 +155,7 @@ const CenterRecovery = ({ title, message, returnUrl, onRetry }: CenterRecoveryPr
     <div className="mx-auto flex min-h-[55dvh] w-full max-w-2xl items-center justify-center px-4" aria-live="polite">
         <div className="w-full rounded-lg border border-border bg-card p-6 text-center shadow-sm sm:p-8">
             <RefreshCw className="mx-auto h-8 w-8 text-destructive" aria-hidden="true" />
-            <h1 className="mt-4 text-2xl font-semibold text-foreground">{title}</h1>
+            <h2 className="mt-4 text-2xl font-semibold text-foreground">{title}</h2>
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">{message}</p>
             <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
                 <Link to={returnUrl} className={cn(buttonVariants({ variant: 'outline' }), 'min-h-11 gap-2')}>

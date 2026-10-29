@@ -25,12 +25,22 @@ describe("project create and edit forms", () => {
 
     const layoutSource = readFileSync(layoutPath, "utf8");
     expect(layoutSource).toContain("Project details");
-    expect(layoutSource).toContain("Project setup");
+    expect(layoutSource).toContain("Availability");
     expect(layoutSource).toContain("Project banner");
     expect(layoutSource).toContain("/images/default_project_banner.jpg");
     expect(layoutSource).toContain("lg:grid-cols-[minmax(0,1fr)_22rem]");
-    expect(layoutSource).toContain("lg:sticky lg:bottom-3");
-    expect(layoutSource).not.toContain('className="sticky bottom-3');
+    expect(layoutSource).toContain("<FormActions");
+    expect(layoutSource).toContain('type="radio"');
+  });
+
+  it("keeps Save within reach on phones and sticky under long forms on desktop", () => {
+    const formParts = readFileSync(
+      new URL("../../components/workspace/FormParts.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(formParts).toContain("fixed inset-x-0 bottom-0");
+    expect(formParts).toContain("lg:sticky lg:bottom-3");
+    expect(formParts).toContain("Danger zone");
   });
 
   it("clears custom banners with null and separates project deletion", () => {
@@ -38,7 +48,7 @@ describe("project create and edit forms", () => {
     expect(editSource).toContain("imageUrl: imageUrl || null");
     expect(editSource).toContain("onImageRemove={() => setImageUrl('')}");
     const layoutSource = readFileSync(layoutPath, "utf8");
-    expect(layoutSource).toContain("Danger zone");
+    expect(layoutSource).toContain("<DangerZone");
     expect(layoutSource).toContain("Delete project");
   });
 });

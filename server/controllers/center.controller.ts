@@ -30,6 +30,26 @@ const canAccessCenterResource = (
         assignment.centerId === scope.centerId,
     ));
 
+// Only these fields come from the request body; the project, ids and
+// timestamps are never client-controlled after creation.
+const optionalText = (value: unknown) =>
+  typeof value === "string" ? value.trim() || null : value === null ? null : undefined;
+
+const centerFields = (body: unknown) => {
+  const input = (body ?? {}) as Record<string, unknown>;
+  const fields: Partial<Center> = {};
+  if (typeof input.name === "string") fields.name = input.name.trim();
+  const address = optionalText(input.address);
+  if (address !== undefined) fields.address = address ?? undefined;
+  const imageUrl = optionalText(input.imageUrl);
+  if (imageUrl !== undefined) fields.imageUrl = imageUrl;
+  if (input.metadata !== undefined) fields.metadata = input.metadata;
+  return fields;
+};
+
+const isSafeImageUrl = (value: string | null | undefined) =>
+  value == null || /^https:\/\/\S+$/i.test(value);
+
 export const createCenter = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user; // Assuming user is set in the request by authentication middleware
@@ -38,13 +58,21 @@ export const createCenter = asyncHandle(
       return errorHandle("Only admins can create centers.", reply, 403);
     }
 
-    const data = request.body as Partial<Center>;
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const data = centerFields(body);
+    const projectId = typeof body.projectId === "string" ? body.projectId : "";
 
     if (!data.name) {
       return errorHandle("Center name is required.", reply, 400);
     }
+    if (!projectId) {
+      return errorHandle("Project ID is required.", reply, 400);
+    }
+    if (!isSafeImageUrl(data.imageUrl)) {
+      return errorHandle("Banner image must be an https URL.", reply, 400);
+    }
 
-    const center = await CreateCenter(data);
+    const center = await CreateCenter({ ...data, projectId });
 
     if (typeof center === "string") {
       return errorHandle(center, reply, 500);
@@ -161,10 +189,16 @@ export const updateCenterController = asyncHandle(
     }
 
     const { id } = request.params as { id: string };
-    const data = request.body as Partial<Center>;
+    const data = centerFields(request.body);
 
     if (!id) {
       return errorHandle("Center ID is required.", reply, 400);
+    }
+    if (data.name !== undefined && !data.name) {
+      return errorHandle("Center name is required.", reply, 400);
+    }
+    if (!isSafeImageUrl(data.imageUrl)) {
+      return errorHandle("Banner image must be an https URL.", reply, 400);
     }
 
     const center = await updateCenter(id, data);

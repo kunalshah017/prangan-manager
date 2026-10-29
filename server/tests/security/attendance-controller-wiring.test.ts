@@ -71,6 +71,22 @@ test("attendance list and summary deny unscoped non-admin requests before servic
   }
 });
 
+test("attendance list lets a volunteer read only their own records without a scope", async () => {
+  const source = await readSource("../../controllers/attendance.controller.ts");
+  const block = controllerBlock(source, "getAttendanceController");
+
+  // The exception is tied to the caller's own id; it never widens other reads.
+  assert.match(block, /const isOwnRecords = Boolean\(userId\) && userId === request\.user\.id;/);
+  assert.match(block, /if \(!isAdmin && !isOwnRecords\) \{/);
+  // The service is filtered by the same userId that was checked.
+  assert.match(block, /const requestData: GetAttendanceRequest = \{[\s\S]*userId,/);
+  // A volunteer's own read covers only roles they still hold.
+  assert.match(block, /activeAssignmentsOnly: !isAdmin && isOwnRecords,/);
+  // The summary endpoint keeps the full scope policy.
+  const summary = controllerBlock(source, "getAttendanceSummaryController");
+  assert.doesNotMatch(summary, /isOwnRecords/);
+});
+
 test("auto-mark validates a complete canonical scope after its admin guard", async () => {
   const source = await readSource("../../controllers/attendance.controller.ts");
   const block = controllerBlock(source, "autoMarkAttendanceController");

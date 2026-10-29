@@ -1,5 +1,6 @@
 import { useId } from "react";
 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSemesterLevels } from "@/hooks/useAcademicLevelQueries";
 import { levelName, sortByJourneyOrder } from "@/lib/levels";
 import type { SemesterLevel } from "@/types/api";
@@ -16,9 +17,6 @@ export interface SemesterLevelSelectProps {
   includeInactiveCurrent?: boolean;
   currentLevel?: SemesterLevel;
 }
-
-const fieldClass =
-  "min-h-11 w-full rounded-md border border-input bg-background px-3 text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
 
 export function SemesterLevelSelect({
   semesterId,
@@ -63,37 +61,41 @@ export function SemesterLevelSelect({
 
   return (
     <div className="space-y-2">
-      <label htmlFor={selectId} className="block text-sm font-medium text-foreground">
+      <label htmlFor={selectId} className="block text-sm font-semibold text-foreground">
         {label}
         {required ? (
-          <span className="ml-1 text-destructive" aria-hidden="true">*</span>
+          <span className="ml-1 font-normal text-muted-foreground">(required)</span>
         ) : null}
       </label>
-      <select
-        id={selectId}
+      <Select
         name={name}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        disabled={disabled || isLoading || !!error || levels.length === 0}
         required={required}
-        aria-describedby={error ? `${selectId}-status` : undefined}
-        className={fieldClass}
+        // An empty value shows the placeholder; Radix reserves "" for that.
+        value={value}
+        onValueChange={onChange}
+        disabled={disabled || isLoading || !!error || levels.length === 0}
       >
-        <option value="">
-          {isLoading
-            ? "Loading levels..."
-            : error
-              ? "Unable to load levels"
-              : levels.length === 0
-                ? "No active levels available"
-                : "Select a level"}
-        </option>
-        {levels.map((level) => (
-          <option key={level.id} value={level.id}>
-            {levelName(level)}{level.isActive ? "" : " (inactive)"}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger id={selectId} aria-describedby={error ? `${selectId}-status` : undefined}>
+          <SelectValue
+            placeholder={
+              isLoading
+                ? "Loading levels..."
+                : error
+                  ? "Unable to load levels"
+                  : levels.length === 0
+                    ? "No active levels available"
+                    : "Select a level"
+            }
+          />
+        </SelectTrigger>
+        <SelectContent>
+          {levels.map((level) => (
+            <SelectItem key={level.id} value={level.id}>
+              {levelName(level)}{level.isActive ? "" : " (inactive)"}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       {error ? (
         <p id={`${selectId}-status`} role="alert" className="text-sm text-destructive">
           Unable to load levels. Try again.

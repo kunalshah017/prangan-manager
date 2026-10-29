@@ -48,11 +48,11 @@ test("detail and update responses choose owner or admin-safe contracts", async (
   assert.ok(verificationSource);
   assert.match(
     detailSource,
-    /authUser\.id === userId[\s\S]*getUserById\(userId\)[\s\S]*getAdminUserById\(userId\)/,
+    /authUser\.id === userId[\s\S]*getUserById\(userId, \{ includePastAssignments: authUser\.role === Role\.ADMIN \}\)[\s\S]*getAdminUserById\(userId\)/,
   );
   assert.match(
     updateSource,
-    /authUser\.id === userId[\s\S]*getUserById\(userId\)[\s\S]*getAdminUserById\(userId\)/,
+    /authUser\.id === userId[\s\S]*getUserById\(userId, \{ includePastAssignments: authUser\.role === Role\.ADMIN \}\)[\s\S]*getAdminUserById\(userId\)/,
   );
   assert.match(
     verificationSource,
@@ -198,7 +198,8 @@ test("access revocation is admin-only, deactivates assignments, and invalidates 
   assert.match(revokeSource, /status: UserStatus\.REJECTED/);
   assert.match(revokeSource, /sessionVersion: \{ increment: 1 \}/);
   assert.match(revokeSource, /userRoleAssignments\.updateMany/);
-  assert.match(revokeSource, /isActive: false/);
+  // Ending goes through the shared helper, which also records endedAt.
+  assert.match(revokeSource, /data: endedAssignmentData\(\)/);
   assert.match(routes, /"\/users\/:userId\/access"/);
   assert.match(routes, /revokeUserAccessController/);
 });

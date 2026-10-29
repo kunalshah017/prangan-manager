@@ -18,7 +18,7 @@ describe("ExpandableText", () => {
     const toggle = screen.getByRole("button", { name: "Read more" });
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     expect(toggle.getAttribute("aria-controls")).toBe(content.id);
-    expect(content.className).toContain("line-clamp-3");
+    expect(content.className).toContain("line-clamp-2");
 
     fireEvent.click(toggle);
     expect(toggle.textContent).toBe("Show less");

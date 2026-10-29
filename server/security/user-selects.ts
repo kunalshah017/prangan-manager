@@ -19,6 +19,26 @@ const activeRoleAssignments = {
   orderBy: { assignedAt: "desc" },
 } as const;
 
+// A person's own profile, and the admin view of it, include past assignments
+// too; the loaders split them into current and past.
+const allRoleAssignments = {
+  select: { ...activeRoleAssignments.select, assignedAt: true, endedAt: true },
+  orderBy: { assignedAt: "desc" },
+} as const;
+
+// A person's own daily-rate history, across semesters. The semester id keeps
+// periods from overlapping semesters (two centres, same dates) apart.
+const userRemunerationPeriods = {
+  select: {
+    id: true,
+    semesterId: true,
+    amountPerDay: true,
+    effectiveFrom: true,
+    effectiveTo: true,
+  },
+  orderBy: { effectiveFrom: "asc" },
+} as const;
+
 export const publicUserSelect = {
   id: true,
   name: true,
@@ -57,7 +77,8 @@ export const currentUserSelect = {
   upiId: true,
   createdAt: true,
   updatedAt: true,
-  roleAssignments: activeRoleAssignments,
+  roleAssignments: allRoleAssignments,
+  remunerationPeriods: userRemunerationPeriods,
 } as const satisfies Prisma.UserSelect;
 
 export const adminUserSelect = {
@@ -81,10 +102,20 @@ export const adminUserSelect = {
 
 export const adminUserDetailSelect = {
   ...adminUserSelect,
+  roleAssignments: allRoleAssignments,
   remunerationRates: {
     select: { semesterId: true, dailyRate: true },
     orderBy: { semesterId: "asc" },
   },
+  remunerationPeriods: userRemunerationPeriods,
+} as const satisfies Prisma.UserSelect;
+
+// Admins confirm bank details exist without receiving the account number.
+export const adminBankSummarySelect = {
+  bankAccountNumber: true,
+  bankName: true,
+  bankIfsc: true,
+  upiId: true,
 } as const satisfies Prisma.UserSelect;
 
 export const remunerationUserSelect = (semesterId: string) =>

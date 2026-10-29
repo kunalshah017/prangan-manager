@@ -458,7 +458,7 @@ export const ViewStudentAttendance = () => {
       : <CalendarIcon className="h-4 w-4 text-primary" aria-hidden="true" />;
 
   if (isLoadingSemester || isLoading || semesterLevelsQuery.isLoading) return <WorkspacePage><div className="flex min-h-[55dvh] items-center justify-center overflow-x-clip"><LoadingButterfly size="md" /></div></WorkspacePage>;
-  if (semesterError || error || semesterLevelsQuery.error) return <WorkspacePage><div className="flex min-h-[55dvh] items-center justify-center"><div className="rounded-lg border border-border bg-card p-6 text-center"><RefreshCw className="mx-auto h-8 w-8 text-destructive" /><h1 className="mt-3 text-xl font-semibold">Attendance could not be loaded</h1><button type="button" className="mt-4 min-h-11 rounded-md border border-border px-4" onClick={() => void refetchAttendance()}>Try again</button></div></div></WorkspacePage>;
+  if (semesterError || error || semesterLevelsQuery.error) return <WorkspacePage><div className="flex min-h-[55dvh] items-center justify-center"><div className="rounded-lg border border-border bg-card p-6 text-center"><RefreshCw className="mx-auto h-8 w-8 text-destructive" /><h2 className="mt-3 text-xl font-semibold">Attendance could not be loaded</h2><button type="button" className="mt-4 min-h-11 rounded-md border border-border px-4" onClick={() => void refetchAttendance()}>Try again</button></div></div></WorkspacePage>;
 
   return <WorkspacePage className="overflow-x-clip">
     <WorkspacePageHeader title="Student attendance" description="Review attendance by class day, month, and academic level." />

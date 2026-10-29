@@ -8,23 +8,30 @@ describe("user management filters", () => {
       "utf8",
     );
 
-    expect(source).toContain("centers.map");
-    expect(source).toContain("semesters.map");
+    // Semester names repeat across centres, so semesters follow the chosen centre.
+    expect(source).toContain("centreSemesters.map");
+    expect(source).toContain('centerFilter !== "ALL" && (');
+    expect(source).toContain('setSemesterFilter("ALL");');
+    // A single project is applied implicitly; centres follow the project.
+    expect(source).toContain("const hasProjectChoice = projects.length > 1;");
+    expect(source).toContain("{hasProjectChoice && (");
+    expect(source).toContain("projectCentres.map");
     expect(source).not.toContain("will be populated dynamically");
   });
 
   it("preserves and displays managed educator memberships", async () => {
-    const [edit, details, users, hooks] = await Promise.all([
+    const [edit, details, users, hooks, display] = await Promise.all([
       readFile(
         new URL("../../pages/users/EditUser.tsx", import.meta.url),
         "utf8",
       ),
       readFile(
-        new URL("../../pages/users/UserDetails.tsx", import.meta.url),
+        new URL("../../components/users/UserProfileView.tsx", import.meta.url),
         "utf8",
       ),
       readFile(new URL("../../pages/users/Users.tsx", import.meta.url), "utf8"),
       readFile(new URL("../../hooks/useUserQueries.ts", import.meta.url), "utf8"),
+      readFile(new URL("../../lib/user-display.ts", import.meta.url), "utf8"),
     ]);
 
     expect(edit).toContain("semesterLevelId: assignment.semesterLevelId");
@@ -33,7 +40,8 @@ describe("user management filters", () => {
     expect(hooks).toContain("semesterLevelId?: string");
     expect(hooks).not.toContain("level?: string");
     expect(details).toContain("levelName(assignment.semesterLevel)");
-    expect(users).toContain("levelName(assignment.semesterLevel)");
+    expect(display).toContain("levelName(first.semesterLevel)");
+    expect(users).toContain("assignmentSummary(user, centreNames)");
     expect(details).not.toContain("assignment.level");
     expect(users).not.toContain("assignment.level");
     expect(details).not.toContain("assignment.level.replace");
@@ -49,25 +57,26 @@ describe("user management filters", () => {
 
     expect(users).toContain("useSearchParams");
     expect(users).toContain('view === "requests"');
-    expect(users).toContain("Review application");
+    expect(users).toContain("href={`/users/${request.id}/review`}");
     expect(app).toContain('Navigate to="/users?view=requests" replace');
-    expect(navigation).toContain('label: "People"');
+    expect(navigation).toContain('label: "Users"');
     expect(navigation).not.toContain('label: "Registration requests"');
   });
 
   it("passes the explicitly selected system role through review and offers a safe access revoke action", async () => {
-    const [users, approvalModal] = await Promise.all([
+    const [users, review, edit] = await Promise.all([
       readFile(new URL("../../pages/users/Users.tsx", import.meta.url), "utf8"),
-      readFile(
-        new URL("../../components/ui/user-approval-modal.tsx", import.meta.url),
-        "utf8",
-      ),
+      readFile(new URL("../../pages/users/ReviewRegistration.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../../pages/users/EditUser.tsx", import.meta.url), "utf8"),
     ]);
 
-    expect(approvalModal).toContain("onApprove: (user: UserType, role:");
-    expect(approvalModal).toContain("await onApprove(user, selectedRole");
-    expect(users).toContain("role: selectedRole");
-    expect(users).toContain("Revoke access");
-    expect(users).toContain("useRevokeUserAccess");
+    // The chosen account type is sent as-is, with assignments only for volunteers.
+    expect(review).toContain("status: 'APPROVED',\n                role,");
+    expect(review).toContain("<SystemRoleChoice");
+    // Revoking is a confirmed danger-zone action on the edit page, not a list button.
+    expect(users).not.toContain("useRevokeUserAccess");
+    expect(edit).toContain('actionLabel="Revoke access"');
+    expect(edit).toContain("useRevokeUserAccess");
+    expect(edit).toContain('variant="danger"');
   });
 });

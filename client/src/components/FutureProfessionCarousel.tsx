@@ -84,8 +84,8 @@ const FutureProfessionCarousel = ({
 
     if (studentsWithImages.length === 0) {
         return (
-            <div className="rounded-xl border border-orange-200 bg-white/50 p-6 text-center backdrop-blur-sm">
-                <p className="text-gray-600">No student profession images available yet.</p>
+            <div className="rounded-xl border border-primary/30 bg-card/50 p-6 text-center backdrop-blur-sm">
+                <p className="text-muted-foreground">No student profession images available yet.</p>
             </div>
         );
     } const currentStudent = studentsWithImages[currentIndex];
@@ -121,15 +121,15 @@ const FutureProfessionCarousel = ({
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="relative overflow-hidden rounded-xl border border-orange-200 shadow-lg bg-gradient-to-br from-orange-900 via-amber-800 to-orange-900"
+                className="relative overflow-hidden rounded-xl border border-primary/30 shadow-lg bg-gradient-to-br from-orange-900 via-amber-800 to-orange-900"
             >
                 {/* Fullscreen Button - Top Right */}
                 <button
                     onClick={toggleFullscreen}
-                    className="absolute top-4 right-4 z-20 rounded-full bg-white/80 hover:bg-white p-2 shadow-md transition-all hover:scale-110 hover:shadow-lg backdrop-blur-sm"
+                    className="absolute top-4 right-4 z-20 rounded-full bg-card/80 hover:bg-card p-2 shadow-md transition-all hover:scale-110 hover:shadow-lg backdrop-blur-sm"
                     aria-label="Enter fullscreen"
                 >
-                    <Maximize2 className="h-4 w-4 text-orange-600" />
+                    <Maximize2 className="h-4 w-4 text-primary" />
                 </button>
 
                 {/* Compact Carousel */}
@@ -193,7 +193,7 @@ const FutureProfessionCarousel = ({
                     {studentsWithImages.map((_, index) => (
                         <motion.div
                             key={index}
-                            className={`h-1 flex-1 rounded-full ${index === currentIndex ? 'bg-white' : 'bg-white/30'
+                            className={`h-1 flex-1 rounded-full ${index === currentIndex ? 'bg-card' : 'bg-card/30'
                                 }`}
                             initial={false}
                             animate={{
@@ -243,7 +243,7 @@ const FutureProfessionCarousel = ({
                     aria-label="Previous student"
                 >
                     <div className="flex flex-col items-center gap-2">
-                        <div className="rounded-full bg-black p-2 sm:p-3 backdrop-blur-sm transition-all hover:bg-white/30 hover:scale-110">
+                        <div className="rounded-full bg-black p-2 sm:p-3 backdrop-blur-sm transition-all hover:bg-card/30 hover:scale-110">
                             <ChevronRight className="h-6 w-6 sm:h-8 sm:w-8 rotate-180 text-white" />
                         </div>
                         <div className="hidden sm:block rounded-lg bg-black/60 backdrop-blur-sm px-3 py-1.5 max-w-[120px]">
@@ -261,7 +261,7 @@ const FutureProfessionCarousel = ({
                     aria-label="Next student"
                 >
                     <div className="flex flex-col items-center gap-2">
-                        <div className="rounded-full bg-black p-2 sm:p-3 backdrop-blur-sm transition-all hover:bg-white/30 hover:scale-110">
+                        <div className="rounded-full bg-black p-2 sm:p-3 backdrop-blur-sm transition-all hover:bg-card/30 hover:scale-110">
                             <ChevronRight className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
                         </div>
                         <div className="hidden sm:block rounded-lg bg-black/60 backdrop-blur-sm px-3 py-1.5 max-w-[120px]">

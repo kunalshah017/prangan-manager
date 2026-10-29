@@ -144,8 +144,7 @@ describe("buildBreadcrumbs", () => {
       { projectId: "project-1" },
       [
         ["Projects", "/projects"],
-        ["Chanchalmann", "/projects/project-1/dashboard"],
-        ["Centers", undefined],
+        ["Chanchalmann", undefined],
       ],
     ],
     [
@@ -154,7 +153,6 @@ describe("buildBreadcrumbs", () => {
       [
         ["Projects", "/projects"],
         ["Chanchalmann", "/projects/project-1/dashboard"],
-        ["Centers", "/projects/project-1/centers"],
         ["New Center", undefined],
       ],
     ],
@@ -164,7 +162,6 @@ describe("buildBreadcrumbs", () => {
       [
         ["Projects", "/projects"],
         ["Chanchalmann", "/projects/project-1/dashboard"],
-        ["Centers", "/projects/project-1/centers"],
         ["Edit Center", undefined],
       ],
     ],
@@ -174,8 +171,7 @@ describe("buildBreadcrumbs", () => {
       [
         ["Projects", "/projects"],
         ["Chanchalmann", "/projects/project-1/dashboard"],
-        ["Tulip", "/projects/project-1/centers/center-1/dashboard"],
-        ["Semesters", undefined],
+        ["Tulip", undefined],
       ],
     ],
     [
@@ -185,10 +181,6 @@ describe("buildBreadcrumbs", () => {
         ["Projects", "/projects"],
         ["Chanchalmann", "/projects/project-1/dashboard"],
         ["Tulip", "/projects/project-1/centers/center-1/dashboard"],
-        [
-          "Semesters",
-          "/projects/project-1/centers/center-1/semesters",
-        ],
         ["New Semester", undefined],
       ],
     ],
@@ -199,10 +191,6 @@ describe("buildBreadcrumbs", () => {
         ["Projects", "/projects"],
         ["Chanchalmann", "/projects/project-1/dashboard"],
         ["Tulip", "/projects/project-1/centers/center-1/dashboard"],
-        [
-          "Semesters",
-          "/projects/project-1/centers/center-1/semesters",
-        ],
         ["Edit Semester", undefined],
       ],
     ],
@@ -281,7 +269,7 @@ describe("buildBreadcrumbs", () => {
 
   it.each([
     ["/administration", {}, "Administration"],
-    ["/academic-levels", {}, "Academic Levels"],
+    ["/academic-levels", {}, "Level Catalogue"],
     ["/users", {}, "Users"],
     ["/users/user-1/details", { userId: "user-1" }, "User Details"],
     ["/users/user-1/edit", { userId: "user-1" }, "Edit User"],
@@ -292,11 +280,11 @@ describe("buildBreadcrumbs", () => {
     ["/projects/new", {}, "New Project"],
     ["/projects/project-1/edit", { id: "project-1" }, "Edit Project"],
     ["/projects/project-1/dashboard", { projectId: "project-1" }, "Chanchalmann"],
-    ["/projects/project-1/centers", { projectId: "project-1" }, "Centers"],
+    ["/projects/project-1/centers", { projectId: "project-1" }, "Chanchalmann"],
     ["/projects/project-1/centers/new", { projectId: "project-1" }, "New Center"],
     ["/projects/project-1/centers/center-1/edit", { projectId: "project-1", id: "center-1" }, "Edit Center"],
     ["/projects/project-1/centers/center-1/dashboard", { projectId: "project-1", centerId: "center-1" }, "Tulip"],
-    ["/projects/project-1/centers/center-1/semesters", ids, "Semesters"],
+    ["/projects/project-1/centers/center-1/semesters", ids, "Tulip"],
     ["/projects/project-1/centers/center-1/semesters/new", ids, "New Semester"],
     ["/projects/project-1/centers/center-1/semesters/semester-1/edit", { ...ids, id: "semester-1" }, "Edit Semester"],
     ["/projects/project-1/centers/center-1/semesters/semester-1/setup", ids, "Semester Setup"],
@@ -309,6 +297,8 @@ describe("buildBreadcrumbs", () => {
     ["/projects/project-1/centers/center-1/semesters/semester-1/dashboard/attendance/mark", ids, "Mark Staff Attendance"],
     ["/projects/project-1/centers/center-1/semesters/semester-1/dashboard/attendance/remuneration", ids, "Remuneration"],
     ["/projects/project-1/centers/center-1/semesters/semester-1/dashboard/expenses", ids, "Expenses"],
+    ["/projects/project-1/centers/center-1/semesters/semester-1/dashboard/library", ids, "Library"],
+    ["/projects/project-1/centers/center-1/semesters/semester-1/dashboard/library/book-1", ids, "Book"],
     ["/projects/project-1/centers/center-1/semesters/semester-1/dashboard/student-attendance/view", ids, "View Student Attendance"],
     ["/projects/project-1/centers/center-1/semesters/semester-1/dashboard/student-attendance/mark", ids, "Mark Student Attendance"],
     ["/projects/project-1/centers/center-1/semesters/semester-1/dashboard/syllabus", ids, "Curriculum"],
@@ -352,22 +342,22 @@ describe("buildBreadcrumbs", () => {
     [
       "/projects/project-1/centers/new",
       { projectId: "project-1" },
-      ["Centers", "/projects/project-1/centers"],
+      ["Chanchalmann", "/projects/project-1/dashboard"],
     ],
     [
       "/projects/project-1/centers/center-1/edit",
       { projectId: "project-1", id: "center-1" },
-      ["Centers", "/projects/project-1/centers"],
+      ["Chanchalmann", "/projects/project-1/dashboard"],
     ],
     [
       "/projects/project-1/centers/center-1/semesters/new",
       ids,
-      ["Semesters", "/projects/project-1/centers/center-1/semesters"],
+      ["Tulip", "/projects/project-1/centers/center-1/dashboard"],
     ],
     [
       "/projects/project-1/centers/center-1/semesters/semester-1/edit",
       { ...ids, id: "semester-1" },
-      ["Semesters", "/projects/project-1/centers/center-1/semesters"],
+      ["Tulip", "/projects/project-1/centers/center-1/dashboard"],
     ],
   ] as const)(
     "returns %s to its immediate list",

@@ -56,11 +56,14 @@ describe("structured person names", () => {
   });
 
   it("uses structured inputs on every editable person form", () => {
+    // Profile and Edit user share PersonDetailsFields, which owns the name inputs.
     const directFormSources = [
       "../../pages/Register.tsx",
-      "../../pages/Profile.tsx",
-      "../../pages/users/EditUser.tsx",
+      "../../components/users/PersonDetailsFields.tsx",
     ].map((path) => readFileSync(new URL(path, import.meta.url), "utf8"));
+    for (const path of ["../../pages/Profile.tsx", "../../pages/users/EditUser.tsx"]) {
+      expect(readFileSync(new URL(path, import.meta.url), "utf8")).toContain("<PersonDetailsFields");
+    }
 
     for (const source of directFormSources) {
       expect(source).toContain("PersonNameFields");

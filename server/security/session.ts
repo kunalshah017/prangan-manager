@@ -4,6 +4,11 @@ type Environment = NodeJS.ProcessEnv;
 
 export const SESSION_COOKIE_NAME = "prangan_session";
 export const CSRF_COOKIE_NAME = "prangan_csrf";
+// A session lasts 30 days from its last renewal. Active users are renewed at
+// most once a day, so only people who stay away for 30 days sign in again.
+// Password resets and admin changes still end sessions via sessionVersion.
+export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+export const SESSION_RENEW_AFTER_SECONDS = 60 * 60 * 24;
 const AZURE_PRODUCTION_CLIENT_ORIGINS = [
   "https://manager.pranganfoundation.org",
   "https://prangan-manager.vercel.app",
@@ -63,7 +68,7 @@ export const getSessionCookieOptions = (
     secure: production,
     sameSite: production ? ("none" as const) : ("lax" as const),
     path: "/",
-    maxAge: 60 * 60 * 8,
+    maxAge: SESSION_MAX_AGE_SECONDS,
   };
 };
 
@@ -77,7 +82,7 @@ export const getCsrfCookieOptions = (
     secure: production,
     sameSite: production ? ("none" as const) : ("lax" as const),
     path: "/",
-    maxAge: 60 * 60 * 8,
+    maxAge: SESSION_MAX_AGE_SECONDS,
   };
 };
 
@@ -95,20 +100,26 @@ export const createSessionToken = (
   environment: Environment = process.env,
 ): string =>
   jwt.sign({ userId, sessionVersion }, getSessionSecret(environment), {
-    expiresIn: "8h",
+    expiresIn: SESSION_MAX_AGE_SECONDS,
   });
+
+export const shouldRenewSession = (
+  issuedAt: number,
+  nowSeconds: number = Math.floor(Date.now() / 1000),
+): boolean => nowSeconds - issuedAt >= SESSION_RENEW_AFTER_SECONDS;
 
 export const readSessionToken = (
   token: string,
   environment: Environment = process.env,
-): { userId: string; sessionVersion: number } | null => {
+): { userId: string; sessionVersion: number; issuedAt: number } | null => {
   try {
     const decoded = jwt.verify(token, getSessionSecret(environment));
 
     if (
       typeof decoded === "string" ||
       typeof decoded.userId !== "string" ||
-      !Number.isInteger(decoded.sessionVersion)
+      !Number.isInteger(decoded.sessionVersion) ||
+      typeof decoded.iat !== "number"
     ) {
       return null;
     }
@@ -116,6 +127,7 @@ export const readSessionToken = (
     return {
       userId: decoded.userId,
       sessionVersion: decoded.sessionVersion,
+      issuedAt: decoded.iat,
     };
   } catch {
     return null;

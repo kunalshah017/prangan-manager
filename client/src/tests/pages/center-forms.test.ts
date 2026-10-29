@@ -22,11 +22,11 @@ describe("center create and edit forms", () => {
 
     if (!existsSync(layoutPath)) return;
     const layoutSource = readFileSync(layoutPath, "utf8");
-    expect(layoutSource).toContain("Center details");
-    expect(layoutSource).toContain("Parent project");
-    expect(layoutSource).toContain("lg:grid-cols-[minmax(0,1fr)_22rem]");
-    expect(layoutSource).toContain("lg:sticky lg:bottom-3");
-    expect(layoutSource).toContain("Danger zone");
+    expect(layoutSource).toContain("Centre details");
+    expect(layoutSource).toContain("In ${projectName}");
+    expect(layoutSource).toContain("<FormActions");
+    expect(layoutSource).toContain("<DangerZone");
+    expect(layoutSource).toContain("<WorkspacePage");
   });
 
   it("blocks an edit route whose center belongs to another project", () => {

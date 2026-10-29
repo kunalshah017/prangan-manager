@@ -73,7 +73,8 @@ describe("managed academic level client contracts", () => {
     );
     expect(select).toContain("(inactive)");
     expect(select).toMatch(/<label[^>]+htmlFor=/);
-    expect(select).toContain("min-h-11");
+    // The shared Select supplies the 44px trigger and themed popover.
+    expect(select).toContain("<SelectTrigger id={selectId}");
     expect(select).toContain("Loading levels");
     expect(select).toContain("Unable to load levels");
     expect(select).toContain("No active levels available");

@@ -90,7 +90,7 @@ function ProjectNode({
         <div>
             <div className={cn("flex items-center rounded-md", isCurrent && "bg-accent/60")}>
                 <TreeLink
-                    href={`/projects/${project.id}/centers`}
+                    href={`/projects/${project.id}/dashboard`}
                     label={project.name}
                     icon={FolderOpen}
                     active={isCurrent && !currentCenterId}
@@ -169,7 +169,7 @@ function CenterNode({
         <div>
             <div className={cn("flex items-center rounded-md", isCurrent && "bg-accent/60")}>
                 <TreeLink
-                    href={`/projects/${projectId}/centers/${center.id}/semesters`}
+                    href={`/projects/${projectId}/centers/${center.id}/dashboard`}
                     label={center.name}
                     icon={MapPin}
                     active={isCurrent && !currentSemesterId}

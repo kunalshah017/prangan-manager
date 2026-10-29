@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Eye, EyeOff, LogIn } from 'lucide-react';
+import { CircleAlert, Eye, EyeOff, LogIn } from 'lucide-react';
 import toast from 'react-hot-toast';
 import DoodleBackground from '@/components/DoodleBackground';
 import { StandalonePageNavigation } from '@/components/StandalonePageNavigation';
 import { CustomButton } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { readLoginPrefill } from '@/lib/login-params';
+import { ThemedLogo } from "@/components/ThemedLogo";
 
 const Login = () => {
   const [searchParams] = useSearchParams();
@@ -40,8 +41,11 @@ const Login = () => {
     }
   }, [isAuthenticated, isLoading, navigate]);
 
+  const [loginError, setLoginError] = useState<string | null>(null);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoginError(null);
 
     try {
       await login({ email, password });
@@ -49,12 +53,12 @@ const Login = () => {
       // Navigate to projects page on successful login
       navigate('/projects');
     } catch (error) {
-      toast.error((error as Error)?.message || 'Login failed. Please check your credentials.');
+      setLoginError((error as Error)?.message || "Sign in didn't work. Try again.");
     }
   };
 
   return (
-    <main className="min-h-[100dvh] bg-orange-50/60 px-4 py-5 sm:px-6 sm:py-8">
+    <main className="min-h-[100dvh] bg-background px-4 py-5 sm:px-6 sm:py-8">
       <DoodleBackground numElements={10} />
       <div className="relative z-10 mx-auto flex min-h-[calc(100dvh-2.5rem)] w-full max-w-md flex-col justify-center">
         <StandalonePageNavigation
@@ -64,7 +68,7 @@ const Login = () => {
           backLabel="Back to welcome"
           className="mb-8"
         />
-        <section className="border border-orange-100 bg-white p-5 shadow-sm sm:p-8">
+        <section className="rounded-xl border border-border bg-card p-5 shadow-sm sm:p-8">
           <div className="flex flex-col items-start space-y-5">
             <Link to="/" className="flex items-center gap-3">
               <motion.div
@@ -72,18 +76,14 @@ const Login = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
               >
-                <img
-                  src="/images/logo/prangan-logo-light-mode.png"
-                  alt="Prangan Logo"
-                  className="h-12"
-                />
+                <ThemedLogo className="h-12" />
               </motion.div>
-              <span className="border-l border-orange-200 pl-3 text-sm font-medium text-gray-600">Prangan Manager workspace</span>
+              <span className="border-l border-primary/30 pl-3 text-sm font-medium text-muted-foreground">Prangan Manager workspace</span>
             </Link>
 
             <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-gray-950">Sign in</h1>
-              <p className="mt-2 text-sm leading-6 text-gray-600">Use your approved account email to continue.</p>
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground">Sign in</h1>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">Use your approved account email to continue.</p>
             </div>
           </div>
           <motion.div
@@ -94,6 +94,15 @@ const Login = () => {
           >
             <form onSubmit={handleSubmit}>
               <div className="grid gap-4">
+                {loginError && (
+                  <div
+                    role="alert"
+                    className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm leading-6 text-foreground"
+                  >
+                    <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
+                    <p>{loginError}</p>
+                  </div>
+                )}
                 <div className="grid gap-2">
                   <label htmlFor="email" className="text-sm font-medium">
                     Email
@@ -108,7 +117,7 @@ const Login = () => {
                     disabled={isLoading}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="h-12 w-full rounded-md border border-input bg-white px-3 text-base placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="h-12 w-full rounded-md border border-input bg-card px-3 text-base placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     required
                   />
                 </div>
@@ -117,26 +126,25 @@ const Login = () => {
                     <label htmlFor="password" className="text-sm font-medium">
                       Password
                     </label>
-                    <Link to="/reset-password" className="text-sm text-orange-600 hover:text-orange-700">
+                    <Link to="/reset-password" className="text-sm text-primary hover:text-primary">
                       Forgot password?
                     </Link>
                   </div>
                   <div className="relative">
                     <input
                       id="password"
-                      placeholder="••••••••"
                       type={showPassword ? "text" : "password"}
                       autoComplete="current-password"
                       disabled={isLoading}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="h-12 w-full rounded-md border border-input bg-white px-3 pr-12 text-base placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="h-12 w-full rounded-md border border-input bg-card px-3 pr-12 text-base placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       required
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 flex h-12 w-12 items-center justify-center text-gray-500 hover:text-orange-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+                      className="absolute inset-y-0 right-0 flex h-12 w-12 items-center justify-center text-muted-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       disabled={isLoading}
                       aria-label={showPassword ? "Hide password" : "Show password"}
                     >
@@ -161,7 +169,7 @@ const Login = () => {
 
             <div className="text-center text-sm">
               Don't have an account?{" "}
-              <Link to="/register" className="font-medium text-orange-600 hover:text-orange-700">
+              <Link to="/register" className="font-medium text-primary hover:text-primary">
                 Register
               </Link>
             </div>

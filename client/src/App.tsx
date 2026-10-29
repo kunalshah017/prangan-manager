@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
+import { useApplyThemePreference } from './hooks/useTheme'
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { Toaster, toast } from 'react-hot-toast'
@@ -26,11 +27,9 @@ const Projects = lazy(() => import('./pages/projects/Projects'))
 const ProjectDashboard = lazy(() => import('./pages/projects/ProjectDashboard'))
 const CreateProject = lazy(() => import('./pages/projects/CreateProject'))
 const EditProject = lazy(() => import('./pages/projects/EditProject'))
-const Centers = lazy(() => import('./pages/centers/Centers'))
 const CenterDashboard = lazy(() => import('./pages/centers/CenterDashboard'))
 const CreateCenter = lazy(() => import('./pages/centers/CreateCenter'))
 const EditCenter = lazy(() => import('./pages/centers/EditCenter'))
-const Semesters = lazy(() => import('./pages/semesters/Semesters'))
 const CreateSemester = lazy(() => import('./pages/semesters/CreateSemester'))
 const EditSemester = lazy(() => import('./pages/semesters/EditSemester'))
 const SemesterSetup = lazy(() => import('./pages/semesters/SemesterSetup'))
@@ -56,6 +55,7 @@ const ExamScores = lazy(() => import('./pages/exams').then(module => ({ default:
 const Users = lazy(() => import('./pages/users/Users'))
 const UserDetails = lazy(() => import('./pages/users/UserDetails'))
 const EditUser = lazy(() => import('./pages/users/EditUser'))
+const ReviewRegistration = lazy(() => import('./pages/users/ReviewRegistration'))
 const Profile = lazy(() => import('./pages/Profile'))
 const Settings = lazy(() => import('./pages/Settings'))
 const Library = lazy(() => import('./pages/library/Library'))
@@ -73,6 +73,18 @@ const PageLoading = () => (
   </div>
 )
 
+// The project dashboard lists every centre; the old centre list URL lands there.
+const ProjectCentresRedirect = () => {
+  const { projectId } = useParams();
+  return <Navigate replace to={`/projects/${projectId}/dashboard`} />;
+};
+
+// The centre dashboard lists every semester; the old semester list URL lands there.
+const CentreSemestersRedirect = () => {
+  const { projectId, centerId } = useParams();
+  return <Navigate replace to={`/projects/${projectId}/centers/${centerId}/dashboard`} />;
+};
+
 const LegacyRemunerationRedirect = () => {
   const { projectId, centerId, semesterId } = useParams();
   return (
@@ -84,6 +96,7 @@ const LegacyRemunerationRedirect = () => {
 };
 
 function App() {
+  useApplyThemePreference();
   const [pwaRecovery, setPwaRecovery] = useState<{ kind: 'update' | 'recovery'; registration?: ServiceWorkerRegistration } | null>(null);
 
   useEffect(() => {
@@ -175,7 +188,7 @@ function App() {
                   }
                 />
                 <Route path=":projectId/dashboard" element={<ProjectDashboard />} />
-                <Route path=":projectId/centers" element={<Centers />} />
+                <Route path=":projectId/centers" element={<ProjectCentresRedirect />} />
                 <Route
                   path=":projectId/centers/:centerId/dashboard"
                   element={<CenterDashboard />}
@@ -196,7 +209,7 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
-                <Route path=":projectId/centers/:centerId/semesters" element={<Semesters />} />
+                <Route path=":projectId/centers/:centerId/semesters" element={<CentreSemestersRedirect />} />
                 <Route
                   path=":projectId/centers/:centerId/semesters/new"
                   element={
@@ -305,6 +318,14 @@ function App() {
                   element={
                     <ProtectedRoute permission="studentAttendance.write">
                       <MarkStudentAttendance />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/library"
+                  element={
+                    <ProtectedRoute permission="workspace.view">
+                      <Library />
                     </ProtectedRoute>
                   }
                 />
@@ -422,6 +443,7 @@ function App() {
                 <Route index element={<Users />} />
                 <Route path=":userId/details" element={<UserDetails />} />
                 <Route path=":userId/edit" element={<EditUser />} />
+                <Route path=":userId/review" element={<ReviewRegistration />} />
               </Route>
 
               <Route
@@ -439,6 +461,15 @@ function App() {
                 path="/library/:bookId"
                 element={
                   <ProtectedRoute standaloneDenied>
+                    <BookReader />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/projects/:projectId/centers/:centerId/semesters/:semesterId/dashboard/library/:bookId"
+                element={
+                  <ProtectedRoute permission="workspace.view">
                     <BookReader />
                   </ProtectedRoute>
                 }

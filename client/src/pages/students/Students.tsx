@@ -86,7 +86,7 @@ export default function Students() {
       <div className="mx-auto flex min-h-[55dvh] w-full max-w-2xl items-center justify-center px-4" aria-live="polite">
         <div className="w-full rounded-lg border border-border bg-card p-6 text-center shadow-sm sm:p-8">
           <RefreshCw className="mx-auto h-8 w-8 text-destructive" aria-hidden="true" />
-          <h1 className="mt-4 text-2xl font-semibold text-foreground">Students could not be loaded</h1>
+          <h2 className="mt-4 text-2xl font-semibold text-foreground">Students could not be loaded</h2>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">Check your connection and try loading this semester roster again.</p>
           <button type="button" onClick={() => void studentQuery.refetch()} className={cn(buttonVariants(), "mt-6 min-h-11 gap-2")}><RefreshCw className="h-4 w-4" aria-hidden="true" />Try again</button>
         </div>

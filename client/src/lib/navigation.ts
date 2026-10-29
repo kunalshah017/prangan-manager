@@ -79,8 +79,8 @@ export const buildNavigationModel = (
               href: "/administration",
               icon: "layout-dashboard",
             },
-            { label: "Levels", href: "/academic-levels", icon: "layers" },
-            { label: "People", href: "/users", icon: "user-cog" },
+            { label: "Level catalogue", href: "/academic-levels", icon: "layers" },
+            { label: "Users", href: "/users", icon: "user-cog" },
           ]
         : [],
     universal: [{ label: "Library", href: "/library", icon: "library" }],

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { LogOut, Settings, UserRound, X } from "lucide-react";
+import { ChevronRight, LogOut, Settings, X } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { NavItem } from "@/components/navigation/NavItem";
@@ -9,6 +9,7 @@ import PWAInstallButton from "@/components/PWAInstallButton";
 import { ProfilePicture } from "@/components/ui";
 import type { NavigationModel } from "@/lib/navigation";
 import type { Project, User } from "@/types/api";
+import { ThemedLogo } from "@/components/ThemedLogo";
 
 interface MobileNavigationProps {
     open: boolean;
@@ -91,7 +92,7 @@ export function MobileNavigation({
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="fixed inset-0 z-50 bg-foreground/25 backdrop-blur-[2px]"
+                        className="fixed inset-0 z-50 bg-black/40"
                     />
                     <motion.div
                         ref={dialogRef}
@@ -103,10 +104,10 @@ export function MobileNavigation({
                         exit={{ x: "-100%" }}
                         transition={{ type: "tween", duration: 0.22 }}
                         onKeyDown={handleKeyDown}
-                        className="fixed inset-y-0 left-0 z-50 grid w-[min(88vw,20rem)] grid-rows-[auto_minmax(0,1fr)_auto] border-r border-border bg-background shadow-2xl motion-reduce:transition-none"
+                        className="fixed inset-y-0 left-0 z-50 grid w-[min(88vw,20rem)] grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-x-hidden border-r border-border bg-background shadow-2xl motion-reduce:transition-none"
                     >
                         <header className="flex items-center justify-between border-b border-border px-4 py-3">
-                            <img src="/images/logo/prangan-logo-light-mode.png" alt="Prangan" className="h-8 w-auto" />
+                            <ThemedLogo className="h-8" />
                             <button
                                 ref={closeButtonRef}
                                 type="button"
@@ -118,10 +119,10 @@ export function MobileNavigation({
                             </button>
                         </header>
 
-                        <div className="overflow-y-auto overscroll-contain px-3 py-4">
+                        <div className="space-y-5 overflow-y-auto overscroll-contain px-3 py-4">
                             {canViewWorkspace && (
-                                <section className="mb-6">
-                                    <h2 className="mb-2 px-3 text-xs font-semibold uppercase text-muted-foreground">Workspace</h2>
+                                <section>
+                                    <h2 className="mb-1 px-3 text-sm font-medium text-muted-foreground">Workspace</h2>
                                     <WorkspaceTree
                                         projects={projects}
                                         user={user}
@@ -129,14 +130,13 @@ export function MobileNavigation({
                                         currentCenterId={currentCenterId}
                                         currentSemesterId={currentSemesterId}
                                         onNavigate={onClose}
-                                        compact
                                     />
                                 </section>
                             )}
 
                             {standaloneResources.length > 0 && (
-                                <section className="mb-6">
-                                    <h2 className="mb-2 px-3 text-xs font-semibold uppercase text-muted-foreground">Resources</h2>
+                                <section>
+                                    <h2 className="mb-1 px-3 text-sm font-medium text-muted-foreground">Resources</h2>
                                     {standaloneResources.map((item) => (
                                         <NavItem key={item.href} item={item} onNavigate={onClose} />
                                     ))}
@@ -145,7 +145,7 @@ export function MobileNavigation({
 
                             {model.administration.length > 0 && (
                                 <section>
-                                    <h2 className="mb-2 px-3 text-xs font-semibold uppercase text-muted-foreground">Administration</h2>
+                                    <h2 className="mb-1 px-3 text-sm font-medium text-muted-foreground">Administration</h2>
                                     {model.administration.map((item) => (
                                         <NavItem key={item.href} item={item} onNavigate={onClose} />
                                     ))}
@@ -153,43 +153,41 @@ export function MobileNavigation({
                             )}
                         </div>
 
-                        <footer className="border-t border-border bg-muted/30 p-4">
-                            <div className="mb-3 flex items-center gap-3">
+                        {/* On phones this is the only place for account actions: the
+                            bottom of the drawer is within thumb reach, the top-right
+                            corner is not, so the header avatar menu is desktop-only. */}
+                        <footer className="min-w-0 space-y-1 border-t border-border p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                            <Link
+                                to="/profile"
+                                onClick={onClose}
+                                className="flex min-h-14 items-center gap-3 rounded-lg px-2 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
+                            >
                                 <ProfilePicture imageUrl={user?.profileImageUrl} name={user?.name || "User"} size="md" colorScheme="orange" />
-                                <div className="min-w-0 flex-1">
-                                    <p className="truncate text-sm font-semibold text-foreground">{user?.name || "User"}</p>
-                                    <p className="truncate text-xs text-muted-foreground">{user?.email || ""}</p>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                <Link
-                                    to="/profile"
-                                    onClick={onClose}
-                                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                >
-                                    <UserRound className="h-4 w-4" aria-hidden="true" />
-                                    Profile
-                                </Link>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-base font-semibold text-foreground">{user?.name || "User"}</span>
+                                    <span className="block truncate text-sm text-muted-foreground">{user?.email || ""}</span>
+                                </span>
+                                <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                            </Link>
+                            <div className="grid grid-cols-2 gap-2 pt-1 [&>*]:min-w-0">
                                 <Link
                                     to="/profile/settings"
                                     onClick={onClose}
-                                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-border px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
                                 >
                                     <Settings className="h-4 w-4" aria-hidden="true" />
                                     Settings
                                 </Link>
-                            </div>
-                            <div className="mt-2 grid grid-cols-1 gap-2">
                                 <button
                                     type="button"
                                     onClick={onLogout}
-                                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive"
+                                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-destructive/30 px-3 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive motion-reduce:transition-none"
                                 >
                                     <LogOut className="h-4 w-4" aria-hidden="true" />
                                     Sign out
                                 </button>
                             </div>
-                            <div className="mt-2"><PWAInstallButton /></div>
+                            <PWAInstallButton />
                         </footer>
                     </motion.div>
                 </div>

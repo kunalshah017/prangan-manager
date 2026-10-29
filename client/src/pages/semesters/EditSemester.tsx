@@ -27,7 +27,7 @@ const EditSemester = () => {
     const semesterLevelsQuery = useSemesterLevels(id || "", { includeInactive: true });
     const updateSemesterMutation = useUpdateSemester();
     const deleteSemesterMutation = useDeleteSemester();
-    const semestersUrl = `/projects/${projectId}/centers/${centerId}/semesters`;
+    const centreUrl = `/projects/${projectId}/centers/${centerId}/dashboard`;
 
     useEffect(() => {
         if (!semester) return;
@@ -75,7 +75,7 @@ const EditSemester = () => {
         try {
             await updateSemesterMutation.mutateAsync({ id, data: updateData });
             toast.success('Semester changes saved.');
-            navigate(semestersUrl);
+            navigate(centreUrl);
         } catch {
             toast.error('Unable to save semester changes. Try again.');
         }
@@ -86,7 +86,7 @@ const EditSemester = () => {
         try {
             await deleteSemesterMutation.mutateAsync(id);
             toast.success('Semester deleted.');
-            navigate(semestersUrl);
+            navigate(centreUrl);
         } catch {
             toast.error('Unable to delete this semester. Remove dependent records first and try again.');
         }
@@ -101,7 +101,7 @@ const EditSemester = () => {
             <SemesterRecovery
                 title="Semester could not be loaded"
                 message="The semester may no longer exist, or the request could not be completed."
-                returnUrl={semestersUrl}
+                returnUrl={centreUrl}
                 onRetry={() => {
                     void refetchSemester();
                     void refetchCenter();
@@ -115,7 +115,7 @@ const EditSemester = () => {
             <SemesterRecovery
                 title="Semester does not belong to this center"
                 message={`This semester belongs to another center and cannot be edited from ${center.name}.`}
-                returnUrl={semestersUrl}
+                returnUrl={centreUrl}
             />
         );
     }
@@ -155,7 +155,7 @@ const EditSemester = () => {
                     void semesterLevelsQuery.refetch();
                 }}
                 onSubmit={handleSubmit}
-                onCancel={() => navigate(semestersUrl)}
+                onCancel={() => navigate(centreUrl)}
                 onDelete={() => setShowDeleteConfirm(true)}
                 isDeletePending={deleteSemesterMutation.isPending}
             />

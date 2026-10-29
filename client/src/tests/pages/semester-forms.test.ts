@@ -24,13 +24,11 @@ describe("semester create and edit forms", () => {
     const layoutSource = readFileSync(layoutPath, "utf8");
     expect(layoutSource).toContain("Semester details");
     expect(layoutSource).toContain("Schedule");
-    expect(layoutSource).toContain("Parent center");
+    expect(layoutSource).toContain("At ${centerName}");
     expect(layoutSource).toContain("min={startDate}");
-    expect(layoutSource).toContain("lg:sticky lg:bottom-3");
-    expect(layoutSource).toContain("Danger zone");
-    expect(layoutSource).toContain(
-      "<DoodleBackground animated={false} numElements={6} />",
-    );
+    expect(layoutSource).toContain("<FormActions");
+    expect(layoutSource).toContain("<DangerZone");
+    expect(layoutSource).toContain("<WorkspacePage");
   });
 
   it("validates date order and blocks a semester from another center", () => {

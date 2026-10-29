@@ -91,6 +91,8 @@ export interface GetAttendanceRequest {
   status?: AttendanceStatus;
   page?: number;
   limit?: number;
+  // Only records made under assignments that are still active.
+  activeAssignmentsOnly?: boolean;
 }
 
 export interface GetAttendanceResponse {

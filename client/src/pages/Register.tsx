@@ -11,6 +11,7 @@ import { CustomButton } from '@/components/ui/button';
 import ImageUpload from '@/components/ui/image-upload';
 import { PersonNameFields, type PersonNameField } from '@/components/ui/person-name-fields';
 import { useAuth } from '@/hooks/useAuth';
+import { ThemedLogo } from "@/components/ThemedLogo";
 
 const Register = () => {
     const [firstName, setFirstName] = useState('');
@@ -45,6 +46,12 @@ const Register = () => {
 
         if (!firstName.trim()) {
             newErrors.firstName = 'First name is required';
+        }
+        if (!middleName.trim()) {
+            newErrors.middleName = 'Middle name is required';
+        }
+        if (!lastName.trim()) {
+            newErrors.lastName = 'Last name is required';
         }
 
         // Profile image validation
@@ -109,8 +116,8 @@ const Register = () => {
         try {
             await register({
                 firstName: firstName.trim(),
-                middleName: middleName.trim() || null,
-                lastName: lastName.trim() || null,
+                middleName: middleName.trim(),
+                lastName: lastName.trim(),
                 email,
                 phone: phoneForApi,
                 qualification,
@@ -135,7 +142,7 @@ const Register = () => {
     };
 
     return (
-        <main className="min-h-[100dvh] bg-orange-50/60 px-4 py-5 sm:px-6 sm:py-8">
+        <main className="min-h-[100dvh] bg-background px-4 py-5 sm:px-6 sm:py-8">
             <DoodleBackground numElements={10} />
             <div className="relative z-10 mx-auto w-full max-w-2xl">
                 <StandalonePageNavigation
@@ -145,7 +152,7 @@ const Register = () => {
                     backLabel="Back to welcome"
                     className="mb-6"
                 />
-                <section className="border border-orange-100 bg-white p-5 shadow-sm sm:p-8">
+                <section className="rounded-xl border border-border bg-card p-5 shadow-sm sm:p-8">
                     <div className="flex flex-col items-start space-y-5">
                         <Link to="/" className="flex items-center gap-3">
                             <motion.div
@@ -153,18 +160,14 @@ const Register = () => {
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.5 }}
                             >
-                                <img
-                                    src="/images/logo/prangan-logo-light-mode.png"
-                                    alt="Prangan Logo"
-                                    className="h-12"
-                                />
+                                <ThemedLogo className="h-12" />
                             </motion.div>
-                            <span className="border-l border-orange-200 pl-3 text-sm font-medium text-gray-600">Prangan Manager workspace</span>
+                            <span className="border-l border-primary/30 pl-3 text-sm font-medium text-muted-foreground">Prangan Manager workspace</span>
                         </Link>
 
                         <div>
-                            <h1 className="text-2xl font-semibold tracking-tight text-gray-950">Register for Prangan</h1>
-                            <p className="mt-2 text-sm leading-6 text-gray-600">Share your details to request access to the workspace.</p>
+                            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Register for Prangan</h1>
+                            <p className="mt-2 text-sm leading-6 text-muted-foreground">Share your details to request access to the workspace.</p>
                         </div>
                     </div>
 
@@ -182,7 +185,12 @@ const Register = () => {
                                     middleName={middleName}
                                     lastName={lastName}
                                     onChange={handleNameChange}
-                                    errors={{ firstName: errors.firstName }}
+                                    errors={{
+                                        firstName: errors.firstName,
+                                        middleName: errors.middleName,
+                                        lastName: errors.lastName,
+                                    }}
+                                    requiredFields={['firstName', 'middleName', 'lastName']}
                                     disabled={isLoading}
                                     className="sm:col-span-2"
                                 />
@@ -202,7 +210,7 @@ const Register = () => {
                                         className="w-full"
                                     />
                                     {errors.profileImageUrl && (
-                                        <p className="text-sm text-red-600" role="alert">{errors.profileImageUrl}</p>
+                                        <p className="text-sm text-destructive" role="alert">{errors.profileImageUrl}</p>
                                     )}
                                 </div>
 
@@ -223,11 +231,11 @@ const Register = () => {
                                             setEmail(e.target.value);
                                             clearFieldError('email');
                                         }}
-                                        className={`h-12 w-full rounded-md border ${errors.email ? 'border-red-500' : 'border-input'} bg-white px-3 text-base placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
+                                        className={`h-12 w-full rounded-md border ${errors.email ? 'border-destructive' : 'border-input'} bg-card px-3 text-base placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
                                         required
                                     />
                                     {errors.email && (
-                                        <p className="text-sm text-red-600" role="alert">{errors.email}</p>
+                                        <p className="text-sm text-destructive" role="alert">{errors.email}</p>
                                     )}
                                 </div>
 
@@ -244,11 +252,11 @@ const Register = () => {
                                             setDateOfBirth(e.target.value);
                                             clearFieldError('dateOfBirth');
                                         }}
-                                        className={`h-12 w-full rounded-md border ${errors.dateOfBirth ? 'border-red-500' : 'border-input'} bg-white px-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
+                                        className={`h-12 w-full rounded-md border ${errors.dateOfBirth ? 'border-destructive' : 'border-input'} bg-card px-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
                                         required
                                     />
                                     {errors.dateOfBirth && (
-                                        <p className="text-sm text-red-600" role="alert">{errors.dateOfBirth}</p>
+                                        <p className="text-sm text-destructive" role="alert">{errors.dateOfBirth}</p>
                                     )}
                                 </div>
 
@@ -266,11 +274,11 @@ const Register = () => {
                                             clearFieldError('phone');
                                         }}
                                         disabled={isLoading}
-                                        className={`flex h-12 w-full rounded-md border ${errors.phone ? 'border-red-500' : 'border-input'} bg-white px-3 text-base focus-within:ring-2 focus-within:ring-orange-500 focus-within:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
+                                        className={`flex h-12 w-full rounded-md border ${errors.phone ? 'border-destructive' : 'border-input'} bg-card px-3 text-base focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
                                         required
                                     />
                                     {errors.phone && (
-                                        <p className="text-sm text-red-600" role="alert">{errors.phone}</p>
+                                        <p className="text-sm text-destructive" role="alert">{errors.phone}</p>
                                     )}
                                 </div>
 
@@ -288,11 +296,11 @@ const Register = () => {
                                             setQualification(e.target.value);
                                             clearFieldError('qualification');
                                         }}
-                                        className={`h-12 w-full rounded-md border ${errors.qualification ? 'border-red-500' : 'border-input'} bg-white px-3 text-base placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
+                                        className={`h-12 w-full rounded-md border ${errors.qualification ? 'border-destructive' : 'border-input'} bg-card px-3 text-base placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
                                         required
                                     />
                                     {errors.qualification && (
-                                        <p className="text-sm text-red-600" role="alert">{errors.qualification}</p>
+                                        <p className="text-sm text-destructive" role="alert">{errors.qualification}</p>
                                     )}
                                 </div>
 
@@ -309,11 +317,11 @@ const Register = () => {
                                             setAddress(e.target.value);
                                             clearFieldError('address');
                                         }}
-                                        className={`min-h-28 w-full rounded-md border ${errors.address ? 'border-red-500' : 'border-input'} bg-white px-3 py-3 text-base placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
+                                        className={`min-h-28 w-full rounded-md border ${errors.address ? 'border-destructive' : 'border-input'} bg-card px-3 py-3 text-base placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
                                         required
                                     />
                                     {errors.address && (
-                                        <p className="text-sm text-red-600" role="alert">{errors.address}</p>
+                                        <p className="text-sm text-destructive" role="alert">{errors.address}</p>
                                     )}
                                 </div>
 
@@ -328,10 +336,10 @@ const Register = () => {
                             </div>
                         </form>
 
-                        <div className="flex items-center gap-2 border-t border-orange-100 pt-5 text-sm text-gray-600">
-                            <CheckCircle2 className="h-4 w-4 shrink-0 text-orange-600" />
+                        <div className="flex items-center gap-2 border-t border-border pt-5 text-sm text-muted-foreground">
+                            <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
                             Already have an account?{" "}
-                            <Link to="/login" className="font-medium text-orange-600 hover:text-orange-700">
+                            <Link to="/login" className="font-medium text-primary hover:text-primary">
                                 Sign In
                             </Link>
                         </div>

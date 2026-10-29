@@ -14,6 +14,7 @@ import {
 import { useCenter } from "@/hooks/useCenterQueries";
 import { useProject } from "@/hooks/useProjectQueries";
 import { useSemester } from "@/hooks/useSemesterQueries";
+import { cn } from "@/lib/utils";
 import {
     buildBreadcrumbs,
     getBreadcrumbBackTarget,
@@ -104,26 +105,29 @@ export default function BreadcrumbNavigation() {
     return (
         <Breadcrumb
             aria-label="Page navigation"
-            className="mb-3 flex min-w-0 items-center gap-2"
+            // Phones navigate back through the trail itself; a lone crumb only
+            // repeats the page title, so it is hidden there.
+            className={cn(
+                "relative z-20 mb-3 min-w-0 items-center gap-1 sm:mb-4 sm:flex",
+                "max-sm:w-fit max-sm:max-w-full max-sm:rounded-full max-sm:bg-background/70 max-sm:px-3 max-sm:shadow-sm max-sm:backdrop-blur-md",
+                breadcrumbCount > 1 ? "flex" : "hidden",
+            )}
         >
             {backTarget?.href ? (
                 <Link
                     to={backTarget.href}
                     aria-label={backLabel}
-                    className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-3 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className="hidden h-9 shrink-0 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:inline-flex motion-reduce:transition-none"
                 >
                     <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                    <span className="sm:hidden">Back</span>
-                    <span className="hidden max-w-40 truncate sm:inline">
-                        {backLabel}
-                    </span>
+                    <span className="max-w-40 truncate">{backLabel}</span>
                 </Link>
             ) : (
                 <button
                     type="button"
                     onClick={() => navigate(-1)}
                     aria-label={backLabel}
-                    className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-3 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className="hidden h-9 shrink-0 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:inline-flex motion-reduce:transition-none"
                 >
                     <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                     Back
@@ -136,7 +140,7 @@ export default function BreadcrumbNavigation() {
                 <BreadcrumbList className="flex-nowrap">
                     {displayBreadcrumbs.map((breadcrumb, index) => (
                         <Fragment key={`${breadcrumb.label}-${index}`}>
-                            <BreadcrumbItem className="flex-shrink-0">
+                            <BreadcrumbItem className={cn("flex-shrink-0", breadcrumb.isCurrentPage && "max-sm:hidden")}>
                                 {breadcrumb.isEllipsis ? (
                                     <button
                                         type="button"
@@ -163,7 +167,12 @@ export default function BreadcrumbNavigation() {
                                 )}
                             </BreadcrumbItem>
                             {index < displayBreadcrumbs.length - 1 && (
-                                <BreadcrumbSeparator className="flex-shrink-0" />
+                                <BreadcrumbSeparator
+                                    className={cn(
+                                        "flex-shrink-0",
+                                        index === displayBreadcrumbs.length - 2 && "max-sm:hidden",
+                                    )}
+                                />
                             )}
                         </Fragment>
                     ))}

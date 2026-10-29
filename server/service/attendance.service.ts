@@ -437,6 +437,7 @@ export const getAttendanceRecords = async (
     status,
     page = 1,
     limit = 50,
+    activeAssignmentsOnly = false,
   } = request;
 
   const skip = (page - 1) * limit;
@@ -460,6 +461,7 @@ export const getAttendanceRecords = async (
   if (centerId) whereClause.centerId = centerId;
   if (semesterId) whereClause.semesterId = semesterId;
   if (status) whereClause.status = status;
+  if (activeAssignmentsOnly) whereClause.roleAssignment = { isActive: true };
 
   const [attendances, totalCount] = await Promise.all([
     prisma.userAttendance.findMany({

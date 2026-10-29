@@ -26,10 +26,7 @@ describe("DoodleBackground", () => {
     );
     const operationalSources = await Promise.all(
       [
-        "../../pages/projects/Projects.tsx",
-        "../../pages/centers/Centers.tsx",
-        "../../components/projects/ProjectFormLayout.tsx",
-        "../../components/centers/CenterFormLayout.tsx",
+        "../../components/workspace/WorkspacePage.tsx",
       ].map((path) => readFile(new URL(path, import.meta.url), "utf8")),
     );
 

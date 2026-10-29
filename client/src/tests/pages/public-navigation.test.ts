@@ -19,10 +19,15 @@ describe("public page navigation", () => {
 
     expect(login).toContain("Back to welcome");
     expect(register).toContain("Back to welcome");
-    expect(reset).toContain("Back to sign in");
-    expect(tokenForm).toContain("Back to sign in");
+    const shell = await readFile(
+      new URL("../../components/PublicFormShell.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(reset).toContain("PublicFormShell");
+    expect(tokenForm).toContain("PublicFormShell");
+    expect(shell).toContain("Back to sign in");
     expect(notFound).toContain("Go to projects");
-    for (const source of [login, register, reset, tokenForm, notFound]) {
+    for (const source of [login, register, shell, notFound]) {
       expect(source).toContain("StandalonePageNavigation");
     }
   });

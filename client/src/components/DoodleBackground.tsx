@@ -127,7 +127,8 @@ const DoodleBackground: React.FC<DoodleBackgroundProps> = ({ numElements = 10, a
 
     return (
         <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none" aria-hidden="true">
-            <div className="absolute inset-0 bg-gradient-to-br from-orange-50 to-amber-100/30 opacity-40" />
+            <div className="absolute inset-0 bg-gradient-to-br from-orange-50 to-amber-100/30 opacity-40 dark:hidden" />
+            <div className="absolute inset-0 hidden bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,oklch(0.72_0.17_60/0.10),transparent)] dark:block" />
             <div className="doodle-grid absolute inset-0" />
             <div
                 className={`doodle-plus-pattern absolute inset-0 ${animated ? "" : "doodle-plus-pattern-static"}`}

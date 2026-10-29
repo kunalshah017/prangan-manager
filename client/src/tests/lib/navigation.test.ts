@@ -47,8 +47,8 @@ describe("role-aware navigation model", () => {
     expect(model).not.toHaveProperty("contextNavigation");
     expect(model.administration.map((link) => link.label)).toEqual([
       "Administration",
-      "Levels",
-      "People",
+      "Level catalogue",
+      "Users",
     ]);
   });
 

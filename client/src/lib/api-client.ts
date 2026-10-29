@@ -1,7 +1,7 @@
 // API Configuration and base client
 import type { StudentsBySemesterResponse } from "@/types/api";
 import { ApiError } from "./api-error";
-import { getCsrfToken } from "./csrf";
+import { clearCsrfToken, getCsrfToken } from "./csrf";
 import { getSessionGeneration, handleUnauthorizedResponse } from "./session";
 import { clearBrowserSession } from "./session-runtime";
 
@@ -12,16 +12,35 @@ const API_BASE_URL =
     ? "/api/v1"
     : import.meta.env.VITE_API_BASE_URL || "http://localhost:4000/api/v1";
 
+// Signed-out flows: a 401 here is an answer for the form, not an expired session.
+const PUBLIC_AUTH_ENDPOINTS = new Set([
+  "/users/me",
+  "/users/login",
+  "/users/register",
+  "/users/activate",
+  "/users/password-reset",
+  "/users/password-reset/complete",
+]);
+
+export const OFFLINE_MESSAGE =
+  "Can't reach Prangan Manager. Check your internet connection and try again.";
+
 // Base fetch wrapper with authentication and error handling
 export async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {},
+  isCsrfRetry = false,
 ): Promise<T> {
   const requestGeneration = getSessionGeneration();
   const unsafeMethod = ["POST", "PUT", "PATCH", "DELETE"].includes(
     (options.method || "GET").toUpperCase(),
   );
-  const csrfToken = unsafeMethod ? await getCsrfToken(API_BASE_URL) : null;
+  let csrfToken: string | null = null;
+  try {
+    csrfToken = unsafeMethod ? await getCsrfToken(API_BASE_URL) : null;
+  } catch {
+    throw new ApiError(OFFLINE_MESSAGE, 0);
+  }
 
   // Only set Content-Type if there's a body to send
   const headers: HeadersInit = {
@@ -47,7 +66,7 @@ export async function apiRequest<T>(
 
     // Handle different HTTP status codes
     if (response.status === 401) {
-      if (endpoint !== "/users/me") {
+      if (!PUBLIC_AUTH_ENDPOINTS.has(endpoint)) {
         handleUnauthorizedResponse({
           requestGeneration,
           currentGeneration: getSessionGeneration(),
@@ -84,6 +103,12 @@ export async function apiRequest<T>(
         // Keep default message if parsing fails
       }
 
+      // The CSRF cookie outlived this page's cached token: fetch a new one once.
+      if (unsafeMethod && !isCsrfRetry && errorMessage === "Invalid CSRF token") {
+        clearCsrfToken();
+        return apiRequest<T>(endpoint, options, true);
+      }
+
       throw new ApiError(errorMessage, 403);
     }
 
@@ -115,9 +140,11 @@ export async function apiRequest<T>(
       throw error;
     }
 
-    // Network or other errors
+    // Network failures surface as a TypeError from fetch.
     throw new ApiError(
-      error instanceof Error ? error.message : "Network error occurred",
+      error instanceof TypeError || !(error instanceof Error)
+        ? OFFLINE_MESSAGE
+        : error.message,
       0,
     );
   }

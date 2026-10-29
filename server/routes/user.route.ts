@@ -37,6 +37,7 @@ import {
   setRemunerationPeriodController,
   updateSemesterUserAssignmentsController,
   updateMyBankDetails,
+  updateUserBankDetailsAsAdmin,
 } from "../controllers/user.controller.js";
 import { authChecker } from "../utils/authChecker.js";
 
@@ -105,6 +106,12 @@ export const userRoutes = async (fastify: FastifyInstance): Promise<void> => {
     "/users/me/bank",
     { preHandler: authChecker },
     updateMyBankDetails,
+  );
+  // Admin-only: change another user's bank details without reading them back.
+  fastify.put(
+    "/users/:userId/bank",
+    { preHandler: authChecker },
+    updateUserBankDetailsAsAdmin,
   );
   fastify.post("/users/verify", { preHandler: authChecker }, verifyUser);
   fastify.get(

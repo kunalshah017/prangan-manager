@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, List, X, ChevronRight, ChevronLeft, Search } from 'lucide-react';
+import { ArrowLeft, List, X, ChevronRight, ChevronLeft, Search, ZoomIn, ZoomOut } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { books, type Book, type BookStructureItem } from '../../data/books';
 import {
@@ -8,6 +8,7 @@ import {
     writeLastReadPage,
 } from '../../lib/book-progress';
 import { cn } from '../../lib/utils';
+import { useSemester } from '@/hooks/useSemesterQueries';
 import { Document, Page, pdfjs } from 'react-pdf';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
@@ -24,6 +25,21 @@ const PDF_OPTIONS = {
     useWorkerFetch: true,
     isEvalSupported: false,
 };
+
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 3;
+const ZOOM_STEP = 0.25;
+// Sharp enough when zoomed, while keeping canvases within mobile memory limits.
+const PAGE_PIXEL_RATIO = Math.min(typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1, 2);
+
+const clampZoom = (value: number) =>
+    Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round(value * 100) / 100));
+
+const touchDistance = (touches: TouchList) =>
+    Math.hypot(
+        touches[0].clientX - touches[1].clientX,
+        touches[0].clientY - touches[1].clientY,
+    );
 
 const flattenBookStructure = (
     items: BookStructureItem[],
@@ -62,10 +78,10 @@ const ContentsButton = ({
             "flex min-h-11 w-full items-start gap-3 rounded-lg px-4 py-3 text-left transition-all group",
             nested && "ml-4 w-[calc(100%-1rem)] border-l-2 border-orange-100",
             active
-                ? "bg-orange-100 text-orange-800 font-medium shadow-sm"
+                ? "bg-primary/10 text-primary font-medium shadow-sm"
                 : nested
-                  ? "text-gray-700 hover:bg-orange-50/60"
-                  : "bg-gray-50 text-gray-800 hover:bg-gray-100",
+                  ? "text-foreground hover:bg-accent/60"
+                  : "bg-muted text-foreground hover:bg-muted",
         )}
     >
         <span
@@ -74,8 +90,8 @@ const ContentsButton = ({
                 active
                     ? "bg-orange-200 text-orange-900"
                     : nested
-                      ? "bg-white text-gray-600 ring-1 ring-gray-200 group-hover:bg-orange-100"
-                      : "bg-orange-100 text-orange-800",
+                      ? "bg-card text-muted-foreground ring-1 ring-gray-200 group-hover:bg-primary/10"
+                      : "bg-primary/10 text-primary",
             )}
         >
             {label}
@@ -85,7 +101,7 @@ const ContentsButton = ({
                 {item.title}
             </span>
             {item.theme && (
-                <span className="mt-1 block text-xs text-gray-500">
+                <span className="mt-1 block text-xs text-muted-foreground">
                     {item.theme}
                 </span>
             )}
@@ -96,22 +112,35 @@ const ContentsButton = ({
                     "rounded px-2 py-1 text-xs font-medium",
                     active
                         ? "bg-orange-200 text-orange-900"
-                        : "bg-white text-gray-600 ring-1 ring-gray-200",
+                        : "bg-card text-muted-foreground ring-1 ring-gray-200",
                 )}
             >
                 Page: {item.pageStart}
             </span>
             {active && (
-                <ChevronRight className="h-4 w-4 animate-pulse text-orange-600" />
+                <ChevronRight className="h-4 w-4 animate-pulse text-primary" />
             )}
         </span>
     </motion.button>
 );
 
 const BookReader: React.FC = () => {
-    const { bookId } = useParams<{ bookId: string }>();
+    const { bookId, projectId, centerId, semesterId } = useParams<{
+        bookId: string;
+        projectId?: string;
+        centerId?: string;
+        semesterId?: string;
+    }>();
     const navigate = useNavigate();
     const location = useLocation();
+    // Opened from a semester: go back to that semester's library.
+    const semesterDashboardHref = semesterId
+        ? `/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard`
+        : null;
+    const libraryHref = semesterDashboardHref
+        ? `${semesterDashboardHref}/library`
+        : `/library${location.search}`;
+    const semesterQuery = useSemester(semesterId ?? '');
     const [book, setBook] = useState<Book | null>(null);
     const [numPages, setNumPages] = useState<number>(0);
     const [currentPage, setCurrentPage] = useState<number>(1);
@@ -122,17 +151,120 @@ const BookReader: React.FC = () => {
     const indexListRef = useRef<HTMLDivElement>(null);
     const activeItemRef = useRef<HTMLButtonElement>(null);
     const pendingInitialPageRef = useRef<number | null>(null);
+    const contentRef = useRef<HTMLDivElement>(null);
+    const [zoom, setZoom] = useState(1);
+    const zoomRef = useRef(1);
+    // Scroll offset to apply once the pages have been laid out at a new zoom.
+    const pendingScrollRef = useRef<{ left: number; top: number } | null>(null);
 
     // PDF offset from book data
     const PDF_OFFSET = book?.pdfOffset || 0;
 
-    // Calculate viewport width for responsive scaling
-    const getPageWidth = useCallback(() => {
-        if (!containerRef.current) return 600; // Default fallback
-        const containerWidth = containerRef.current.clientWidth;
-        const padding = containerWidth < 640 ? 16 : 32; // Mobile vs Desktop padding
-        return Math.min(containerWidth - padding, 800); // Cap at 800px for desktop
+    // Page width at 100%: the viewer's width less padding, capped for desktop.
+    const [baseWidth, setBaseWidth] = useState(0);
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+        const measure = () => {
+            const containerWidth = container.clientWidth;
+            const padding = containerWidth < 640 ? 16 : 32;
+            setBaseWidth(Math.min(containerWidth - padding, 800));
+        };
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(container);
+        return () => observer.disconnect();
+    }, [book]);
+
+    // Zoom keeping the content point under (clientX, clientY) in place.
+    const zoomAt = useCallback((nextZoom: number, clientX?: number, clientY?: number) => {
+        const container = containerRef.current;
+        const content = contentRef.current;
+        const current = zoomRef.current;
+        const target = clampZoom(nextZoom);
+        if (!container || !content || target === current) return;
+
+        const box = container.getBoundingClientRect();
+        const focusX = (clientX ?? box.left + box.width / 2) - box.left;
+        const focusY = (clientY ?? box.top + box.height / 2) - box.top;
+        const ratio = target / current;
+        pendingScrollRef.current = {
+            left: (container.scrollLeft + focusX) * ratio - focusX,
+            top: (container.scrollTop + focusY) * ratio - focusY,
+        };
+        zoomRef.current = target;
+        setZoom(target);
     }, []);
+
+    useLayoutEffect(() => {
+        const container = containerRef.current;
+        const pending = pendingScrollRef.current;
+        if (!container || !pending) return;
+        container.scrollLeft = pending.left;
+        container.scrollTop = pending.top;
+        pendingScrollRef.current = null;
+    }, [zoom]);
+
+    // Pinch on touch screens; ctrl + wheel covers trackpad pinch and Ctrl+scroll.
+    useEffect(() => {
+        const container = containerRef.current;
+        const content = contentRef.current;
+        if (!container || !content) return;
+
+        let pinch: { distance: number; originX: number; originY: number; scale: number } | null = null;
+
+        const onTouchStart = (event: TouchEvent) => {
+            if (event.touches.length !== 2) return;
+            const box = content.getBoundingClientRect();
+            const midX = (event.touches[0].clientX + event.touches[1].clientX) / 2;
+            const midY = (event.touches[0].clientY + event.touches[1].clientY) / 2;
+            pinch = {
+                distance: touchDistance(event.touches),
+                originX: midX - box.left,
+                originY: midY - box.top,
+                scale: 1,
+            };
+            content.style.transformOrigin = `${pinch.originX}px ${pinch.originY}px`;
+        };
+
+        const onTouchMove = (event: TouchEvent) => {
+            if (!pinch || event.touches.length !== 2) return;
+            event.preventDefault();
+            const target = clampZoom(zoomRef.current * (touchDistance(event.touches) / pinch.distance));
+            pinch.scale = target / zoomRef.current;
+            // Preview with a transform; the pages re-render sharply on release.
+            content.style.transform = `scale(${pinch.scale})`;
+        };
+
+        const onTouchEnd = (event: TouchEvent) => {
+            if (!pinch || event.touches.length > 1) return;
+            const { scale, originX, originY } = pinch;
+            pinch = null;
+            content.style.transform = '';
+            content.style.transformOrigin = '';
+            const box = content.getBoundingClientRect();
+            zoomAt(zoomRef.current * scale, box.left + originX, box.top + originY);
+        };
+
+        const onWheel = (event: WheelEvent) => {
+            if (!event.ctrlKey) return;
+            event.preventDefault();
+            zoomAt(zoomRef.current * Math.exp(-event.deltaY / 200), event.clientX, event.clientY);
+        };
+
+        container.addEventListener('touchstart', onTouchStart, { passive: true });
+        container.addEventListener('touchmove', onTouchMove, { passive: false });
+        container.addEventListener('touchend', onTouchEnd);
+        container.addEventListener('touchcancel', onTouchEnd);
+        container.addEventListener('wheel', onWheel, { passive: false });
+        return () => {
+            container.removeEventListener('touchstart', onTouchStart);
+            container.removeEventListener('touchmove', onTouchMove);
+            container.removeEventListener('touchend', onTouchEnd);
+            container.removeEventListener('touchcancel', onTouchEnd);
+            container.removeEventListener('wheel', onWheel);
+        };
+    }, [book, zoomAt]);
 
     useEffect(() => {
         const foundBook = books.find(b => b.id === bookId);
@@ -140,13 +272,15 @@ const BookReader: React.FC = () => {
             pageRefs.current = {};
             setNumPages(0);
             setCurrentPage(1);
+            zoomRef.current = 1;
+            setZoom(1);
             pendingInitialPageRef.current = readLastReadPage(foundBook.id);
             setBook(foundBook);
         } else {
-            navigate(`/library${location.search}`);
+            navigate(libraryHref);
         }
 
-    }, [bookId, location.search, navigate]);
+    }, [bookId, libraryHref, navigate]);
 
     const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
         // Subtract the offset pages from total
@@ -277,14 +411,16 @@ const BookReader: React.FC = () => {
 
     if (!book) return null;
 
+    const pageWidth = Math.round((baseWidth || 600) * zoom);
+
     return (
-        <div className="flex flex-col h-screen bg-gray-50 overflow-hidden">
+        <div className="flex flex-col h-screen bg-muted overflow-hidden">
             {/* Header */}
-            <header className="bg-white border-b border-gray-200 px-3 py-2 flex items-center justify-between gap-2 z-20 shrink-0 sm:px-4">
+            <header className="bg-card border-b border-border px-3 py-2 flex items-center justify-between gap-2 z-20 shrink-0 sm:px-4">
                 <Link
                     aria-label="Back to Library"
-                    to={`/library${location.search}`}
-                    className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-orange-700 transition-colors hover:bg-orange-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+                    to={libraryHref}
+                    className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                     <ArrowLeft className="w-5 h-5" />
                 </Link>
@@ -293,16 +429,27 @@ const BookReader: React.FC = () => {
                     aria-label="Book breadcrumb"
                     className="flex min-w-0 flex-1 items-center justify-center gap-1.5 text-sm"
                 >
+                    {semesterDashboardHref && (
+                        <>
+                            <Link
+                                to={semesterDashboardHref}
+                                className="hidden max-w-[12rem] truncate font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:inline"
+                            >
+                                {semesterQuery.data?.name ?? 'Semester'}
+                            </Link>
+                            <ChevronRight className="hidden h-4 w-4 shrink-0 text-muted-foreground sm:block" aria-hidden="true" />
+                        </>
+                    )}
                     <Link
-                        to={`/library${location.search}`}
-                        className="shrink-0 font-semibold text-orange-700 hover:text-orange-900 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+                        to={libraryHref}
+                        className="shrink-0 font-semibold text-primary hover:text-orange-900 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                         Library
                     </Link>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                     <span
                         aria-current="page"
-                        className="min-w-0 truncate font-semibold text-gray-800"
+                        className="min-w-0 truncate font-semibold text-foreground"
                         title={book.bookInfo.title}
                     >
                         {book.bookInfo.title}
@@ -314,7 +461,7 @@ const BookReader: React.FC = () => {
             {/* PDF Viewer Container */}
             <div
                 ref={containerRef}
-                className="flex-1 overflow-y-auto bg-gray-200 py-6 relative"
+                className="relative flex-1 touch-pan-x touch-pan-y overflow-auto overscroll-contain bg-muted py-6"
                 onScroll={(e) => {
                     // Update current page based on scroll position
                     const viewerTop = e.currentTarget.getBoundingClientRect().top;
@@ -339,7 +486,7 @@ const BookReader: React.FC = () => {
                     if (nearestPage !== currentPage) setCurrentPage(nearestPage);
                 }}
             >
-                <div className="flex flex-col items-center gap-6 pb-20 min-h-full px-2 sm:px-4">
+                <div ref={contentRef} className="flex min-h-full w-max min-w-full flex-col items-center gap-6 px-2 pb-20 will-change-transform sm:px-4">
                     <Document
                             file={book.pdfUrl}
                             onLoadSuccess={onDocumentLoadSuccess}
@@ -349,7 +496,7 @@ const BookReader: React.FC = () => {
                                 <div className="flex items-center justify-center min-h-[400px]">
                                     <div className="text-center">
                                         <div className="w-16 h-16 border-4 border-orange-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                                        <p className="text-gray-600">Loading book...</p>
+                                        <p className="text-muted-foreground">Loading book...</p>
                                     </div>
                                 </div>
                             }
@@ -371,12 +518,14 @@ const BookReader: React.FC = () => {
                                             else delete pageRefs.current[bookPageNum];
                                         }}
                                         data-book-page={bookPageNum}
-                                        className="aspect-[581/782] w-full max-w-[800px] overflow-hidden rounded-lg bg-white shadow-lg"
+                                        className="aspect-[581/782] shrink-0 overflow-hidden rounded-lg bg-card shadow-lg"
+                                        style={{ width: pageWidth }}
                                     >
-                                        {visiblePageNumbers.has(bookPageNum) && (
+                                        {baseWidth > 0 && visiblePageNumbers.has(bookPageNum) && (
                                             <Page
                                                 pageNumber={pdfPageNum}
-                                                width={getPageWidth()}
+                                                width={pageWidth}
+                                                devicePixelRatio={PAGE_PIXEL_RATIO}
                                                 renderTextLayer={false}
                                                 renderAnnotationLayer={false}
                                                 renderMode="canvas"
@@ -392,7 +541,7 @@ const BookReader: React.FC = () => {
             </div>
 
             {/* Bottom Navigation Bar */}
-            <div className="bg-white border-t border-gray-200 px-4 py-3 flex items-center justify-between z-20 shrink-0">
+            <div className="bg-card border-t border-border px-4 py-3 flex items-center justify-between z-20 shrink-0">
                 <button
                     aria-label="Previous page"
                     onClick={handlePrevPage}
@@ -401,7 +550,7 @@ const BookReader: React.FC = () => {
                         "p-2 rounded-lg transition-colors",
                         currentPage <= 1
                             ? "text-gray-300 cursor-not-allowed"
-                            : "text-gray-700 hover:bg-gray-100"
+                            : "text-foreground hover:bg-muted"
                     )}
                 >
                     <ChevronLeft className="w-5 h-5" />
@@ -409,11 +558,11 @@ const BookReader: React.FC = () => {
 
                 <div className="flex flex-col items-center gap-1">
                     {activeSection && (
-                        <span className="text-sm font-medium text-gray-800 truncate max-w-[200px]">
+                        <span className="text-sm font-medium text-foreground truncate max-w-[200px]">
                             {activeSection.title}
                         </span>
                     )}
-                    <span className="text-sm text-gray-600">
+                    <span className="text-sm text-muted-foreground">
                         Page {currentPage} of {numPages}
                     </span>
                 </div>
@@ -426,10 +575,44 @@ const BookReader: React.FC = () => {
                         "p-2 rounded-lg transition-colors",
                         currentPage >= numPages
                             ? "text-gray-300 cursor-not-allowed"
-                            : "text-gray-700 hover:bg-gray-100"
+                            : "text-foreground hover:bg-muted"
                     )}
                 >
                     <ChevronRight className="w-5 h-5" />
+                </button>
+            </div>
+
+            {/* Zoom controls */}
+            <div
+                role="group"
+                aria-label="Zoom"
+                className="fixed bottom-20 left-4 z-30 flex items-center rounded-full border border-border bg-card shadow-lg sm:left-6"
+            >
+                <button
+                    type="button"
+                    aria-label="Zoom out"
+                    onClick={() => zoomAt(zoomRef.current - ZOOM_STEP)}
+                    disabled={zoom <= MIN_ZOOM}
+                    className="flex h-12 w-12 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted disabled:text-muted-foreground/50"
+                >
+                    <ZoomOut className="h-5 w-5" aria-hidden="true" />
+                </button>
+                <button
+                    type="button"
+                    aria-label={zoom === 1 ? 'Zoom 100%' : `Zoom ${Math.round(zoom * 100)}%, reset to 100%`}
+                    onClick={() => zoomAt(1)}
+                    className="min-w-12 text-sm font-semibold tabular-nums text-foreground"
+                >
+                    {Math.round(zoom * 100)}%
+                </button>
+                <button
+                    type="button"
+                    aria-label="Zoom in"
+                    onClick={() => zoomAt(zoomRef.current + ZOOM_STEP)}
+                    disabled={zoom >= MAX_ZOOM}
+                    className="flex h-12 w-12 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted disabled:text-muted-foreground/50"
+                >
+                    <ZoomIn className="h-5 w-5" aria-hidden="true" />
                 </button>
             </div>
 
@@ -463,40 +646,40 @@ const BookReader: React.FC = () => {
                             animate={{ y: 0 }}
                             exit={{ y: '100%' }}
                             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-                            className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl h-[75vh] flex flex-col"
+                            className="fixed inset-x-0 bottom-0 z-50 bg-card rounded-t-2xl shadow-2xl h-[75vh] flex flex-col"
                         >
                             {/* Sheet Header */}
-                            <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-4 rounded-t-2xl flex items-center justify-between">
+                            <div className="sticky top-0 bg-card border-b border-border px-4 py-4 rounded-t-2xl flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                     <div className="w-1 h-6 bg-orange-600 rounded-full" />
-                                    <h2 className="font-bold text-gray-900 text-lg">Table of Contents</h2>
+                                    <h2 className="font-bold text-foreground text-lg">Table of Contents</h2>
                                 </div>
                                 <button
                                     aria-label="Close table of contents"
                                     onClick={() => setIsIndexOpen(false)}
-                                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                                    className="p-2 hover:bg-muted rounded-full transition-colors"
                                 >
-                                    <X className="w-5 h-5 text-gray-500" />
+                                    <X className="w-5 h-5 text-muted-foreground" />
                                 </button>
                             </div>
 
                             {/* Search Bar */}
-                            <div className="px-4 pt-3 pb-2 bg-white border-b border-gray-100">
+                            <div className="px-4 pt-3 pb-2 bg-card border-b border-border">
                                 <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                     <input
                                         type="text"
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         placeholder="Search topics..."
-                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+                                        className="w-full pl-10 pr-4 py-2 border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent text-sm"
                                     />
                                     {searchQuery && (
                                         <button
                                             onClick={() => setSearchQuery('')}
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full transition-colors"
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-muted rounded-full transition-colors"
                                         >
-                                            <X className="w-3 h-3 text-gray-500" />
+                                            <X className="w-3 h-3 text-muted-foreground" />
                                         </button>
                                     )}
                                 </div>
@@ -520,8 +703,8 @@ const BookReader: React.FC = () => {
                                             className="flex flex-col items-center justify-center py-12 text-center"
                                         >
                                             <Search className="w-12 h-12 text-gray-300 mb-3" />
-                                            <p className="text-gray-500 font-medium">No topics found</p>
-                                            <p className="text-sm text-gray-400 mt-1">Try a different search term</p>
+                                            <p className="text-muted-foreground font-medium">No topics found</p>
+                                            <p className="text-sm text-muted-foreground mt-1">Try a different search term</p>
                                         </motion.div>
                                     ) : (
                                         <motion.div

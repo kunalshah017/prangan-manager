@@ -1,4 +1,5 @@
 import React from 'react';
+import { cn } from '@/lib/utils';
 import { Modal } from './modal';
 import { CustomButton } from './custom-button';
 
@@ -30,24 +31,24 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
     const getConfirmButtonStyles = () => {
         switch (variant) {
             case 'danger':
-                return 'bg-red-600 hover:bg-red-700 text-white';
+                return 'bg-destructive text-destructive-foreground hover:bg-destructive/90';
             case 'warning':
-                return 'bg-yellow-600 hover:bg-yellow-700 text-white';
+                return 'bg-warning text-warning-foreground hover:bg-warning/90';
             default:
-                return 'bg-orange-600 hover:bg-orange-700 text-white';
+                return 'bg-primary text-primary-foreground hover:bg-primary/90';
         }
     };
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={title} closeOnBackdrop={!isLoading} closeOnEscape={!isLoading}>
             <div className="space-y-6">
-                <p className="text-gray-600 leading-relaxed">{message}</p>
+                <p className="text-muted-foreground leading-relaxed">{message}</p>
 
-                <div className="flex gap-3 justify-end">
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <button
                         type="button"
                         onClick={onClose}
-                        className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                        className="min-h-11 rounded-md border border-input px-4 text-foreground transition-colors hover:bg-muted"
                         disabled={isLoading}
                     >
                         {cancelText}
@@ -56,7 +57,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                         onClick={onConfirm}
                         isLoading={isLoading}
                         loadingMessage={loadingMessage}
-                        className={getConfirmButtonStyles()}
+                        className={cn('min-h-11', getConfirmButtonStyles())}
                     >
                         {confirmText}
                     </CustomButton>

@@ -182,7 +182,7 @@ describe("semester dashboard", () => {
 
     expect(model).toContain('label: "Library"');
     expect(model).toContain(
-      'href: `/library?semesterId=${context.semesterId}`',
+      '/semesters/${context.semesterId}/dashboard/library`',
     );
     expect(model).not.toContain('label: "Administration"');
     expect(mobileNavigation).not.toContain(">Navigation</p>");

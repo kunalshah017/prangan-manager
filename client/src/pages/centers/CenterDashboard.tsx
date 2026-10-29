@@ -8,13 +8,13 @@ import {
 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 
-import { DashboardMetric } from "@/components/dashboard/DashboardMetric";
+import { PageTitle } from "@/components/navigation/PageTitle";
+import { EntityList, EntityRow } from "@/components/workspace/EntityList";
 import { ExpandableText } from "@/components/workspace/ExpandableText";
-import { WorkspaceCard } from "@/components/workspace/WorkspaceCard";
-import {
-  WorkspacePage,
-  WorkspacePageHeader,
-} from "@/components/workspace/WorkspacePage";
+import { EmptyState, ErrorState, ListPageSkeleton } from "@/components/workspace/PageState";
+import { PrimaryAction } from "@/components/workspace/PrimaryAction";
+import { StatusBadge } from "@/components/workspace/StatusBadge";
+import { WorkspacePage } from "@/components/workspace/WorkspacePage";
 import { useAuth } from "@/hooks/useAuth";
 import { useCenter } from "@/hooks/useCenterQueries";
 import { useSemestersByCenter } from "@/hooks/useSemesterQueries";
@@ -25,10 +25,12 @@ import {
   normalizeSetupProgress,
 } from "@/lib/semester-setup-summary";
 import { cn } from "@/lib/utils";
+import { semesterProgress, semesterTiming } from "@/lib/workspace-display";
 import {
   orderWorkspaceSemesters,
   semesterCardDestination,
 } from "@/lib/workspace-hierarchy";
+import type { Semester } from "@/types/api";
 
 const formatDate = (value: string) =>
   new Date(value).toLocaleDateString("en-GB", {
@@ -55,7 +57,7 @@ function SetupProgress({
 
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center justify-between gap-3 text-xs">
+      <div className="flex items-center justify-between gap-3 text-sm">
         <span className="font-medium text-foreground">{label}</span>
         <span className="tabular-nums text-muted-foreground">
           {normalizedResolved}/{normalizedTotal}
@@ -78,6 +80,73 @@ function SetupProgress({
   );
 }
 
+function CurrentSemesterCard({
+  semester,
+  href,
+}: {
+  semester: Semester;
+  href: string;
+}) {
+  const { week, totalWeeks, daysLeft, percentage } = semesterProgress(semester);
+
+  return (
+    <section
+      aria-labelledby="current-semester"
+      className="rounded-xl border border-border bg-card p-4 sm:p-5"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-muted-foreground">Current semester</p>
+          <h2
+            id="current-semester"
+            className="mt-0.5 truncate text-lg font-semibold text-foreground"
+          >
+            {semester.name}
+          </h2>
+        </div>
+        <StatusBadge tone="running" label="Running" />
+      </div>
+
+      <div className="mt-4 space-y-1.5">
+        <div className="flex items-center justify-between gap-3 text-sm">
+          <span className="font-medium tabular-nums text-foreground">
+            Week {week} of {totalWeeks}
+          </span>
+          <span className="tabular-nums text-muted-foreground">
+            {daysLeft === 0
+              ? "Last day"
+              : `${daysLeft} ${daysLeft === 1 ? "day" : "days"} left`}
+          </span>
+        </div>
+        <div
+          role="progressbar"
+          aria-label={`${percentage}% of ${semester.name} has passed`}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={percentage}
+          className="h-2 overflow-hidden rounded-full bg-muted"
+        >
+          <div
+            className="h-full rounded-full bg-primary"
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
+        <p className="text-sm tabular-nums text-muted-foreground">
+          {formatDate(semester.startDate)} – {formatDate(semester.endDate)}
+        </p>
+      </div>
+
+      <Link
+        to={href}
+        className={cn(buttonVariants(), "mt-4 min-h-11 w-full gap-1.5 sm:w-auto")}
+      >
+        Open semester
+        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+      </Link>
+    </section>
+  );
+}
+
 export default function CenterDashboard() {
   const { projectId = "", centerId = "" } = useParams();
   const { isAdmin } = useAuth();
@@ -90,32 +159,10 @@ export default function CenterDashboard() {
   );
   const error = centerQuery.error || semestersQuery.error;
 
-  const retry = () =>
-    Promise.all([centerQuery.refetch(), semestersQuery.refetch()]);
-
   if (centerQuery.isLoading || semestersQuery.isLoading) {
     return (
       <WorkspacePage>
-        <div
-          className="space-y-6 animate-pulse motion-reduce:animate-none"
-          aria-live="polite"
-          aria-busy="true"
-        >
-          <div className="space-y-3 border-b border-border pb-6">
-            <div className="h-9 w-64 rounded bg-muted" />
-            <div className="h-5 w-full max-w-lg rounded bg-muted" />
-          </div>
-          <div className="h-28 rounded-lg border border-border bg-card" />
-          <div className="grid gap-5 lg:grid-cols-2">
-            {[0, 1].map((item) => (
-              <div
-                key={item}
-                className="h-56 rounded-lg border border-border bg-card"
-              />
-            ))}
-          </div>
-          <span className="sr-only">Loading center dashboard</span>
-        </div>
+        <ListPageSkeleton label="Loading centre" hero />
       </WorkspacePage>
     );
   }
@@ -123,31 +170,13 @@ export default function CenterDashboard() {
   if (error || !centerQuery.data) {
     return (
       <WorkspacePage>
-        <div
-          className="flex min-h-[55dvh] items-center justify-center"
-          aria-live="polite"
-        >
-          <div className="w-full max-w-lg rounded-lg border border-border bg-card p-7 text-center shadow-sm">
-            <RefreshCw
-              className="mx-auto h-6 w-6 text-destructive"
-              aria-hidden="true"
-            />
-            <h1 className="mt-4 text-xl font-semibold text-foreground">
-              Center dashboard could not be loaded
-            </h1>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Check your connection and try loading this center again.
-            </p>
-            <button
-              type="button"
-              onClick={() => void retry()}
-              className={cn(buttonVariants(), "mt-5 min-h-11 gap-2")}
-            >
-              <RefreshCw className="h-4 w-4" aria-hidden="true" />
-              Try again
-            </button>
-          </div>
-        </div>
+        <ErrorState
+          title="Centre could not be loaded"
+          description="Check your connection and try loading this centre again."
+          onRetry={() => void Promise.all([centerQuery.refetch(), semestersQuery.refetch()])}
+          backHref={`/projects/${projectId}/dashboard`}
+          backLabel="Back to project"
+        />
       </WorkspacePage>
     );
   }
@@ -155,336 +184,188 @@ export default function CenterDashboard() {
   const center = centerQuery.data;
   const semesters = orderWorkspaceSemesters(semestersQuery.data || []);
   const setupSummaries = setupSummariesQuery.data || [];
-  const draftSummaries = mergeDraftSetupSummaries(semesters, setupSummaries);
+  const draftSummaries = canManageCenter
+    ? mergeDraftSetupSummaries(semesters, setupSummaries)
+    : [];
   const availableSemesters = semesters.filter(
     (semester) => semester.status !== "DRAFT",
   );
-  const activeCount = semesters.filter(
-    (semester) => semester.status === "ACTIVE",
-  ).length;
-  const draftCount = canManageCenter ? draftSummaries.length : 0;
+  const currentSemester = availableSemesters.find(
+    (semester) => semesterTiming(semester).tone === "running",
+  );
+  const otherSemesters = availableSemesters.filter(
+    (semester) => semester !== currentSemester,
+  );
+  const newSemesterHref = `/projects/${projectId}/centers/${centerId}/semesters/new`;
+
   return (
-    <WorkspacePage className="space-y-5 sm:space-y-6">
-      <WorkspacePageHeader
-        title={center.name}
-        badge="Center"
-        compact
-        description={
-          <ExpandableText
-            text={center.address || "Address not added"}
-            collapseAfter={70}
-            leadingIcon={
-              <MapPin
-                className="mt-0.5 h-4 w-4 shrink-0 text-primary"
-                aria-hidden="true"
+    <WorkspacePage
+      className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start lg:gap-8"
+      withMobileAction={canManageCenter}
+    >
+      <div className="min-w-0 space-y-6">
+        <header>
+          <PageTitle title={center.name} />
+          <div className="-mx-4 -mt-[3.75rem] aspect-[2/1] overflow-hidden bg-muted sm:mx-0 sm:mt-0 sm:aspect-[5/2] sm:rounded-xl lg:aspect-[21/9]">
+            <img
+              src={center.imageUrl || "/images/default_center_banner.jpg"}
+              alt={`${center.name} centre`}
+              className="h-full w-full object-cover"
+            />
+          </div>
+          <div className="mt-3 flex items-start justify-between gap-3">
+            <div className="min-w-0 pt-2 text-[0.9375rem] leading-6 text-muted-foreground">
+              <ExpandableText
+                text={center.address || "Address not added"}
+                collapseAfter={70}
+                leadingIcon={<MapPin className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />}
               />
-            }
-          />
-        }
-        action={
-          canManageCenter ? (
-            <div className="flex w-full gap-2 sm:w-auto">
+            </div>
+            {canManageCenter && (
               <Link
                 to={`/projects/${projectId}/centers/${centerId}/edit`}
-                className={cn(
-                  buttonVariants({ variant: "outline" }),
-                  "min-h-11 flex-1 gap-2 sm:flex-none",
-                )}
+                className={cn(buttonVariants({ variant: "outline" }), "min-h-11 shrink-0 gap-2")}
               >
                 <Pencil className="h-4 w-4" aria-hidden="true" />
                 Edit
               </Link>
-              <Link
-                to={`/projects/${projectId}/centers/${centerId}/semesters/new`}
-                className={cn(
-                  buttonVariants(),
-                  "min-h-11 flex-1 gap-2 sm:flex-none",
-                )}
-              >
-                <Plus className="h-4 w-4" aria-hidden="true" />
-                New semester
-              </Link>
-            </div>
-          ) : undefined
-        }
-      />
-
-      {canManageCenter && draftCount > 0 && (
-        <section
-          aria-labelledby="resume-semester-setup"
-          className="rounded-xl border border-primary/25 bg-primary/[0.04] p-4 shadow-sm sm:p-5"
-        >
-          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
-                Action needed
-              </p>
-              <h2
-                id="resume-semester-setup"
-                className="mt-1 text-xl font-semibold text-foreground"
-              >
-                Resume semester setup
-              </h2>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                Finish student, staff, and remuneration decisions before
-                activation.
-              </p>
-            </div>
-            <Link
-              to={`/projects/${projectId}/centers/${centerId}/semesters/new`}
-              className={cn(
-                buttonVariants({ variant: "outline" }),
-                "min-h-10 w-full bg-background sm:w-auto",
-              )}
-            >
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              New semester
-            </Link>
+            )}
           </div>
+        </header>
 
-          {setupSummariesQuery.isLoading ? (
-            <div
-              className="grid gap-3 lg:grid-cols-2"
-              aria-live="polite"
-              aria-busy="true"
-            >
-              {draftSummaries.map((summary) => (
-                <div
-                  key={summary.semester.id}
-                  className="h-40 animate-pulse rounded-lg border border-border bg-card motion-reduce:animate-none"
-                />
-              ))}
-              <span className="sr-only">
-                Loading semester setup progress
-              </span>
-            </div>
-          ) : setupSummariesQuery.isError ? (
-            <div
-              className="flex flex-col gap-3 rounded-lg border border-destructive/25 bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
-              role="alert"
-            >
-              <div>
-                <p className="text-sm font-medium text-foreground">
-                  Setup progress could not be loaded
-                </p>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Your draft semesters are unchanged. Try the summary again.
-                </p>
+        {currentSemester && (
+          <CurrentSemesterCard
+            semester={currentSemester}
+            href={semesterCardDestination(projectId, centerId, currentSemester)}
+          />
+        )}
+
+        {draftSummaries.length > 0 && (
+          <section
+            aria-labelledby="resume-semester-setup"
+            className="rounded-xl border border-warning/50 bg-warning/10 p-4 sm:p-5"
+          >
+            <h2 id="resume-semester-setup" className="text-lg font-semibold text-foreground">
+              Resume semester setup
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              Finish student, staff and rate decisions, then activate the semester.
+            </p>
+
+            {setupSummariesQuery.isLoading ? (
+              <div className="mt-4 h-32 animate-pulse rounded-lg bg-card motion-reduce:animate-none" aria-busy="true">
+                <span className="sr-only">Loading semester setup progress</span>
               </div>
-              <button
-                type="button"
-                onClick={() => void setupSummariesQuery.refetch()}
-                className={cn(
-                  buttonVariants({ variant: "outline", size: "sm" }),
-                  "min-h-10 shrink-0 gap-2",
-                )}
-              >
-                <RefreshCw className="h-4 w-4" aria-hidden="true" />
-                Retry progress
-              </button>
-            </div>
-          ) : (
-            <div className="grid gap-3 lg:grid-cols-2">
-              {draftSummaries.map((summary) => (
-                <article
-                  key={summary.semester.id}
-                  className="rounded-lg border border-border bg-card p-4"
+            ) : setupSummariesQuery.isError ? (
+              <div className="mt-4 flex flex-col gap-3 rounded-lg bg-card p-4 sm:flex-row sm:items-center sm:justify-between" role="alert">
+                <p className="text-sm text-foreground">Setup progress could not be loaded. Your drafts are unchanged.</p>
+                <button
+                  type="button"
+                  onClick={() => void setupSummariesQuery.refetch()}
+                  className={cn(buttonVariants({ variant: "outline" }), "min-h-11 shrink-0 gap-2")}
                 >
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-primary">
-                        Draft semester
-                      </p>
-                      <h3 className="mt-1 truncate text-base font-semibold text-foreground">
-                        {summary.semester.name}
-                      </h3>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                        {summary.sourceSemester
-                          ? `Continuing from ${summary.sourceSemester.name}`
-                          : "Starting without a previous semester"}
-                      </p>
+                  <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                  Try again
+                </button>
+              </div>
+            ) : (
+              <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                {draftSummaries.map((summary) => (
+                  <article key={summary.semester.id} className="rounded-lg border border-border bg-card p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="truncate text-base font-semibold text-foreground">{summary.semester.name}</h3>
+                        <p className="mt-0.5 text-sm text-muted-foreground">
+                          {summary.sourceSemester
+                            ? `Continuing from ${summary.sourceSemester.name}`
+                            : "Starting without a previous semester"}
+                        </p>
+                      </div>
+                      <StatusBadge tone="draft" label="Draft" />
                     </div>
+
+                    {summary.progressAvailable ? (
+                      <div className="mt-4 grid grid-cols-3 gap-3">
+                        <SetupProgress label="Students" {...summary.progress.students} />
+                        <SetupProgress label="Staff" {...summary.progress.staff} />
+                        <SetupProgress label="Rates" {...summary.progress.rates} />
+                      </div>
+                    ) : (
+                      <p role="status" className="mt-4 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+                        Progress unavailable. Continue setup to review the draft.
+                      </p>
+                    )}
                     <Link
-                      to={semesterCardDestination(
-                        projectId,
-                        centerId,
-                        summary.semester,
-                      )}
-                      className={cn(
-                        buttonVariants({ size: "sm" }),
-                        "min-h-10 shrink-0 gap-1.5",
-                      )}
+                      to={semesterCardDestination(projectId, centerId, summary.semester)}
+                      className={cn(buttonVariants(), "mt-4 min-h-11 w-full gap-1.5")}
                     >
                       Continue setup
                       <ArrowRight className="h-4 w-4" aria-hidden="true" />
                     </Link>
-                  </div>
-
-                  {summary.progressAvailable ? (
-                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                      <SetupProgress
-                        label="Students"
-                        {...summary.progress.students}
-                      />
-                      <SetupProgress
-                        label="Staff"
-                        {...summary.progress.staff}
-                      />
-                      <SetupProgress
-                        label="Rates"
-                        {...summary.progress.rates}
-                      />
-                    </div>
-                  ) : (
-                    <div
-                      role="status"
-                      className="mt-4 rounded-md bg-muted px-3 py-2 text-xs leading-5 text-muted-foreground"
-                    >
-                      Progress unavailable. Continue setup to review the draft.
-                    </div>
-                  )}
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    Updated{" "}
-                    {new Date(summary.updatedAt).toLocaleDateString("en-GB")}
-                  </p>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      <section
-        aria-label="Center overview"
-        className="grid grid-cols-3 divide-x divide-border rounded-lg border border-border bg-card shadow-sm"
-      >
-        <div className="px-2 sm:px-5">
-          <DashboardMetric
-            compact
-            label="Semesters"
-            value={semesters.length}
-            detail="All center workspaces"
-            icon={CalendarDays}
-          />
-        </div>
-        <div className="px-2 sm:px-5">
-          <DashboardMetric
-            compact
-            label="Active"
-            value={activeCount}
-            detail="Currently running"
-            icon={CalendarDays}
-          />
-        </div>
-        <div className="px-2 sm:px-5">
-          <DashboardMetric
-            compact
-            label="Drafts"
-            value={draftCount}
-            detail="Awaiting setup"
-            icon={Pencil}
-          />
-        </div>
-      </section>
-
-      <section aria-labelledby="center-semesters">
-        <div className="mb-3 flex items-end justify-between gap-3 sm:mb-4">
-          <div>
-            <h2
-              id="center-semesters"
-              className="text-lg font-semibold text-foreground sm:text-xl"
-            >
-              Semesters
-            </h2>
-            <p className="mt-1 hidden text-sm text-muted-foreground sm:block">
-              Drafts continue setup; active semesters open their workspace.
-            </p>
-          </div>
-          <Link
-            to={`/projects/${projectId}/centers/${centerId}/semesters`}
-            className={cn(
-              buttonVariants({ variant: "outline" }),
-              "min-h-11 shrink-0",
+                  </article>
+                ))}
+              </div>
             )}
-          >
-            View all semesters
-          </Link>
+          </section>
+        )}
+      </div>
+
+      <section aria-labelledby="center-semesters" className="space-y-3 lg:sticky lg:top-4">
+        <div className="flex items-end justify-between gap-3">
+          <h2 id="center-semesters" className="text-lg font-semibold text-foreground">
+            {currentSemester ? "Other semesters" : "Semesters"}{" "}
+            <span className="font-normal tabular-nums text-muted-foreground">{otherSemesters.length}</span>
+          </h2>
+          {canManageCenter && (
+            <PrimaryAction to={newSemesterHref} icon={<Plus className="h-5 w-5" aria-hidden="true" />}>
+              New semester
+            </PrimaryAction>
+          )}
         </div>
 
-        {availableSemesters.length > 0 ? (
-          <div className="grid gap-5 lg:grid-cols-2">
-            {availableSemesters.map((semester) => (
-              <WorkspaceCard
+        {otherSemesters.length > 0 ? (
+          <EntityList label="Semesters">
+            {otherSemesters.map((semester) => (
+              <EntityRow
                 key={semester.id}
+                href={semesterCardDestination(projectId, centerId, semester)}
                 title={semester.name}
-                entityLabel="Semester"
-                mediaSrc="/images/default_center_banner.jpg"
-                mediaAlt={`${semester.name} at ${center.name}`}
-                href={semesterCardDestination(
-                  projectId,
-                  centerId,
-                  semester,
-                )}
-                openLabel="Open semester"
-                detail={
-                  <div className="flex items-start gap-2">
-                    <CalendarDays
-                      className="mt-0.5 h-4 w-4 shrink-0 text-primary"
-                      aria-hidden="true"
-                    />
-                    <span className="tabular-nums">
-                      {formatDate(semester.startDate)} –{" "}
-                      {formatDate(semester.endDate)}
-                    </span>
-                  </div>
+                leading={
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <CalendarDays className="h-5 w-5" aria-hidden="true" />
+                  </span>
                 }
-                updatedAt={new Date(semester.updatedAt).toLocaleDateString(
-                  "en-GB",
-                )}
-                editHref={
-                  canManageCenter
-                    ? `/projects/${projectId}/centers/${centerId}/semesters/${semester.id}/edit`
-                    : undefined
-                }
-                editLabel={
-                  canManageCenter ? `Edit ${semester.name}` : undefined
+                status={<StatusBadge {...semesterTiming(semester)} />}
+                meta={
+                  <span className="tabular-nums">
+                    {formatDate(semester.startDate)} – {formatDate(semester.endDate)}
+                  </span>
                 }
               />
             ))}
-          </div>
+          </EntityList>
+        ) : currentSemester ? (
+          <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+            No past or upcoming semesters yet.
+          </p>
         ) : (
-          <div
-            className="rounded-lg border border-dashed border-border bg-card px-6 py-12 text-center"
-            aria-live="polite"
-          >
-            <CalendarDays
-              className="mx-auto h-7 w-7 text-primary"
-              aria-hidden="true"
-            />
-            <h3 className="mt-4 text-lg font-semibold text-foreground">
-              {canManageCenter
-                ? draftCount > 0
+          <EmptyState
+            icon={CalendarDays}
+            title={
+              canManageCenter
+                ? draftSummaries.length > 0
                   ? "No active semesters yet"
-                  : "Create this center's first semester"
-                : "No semesters are available"}
-            </h3>
-            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-              {canManageCenter
-                ? draftCount > 0
-                  ? "Continue the draft setup above, then activate it when every decision is ready."
+                  : "Create this centre's first semester"
+                : "No semesters are available"
+            }
+            description={
+              canManageCenter
+                ? draftSummaries.length > 0
+                  ? "Finish the draft setup above, then activate it."
                   : "Start a semester draft, then set up students and staff."
-                : "Ask an administrator to create or assign a semester."}
-            </p>
-            {canManageCenter && draftCount === 0 && (
-              <Link
-                to={`/projects/${projectId}/centers/${centerId}/semesters/new`}
-                className={cn(buttonVariants(), "mt-5 min-h-11 gap-2")}
-              >
-                <Plus className="h-4 w-4" aria-hidden="true" />
-                Create semester
-              </Link>
-            )}
-          </div>
+                : "Ask an administrator to create or assign a semester."
+            }
+          />
         )}
       </section>
     </WorkspacePage>

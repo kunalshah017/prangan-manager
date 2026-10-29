@@ -30,6 +30,7 @@ export interface DashboardModel {
   capabilities: {
     markStudentAttendance: boolean;
     markStaffAttendance: boolean;
+    manageLevels: boolean;
   };
   visibility: {
     students: boolean;
@@ -183,7 +184,7 @@ export function buildDashboardModel(
           label: "Library",
           mobileLabel: "Library",
           description: "Browse learning books and classroom resources.",
-          href: `/library?semesterId=${context.semesterId}`,
+          href: `/projects/${context.projectId}/centers/${context.centerId}/semesters/${context.semesterId}/dashboard/library`,
           icon: "library",
         } satisfies DashboardAction,
       ]),
@@ -263,6 +264,7 @@ export function buildDashboardModel(
     capabilities: {
       markStudentAttendance: can(user, "studentAttendance.write", context),
       markStaffAttendance: can(user, "staffAttendance.write", context),
+      manageLevels: user?.role === "ADMIN",
     },
     visibility: {
       students,

@@ -3,6 +3,11 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
 
+// iOS Safari ignores user-scalable=no for pinch gestures; cancel them here.
+for (const gesture of ['gesturestart', 'gesturechange', 'gestureend']) {
+  document.addEventListener(gesture, (event) => event.preventDefault(), { passive: false })
+}
+
 let reloadAfterServiceWorkerUpdate = false;
 let recoveryPrompted = false;
 
@@ -33,6 +38,15 @@ if (import.meta.env.DEV) {
           requestPwaRecovery('update', registration);
         }
         registration.update();
+        // Installed apps resume from the background rather than reloading, so
+        // also look for a new version on return to the app and every 30 minutes.
+        const checkForUpdate = () => {
+          if (navigator.onLine) void registration.update().catch(() => undefined);
+        };
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') checkForUpdate();
+        });
+        window.setInterval(checkForUpdate, 30 * 60 * 1000);
         registration.addEventListener('updatefound', () => {
           const newWorker = registration.installing;
           if (newWorker) {

@@ -66,7 +66,7 @@ export function buildBreadcrumbs({
   if (segments[0] === "academic-levels") {
     return [
       link("Administration", "/administration"),
-      current("Academic Levels"),
+      current("Level Catalogue"),
     ];
   }
 
@@ -83,6 +83,13 @@ export function buildBreadcrumbs({
         link("Administration", "/administration"),
         link("Users", "/users"),
         current("Edit User"),
+      ];
+    }
+    if (segments[2] === "review") {
+      return [
+        link("Administration", "/administration"),
+        link("Users", "/users?view=requests"),
+        current("Review Registration"),
       ];
     }
     return [link("Administration", "/administration"), current("Users")];
@@ -110,17 +117,15 @@ export function buildBreadcrumbs({
 
   const projectName = names.projectName || "Project";
   const projectHref = `/projects/${projectId}/dashboard`;
-  const centersHref = `/projects/${projectId}/centers`;
   if (segments[2] === "dashboard") return [projects, current(projectName)];
   if (segments[2] !== "centers") return [projects];
   if (segments.length === 3) {
-    return [projects, link(projectName, projectHref), current("Centers")];
+    return [projects, current(projectName)];
   }
   if (segments[3] === "new") {
     return [
       projects,
       link(projectName, projectHref),
-      link("Centers", centersHref),
       current("New Center"),
     ];
   }
@@ -128,7 +133,6 @@ export function buildBreadcrumbs({
     return [
       projects,
       link(projectName, projectHref),
-      link("Centers", centersHref),
       current("Edit Center"),
     ];
   }
@@ -145,20 +149,12 @@ export function buildBreadcrumbs({
   }
 
   const semestersHref = `/projects/${projectId}/centers/${centerId}/semesters`;
-  if (segments.length === 5) {
-    return [
-      projects,
-      project,
-      link(centerName, centerHref),
-      current("Semesters"),
-    ];
-  }
+  if (segments.length === 5) return [projects, project, current(centerName)];
   if (segments[5] === "new") {
     return [
       projects,
       project,
       link(centerName, centerHref),
-      link("Semesters", semestersHref),
       current("New Semester"),
     ];
   }
@@ -167,7 +163,6 @@ export function buildBreadcrumbs({
       projects,
       project,
       link(centerName, centerHref),
-      link("Semesters", semestersHref),
       current("Edit Semester"),
     ];
   }
@@ -178,7 +173,6 @@ export function buildBreadcrumbs({
       projects,
       project,
       link(centerName, centerHref),
-      link("Semesters", semestersHref),
       current("Semester Setup"),
     ];
   }
@@ -219,6 +213,12 @@ export function buildBreadcrumbs({
 
   if (section === "users") {
     return [...workspace, semester, current("Semester users")];
+  }
+
+  if (section === "library") {
+    return action
+      ? [...workspace, semester, link("Library", `${dashboardHref}/library`), current("Book")]
+      : [...workspace, semester, current("Library")];
   }
 
   if (section === "expenses") {

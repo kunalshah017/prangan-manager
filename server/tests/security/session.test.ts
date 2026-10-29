@@ -7,6 +7,8 @@ import {
   getAllowedClientOrigins,
   getSessionCookieOptions,
   readSessionToken,
+  SESSION_MAX_AGE_SECONDS,
+  shouldRenewSession,
 } from "../../security/session.js";
 import { hasMatchingCsrfToken } from "../../security/csrf.js";
 
@@ -91,9 +93,19 @@ test("session tokens bind authentication to the current session version", () => 
   const environment = { JWT_SECRET: "test-secret" };
   const token = createSessionToken("user-1", 4, environment);
 
-  assert.deepEqual(readSessionToken(token, environment), {
-    userId: "user-1",
-    sessionVersion: 4,
-  });
+  assert.deepEqual(
+    { ...readSessionToken(token, environment), issuedAt: undefined },
+    { userId: "user-1", sessionVersion: 4, issuedAt: undefined },
+  );
+  assert.equal(typeof readSessionToken(token, environment)?.issuedAt, "number");
   assert.equal(readSessionToken(token, { JWT_SECRET: "other-secret" }), null);
+});
+
+test("sessions slide: 30 days long, renewed after a day of use", () => {
+  const production = getSessionCookieOptions({ NODE_ENV: "production" });
+  assert.equal(production.maxAge, SESSION_MAX_AGE_SECONDS);
+  assert.equal(SESSION_MAX_AGE_SECONDS, 60 * 60 * 24 * 30);
+  const issuedAt = 1_000_000;
+  assert.equal(shouldRenewSession(issuedAt, issuedAt + 60 * 60), false);
+  assert.equal(shouldRenewSession(issuedAt, issuedAt + 60 * 60 * 24), true);
 });

@@ -532,7 +532,7 @@ function StatePanel({
     <div className="flex min-h-[55dvh] items-center justify-center">
       <div className="w-full max-w-lg rounded-lg border border-border bg-card p-7 text-center shadow-sm">
         <AlertTriangle className="mx-auto h-6 w-6 text-destructive" aria-hidden="true" />
-        <h1 className="mt-4 text-xl font-semibold text-foreground">{title}</h1>
+        <h2 className="mt-4 text-xl font-semibold text-foreground">{title}</h2>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
         <button
           type="button"

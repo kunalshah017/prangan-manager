@@ -59,12 +59,12 @@ const AcademicLevels = () => {
 
   return (
     <WorkspacePage className="space-y-6">
-      <WorkspacePageHeader title="Academic levels" description="Manage the reusable level catalog and its learning journey order." badge={levelsQuery.isSuccess ? `${levels.filter((level) => level.isActive).length} active` : undefined} />
+      <WorkspacePageHeader title="Level catalogue" description="Define the levels shared by every centre and the order students progress through them." badge={levelsQuery.isSuccess ? `${levels.filter((level) => level.isActive).length} active` : undefined} />
 
-      <section className="rounded-lg border border-border bg-muted/40 p-4" aria-label="Archived level behavior">
+      <section className="rounded-lg border border-border bg-muted/40 p-4" aria-label="How levels are used">
         <div className="flex gap-3">
           <Layers className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-          <p className="text-sm leading-6 text-muted-foreground">Archived definitions remain in existing semesters, but they are unavailable when selecting levels for new semesters.</p>
+          <p className="text-sm leading-6 text-muted-foreground">Each centre chooses which of these levels it runs from its semester dashboard or semester settings. Keeping one shared catalogue lets students be promoted from one level to the next and matches each level to its library books. Archived levels stay in existing semesters but can no longer be chosen for new ones.</p>
         </div>
       </section>
 

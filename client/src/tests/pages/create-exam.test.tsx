@@ -28,6 +28,11 @@ vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { role: "ADMIN" } })
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
+// jsdom lacks the pointer-capture and scrolling APIs the styled Select uses.
+Element.prototype.scrollIntoView ??= () => {};
+Element.prototype.hasPointerCapture ??= () => false;
+Element.prototype.releasePointerCapture ??= () => {};
+
 it("submits only supported create fields after selecting an exam date", async () => {
   const post = vi.spyOn(api, "post").mockResolvedValue({ data: { id: "exam-1" } });
   const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
@@ -36,7 +41,8 @@ it("submits only supported create fields after selecting an exam date", async ()
     <Route path="/projects/:projectId/centers/:centerId/semesters/:semesterId/dashboard/exams" element={<p>Exam list</p>} />
   </Routes></MemoryRouter></QueryClientProvider>);
 
-  fireEvent.change(screen.getByLabelText(/Level/), { target: { value: "level-1" } });
+  fireEvent.keyDown(screen.getByRole("combobox", { name: /Level/ }), { key: "Enter" });
+  fireEvent.click(await screen.findByRole("option", { name: "Level 1" }));
   fireEvent.click(screen.getByRole("button", { name: "Exam date" }));
   fireEvent.click(screen.getByRole("button", { name: /Saturday, April 4th/ }));
   fireEvent.click(screen.getByRole("button", { name: "Create exam" }));

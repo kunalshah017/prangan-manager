@@ -3,18 +3,31 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Prangan Manager | Manage learning. Multiply impact.</title>
   <meta name="description" content="Manage centres, semesters, students, educators, attendance, curriculum and remuneration in one secure Prangan Foundation workspace." />
   <meta name="author" content="Prangan Foundation" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta name="format-detection" content="telephone=no" />
   <meta name="color-scheme" content="light dark" />
+  <script>
+    (function () {
+      var preference = "system";
+      try { preference = localStorage.getItem("pm-theme") || "system"; } catch (error) {}
+      var dark = preference === "dark" ||
+        (preference !== "light" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      if (dark) document.documentElement.classList.add("dark");
+      document.documentElement.style.colorScheme = dark ? "dark" : "light";
+    })();
+  </script>
   <link rel="canonical" href="https://manager.pranganfoundation.org/" />
 
   <!-- Application identity -->
   <link rel="icon" type="image/x-icon" href="/favicon.ico" />
   <link rel="manifest" href="/manifest.json" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:ital,wght@0,300..700;1,400&display=swap" />
   <meta name="theme-color" content="#ea580c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />

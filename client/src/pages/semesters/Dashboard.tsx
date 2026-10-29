@@ -13,6 +13,7 @@ import { Link, useParams } from "react-router-dom";
 
 import { DashboardAction } from "@/components/dashboard/DashboardAction";
 import { DashboardMetric } from "@/components/dashboard/DashboardMetric";
+import { SemesterLevelsPanel } from "@/components/semesters/SemesterLevelsPanel";
 import FutureProfessionCarousel from "@/components/FutureProfessionCarousel";
 import { WorkspacePage, WorkspacePageHeader } from "@/components/workspace/WorkspacePage";
 import { useAttendanceRecords } from "@/hooks/useAttendanceQueries";
@@ -343,7 +344,7 @@ export default function Dashboard() {
                 <div className="flex min-h-[55dvh] items-center justify-center">
                     <div className="w-full max-w-lg rounded-lg border border-border bg-card p-7 text-center shadow-sm">
                         <AlertTriangle className="mx-auto h-6 w-6 text-destructive" aria-hidden="true" />
-                        <h1 className="mt-4 text-xl font-semibold text-foreground">Dashboard could not be loaded</h1>
+                        <h2 className="mt-4 text-xl font-semibold text-foreground">Dashboard could not be loaded</h2>
                         <p className="mt-2 text-sm leading-6 text-muted-foreground">
                             Check your connection and try loading the semester again.
                         </p>
@@ -472,27 +473,16 @@ export default function Dashboard() {
                         {dashboardModel.visibility.exams && <DashboardMetric label="Active exams" value={exams.length} detail={`${upcomingExams} upcoming · ${completedExams} held`} icon={Layers3} />}
                     </section>
 
-                    {dashboardModel.visibility.students && populatedSemesterLevels.length > 0 && (
-                        <section aria-labelledby="levels-title" className="rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6">
-                            <h2 id="levels-title" className="text-base font-semibold text-foreground">Students by level</h2>
-                            <div className="mt-4 space-y-3">
-                                {populatedSemesterLevels.map((level) => {
-                                    const count = studentsByLevel[level.id];
-                                    const percentage = students.length ? Math.round((count / students.length) * 100) : 0;
-                                    return (
-                                        <div key={level.id}>
-                                            <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
-                                                <span className="text-muted-foreground">{levelName(level)}</span>
-                                                <span className="font-semibold tabular-nums text-foreground">{count}</span>
-                                            </div>
-                                            <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
-                                                <div className="h-full rounded-full bg-primary" style={{ width: `${percentage}%` }} />
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </section>
+                    {(dashboardModel.visibility.students || dashboardModel.visibility.curriculum) && (
+                        <SemesterLevelsPanel
+                            projectId={projectId}
+                            centerId={centerId}
+                            semesterId={semesterId}
+                            levels={assignedSemesterLevel ? [assignedSemesterLevel] : semesterLevels}
+                            studentsByLevel={dashboardModel.visibility.students ? studentsByLevel : undefined}
+                            syllabi={dashboardModel.visibility.curriculum ? visibleSyllabi : undefined}
+                            canManage={dashboardModel.capabilities.manageLevels}
+                        />
                     )}
 
                     {birthdays.length > 0 && (

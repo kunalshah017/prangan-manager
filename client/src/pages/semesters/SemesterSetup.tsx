@@ -32,6 +32,7 @@ import type {
   StaffTransitionDecision,
   StudentTransitionDecision,
 } from "@/types/api";
+import { PageTitle } from "@/components/navigation/PageTitle";
 
 const roleOptions: Array<{ value: RoleAssignment["subRole"]; label: string }> = [
   { value: "TRAINING_DEVELOPMENT", label: "Training & Development" },
@@ -325,7 +326,7 @@ const SemesterSetup = () => {
   if (setupQuery.error || !setupQuery.data) {
     return (
       <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6" role="alert">
-        <h1 className="text-xl font-semibold text-destructive">Semester setup could not be loaded</h1>
+        <h2 className="text-xl font-semibold text-destructive">Semester setup could not be loaded</h2>
         <p className="mt-2 text-sm text-muted-foreground">Try again. No transition decisions were changed.</p>
         <button type="button" onClick={() => void setupQuery.refetch()} className={cn(buttonVariants(), "mt-4 min-h-11")}>Try again</button>
       </div>
@@ -342,13 +343,11 @@ const SemesterSetup = () => {
             <ShieldCheck className="h-4 w-4" aria-hidden="true" />
             Draft semester
           </div>
-          <h1 className="mt-4 text-3xl font-semibold text-foreground sm:text-4xl">
-            Set up {setup.semester.name}
-          </h1>
-          <p className="mt-3 max-w-3xl text-base leading-7 text-muted-foreground">
-            Review progression, roles, and daily rates before activation. {setup.sourceSemester
-              ? `Starting from ${setup.sourceSemester.name}.`
-              : "This semester starts with an empty previous roster."} Older semesters remain unchanged.
+          <PageTitle title={`Set up ${setup.semester.name}`} />
+          <p className="mt-2 text-sm leading-5 text-muted-foreground">
+            {setup.sourceSemester
+              ? `Continuing from ${setup.sourceSemester.name}`
+              : "Starting without a previous semester"}
           </p>
         </header>
 

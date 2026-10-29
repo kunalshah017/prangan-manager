@@ -1,52 +1,42 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const source = readFileSync(
-  new URL("../../pages/projects/Projects.tsx", import.meta.url),
-  "utf8",
-);
-const cardSource = readFileSync(
-  new URL("../../components/workspace/WorkspaceCard.tsx", import.meta.url),
-  "utf8",
-);
+const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
+
+const source = read("../../pages/projects/Projects.tsx");
+const tileSource = read("../../components/workspace/ProjectTile.tsx");
+const actionSource = read("../../components/workspace/PrimaryAction.tsx");
 
 describe("Projects workspace launcher", () => {
-  it("uses a semantic workspace link and separate accessible admin edit action", () => {
+  it("opens a project from its tile and keeps editing a separate named action", () => {
     expect(source).toContain("href={projectCardDestination(project.id)}");
-    expect(source).toContain(
-      "editLabel={isAdmin() ? `Edit ${project.name}` : undefined}",
-    );
-    expect(source).toContain("{isAdmin() && (");
-    expect(source).not.toContain(
-      "onClick={() => handleProjectClick(project.id)}",
-    );
+    expect(source).toContain("editHref={isAdmin() ? `/projects/${project.id}/edit` : undefined}");
+    expect(tileSource).toContain("aria-label={`Edit ${project.name}`}");
+    expect(tileSource).toContain("relative z-10");
   });
 
-  it("maps project data into the shared image-ready card", () => {
-    expect(source).toContain("import { WorkspaceCard }");
-    expect(source).toContain("<WorkspaceCard");
-    expect(source).toContain('entityLabel="Project"');
-    expect(source).toContain(
-      'project.imageUrl || "/images/default_project_banner.jpg"',
-    );
-    expect(source).toContain('openLabel="Open workspace"');
-    expect(source).toContain(
-      "editHref={isAdmin() ? `/projects/${project.id}/edit` : undefined}",
-    );
+  it("leads each project with its own photo and status", () => {
+    expect(tileSource).toContain('project.imageUrl || "/images/default_project_banner.jpg"');
+    expect(tileSource).toContain("<StatusBadge");
+  });
+
+  it("keeps admin actions together in a thumb-reach bar on phones", () => {
+    expect(source).toContain('to="/projects/new"');
+    expect(source).toContain("to: '/administration'");
+    expect(actionSource).toContain("fixed inset-x-0 bottom-0");
+    expect(actionSource).toContain("env(safe-area-inset-bottom)");
+    expect(actionSource).toContain("sm:hidden");
   });
 
   it("provides role-specific recovery and does not mutate query cache order", () => {
     expect(source).toContain("Create your first project");
     expect(source).toContain("No project access yet");
     expect(source).toContain("[...(projects || [])].sort");
+    expect(source).toContain("<ErrorState");
   });
 
-  it("exposes orientation, async announcements, focus, and reduced motion", () => {
-    expect(source).toContain(
-      "Choose a project to continue to its centers and current work.",
-    );
-    expect(source).toContain('aria-live="polite"');
-    expect(cardSource).toContain("focus-visible:ring-2");
-    expect(cardSource).toContain("motion-reduce:transition-none");
+  it("exposes focus and reduced motion on the tile", () => {
+    expect(tileSource).toContain("focus-visible:after:ring-2");
+    expect(tileSource).toContain("motion-reduce:transition-none");
   });
 });

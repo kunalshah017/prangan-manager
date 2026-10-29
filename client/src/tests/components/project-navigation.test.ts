@@ -18,7 +18,7 @@ describe("project navigation", () => {
 
     expect(source).toContain("aria-expanded={expanded}");
     expect(source).toContain("Expand");
-    expect(source).toContain("/semesters`}");
+    expect(source).toContain("/centers/${center.id}/dashboard`}");
     expect(source).toContain("allowedCenters");
     expect(source).toContain("allowedSemesters");
     expect(source).toContain("can(user, 'workspace.view'");

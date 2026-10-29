@@ -3,7 +3,13 @@ import { errorHandle } from "./handler.js";
 import { Role } from "../generated/prisma/index.js";
 import { prisma } from "../lib/prisma.js";
 import { toAuthenticatedIdentity } from "../security/authentication.js";
-import { readSessionToken, SESSION_COOKIE_NAME } from "../security/session.js";
+import {
+  createSessionToken,
+  getSessionCookieOptions,
+  readSessionToken,
+  SESSION_COOKIE_NAME,
+  shouldRenewSession,
+} from "../security/session.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -54,6 +60,14 @@ export const authChecker = async (
       }
 
       request.user = identity;
+      // Keep active people signed in: reissue the session once a day.
+      if (user && shouldRenewSession(decoded.issuedAt)) {
+        reply.setCookie(
+          SESSION_COOKIE_NAME,
+          createSessionToken(user.id, user.sessionVersion),
+          getSessionCookieOptions(),
+        );
+      }
       return;
     }
   } catch {

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { openSemesterAssignment } from "../../lib/role-assignments.js";
+
 import { deleteCenterController } from "../../controllers/center.controller.js";
 import { deleteProjectController } from "../../controllers/project.controller.js";
 import { deleteSemesterController } from "../../controllers/semester.controller.js";
@@ -291,6 +293,7 @@ test("student list derives complete educator contexts and preserves level restri
           { subRole: { not: SubRole.EDUCATOR } },
           { semesterLevel: { is: { isActive: true } } },
         ],
+        AND: [openSemesterAssignment()],
       },
     );
     assert.deepEqual((enrollmentQuery as { where: unknown }).where, {

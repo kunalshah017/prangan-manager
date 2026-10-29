@@ -1,371 +1,270 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import {
-    ArrowLeft,
-    Save,
-    User,
-    GraduationCap,
-    AlertCircle
-} from 'lucide-react';
-import { useUser, useUpdateUser } from '@/hooks/useUserQueries';
-import { ProfilePicture, CustomButton, PersonNameFields, RoleAssignmentForm, type PersonNameField } from '@/components/ui';
-import LoadingButterfly from '@/components/LoadingButterfly';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
+
+import { PageTitle } from '@/components/navigation/PageTitle';
+import { ConfirmationModal, RoleAssignmentForm } from '@/components/ui';
+import { PersonDetailsFields, type PersonDetails, type PersonDetailsField } from '@/components/users/PersonDetailsFields';
+import { SystemRoleChoice, type SystemRole } from '@/components/users/SystemRoleChoice';
+import { ProfileHeader } from '@/components/users/UserProfileView';
+import { DangerZone, FormActions, FormSection } from '@/components/workspace/FormParts';
+import { ErrorState, ListPageSkeleton } from '@/components/workspace/PageState';
+import { WorkspacePage } from '@/components/workspace/WorkspacePage';
+import { Input } from '@/components/ui/form-controls';
+import { FormField } from '@/components/workspace/FormParts';
+import { useRevokeUserAccess, useUpdateUser, useUpdateUserBankDetails, useUser, type BankDetailsPatch } from '@/hooks/useUserQueries';
 import type { RoleAssignment } from '@/types/api';
 
+const BANK_FIELDS: Array<{ field: keyof BankDetailsPatch | 'confirmAccountNumber'; label: string }> = [
+    { field: 'bankAccountNumber', label: 'New account number' },
+    { field: 'confirmAccountNumber', label: 'Confirm new account number' },
+    { field: 'bankAccountName', label: 'Name on account' },
+    { field: 'bankIfsc', label: 'IFSC code' },
+    { field: 'bankName', label: 'Bank name' },
+    { field: 'bankBranch', label: 'Branch' },
+    { field: 'upiId', label: 'UPI ID' },
+];
+
+const emptyDetails: PersonDetails = {
+    firstName: '',
+    middleName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    qualification: '',
+    dob: '',
+    address: '',
+};
+
 const EditUser = () => {
-    const { userId } = useParams<{ userId: string }>();
+    const { userId = '' } = useParams<{ userId: string }>();
     const navigate = useNavigate();
-    const { data: user, isLoading, error } = useUser(userId!);
+    const { data: user, isLoading, error, refetch } = useUser(userId);
     const updateUserMutation = useUpdateUser();
-
-    // Form state
-    const [formData, setFormData] = useState({
-        firstName: '',
-        middleName: '',
-        lastName: '',
-        email: '',
-        phone: '',
-        qualification: '',
-        address: '',
-        role: 'USER' as 'USER' | 'ADMIN',
-        dob: ''
-    });
-
-    // Role assignments state
+    const revokeUserAccess = useRevokeUserAccess();
+    const updateBank = useUpdateUserBankDetails();
+    const [bank, setBank] = useState<Record<string, string>>({});
+    const [confirmRevoke, setConfirmRevoke] = useState(false);
+    const [details, setDetails] = useState<PersonDetails>(emptyDetails);
+    const [role, setRole] = useState<SystemRole>('USER');
     const [roleAssignments, setRoleAssignments] = useState<RoleAssignment[]>([]);
     const [assignmentErrors, setAssignmentErrors] = useState<string[]>([]);
     const [isAssignmentValid, setIsAssignmentValid] = useState(true);
+    const [errors, setErrors] = useState<Partial<Record<PersonDetailsField, string>>>({});
+    const userPage = `/users/${userId}/details`;
 
-    // Form validation
-    const [errors, setErrors] = useState<Record<string, string>>({});
-
-    // Populate form data when user is loaded
     useEffect(() => {
-        if (user) {
-            setFormData({
-                firstName: user.firstName || '',
-                middleName: user.middleName || '',
-                lastName: user.lastName || '',
-                email: user.email || '',
-                phone: user.phone || '',
-                qualification: user.qualification || '',
-                address: user.address || '',
-                role: user.role || 'USER',
-                dob: user.dob ? new Date(user.dob).toISOString().split('T')[0] : ''
-            });
-
-            // Convert user role assignments to form format
-            if (user.roleAssignments) {
-                setRoleAssignments(user.roleAssignments.map((assignment) => ({
-                    subRole: assignment.subRole,
-                    projectId: assignment.projectId || '',
-                    centerId: assignment.centerId || '',
-                    semesterId: assignment.semesterId || '',
-                    semesterLevelId: assignment.semesterLevelId,
-                    semesterLevel: assignment.semesterLevel,
-                    committedDays: assignment.committedDays
-                })));
-            }
-        }
+        if (!user) return;
+        setDetails({
+            firstName: user.firstName || '',
+            middleName: user.middleName || '',
+            lastName: user.lastName || '',
+            email: user.email || '',
+            phone: user.phone || '',
+            qualification: user.qualification || '',
+            dob: user.dob ? new Date(user.dob).toISOString().split('T')[0] : '',
+            address: user.address || '',
+        });
+        setRole(user.role || 'USER');
+        setRoleAssignments((user.roleAssignments ?? []).map((assignment) => ({
+            subRole: assignment.subRole,
+            projectId: assignment.projectId || '',
+            centerId: assignment.centerId || '',
+            semesterId: assignment.semesterId || '',
+            semesterLevelId: assignment.semesterLevelId,
+            semesterLevel: assignment.semesterLevel,
+            committedDays: assignment.committedDays,
+        })));
     }, [user]);
 
-    const validateForm = () => {
-        const newErrors: Record<string, string> = {};
-
-        if (!formData.firstName.trim()) {
-            newErrors.firstName = 'First name is required';
-        }
-
-        if (!formData.email.trim()) {
-            newErrors.email = 'Email is required';
-        } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-            newErrors.email = 'Email is invalid';
-        }
-
-        setErrors(newErrors);
-        return Object.keys(newErrors).length === 0 && isAssignmentValid;
+    const changeDetail = (field: PersonDetailsField, value: string) => {
+        setDetails((current) => ({ ...current, [field]: value }));
+        if (errors[field]) setErrors((current) => ({ ...current, [field]: undefined }));
     };
 
-    const handleNameChange = (field: PersonNameField, value: string) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
-        if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
+    const changeRole = (nextRole: SystemRole) => {
+        setRole(nextRole);
+        // Administrators work across everything, so they hold no assignments.
+        if (nextRole === 'ADMIN') setRoleAssignments([]);
     };
 
-    const handleInputChange = (field: string, value: string) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
-        if (field === 'role' && value === 'ADMIN') {
-            setRoleAssignments([]);
-        }
-        // Clear error when user starts typing
-        if (errors[field]) {
-            setErrors(prev => ({ ...prev, [field]: '' }));
-        }
+    const validate = () => {
+        const nextErrors: Partial<Record<PersonDetailsField, string>> = {};
+        if (!details.firstName.trim()) nextErrors.firstName = 'Enter a first name.';
+        if (!details.email.trim()) nextErrors.email = 'Enter an email address.';
+        else if (!/\S+@\S+\.\S+/.test(details.email)) nextErrors.email = 'Enter a valid email address.';
+        setErrors(nextErrors);
+        return Object.keys(nextErrors).length === 0 && isAssignmentValid;
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-
-        if (!validateForm()) {
+    const handleSubmit = async (event: React.FormEvent) => {
+        event.preventDefault();
+        if (!validate()) return;
+        const bankPatch = Object.fromEntries(
+            Object.entries(bank).filter(([field, value]) => field !== 'confirmAccountNumber' && value.trim()),
+        ) as BankDetailsPatch;
+        if ((bank.bankAccountNumber ?? '').trim() !== (bank.confirmAccountNumber ?? '').trim()) {
+            toast.error('The new account numbers do not match.');
             return;
         }
-
+        if (bankPatch.bankIfsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/i.test(bankPatch.bankIfsc.trim())) {
+            toast.error('Enter a valid IFSC code.');
+            return;
+        }
         try {
             await updateUserMutation.mutateAsync({
-                userId: userId!,
+                userId,
                 userData: {
-                    ...formData,
-                    firstName: formData.firstName.trim(),
-                    middleName: formData.middleName.trim() || null,
-                    lastName: formData.lastName.trim() || null,
-                    dob: formData.dob ? new Date(formData.dob).toISOString() : null
+                    ...details,
+                    role,
+                    firstName: details.firstName.trim(),
+                    middleName: details.middleName.trim() || null,
+                    lastName: details.lastName.trim() || null,
+                    dob: details.dob ? new Date(details.dob).toISOString() : null,
                 },
-                roleAssignments: formData.role === 'ADMIN' ? [] : roleAssignments.map((assignment) => ({
+                roleAssignments: role === 'ADMIN' ? [] : roleAssignments.map((assignment) => ({
                     subRole: assignment.subRole,
                     projectId: assignment.projectId,
                     centerId: assignment.centerId,
                     semesterId: assignment.semesterId,
                     semesterLevelId: assignment.semesterLevelId ?? undefined,
                     committedDays: assignment.committedDays,
-                }))
+                })),
             });
-
-            navigate('/users');
-        } catch (error) {
-            console.error('Error updating user:', error);
+            if (Object.keys(bankPatch).length > 0) {
+                await updateBank.mutateAsync({ userId, bank: bankPatch });
+            }
+            toast.success('Changes saved.');
+            navigate(userPage);
+        } catch {
+            toast.error('Unable to save changes. Try again.');
         }
     };
 
-    const handleRoleAssignmentValidation = (isValid: boolean, errors: string[]) => {
-        setIsAssignmentValid(isValid);
-        setAssignmentErrors(errors);
+    const currentBankValue = (field: string) => {
+        const summary = user?.bankSummary;
+        if (field === 'bankAccountNumber') return summary?.accountLast4 ? `Current: •••• ${summary.accountLast4}` : 'Not added';
+        if (field === 'bankIfsc') return summary?.bankIfsc ?? 'Not added';
+        if (field === 'bankName') return summary?.bankName ?? 'Not added';
+        if (field === 'upiId') return summary?.hasUpi ? 'Added (hidden)' : 'Not added';
+        return '';
     };
 
     if (isLoading) {
-        return (
-            <div className="flex justify-center items-center min-h-[400px]">
-                <LoadingButterfly size="md" />
-            </div>
-        );
+        return <WorkspacePage><PageTitle title="Edit user" /><ListPageSkeleton label="Loading user" rows={3} /></WorkspacePage>;
     }
-
     if (error || !user) {
         return (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <div className="flex items-center">
-                    <AlertCircle className="w-5 h-5 text-red-600 mr-2" />
-                    <p className="text-red-700">Failed to load user details. Please try again.</p>
-                </div>
-                <button
-                    onClick={() => navigate('/users')}
-                    className="mt-3 inline-flex items-center px-3 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition-colors"
-                >
-                    <ArrowLeft className="w-4 h-4 mr-1" />
-                    Back to Users
-                </button>
-            </div>
+            <WorkspacePage>
+                <PageTitle title="Edit user" />
+                <ErrorState
+                    title="User could not be loaded"
+                    description="The account may no longer exist, or the request could not be completed."
+                    onRetry={() => void refetch()}
+                    backHref="/users"
+                    backLabel="Back to users"
+                />
+            </WorkspacePage>
         );
     }
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-semibold text-gray-900">Edit User</h1>
-                    <p className="text-gray-600">Update user details and role assignments</p>
-                </div>
-                <div className="flex items-center space-x-3">
-                    <ProfilePicture
-                        imageUrl={user.profileImageUrl}
-                        name={user.name}
-                        size="w-12 h-12"
-                        colorScheme="orange"
-                        className="border-2 border-orange-100"
+        <WorkspacePage className="space-y-5 lg:max-w-4xl" withMobileAction>
+            <PageTitle title="Edit user" />
+            <ProfileHeader user={user} />
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+                <FormSection id="edit-user-details" title="Details">
+                    <PersonDetailsFields
+                        idPrefix="edit-user"
+                        values={details}
+                        onChange={changeDetail}
+                        errors={errors}
+                        disabled={updateUserMutation.isPending}
                     />
-                    <div>
-                        <p className="text-sm font-medium text-gray-900">{user.name}</p>
-                        <p className="text-xs text-gray-600">{user.email}</p>
-                    </div>
-                </div>
-            </div>
+                </FormSection>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Basic Information */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-white rounded-lg border border-gray-200 shadow-sm"
-                >
-                    <div className="px-6 py-4 border-b border-gray-200">
-                        <div className="flex items-center">
-                            <User className="w-5 h-5 text-gray-400 mr-2" />
-                            <h2 className="text-lg font-medium text-gray-900">Basic Information</h2>
-                        </div>
-                    </div>
-                    <div className="p-6 space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <PersonNameFields
-                                idPrefix="edit-user"
-                                firstName={formData.firstName}
-                                middleName={formData.middleName}
-                                lastName={formData.lastName}
-                                onChange={handleNameChange}
-                                errors={{ firstName: errors.firstName }}
-                                disabled={updateUserMutation.isPending}
-                                className="md:col-span-2"
-                            />
+                <FormSection id="edit-user-access" title="Access">
+                    <SystemRoleChoice name="system-role" value={role} onChange={changeRole} disabled={updateUserMutation.isPending} />
+                </FormSection>
 
-                            {/* Email */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Email Address <span className="ml-1 text-destructive" aria-hidden="true">*</span>
-                                </label>
-                                <input
-                                    type="email"
-                                    value={formData.email}
-                                    onChange={(e) => handleInputChange('email', e.target.value)}
-                                    className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors ${errors.email ? 'border-red-300' : 'border-gray-300'
-                                        }`}
-                                    placeholder="Enter email address"
-                                />
-                                {errors.email && (
-                                    <p className="mt-1 text-sm text-red-600">{errors.email}</p>
-                                )}
-                            </div>
-
-                            {/* Phone */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Phone Number
-                                </label>
-                                <input
-                                    type="tel"
-                                    value={formData.phone}
-                                    onChange={(e) => handleInputChange('phone', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
-                                    placeholder="Enter phone number"
-                                />
-                            </div>
-
-                            {/* Role */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    System Role
-                                </label>
-                                <select
-                                    value={formData.role}
-                                    onChange={(e) => handleInputChange('role', e.target.value as 'USER' | 'ADMIN')}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
-                                >
-                                    <option value="USER">User</option>
-                                    <option value="ADMIN">Admin</option>
-                                </select>
-                            </div>
-
-                            {/* Date of Birth */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Date of Birth
-                                </label>
-                                <input
-                                    type="date"
-                                    value={formData.dob}
-                                    onChange={(e) => handleInputChange('dob', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
-                                />
-                            </div>
-
-                            {/* Qualification */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Qualification
-                                </label>
-                                <input
-                                    type="text"
-                                    value={formData.qualification}
-                                    onChange={(e) => handleInputChange('qualification', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
-                                    placeholder="Enter qualification"
-                                />
-                            </div>
-                        </div>
-
-                        {/* Address */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Address
-                            </label>
-                            <textarea
-                                value={formData.address}
-                                onChange={(e) => handleInputChange('address', e.target.value)}
-                                rows={3}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
-                                placeholder="Enter full address"
-                            />
-                        </div>
-                    </div>
-                </motion.div>
-
-                {/* Role Assignments */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className="bg-white rounded-lg border border-gray-200 shadow-sm"
-                >
-                    <div className="px-6 py-4 border-b border-gray-200">
-                        <div className="flex items-center">
-                            <GraduationCap className="w-5 h-5 text-gray-400 mr-2" />
-                            <h2 className="text-lg font-medium text-gray-900">Role Assignments</h2>
-                        </div>
-                    </div>
-                    <div className="p-6">
+                {role === 'USER' && (
+                    <FormSection id="edit-user-assignments" title="Assignments" description="What this volunteer does, and where.">
                         <RoleAssignmentForm
                             roleAssignments={roleAssignments}
                             onChange={setRoleAssignments}
-                            userRole={formData.role}
-                            onValidationChange={handleRoleAssignmentValidation}
+                            userRole={role}
+                            onValidationChange={(isValid: boolean, messages: string[]) => {
+                                setIsAssignmentValid(isValid);
+                                setAssignmentErrors(messages);
+                            }}
                         />
                         {assignmentErrors.length > 0 && (
-                            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
-                                <div className="flex items-start">
-                                    <AlertCircle className="w-5 h-5 text-red-600 mr-2 flex-shrink-0 mt-0.5" />
-                                    <div>
-                                        <h4 className="text-sm font-medium text-red-800">Role Assignment Errors:</h4>
-                                        <ul className="mt-1 text-sm text-red-700 list-disc list-inside">
-                                            {assignmentErrors.map((error, index) => (
-                                                <li key={index}>{error}</li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                </div>
-                            </div>
+                            <ul className="space-y-1 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive" role="alert">
+                                {assignmentErrors.map((message) => <li key={message}>{message}</li>)}
+                            </ul>
                         )}
-                    </div>
-                </motion.div>
+                    </FormSection>
+                )}
 
-                {/* Submit Button */}
-                <div className="flex justify-end space-x-3">
-                    <button
-                        type="button"
-                        onClick={() => navigate('/users')}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-                    >
-                        Cancel
-                    </button>
-                    <CustomButton
-                        type="submit"
-                        isLoading={updateUserMutation.isPending}
-                        loadingMessage="Updating..."
-                        className="px-6 py-2"
-                    >
-                        <Save className="w-4 h-4 mr-2" />
-                        Update User
-                    </CustomButton>
-                </div>
+                <FormSection
+                    id="edit-user-bank"
+                    title="Bank details"
+                    description="Fill in only what should change. Blank fields keep their current value."
+                >
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        {BANK_FIELDS.map(({ field, label }) => (
+                            <FormField key={field} htmlFor={`edit-user-${field}`} label={label}>
+                                <Input
+                                    id={`edit-user-${field}`}
+                                    value={bank[field] ?? ''}
+                                    inputMode={field.includes('ccountNumber') ? 'numeric' : undefined}
+                                    autoComplete="off"
+                                    placeholder={currentBankValue(field)}
+                                    onChange={(event) => setBank((current) => ({ ...current, [field]: field === 'bankIfsc' ? event.target.value.toUpperCase() : event.target.value }))}
+                                />
+                            </FormField>
+                        ))}
+                    </div>
+                </FormSection>
+
+                <FormActions
+                    submitLabel="Save changes"
+                    pendingLabel="Saving changes..."
+                    isPending={updateUserMutation.isPending || updateBank.isPending}
+                    onCancel={() => navigate(userPage)}
+                />
             </form>
-        </div>
+
+            {user.status === 'APPROVED' && (
+                <DangerZone
+                    description="Signs this user out, stops new sign-ins and ends their active assignments. Their record and history are kept."
+                    actionLabel="Revoke access"
+                    onAction={() => setConfirmRevoke(true)}
+                    isPending={revokeUserAccess.isPending}
+                />
+            )}
+            <ConfirmationModal
+                isOpen={confirmRevoke}
+                onClose={() => setConfirmRevoke(false)}
+                onConfirm={async () => {
+                    try {
+                        await revokeUserAccess.mutateAsync(user.id);
+                        toast.success(`${user.name}'s access was revoked.`);
+                        setConfirmRevoke(false);
+                        navigate('/users');
+                    } catch {
+                        toast.error('Unable to revoke access. Try again.');
+                    }
+                }}
+                title="Revoke access?"
+                message={`This immediately signs ${user.name} out, prevents new sign-ins and removes all active role assignments. Their record and assignment history are kept.`}
+                confirmText="Revoke access"
+                loadingMessage="Revoking access..."
+                isLoading={revokeUserAccess.isPending}
+                variant="danger"
+            />
+        </WorkspacePage>
     );
 };
 

@@ -25,7 +25,7 @@ export function ExpandableText({
           id={contentId}
           className={cn(
             "min-w-0",
-            canExpand && !expanded && "line-clamp-3 sm:line-clamp-2",
+            canExpand && !expanded && "line-clamp-2",
           )}
         >
           {text}

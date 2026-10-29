@@ -211,7 +211,7 @@ export const useUpdateSemesterUserAssignments = ({
   });
 };
 
-export const useUser = (userId: string) => {
+export const useUser = (userId: string, options: { enabled?: boolean } = {}) => {
   return useQuery({
     queryKey: ["user", userId],
     queryFn: async (): Promise<User> => {
@@ -219,7 +219,7 @@ export const useUser = (userId: string) => {
       return response.user;
     },
     staleTime: 1 * 60 * 1000,
-    enabled: !!userId,
+    enabled: !!userId && (options.enabled ?? true),
   });
 };
 
@@ -267,13 +267,14 @@ export const useVerifyUser = () => {
         rejectionReason,
       });
     },
-    onSuccess: () => {
+    onSuccess: (_, { userId }) => {
       // Invalidate user-related queries
       queryClient.invalidateQueries({ queryKey: queryKeys.users });
       queryClient.invalidateQueries({ queryKey: queryKeys.pendingUsers });
       queryClient.invalidateQueries({
         queryKey: queryKeys.registrationRequests,
       });
+      queryClient.invalidateQueries({ queryKey: ["user", userId] });
     },
   });
 };
@@ -423,5 +424,25 @@ export const useUpdateUser = () => {
       queryClient.invalidateQueries({ queryKey: ["user", variables.userId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.currentUser });
     },
+  });
+};
+
+export type BankDetailsPatch = Partial<{
+  bankAccountNumber: string;
+  bankAccountName: string;
+  bankIfsc: string;
+  bankName: string;
+  bankBranch: string;
+  upiId: string;
+}>;
+
+// Admin-only. Sends just the fields that were filled in; the server keeps the
+// rest and answers with a masked summary, never the full account number.
+export const useUpdateUserBankDetails = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, bank }: { userId: string; bank: BankDetailsPatch }) =>
+      api.put<{ bankSummary: User["bankSummary"] }>(`/users/${userId}/bank`, bank),
+    onSuccess: (_, { userId }) => queryClient.invalidateQueries({ queryKey: ["user", userId] }),
   });
 };

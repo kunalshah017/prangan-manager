@@ -54,6 +54,13 @@ import {
 } from "../generated/prisma/index.js";
 import { prisma } from "../lib/prisma.js";
 import {
+  endedAssignmentData,
+  findSecondEducatorLevel,
+  finishedSemesterMessage,
+  isSemesterFinished,
+  SECOND_EDUCATOR_LEVEL_MESSAGE,
+} from "../lib/role-assignments.js";
+import {
   parseLegacyPersonName,
   resolvePersonNameCreate,
   resolvePersonNameUpdate,
@@ -63,7 +70,12 @@ import {
   isValidDateFormat,
   isValidISOFormat,
 } from "../utils/dateHelpers.js";
-import { updateUserBankDetails } from "../service/user.service.js";
+import {
+  patchUserBankDetails,
+  updateUserBankDetails,
+  validateRoleAssignmentHierarchy,
+  type BankDetailsPatch,
+} from "../service/user.service.js";
 import { canAccessScope, isAdmin } from "../security/authorization.js";
 import {
   canManageStudentProfile,
@@ -190,6 +202,63 @@ export const updateMyBankDetails = asyncHandle(
   },
 );
 
+const BANK_FIELDS = [
+  "bankAccountNumber",
+  "bankAccountName",
+  "bankIfsc",
+  "bankName",
+  "bankBranch",
+  "upiId",
+] as const;
+
+export const updateUserBankDetailsAsAdmin = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const authUser = request.user;
+    if (!authUser) return errorHandle("Unauthorized", reply, 401);
+    if (authUser.role !== Role.ADMIN) {
+      return errorHandle("Only administrators can edit another user's bank details.", reply, 403);
+    }
+    const { userId } = request.params as { userId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+
+    const patch: BankDetailsPatch = {};
+    for (const field of BANK_FIELDS) {
+      const value = body[field];
+      if (value === undefined || value === null) continue;
+      if (typeof value !== "string") {
+        return errorHandle(`${field} must be text.`, reply, 400);
+      }
+      const trimmed = field === "bankIfsc" ? value.trim().toUpperCase() : value.trim();
+      if (trimmed) patch[field] = trimmed;
+    }
+    if (patch.bankIfsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(patch.bankIfsc)) {
+      return errorHandle("Invalid IFSC code format.", reply, 400);
+    }
+    if (Object.keys(patch).length === 0) {
+      return errorHandle("Enter at least one bank detail to change.", reply, 400);
+    }
+
+    const bank = await patchUserBankDetails(userId, patch);
+    if (typeof bank === "string") return errorHandle(bank, reply, 500);
+    if (!bank) return errorHandle("User not found.", reply, 404);
+
+    // Echo only the masked summary; the full number never leaves the server.
+    return successHandle(
+      {
+        message: "Bank details updated successfully",
+        bankSummary: {
+          accountLast4: bank.bankAccountNumber ? bank.bankAccountNumber.slice(-4) : null,
+          bankName: bank.bankName ?? null,
+          bankIfsc: bank.bankIfsc ?? null,
+          hasUpi: Boolean(bank.upiId),
+        },
+      },
+      reply,
+      200,
+    );
+  },
+);
+
 export const registerUser = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
     const data = request.body as UserRegistrationRequest;
@@ -203,6 +272,10 @@ export const registerUser = asyncHandle(
       resolvedName = resolvePersonNameCreate(data);
     } catch (error) {
       return errorHandle((error as Error).message, reply, 400);
+    }
+    // Self-registration asks for the full name; admins can still edit it later.
+    if (!resolvedName.middleName || !resolvedName.lastName) {
+      return errorHandle("Middle name and last name are required.", reply, 400);
     }
 
     // Validate DOB if provided
@@ -283,6 +356,9 @@ export const registerUser = asyncHandle(
   },
 );
 
+const LOGIN_FAILED_MESSAGE =
+  "Email or password is incorrect. Check them and try again, or choose Forgot password.";
+
 export const loginUser = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
     const data = request.body as { email: string; password: string };
@@ -293,14 +369,29 @@ export const loginUser = asyncHandle(
 
     const user = await getUserByEmail(data.email);
 
-    if (!user || typeof user === "string") {
-      return errorHandle("User not found.", reply, 404);
+    if (typeof user === "string") {
+      return errorHandle(
+        "Sign in isn't available right now. Try again in a minute.",
+        reply,
+        500,
+      );
+    }
+    // Same answer for an unknown email and a wrong password.
+    if (!user) {
+      return errorHandle(LOGIN_FAILED_MESSAGE, reply, 401);
     }
 
-    // Check if user is approved
-    if (user.status !== UserStatus.APPROVED) {
+    // Pending people have no password yet, so their status is checked first.
+    if (user.status === UserStatus.PENDING) {
       return errorHandle(
-        "Your account is pending approval. Please contact an administrator.",
+        "Your registration is waiting for approval. You'll get an email to set your password once it's approved.",
+        reply,
+        403,
+      );
+    }
+    if (user.status === UserStatus.REJECTED) {
+      return errorHandle(
+        "Your registration wasn't approved. Please contact a Prangan administrator.",
         reply,
         403,
       );
@@ -312,13 +403,33 @@ export const loginUser = asyncHandle(
     );
 
     if (!isPasswordValid) {
-      return errorHandle("Invalid password.", reply, 401);
+      // Approved but never activated: their password was never set.
+      const activation = await prisma.accountToken.findFirst({
+        where: { userId: user.id, type: AccountTokenType.ACTIVATION },
+        select: { id: true },
+      });
+      const usedToken = activation
+        ? await prisma.accountToken.findFirst({
+            where: { userId: user.id, usedAt: { not: null } },
+            select: { id: true },
+          })
+        : null;
+      if (activation && !usedToken) {
+        return errorHandle(
+          "Your account isn't activated yet. Use the link in your approval email to set a password, or choose Forgot password to get a new link.",
+          reply,
+          403,
+        );
+      }
+      return errorHandle(LOGIN_FAILED_MESSAGE, reply, 401);
     }
 
     const token = createSessionToken(user.id, user.sessionVersion);
 
     // Fetch full user details with role assignments for response
-    const fullUserDetails = await getUserById(user.id);
+    const fullUserDetails = await getUserById(user.id, {
+      includePastAssignments: user.role === Role.ADMIN,
+    });
 
     reply.setCookie(SESSION_COOKIE_NAME, token, getSessionCookieOptions());
 
@@ -346,7 +457,9 @@ export const getCurrentUser = asyncHandle(
       return errorHandle("User not found in request.", reply, 401);
     }
 
-    const fullUserDetails = await getUserById(user.id);
+    const fullUserDetails = await getUserById(user.id, {
+      includePastAssignments: user.role === Role.ADMIN,
+    });
 
     if (!fullUserDetails || typeof fullUserDetails === "string") {
       return errorHandle("User not found.", reply, 404);
@@ -565,6 +678,9 @@ export const verifyUser = asyncHandle(
       }
     }
 
+    if (findSecondEducatorLevel(assignments)) {
+      return errorHandle(SECOND_EDUCATOR_LEVEL_MESSAGE, reply, 422);
+    }
     const seenKeys = new Set<string>();
     const uniqueAssignments = assignments.filter((assignment) => {
       const key = [
@@ -577,6 +693,30 @@ export const verifyUser = asyncHandle(
       seenKeys.add(key);
       return true;
     });
+    // Approved roles must fit the project > centre > semester hierarchy and
+    // belong to a semester that is still running.
+    for (const assignment of uniqueAssignments) {
+      if (!Object.values(SubRole).includes(assignment.subRole as SubRole)) {
+        return errorHandle("Unknown role in assignment.", reply, 400);
+      }
+      const hierarchy = await validateRoleAssignmentHierarchy({
+        projectId: assignment.projectId || undefined,
+        centerId: assignment.centerId || undefined,
+        semesterId: assignment.semesterId || undefined,
+      });
+      if (!hierarchy.isValid) {
+        return errorHandle(hierarchy.error ?? "Invalid assignment.", reply, 400);
+      }
+      if (assignment.semesterId) {
+        const semester = await prisma.semesters.findUnique({
+          where: { id: assignment.semesterId },
+          select: { name: true, status: true, endDate: true },
+        });
+        if (semester && isSemesterFinished(semester)) {
+          return errorHandle(finishedSemesterMessage(semester.name), reply, 422);
+        }
+      }
+    }
     let roleAssignmentDetails = "";
     try {
       roleAssignmentDetails =
@@ -607,7 +747,7 @@ export const verifyUser = asyncHandle(
         if (uniqueAssignments.length > 0) {
           await tx.userRoleAssignments.updateMany({
             where: { userId: data.userId, isActive: true },
-            data: { isActive: false },
+            data: endedAssignmentData(),
           });
           const createdAssignments = [];
           for (const assignment of uniqueAssignments) {
@@ -808,7 +948,7 @@ export const revokeUserAccessController = asyncHandle(
 
       await tx.userRoleAssignments.updateMany({
         where: { userId, isActive: true },
-        data: { isActive: false },
+        data: endedAssignmentData(),
       });
       await tx.user.update({
         where: { id: userId },
@@ -2449,7 +2589,7 @@ export const getUserByIdController = asyncHandle(
 
     const user =
       authUser.id === userId
-        ? await getUserById(userId)
+        ? await getUserById(userId, { includePastAssignments: authUser.role === Role.ADMIN })
         : await getAdminUserById(userId);
     if (!user || typeof user === "string") {
       return errorHandle("User not found.", reply, 404);
@@ -2617,7 +2757,7 @@ export const updateUserController = asyncHandle(
       // Get full user details with assignments
       const fullUser =
         authUser.id === userId
-          ? await getUserById(userId)
+          ? await getUserById(userId, { includePastAssignments: authUser.role === Role.ADMIN })
           : await getAdminUserById(userId);
 
       return successHandle(

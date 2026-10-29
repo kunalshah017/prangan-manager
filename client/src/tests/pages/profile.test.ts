@@ -7,64 +7,58 @@ const settingsPath = new URL(
   import.meta.url,
 );
 const profile = readFileSync(profilePath, "utf8");
-const paymentSection = profile.slice(
-  profile.indexOf('id="payment"'),
-  profile.indexOf("</section>", profile.indexOf('id="payment"')),
+const view = readFileSync(
+  new URL("../../components/users/UserProfileView.tsx", import.meta.url),
+  "utf8",
+);
+const details = readFileSync(
+  new URL("../../pages/users/UserDetails.tsx", import.meta.url),
+  "utf8",
 );
 
 describe("unified profile workspace", () => {
-  it("owns personal, photo, payment, assignment, and app-data workflows", () => {
+  it("owns personal, photo, payment and app-data workflows", () => {
     for (const sourceToken of [
       "ImageUpload",
       "useUpdateMyProfile",
       "useUpdateBankDetails",
       "ifsc.razorpay.com",
-      "Edit profile",
-      "Edit payment",
-      "Role assignments",
+      "Edit details",
+      "Edit payment details",
     ]) {
       expect(profile).toContain(sourceToken);
     }
+    expect(profile).toMatch(/"confirmBankAccountNumber",\s*"Confirm account number",\s*"text"/);
+    expect(profile).toMatch(/"bankAccountNumber",\s*"Account number",\s*"password"/);
     expect(existsSync(settingsPath)).toBe(false);
   });
 
-  it("displays educator assignments from managed semester-level metadata", () => {
-    expect(profile).toContain(
-      "levelName(assignment.semesterLevel)",
-    );
-    expect(profile).not.toContain("assignment.level");
-    expect(profile).not.toContain("formatLabel(assignment.level)");
+  it("renders your profile and an admin's view of a user through one shared view", () => {
+    expect(profile).toContain("<UserProfileView user={user} isSelf");
+    expect(details).toContain("<UserProfileView");
+    expect(details).toContain("isSelf={false}");
+    // Nobody has two versions of their own page.
+    expect(details).toContain('<Navigate to="/profile" replace />');
+    // The admin view is read-only and never handles the full account number.
+    expect(details).not.toContain("useUpdateBankDetails");
+    expect(details).not.toContain("bankAccountNumber");
+    expect(details).toContain("bank?.accountLast4");
   });
 
-  it("scrolls to payment details after a hash redirect finishes rendering", () => {
-    expect(profile).toContain("useLocation()");
-    expect(profile).toContain('location.hash !== "#payment"');
-    expect(profile).toContain('document.getElementById("payment")?.scrollIntoView');
-    expect(profile).toContain("window.requestAnimationFrame");
-    expect(profile).toContain("window.cancelAnimationFrame");
+  it("shows assignments from managed semester-level metadata", () => {
+    expect(view).toContain("levelName(assignment.semesterLevel)");
+    expect(view).not.toContain("assignment.level)");
   });
 
-  it("uses one responsive workspace without a local breadcrumb or nested parent card", () => {
-    expect(profile).toContain("lg:grid-cols-12");
-    expect(profile).toContain("lg:col-span-8");
-    expect(profile).toContain("lg:col-span-4");
-    expect(profile).toContain("min-h-11");
-    expect(profile).not.toContain("Breadcrumb");
-    expect(profile).not.toContain("bg-gradient-to");
-    expect(profile).not.toContain("motion.");
-    expect(profile).not.toContain("rounded-2xl");
-    expect(profile).not.toContain('<main className="space-y-8');
-    expect(paymentSection).toContain("flex-col items-start gap-3 sm:flex-row");
-    expect(paymentSection).toContain(
-      "w-full shrink-0 items-center justify-center",
-    );
-    expect(paymentSection).toMatch(
-      /"confirmBankAccountNumber",\s*"Confirm account number",\s*"text"/,
-    );
-    expect(paymentSection).toMatch(
-      /"bankAccountNumber",\s*"Account number",\s*"password"/,
-    );
-    expect(profile).toContain('className="mt-4 grid grid-cols-2 gap-4"');
+  it("opens the Payments tab for #payment links", () => {
+    expect(view).toContain('location.hash === "#payment" ? "payments" : "about"');
+    expect(view).toContain('<div id="payment">');
+  });
+
+  it("uses accessible tabs with month-by-month activity", () => {
+    expect(view).toContain('role="tablist"');
+    expect(view).toContain("aria-selected={tab === item.id}");
+    expect(view).toContain("<MonthlyActivity");
     expect(profile).not.toContain("CacheManagementModal");
     expect(profile).not.toContain("AppVersion");
   });
@@ -101,7 +95,9 @@ describe("profile routes and navigation", () => {
     expect(routes).toContain(
       '<Route path="bank" element={<Navigate to="/profile#payment" replace />} />',
     );
-    expect(settings).toContain("CacheManagementModal");
+    // App upkeep lives on the Settings page itself, with a confirmed reset.
+    expect(settings).toContain("useAppMaintenance");
+    expect(settings).toContain('variant="danger"');
     expect(settings).toContain("AppVersion");
   });
 

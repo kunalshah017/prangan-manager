@@ -7,6 +7,15 @@ import {
 } from "../generated/prisma/index.js";
 import { prisma } from "../lib/prisma.js";
 import {
+  endedAssignmentData,
+  findSecondEducatorLevel,
+  finishedSemesterMessage,
+  isSemesterFinished,
+  SECOND_EDUCATOR_LEVEL_MESSAGE,
+  openSemesterAssignment,
+} from "../lib/role-assignments.js";
+import {
+  adminBankSummarySelect,
   adminUserDetailSelect,
   adminUserSelect,
   contextStaffSelect,
@@ -41,13 +50,35 @@ export const getUserByEmail = async (email: string) => {
   }
 };
 
-export const getUserById = async (id: string) => {
+// Current assignments stay in roleAssignments, as every caller expects; ended
+// ones move to pastRoleAssignments, most recently ended first.
+const splitAssignments = <
+  T extends { roleAssignments: Array<{ isActive: boolean; endedAt: Date | null; assignedAt: Date }> },
+>(user: T) => ({
+  ...user,
+  roleAssignments: user.roleAssignments.filter((assignment) => assignment.isActive),
+  pastRoleAssignments: user.roleAssignments
+    .filter((assignment) => !assignment.isActive)
+    .sort(
+      (a, b) =>
+        (b.endedAt ?? b.assignedAt).getTime() - (a.endedAt ?? a.assignedAt).getTime(),
+    ),
+});
+
+// Ended assignments are admin-only history; everyone else sees only the roles
+// they hold now. Off unless the caller asks for it.
+export const getUserById = async (
+  id: string,
+  { includePastAssignments = false }: { includePastAssignments?: boolean } = {},
+) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id },
       select: currentUserSelect,
     });
-    return user;
+    if (!user) return user;
+    const { pastRoleAssignments, ...current } = splitAssignments(user);
+    return includePastAssignments ? { ...current, pastRoleAssignments } : current;
   } catch (error: unknown) {
     console.error("Error fetching user by ID:", error);
     return "Failed to fetch user";
@@ -56,10 +87,29 @@ export const getUserById = async (id: string) => {
 
 export const getAdminUserById = async (id: string) => {
   try {
-    return await prisma.user.findUnique({
+    const found = await prisma.user.findUnique({
       where: { id },
       select: adminUserDetailSelect,
     });
+    if (!found) return found;
+    const user = splitAssignments(found);
+    const bank = await prisma.user.findUnique({
+      where: { id },
+      select: adminBankSummarySelect,
+    });
+    // Only the last four digits leave the server; full details stay in the
+    // remuneration screens where payments are made.
+    return {
+      ...user,
+      bankSummary: {
+        accountLast4: bank?.bankAccountNumber
+          ? bank.bankAccountNumber.slice(-4)
+          : null,
+        bankName: bank?.bankName ?? null,
+        bankIfsc: bank?.bankIfsc ?? null,
+        hasUpi: Boolean(bank?.upiId),
+      },
+    };
   } catch (error: unknown) {
     console.error("Error fetching admin user detail:", error);
     return "Failed to fetch user";
@@ -390,6 +440,30 @@ export const updateUser = async (
 };
 
 // Update only bank details for a user
+export type BankDetailsPatch = Partial<{
+  bankAccountNumber: string;
+  bankAccountName: string;
+  bankIfsc: string;
+  bankName: string;
+  bankBranch: string;
+  upiId: string;
+}>;
+
+// Admin edits only touch the fields that were filled in: an admin sees a
+// masked account number, so a blank field means "keep what is there".
+export const patchUserBankDetails = async (id: string, data: BankDetailsPatch) => {
+  try {
+    await prisma.user.update({ where: { id }, data });
+    return await prisma.user.findUnique({
+      where: { id },
+      select: adminBankSummarySelect,
+    });
+  } catch (error: unknown) {
+    console.error("Error updating bank details:", error);
+    return "Failed to update bank details";
+  }
+};
+
 export const updateUserBankDetails = async (
   id: string,
   data: {
@@ -1197,6 +1271,7 @@ export const getActiveUserScopeAssignments = async (userId: string) => {
           { subRole: { not: SubRole.EDUCATOR } },
           { semesterLevel: { is: { isActive: true } } },
         ],
+        AND: [openSemesterAssignment()],
       },
       select: {
         subRole: true,
@@ -1258,7 +1333,7 @@ export const deleteUserRoleAssignment = async (assignmentId: string) => {
   try {
     await (prisma as any).userRoleAssignments.update({
       where: { id: assignmentId },
-      data: { isActive: false },
+      data: endedAssignmentData(),
     });
     return true;
   } catch (error: unknown) {
@@ -1292,7 +1367,11 @@ export const bulkUpdateUserAssignments = async (
   }>,
 ): Promise<any> => {
   try {
-    // Validate all assignments before processing
+    if (findSecondEducatorLevel(newAssignments)) {
+      return new AcademicLevelServiceError(SECOND_EDUCATOR_LEVEL_MESSAGE, 422);
+    }
+    // Validate all assignments before processing. These are input problems,
+    // so they are reported as such rather than as a server failure.
     for (const assignment of newAssignments) {
       const validation = await validateRoleAssignmentHierarchy({
         projectId: assignment.projectId,
@@ -1301,7 +1380,10 @@ export const bulkUpdateUserAssignments = async (
       });
 
       if (!validation.isValid) {
-        return `Validation error for assignment: ${validation.error}`;
+        return new AcademicLevelServiceError(
+          `Validation error for assignment: ${validation.error}`,
+          400,
+        );
       }
     }
 
@@ -1377,7 +1459,7 @@ export const bulkUpdateUserAssignments = async (
       if (removedIds.length > 0) {
         await (tx as any).userRoleAssignments.updateMany({
           where: { id: { in: removedIds } },
-          data: { isActive: false },
+          data: endedAssignmentData(),
         });
       }
 
@@ -1387,6 +1469,16 @@ export const bulkUpdateUserAssignments = async (
         if (existing) {
           reconciledAssignments.push(existing);
           continue;
+        }
+        // A role already held stays as it is; a new one needs an open semester.
+        if (assignment.semesterId) {
+          const semester = await (tx as any).semesters.findUnique({
+            where: { id: assignment.semesterId },
+            select: { name: true, status: true, endDate: true },
+          });
+          if (semester && isSemesterFinished(semester)) {
+            throw new AcademicLevelServiceError(finishedSemesterMessage(semester.name), 422);
+          }
         }
         const created = await (tx as any).userRoleAssignments.create({
           data: {
@@ -1479,7 +1571,12 @@ export const getUserAccessibleProjects = async (
       const userAssignments = await (
         prisma as any
       ).userRoleAssignments.findMany({
-        where: { userId, isActive: true, projectId: { not: null } },
+        where: {
+          userId,
+          isActive: true,
+          projectId: { not: null },
+          AND: [openSemesterAssignment()],
+        },
         include: {
           project: true,
         },
@@ -1520,6 +1617,7 @@ export const getUserAccessibleCenters = async (
         userId,
         isActive: true,
         centerId: { not: null },
+        AND: [openSemesterAssignment()],
       };
       if (projectId) {
         whereClause.projectId = projectId;
@@ -1582,6 +1680,7 @@ export const getUserAccessibleSemesters = async (
         userId,
         isActive: true,
         semesterId: { not: null },
+        AND: [openSemesterAssignment()],
       };
       if (centerId) {
         whereClause.centerId = centerId;
@@ -1666,6 +1765,7 @@ export const getUserAccessibleStudents = async (
             { subRole: { not: SubRole.EDUCATOR } },
             { semesterLevel: { is: { isActive: true } } },
           ],
+          AND: [openSemesterAssignment()],
         },
         select: {
           subRole: true,

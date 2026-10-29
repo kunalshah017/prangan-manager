@@ -12,6 +12,7 @@ model Centers {
   id                  String                @id @default(cuid())
   name                String
   address             String?
+  imageUrl            String?
   metadata            Json?
   projectId           String
   createdAt           DateTime              @default(now())
@@ -214,6 +215,7 @@ model UserRoleAssignments {
   committedDays   CommittedDays? // Only for CENTER_MANAGER & EDUCATOR sub-roles, null for others
   isActive        Boolean        @default(true)
   assignedAt      DateTime       @default(now())
+  endedAt         DateTime? // Set when the assignment stops being active
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
@@ -331,7 +333,9 @@ model UserAttendance {
   updatedAt        DateTime         @updatedAt
 
   user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  roleAssignment UserRoleAssignments @relation(fields: [roleAssignmentId], references: [id], onDelete: Cascade)
+  // NoAction: deleting an assignment must never take attendance (and the pay
+  // history built on it) with it. Deleting a whole user still cascades.
+  roleAssignment UserRoleAssignments @relation(fields: [roleAssignmentId], references: [id], onDelete: NoAction)
   project        Projects            @relation(fields: [projectId], references: [id], onDelete: Cascade)
   center         Centers             @relation(fields: [centerId], references: [id], onDelete: Cascade)
   semester       Semesters           @relation(fields: [semesterId], references: [id], onDelete: Cascade)

@@ -74,13 +74,13 @@ export const Modal: React.FC<ModalProps> = ({
 
     return (
         <div
-            className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
             onClick={handleBackdropClick}
         >
             <div
                 ref={dialogRef}
                 className={cn(
-                    "bg-white/95 backdrop-blur-md p-6 rounded-lg shadow-xl border border-white/20 max-w-md w-full mx-4 relative",
+                    "relative mx-4 max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-xl border border-border bg-card p-5 text-card-foreground shadow-xl sm:p-6",
                     className
                 )}
                 onClick={(e) => e.stopPropagation()}
@@ -91,7 +91,7 @@ export const Modal: React.FC<ModalProps> = ({
             >
                 {/* Modal Header */}
                 <div className="flex items-center justify-between mb-4">
-                    <h3 id={titleId} className="text-lg font-semibold text-gray-900">{title}</h3>
+                    <h3 id={titleId} className="text-lg font-semibold text-foreground">{title}</h3>
                     <button
                         ref={closeButtonRef}
                         type="button"

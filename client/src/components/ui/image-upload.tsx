@@ -162,7 +162,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
                         ? "rounded-full w-32 h-32 mx-auto"
                         : "rounded-lg",
                     "hover:border-orange-400 focus-within:border-orange-500",
-                    dragActive && "border-orange-500 bg-orange-50",
+                    dragActive && "border-orange-500 bg-accent",
                     disabled && "cursor-not-allowed opacity-50",
                     error && "border-red-300",
                     value && !error && "border-green-300"
@@ -202,7 +202,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
                     )}>
                         <LoadingButterfly size="sm" />
                         {variant !== 'rounded' && (
-                            <p className="text-sm text-gray-600 mt-4">Uploading image...</p>
+                            <p className="text-sm text-muted-foreground mt-4">Uploading image...</p>
                         )}
                     </div>
                 ) : previewValue ? (
@@ -238,8 +238,8 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
                     >
                         <div className={cn(
                             "rounded-full flex items-center justify-center",
-                            "bg-gray-100 text-gray-400",
-                            dragActive && "bg-orange-100 text-orange-500",
+                            "bg-muted text-muted-foreground",
+                            dragActive && "bg-primary/10 text-orange-500",
                             variant === 'rounded' ? "w-10 h-10" : "w-12 h-12"
                         )}>
                             {dragActive ? (
@@ -250,10 +250,10 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
                         </div>
                         {variant !== 'rounded' && (
                             <div className="text-center mt-4">
-                                <p className="text-sm font-medium text-gray-900">
+                                <p className="text-sm font-medium text-foreground">
                                     {placeholder}
                                 </p>
-                                <p className="text-xs text-gray-500 mt-1">
+                                <p className="text-xs text-muted-foreground mt-1">
                                     PNG, JPG, GIF, WebP up to 10MB
                                 </p>
                             </div>
@@ -300,11 +300,11 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
 
                         <button type="button"
                             onClick={handleCameraClick}
-                            className="w-full flex items-center justify-center space-x-3 p-4 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors"
+                            className="w-full flex items-center justify-center space-x-3 p-4 bg-accent border border-primary/30 rounded-lg hover:bg-primary/10 transition-colors"
                             disabled={disabled || isUploading}
                         >
-                            <Camera className="w-5 h-5 text-orange-600" />
-                            <span className="font-medium text-orange-700">Take Photo</span>
+                            <Camera className="w-5 h-5 text-primary" />
+                            <span className="font-medium text-primary">Take Photo</span>
                         </button>
 
                         <button type="button"
@@ -318,9 +318,9 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
 
                         <button type="button"
                             onClick={() => setShowOptions(false)}
-                            className="w-full p-4 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                            className="w-full p-4 bg-muted rounded-lg hover:bg-muted transition-colors"
                         >
-                            <span className="font-medium text-gray-700">Cancel</span>
+                            <span className="font-medium text-foreground">Cancel</span>
                         </button>
                     </div>
                 </Modal>

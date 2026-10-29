@@ -8,7 +8,7 @@ describe("PWA recovery UI", () => {
       "utf8",
     );
     const cacheModal = await readFile(
-      new URL("../../components/CacheManagementModal.tsx", import.meta.url),
+      new URL("../../hooks/useAppMaintenance.ts", import.meta.url),
       "utf8",
     );
     const app = await readFile(

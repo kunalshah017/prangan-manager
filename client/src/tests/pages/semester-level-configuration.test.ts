@@ -42,11 +42,12 @@ describe("semester academic level configuration", () => {
   });
 
   it("renders an ordered, responsive, accessible checkbox group", () => {
-    expect(layoutSource).toContain("Academic levels");
+    expect(layoutSource).toContain('title="Levels"');
     expect(layoutSource).toContain("sortByJourneyOrder");
     expect(layoutSource).toContain('role="group"');
     expect(layoutSource).toContain('type="checkbox"');
-    expect(layoutSource).toContain("grid gap-3 sm:grid-cols-2");
+    expect(layoutSource).toContain("grid gap-2 sm:grid-cols-2");
+    expect(layoutSource).toContain("submitDisabled={academicLevelsLoading || academicLevelError || academicLevelIds.length === 0}");
     expect(layoutSource).toContain("Archived");
     expect(layoutSource).toContain("academicLevelError");
   });
