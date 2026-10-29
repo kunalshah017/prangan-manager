@@ -798,17 +798,17 @@ const level2Syllabus: SyllabusData = {
       subtopics: [
         {
           serialNumber: "1.1",
-          title: "The Camel and The Trader",
+          title: "The Magical Pearl",
           cycle: AssessmentCycle.SA_1,
         },
         {
           serialNumber: "1.2",
-          title: "Bukka Learns a Lesson",
+          title: "Where is My Pet?",
           cycle: AssessmentCycle.SA_1,
         },
         {
           serialNumber: "1.3",
-          title: "Well Done,Polly!",
+          title: "Well Done, Polly!",
           cycle: AssessmentCycle.SA_1,
         },
       ],
@@ -820,17 +820,17 @@ const level2Syllabus: SyllabusData = {
       subtopics: [
         {
           serialNumber: "2.1",
-          title: "How they Sleep",
+          title: "The Jumblies",
           cycle: AssessmentCycle.SA_1,
         },
         {
           serialNumber: "2.2",
-          title: "A worm in my Pocket",
+          title: "Cats",
           cycle: AssessmentCycle.SA_1,
         },
         {
           serialNumber: "2.3",
-          title: "The Swing",
+          title: "A Good Boy",
           cycle: AssessmentCycle.SA_1,
         },
       ],
@@ -881,7 +881,7 @@ const level2Syllabus: SyllabusData = {
       subtopics: [
         {
           serialNumber: "4.1",
-          title: "Kiki and Croc",
+          title: "Belling the Cat",
           cycle: AssessmentCycle.SA_2,
         },
         {
@@ -985,7 +985,7 @@ const level2Syllabus: SyllabusData = {
         },
         {
           serialNumber: "8.3",
-          title: "Spectacles for the Headman",
+          title: "The Tale of Dog and Wolf",
           cycle: AssessmentCycle.SA_3,
         },
       ],
@@ -1002,7 +1002,7 @@ const level2Syllabus: SyllabusData = {
         },
         {
           serialNumber: "9.2",
-          title: "Frogs At School",
+          title: "Frogs at School",
           cycle: AssessmentCycle.SA_3,
         },
       ],
