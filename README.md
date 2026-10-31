@@ -24,7 +24,6 @@ not remove it from history.
 - [Database and Prisma](#database-and-prisma)
 - [Development commands](#development-commands)
 - [Testing and verification](#testing-and-verification)
-- [Fixtures, seeds, and data tools](#fixtures-seeds-and-data-tools)
 - [Authentication and security](#authentication-and-security)
 - [API organization](#api-organization)
 - [Frontend behavior](#frontend-behavior)
@@ -272,7 +271,6 @@ prangan-manager/
 ├── .github/workflows/       Azure API build and deployment workflow
 ├── client/                  React and Vite PWA
 │   ├── public/              PWA files, icons, covers, and static images
-│   ├── scripts/             Client maintenance scripts
 │   └── src/
 │       ├── components/      Shared UI and workspace components
 │       ├── data/            Library catalog and book tables of contents
@@ -286,9 +284,9 @@ prangan-manager/
 │   ├── controllers/         HTTP request orchestration
 │   ├── email/               Email payload builders
 │   ├── generated/           Generated Prisma client
-│   ├── prisma/              Schema, migrations, and fixtures
+│   ├── prisma/              Schema and migrations
 │   ├── routes/              API route registration
-│   ├── scripts/             Backfills and operational tools
+│   ├── scripts/             Build helper and maintenance tools
 │   ├── security/            Session, CSRF, policies, and input parsing
 │   ├── service/             Domain and database services
 │   ├── tests/               Node test-runner suites
@@ -447,14 +445,6 @@ Azure sets `WEBSITE_SITE_NAME` or `WEBSITE_HOSTNAME`. The session configuration
 uses those values to detect Azure production behavior and allow the managed
 Prangan client origins.
 
-### Restricted local data tools
-
-| Variable | Used by | Purpose |
-| --- | --- | --- |
-| `ALLOW_LOCAL_SEED=true` | Local fixture and syllabus scripts | Confirms that additive or fixture seed work is intentional. |
-| `ALLOW_DESTRUCTIVE_SEED=true` | Fixture reset | Provides a second confirmation for destructive data replacement. |
-| `DEV_SEED_PASSWORD` | Fixture reset | Password assigned only to local fixture accounts. |
-
 ### Optional maintenance scripts
 
 | Variable | Used by | Purpose |
@@ -480,10 +470,7 @@ The API rejects calendar dates that are not `YYYY-MM-DD`; never send
 
 Migration `20261031120000_dates_as_date_instants_as_timestamptz` moved semester
 and birth dates to `DATE` (repairing India midnights stored as 18:30 UTC and
-end dates stored as 23:59:59.999 UTC) and every moment to `TIMESTAMPTZ`. Run
-`npm run db:report:date-anomalies` before and after applying it: it lists the
-rows the migration moves and the ones only a person can fix, such as
-attendance recorded on a weekday.
+end dates stored as 23:59:59.999 UTC) and every moment to `TIMESTAMPTZ`.
 
 ### Schema
 
@@ -536,23 +523,6 @@ Before applying:
 5. Run parity or backfill verification required by the migration.
 6. Smoke test `/health` and an authenticated workflow.
 
-### Managed semester-level hard cutover
-
-Operational records use only `semesterLevelId`. The contract migration removes
-the former compatibility columns, so apply it in a maintenance window and
-deploy the canonical-only server and client together:
-
-```bash
-cd server
-npm run db:verify:semester-level-integrity
-npx prisma migrate status
-npx prisma migrate deploy
-npm run db:verify:semester-level-integrity
-```
-
-The verifier must report zero missing, orphaned, cross-semester, and duplicate
-canonical references before and after migration.
-
 ## Development commands
 
 ### Client commands
@@ -578,12 +548,6 @@ Run from `server/`:
 | `npm run build` | Compile TypeScript and copy generated Prisma runtime files. |
 | `npm start` | Run `dist/server.js`. |
 | `npm test` | Run all server tests with the Node test runner through `tsx`. |
-| `npm run db:reset:fixtures` | Replace local data after all destructive safety checks pass. |
-| `npm run db:seed:syllabus` | Add the local syllabus fixture. |
-| `npm run db:seed:2026-27-curriculum` | Prepare or apply the reviewed curriculum seed. |
-| `npm run db:backfill:person-names` | Dry-run or apply structured person-name backfill. |
-| `npm run db:verify:semester-level-integrity` | Verify canonical managed-level references and keys. |
-| `npm run db:verify:remuneration-periods` | Check effective remuneration periods. |
 | `npm run generate-profession-images:trial` | Run a limited future-profession image generation trial. |
 | `npm run generate-profession-images:full` | Run the full profession-image generation process. |
 | `npm run check-profession-images` | Report profession-image status. |
@@ -635,62 +599,6 @@ cd client
 npm run test:run -- src/tests/pages/students-workspace.test.ts
 ```
 
-## Fixtures, seeds, and data tools
-
-### Destructive local fixture reset
-
-The fixture reset deletes and replaces data. It refuses to run without all
-local safety controls:
-
-```bash
-cd server
-NODE_ENV=development \
-ALLOW_LOCAL_SEED=true \
-ALLOW_DESTRUCTIVE_SEED=true \
-DEV_SEED_PASSWORD='choose-a-local-password' \
-npm run db:reset:fixtures
-```
-
-Never set these flags in shared, staging, CI, or production environments.
-
-### Additive local syllabus fixture
-
-```bash
-cd server
-NODE_ENV=development ALLOW_LOCAL_SEED=true npm run db:seed:syllabus
-```
-
-### Reviewed curriculum seed
-
-The 2026-27 curriculum script is a dry run unless apply mode is explicit:
-
-```bash
-cd server
-npm run db:seed:2026-27-curriculum
-```
-
-Review its report before any apply run. The script will not enable a level that
-the target semester has disabled.
-
-### Structured person-name backfill
-
-Dry run:
-
-```bash
-cd server
-npm run db:backfill:person-names
-```
-
-Apply only after reviewing aggregate counts:
-
-```bash
-npm run db:backfill:person-names -- \
-  --apply \
-  --report=/absolute/protected/person-name-backfill.jsonl
-```
-
-The tool refuses unsafe report paths and existing report files.
-
 ## Authentication and security
 
 ### Sessions
@@ -737,7 +645,6 @@ services. Administrators bypass assignment checks, not input validation.
 - Store migration and backfill reports outside the repository with restricted
   permissions.
 - Use approved production connections for migrations and verification.
-- Keep fixture safety flags out of shared environments.
 
 ## API organization
 
@@ -888,10 +795,6 @@ and post-deploy smoke tests.
 - [ ] Run `npx prisma validate`.
 - [ ] Confirm database backup or point-in-time recovery.
 - [ ] Confirm production environment variables and client origin.
-- [ ] Review managed-level, person-name, remuneration, or curriculum reports
-      required by the release.
-- [ ] Confirm no fixture flags or local passwords are present in shared
-      environments.
 
 ### Database and application release
 

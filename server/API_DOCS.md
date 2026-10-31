@@ -38,9 +38,6 @@ npx prisma generate
 
 # Run database migrations
 npx prisma migrate dev
-
-# Reset local development fixtures only
-NODE_ENV=development ALLOW_LOCAL_SEED=true ALLOW_DESTRUCTIVE_SEED=true DEV_SEED_PASSWORD=replace-with-a-local-password npm run db:reset:fixtures
 ```
 
 **Note:** After updating the schema with new student enrollment features, make sure to regenerate the Prisma client:
@@ -2307,10 +2304,6 @@ Each user role assignment includes:
 - Active status for easy management
 - Assignment timestamps for tracking
 
-### Local Fixture Accounts
-
-The local fixture reset creates development-only accounts and uses the password supplied through `DEV_SEED_PASSWORD`. It refuses to run unless `NODE_ENV=development`, `ALLOW_LOCAL_SEED=true`, and `ALLOW_DESTRUCTIVE_SEED=true` are all set. Never set these controls in a shared or production environment.
-
 ## Scripts
 
 ```bash
@@ -2323,8 +2316,6 @@ npm run build        # Compile the project; migrations are a separate approved o
 npm run start        # Start production server
 
 # Database
-NODE_ENV=development ALLOW_LOCAL_SEED=true ALLOW_DESTRUCTIVE_SEED=true DEV_SEED_PASSWORD=replace-with-a-local-password npm run db:reset:fixtures
-NODE_ENV=development ALLOW_LOCAL_SEED=true npm run db:seed:syllabus
 npx prisma generate  # Generate Prisma client
 npx prisma migrate dev # Run database migrations
 npx prisma studio    # Open Prisma Studio
