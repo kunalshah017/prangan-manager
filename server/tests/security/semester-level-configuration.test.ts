@@ -356,3 +356,32 @@ test("semester detail includes ordered level metadata", async () => {
     prisma.semesters.findUnique = originalFindUnique;
   }
 });
+
+test("staff semester lists add finished semesters only when asked", async () => {
+  const assignments = (prisma as any).userRoleAssignments;
+  const originalFindMany = assignments.findMany;
+  const received: any[] = [];
+  assignments.findMany = async (args: unknown) => {
+    received.push(args);
+    return [];
+  };
+
+  try {
+    await getUserAccessibleSemesters("user-1", "USER", "center-1");
+    await getUserAccessibleSemesters("user-1", "USER", "center-1", true);
+
+    const [plain, withEnded] = received.map((args) => args.where);
+    // Default: only active roles in open semesters, as before.
+    assert.equal(plain.isActive, true);
+    assert.equal(plain.OR, undefined);
+    assert.equal(plain.centerId, "center-1");
+    // With ended: open roles, or any role (even ended) in a finished semester.
+    assert.equal(withEnded.isActive, undefined);
+    assert.equal(withEnded.OR[0].isActive, true);
+    assert.deepEqual(withEnded.OR[1].semester.is.OR[0], { status: "ARCHIVED" });
+    assert.ok(withEnded.OR[1].semester.is.OR[1].endDate.lt instanceof Date);
+    assert.equal(withEnded.centerId, "center-1");
+  } finally {
+    assignments.findMany = originalFindMany;
+  }
+});

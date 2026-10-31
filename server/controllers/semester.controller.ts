@@ -59,11 +59,14 @@ export const getSemestersByCenterId = asyncHandle(
       return errorHandle("Center ID is required.", reply, 400);
     }
 
+    const { includeEnded } = request.query as { includeEnded?: string };
+
     // Use role-based access to get semesters by center
     const semesters = await getUserAccessibleSemesters(
       user.id,
       user.role,
       centerId,
+      includeEnded === "true",
     );
 
     if (typeof semesters === "string") {

@@ -34,12 +34,16 @@ export const useSemester = (id: string) => {
   });
 };
 
-export const useSemestersByCenter = (centerId: string, enabled = true) => {
+// includeEnded also lists finished semesters staff worked in (admins always
+// get every semester). Staff can't open those, so only show them as history.
+export const useSemestersByCenter = (centerId: string, enabled = true, includeEnded = false) => {
   return useQuery({
-    queryKey: queryKeys.semestersByCenter(centerId),
+    queryKey: includeEnded
+      ? [...queryKeys.semestersByCenter(centerId), "with-ended"]
+      : queryKeys.semestersByCenter(centerId),
     queryFn: async (): Promise<Semester[]> => {
       const response = await api.get<SemestersResponse>(
-        `/semesters/center/${centerId}`,
+        `/semesters/center/${centerId}${includeEnded ? "?includeEnded=true" : ""}`,
       );
       return response.semesters;
     },

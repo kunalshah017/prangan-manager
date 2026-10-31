@@ -30,7 +30,7 @@ const CustomButton = React.forwardRef<HTMLButtonElement, CustomButtonProps>(
                 className={cn(
                     buttonVariants({ variant, size }),
                     "group relative overflow-hidden transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]",
-                    isLoading && "cursor-not-allowed hover:scale-100 active:scale-100 disabled:opacity-100 disabled:bg-gray-100",
+                    isLoading && "cursor-not-allowed hover:scale-100 active:scale-100 disabled:opacity-100 disabled:bg-muted",
                     className
                 )}
                 disabled={disabled || isLoading}

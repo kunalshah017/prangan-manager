@@ -56,16 +56,18 @@ describe("managed academic levels administration", () => {
       "useAcademicLevels({ includeArchived: true })",
     );
     expect(pageSource).toContain("ConfirmationModal");
-    expect(pageSource).toContain("Try again");
-    expect(pageSource).toContain("No academic levels yet");
+    expect(pageSource).toContain("<ErrorState");
+    expect(pageSource).not.toContain("How levels are used");
     expect(pageSource).toContain("existing semesters");
     expect(pageSource).toContain("new semesters");
 
     expect(editorSource).toContain("normalizeLevelCode");
+    expect(editorSource).toContain("No academic levels yet");
     expect(editorSource).toContain("Code cannot be changed after creation");
     expect(editorSource).toContain("aria-label={`Move ${level.name} up`}");
     expect(editorSource).toContain("aria-label={`Move ${level.name} down`}");
+    expect(editorSource).toContain("aria-label={`Edit ${level.name}`}");
     expect(editorSource).toContain("Archive");
-    expect(editorSource).toContain("Restore");
+    expect(editorSource).toContain("aria-label={`Restore ${level.name}`}");
   });
 });

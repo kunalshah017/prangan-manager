@@ -329,7 +329,7 @@ const Register = () => {
                                     type="submit"
                                     isLoading={isLoading}
                                     loadingMessage="Creating account..."
-                                    className="h-12 w-full bg-orange-600 text-base text-white hover:bg-orange-700 sm:col-span-2"
+                                    className="h-12 w-full text-base sm:col-span-2"
                                 >
                                     <UserPlus className="mr-2 h-5 w-5" /> Submit registration
                                 </CustomButton>

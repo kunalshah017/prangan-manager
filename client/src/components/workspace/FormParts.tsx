@@ -57,7 +57,7 @@ interface FormActionsProps {
 // form; on large screens it sits under the form and sticks while it scrolls.
 export function FormActions({ submitLabel, pendingLabel, isPending, onCancel, submitDisabled = false }: FormActionsProps) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 flex gap-2 border-t border-border bg-background/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:static sm:justify-end sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none lg:sticky lg:bottom-3 lg:rounded-xl lg:border lg:bg-background/95 lg:p-3 lg:shadow-lg lg:backdrop-blur">
+    <div className="fixed inset-x-0 bottom-0 z-30 flex gap-2 border-t border-border bg-background px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:static sm:justify-end sm:border-0 sm:bg-transparent sm:p-0 lg:sticky lg:bottom-3 lg:rounded-xl lg:border lg:bg-background/95 lg:p-3 lg:shadow-lg lg:backdrop-blur">
       <button
         type="button"
         onClick={onCancel}

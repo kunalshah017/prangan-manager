@@ -103,7 +103,7 @@ const LayoutShell = () => {
 
     return (
         <div className="flex min-h-[100dvh] flex-col bg-background">
-            <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur-xl">
+            <header className="sticky top-0 z-40 border-b border-border bg-background">
                 <div className="mx-auto flex h-16 w-full max-w-7xl items-center px-3 sm:px-6 lg:px-8">
                     <button
                         type="button"

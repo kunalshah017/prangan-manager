@@ -24,6 +24,18 @@ describe("shared workspace components", () => {
     expect(screen.queryByRole("link", { name: /edit/i })).toBeNull();
   });
 
+  it("shows a row without href as text with nothing to open", () => {
+    const { container } = render(
+      <MemoryRouter>
+        <EntityList label="Semesters">
+          <EntityRow title="Semester 2025-26" status={<StatusBadge tone="ended" label="Ended" />} />
+        </EntityList>
+      </MemoryRouter>,
+    );
+    expect(container.textContent).toContain("Semester 2025-26");
+    expect(container.querySelector("a")).toBeNull();
+  });
+
   it("gives a flower-named centre its own colour and initials", () => {
     const { container } = render(<EntityAvatar name="Lavender" />);
     const avatar = container.firstElementChild as HTMLElement;
@@ -49,7 +61,7 @@ describe("shared workspace components", () => {
   it("labels a semester by today's date unless it is a draft or archived", () => {
     const dates = { startDate: "2026-07-01T00:00:00.000Z", endDate: "2027-04-30T00:00:00.000Z" };
     const on = (day: string) => new Date(`${day}T12:00:00.000Z`);
-    expect(semesterTiming({ ...dates, status: "ACTIVE" }, on("2026-10-29")).label).toBe("Running");
+    expect(semesterTiming({ ...dates, status: "ACTIVE" }, on("2026-10-29")).label).toBe("Active");
     expect(semesterTiming({ ...dates, status: "ACTIVE" }, on("2026-06-30")).label).toBe("Upcoming");
     expect(semesterTiming({ ...dates, status: "ACTIVE" }, on("2027-05-01")).label).toBe("Ended");
     expect(semesterTiming({ ...dates, status: "DRAFT" }, on("2026-10-29")).label).toBe("Draft");

@@ -144,7 +144,7 @@ describe("workspace scope dashboards", () => {
     );
     expect(centerDashboardSource).toContain("useCenter(centerId)");
     expect(centerDashboardSource).toContain(
-      "useSemestersByCenter(centerId)",
+      "useSemestersByCenter(centerId, true, true)",
     );
     expect(centerDashboardSource).toContain("semesterCardDestination(");
     expect(centerDashboardSource).not.toContain("View all semesters");

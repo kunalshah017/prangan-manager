@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
-import { Layers, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { AcademicLevelEditor } from "@/components/levels/AcademicLevelEditor";
+import { PageTitle } from "@/components/navigation/PageTitle";
 import { ConfirmationModal } from "@/components/ui/confirmation-modal";
-import { CustomButton } from "@/components/ui/button";
-import { WorkspacePage, WorkspacePageHeader } from "@/components/workspace/WorkspacePage";
+import { ErrorState, ListPageSkeleton } from "@/components/workspace/PageState";
+import { WorkspacePage } from "@/components/workspace/WorkspacePage";
 import {
   useAcademicLevels,
   useCreateAcademicLevel,
@@ -58,31 +58,17 @@ const AcademicLevels = () => {
   };
 
   return (
-    <WorkspacePage className="space-y-6">
-      <WorkspacePageHeader title="Level catalogue" description="Define the levels shared by every centre and the order students progress through them." badge={levelsQuery.isSuccess ? `${levels.filter((level) => level.isActive).length} active` : undefined} />
+    <WorkspacePage>
+      <PageTitle title="Level catalogue" />
 
-      <section className="rounded-lg border border-border bg-muted/40 p-4" aria-label="How levels are used">
-        <div className="flex gap-3">
-          <Layers className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-          <p className="text-sm leading-6 text-muted-foreground">Each centre chooses which of these levels it runs from its semester dashboard or semester settings. Keeping one shared catalogue lets students be promoted from one level to the next and matches each level to its library books. Archived levels stay in existing semesters but can no longer be chosen for new ones.</p>
-        </div>
-      </section>
-
-      {levelsQuery.isLoading && <div className="min-h-72 animate-pulse rounded-lg border border-border bg-muted/40 motion-reduce:animate-none" aria-label="Loading academic levels" />}
+      {levelsQuery.isLoading && <ListPageSkeleton label="Loading academic levels" rows={4} />}
 
       {levelsQuery.error && (
-        <section className="rounded-lg border border-destructive/30 bg-card p-6 text-center" role="alert">
-          <h2 className="text-lg font-semibold text-foreground">Academic levels could not be loaded</h2>
-          <p className="mt-2 text-sm text-muted-foreground">Check your connection, then try again.</p>
-          <CustomButton type="button" onClick={() => void levelsQuery.refetch()} className="mt-5 min-h-11 gap-2"><RefreshCw className="h-4 w-4" aria-hidden="true" />Try again</CustomButton>
-        </section>
-      )}
-
-      {levelsQuery.isSuccess && levels.length === 0 && (
-        <section className="rounded-lg border border-border bg-card p-8 text-center">
-          <h2 className="text-lg font-semibold text-foreground">No academic levels yet</h2>
-          <p className="mt-2 text-sm text-muted-foreground">Create the first level to begin the learning journey.</p>
-        </section>
+        <ErrorState
+          title="Academic levels could not be loaded"
+          description="Check your connection, then try again."
+          onRetry={() => void levelsQuery.refetch()}
+        />
       )}
 
       {levelsQuery.isSuccess && (
@@ -99,7 +85,7 @@ const AcademicLevels = () => {
               return false;
             }
           }}
-          onRename={(level, name) => void updateLevel(level, { name }, "Level renamed.")}
+          onRename={(level, name) => updateLevel(level, { name }, "Level renamed.")}
           onArchiveRequest={setArchiveTarget}
           onRestore={(level) => void updateLevel(level, { isActive: true }, "Level restored.")}
           onMove={(level, direction) => void handleMove(level, direction)}

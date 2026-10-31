@@ -28,7 +28,7 @@ export const semesterTiming = (
   const day = today.toISOString().slice(0, 10);
   if (day < semester.startDate.slice(0, 10)) return { tone: "inactive" as const, label: "Upcoming" };
   if (day > semester.endDate.slice(0, 10)) return { tone: "ended" as const, label: "Ended" };
-  return { tone: "running" as const, label: "Running" };
+  return { tone: "running" as const, label: "Active" };
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -47,8 +47,6 @@ export function semesterProgress(
     Math.max(0, Math.round((day - start) / DAY_MS) + 1),
   );
   return {
-    week: Math.max(1, Math.ceil(elapsedDays / 7)),
-    totalWeeks: Math.ceil(totalDays / 7),
     daysLeft: totalDays - elapsedDays,
     percentage: Math.round((elapsedDays / totalDays) * 100),
   };

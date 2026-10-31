@@ -85,14 +85,12 @@ export function MobileNavigation({
         <AnimatePresence>
             {open && (
                 <div className="md:hidden">
-                    <motion.button
+                    {/* Invisible: tapping outside closes the menu and can't reach the page behind. */}
+                    <button
                         type="button"
                         aria-label="Close navigation backdrop"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="fixed inset-0 z-50 bg-black/40"
+                        className="fixed inset-0 z-50 cursor-default"
                     />
                     <motion.div
                         ref={dialogRef}

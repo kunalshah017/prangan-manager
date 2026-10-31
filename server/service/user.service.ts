@@ -9,6 +9,7 @@ import { prisma } from "../lib/prisma.js";
 import {
   endedAssignmentData,
   findSecondEducatorLevel,
+  finishedSemester,
   finishedSemesterMessage,
   isSemesterFinished,
   SECOND_EDUCATOR_LEVEL_MESSAGE,
@@ -1652,6 +1653,7 @@ export const getUserAccessibleSemesters = async (
   userId: string,
   role: string,
   centerId?: string,
+  includeEnded = false,
 ) => {
   try {
     if (role === "ADMIN") {
@@ -1676,11 +1678,15 @@ export const getUserAccessibleSemesters = async (
       return semesters;
     } else {
       // USER role - get only semesters they're assigned to
+      const openWhere = { isActive: true, AND: [openSemesterAssignment()] };
+      // Finished semesters they worked in are listed on request, whether or
+      // not the role was ended; opening one is still checked and refused.
       const whereClause: any = {
         userId,
-        isActive: true,
         semesterId: { not: null },
-        AND: [openSemesterAssignment()],
+        ...(includeEnded
+          ? { OR: [openWhere, { semester: { is: finishedSemester() } }] }
+          : openWhere),
       };
       if (centerId) {
         whereClause.centerId = centerId;

@@ -160,7 +160,7 @@ const Login = () => {
                   type="submit"
                   isLoading={isLoading}
                   loadingMessage="Signing in..."
-                  className="h-12 w-full bg-orange-600 text-base text-white hover:bg-orange-700"
+                  className="h-12 w-full text-base"
                 >
                   <LogIn className="mr-2 h-5 w-5" /> Sign in
                 </CustomButton>

@@ -1,5 +1,4 @@
 import {
-  FolderKanban,
   Inbox,
   Layers3,
   UserCog,
@@ -35,12 +34,6 @@ const tools: Array<{
     description: "Levels shared by every centre",
     href: "/academic-levels",
     icon: Layers3,
-  },
-  {
-    label: "Projects",
-    description: "Create and edit projects",
-    href: "/projects",
-    icon: FolderKanban,
   },
 ];
 

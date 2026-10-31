@@ -1,5 +1,5 @@
 // Service worker for PWA functionality with proper cache management
-const CACHE_VERSION = "v8";
+const CACHE_VERSION = "v9";
 const STATIC_CACHE = `prangan-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `prangan-runtime-${CACHE_VERSION}`;
 const PDF_CACHE = "prangan-pdfs-v2"; // Incremented version for new caching strategy

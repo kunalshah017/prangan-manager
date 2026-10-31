@@ -485,10 +485,11 @@ function App() {
           position="top-center"
           toastOptions={{
             duration: 4000,
+            // Theme tokens, so toasts switch with light and dark mode.
             style: {
-              background: '#ffffff',
-              color: '#333333',
-              border: '1px solid #e5e7eb',
+              background: 'var(--popover)',
+              color: 'var(--popover-foreground)',
+              border: '1px solid var(--border)',
               borderRadius: '8px',
               fontSize: '14px',
               padding: '12px 16px',
@@ -497,21 +498,21 @@ function App() {
             success: {
               duration: 3000,
               iconTheme: {
-                primary: '#10b981',
+                primary: 'var(--success)',
                 secondary: '#ffffff',
               },
             },
             error: {
               duration: 5000,
               iconTheme: {
-                primary: '#ef4444',
+                primary: 'var(--destructive)',
                 secondary: '#ffffff',
               },
             },
             loading: {
               iconTheme: {
-                primary: '#f97316',
-                secondary: '#ffffff',
+                primary: 'var(--primary)',
+                secondary: 'var(--muted)',
               },
             },
           }}

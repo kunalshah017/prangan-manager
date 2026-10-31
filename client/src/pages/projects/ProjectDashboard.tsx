@@ -48,39 +48,43 @@ export default function ProjectDashboard() {
   const centres = sortCentresByRecentUpdate(centersQuery.data);
 
   return (
+    // Phones read top to bottom: banner, details, centres. On desktop, centres sit
+    // under the banner and details move to the side, as on the centre dashboard.
     <WorkspacePage
-      className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start lg:gap-8"
+      className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-8"
       withMobileAction={isAdmin()}
     >
-      <header>
+      <header className="lg:contents">
         <PageTitle title={project.name} />
-        <div className="-mx-4 -mt-[3.75rem] aspect-[2/1] overflow-hidden bg-muted sm:mx-0 sm:mt-0 sm:aspect-[5/2] sm:rounded-xl lg:aspect-[16/10]">
+        <div className="-mx-4 -mt-[3.75rem] aspect-[2/1] overflow-hidden bg-muted sm:mx-0 sm:mt-0 sm:aspect-[5/2] sm:rounded-xl lg:col-start-1 lg:row-start-1 lg:aspect-[21/9]">
           <img
             src={project.imageUrl || "/images/default_project_banner.jpg"}
             alt={`${project.name} project`}
             className="h-full w-full object-cover"
           />
         </div>
-        <div className="mt-3 flex items-center justify-between gap-3">
-          <StatusBadge {...projectStatus(project.status)} />
-          {isAdmin() && (
-            <Link
-              to={`/projects/${projectId}/edit`}
-              className={cn(buttonVariants({ variant: "outline" }), "min-h-11 shrink-0 gap-2")}
-            >
-              <Pencil className="h-4 w-4" aria-hidden="true" />
-              Edit
-            </Link>
+        <div className="mt-3 lg:sticky lg:top-20 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0">
+          <div className="flex items-center justify-between gap-3">
+            <StatusBadge {...projectStatus(project.status)} />
+            {isAdmin() && (
+              <Link
+                to={`/projects/${projectId}/edit`}
+                className={cn(buttonVariants({ variant: "outline" }), "min-h-11 shrink-0 gap-2")}
+              >
+                <Pencil className="h-4 w-4" aria-hidden="true" />
+                Edit
+              </Link>
+            )}
+          </div>
+          {project.description && (
+            <div className="mt-2 max-w-prose text-[0.9375rem] leading-6 text-muted-foreground">
+              <ExpandableText text={project.description} />
+            </div>
           )}
         </div>
-        {project.description && (
-          <div className="mt-2 max-w-prose text-[0.9375rem] leading-6 text-muted-foreground">
-            <ExpandableText text={project.description} />
-          </div>
-        )}
       </header>
 
-      <section aria-labelledby="project-centres" className="space-y-3 lg:sticky lg:top-4">
+      <section aria-labelledby="project-centres" className="space-y-3 lg:col-start-1 lg:row-start-2">
         <div className="flex items-end justify-between gap-3">
           <h2 id="project-centres" className="text-lg font-semibold text-foreground">
             Centres <span className="font-normal tabular-nums text-muted-foreground">{centres.length}</span>

@@ -1,6 +1,7 @@
 import {
   ArrowRight,
   CalendarDays,
+  ChevronRight,
   MapPin,
   Pencil,
   Plus,
@@ -25,7 +26,7 @@ import {
   normalizeSetupProgress,
 } from "@/lib/semester-setup-summary";
 import { cn } from "@/lib/utils";
-import { semesterProgress, semesterTiming } from "@/lib/workspace-display";
+import { isSemesterFinished, semesterProgress, semesterTiming } from "@/lib/workspace-display";
 import {
   orderWorkspaceSemesters,
   semesterCardDestination,
@@ -87,62 +88,54 @@ function CurrentSemesterCard({
   semester: Semester;
   href: string;
 }) {
-  const { week, totalWeeks, daysLeft, percentage } = semesterProgress(semester);
+  const { daysLeft, percentage } = semesterProgress(semester);
 
+  // Like a list row: the whole card opens the semester and the chevron says so.
   return (
     <section
       aria-labelledby="current-semester"
-      className="rounded-xl border border-border bg-card p-4 sm:p-5"
+      className="group relative rounded-xl border border-border bg-card p-4 transition-colors hover:bg-accent/60 focus-within:bg-accent/60 active:bg-accent sm:p-5 motion-reduce:transition-none"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-muted-foreground">Current semester</p>
-          <h2
-            id="current-semester"
-            className="mt-0.5 truncate text-lg font-semibold text-foreground"
+      <div className="flex items-center justify-between gap-3">
+        <h2
+          id="current-semester"
+          className="min-w-0 truncate text-lg font-semibold text-foreground"
+        >
+          <Link
+            to={href}
+            className="after:absolute after:inset-0 after:rounded-xl after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring"
           >
             {semester.name}
-          </h2>
-        </div>
-        <StatusBadge tone="running" label="Running" />
-      </div>
-
-      <div className="mt-4 space-y-1.5">
-        <div className="flex items-center justify-between gap-3 text-sm">
-          <span className="font-medium tabular-nums text-foreground">
-            Week {week} of {totalWeeks}
-          </span>
-          <span className="tabular-nums text-muted-foreground">
-            {daysLeft === 0
-              ? "Last day"
-              : `${daysLeft} ${daysLeft === 1 ? "day" : "days"} left`}
-          </span>
-        </div>
-        <div
-          role="progressbar"
-          aria-label={`${percentage}% of ${semester.name} has passed`}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={percentage}
-          className="h-2 overflow-hidden rounded-full bg-muted"
-        >
-          <div
-            className="h-full rounded-full bg-primary"
-            style={{ width: `${percentage}%` }}
+          </Link>
+        </h2>
+        <div className="flex shrink-0 items-center gap-1">
+          <StatusBadge {...semesterTiming(semester)} />
+          <ChevronRight
+            className="h-5 w-5 text-muted-foreground transition-[color,transform] group-hover:translate-x-0.5 group-hover:text-primary group-focus-within:text-primary motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"
+            aria-hidden="true"
           />
         </div>
-        <p className="text-sm tabular-nums text-muted-foreground">
-          {formatDate(semester.startDate)} – {formatDate(semester.endDate)}
-        </p>
       </div>
 
-      <Link
-        to={href}
-        className={cn(buttonVariants(), "mt-4 min-h-11 w-full gap-1.5 sm:w-auto")}
+      <div
+        role="progressbar"
+        aria-label={`${percentage}% of ${semester.name} has passed`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percentage}
+        className="mt-4 h-2 overflow-hidden rounded-full bg-muted"
       >
-        Open semester
-        <ArrowRight className="h-4 w-4" aria-hidden="true" />
-      </Link>
+        <div
+          className="h-full rounded-full bg-primary"
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 text-sm tabular-nums text-muted-foreground">
+        <span>{formatDate(semester.startDate)} – {formatDate(semester.endDate)}</span>
+        <span>
+          {daysLeft === 0 ? "Last day" : `${daysLeft} ${daysLeft === 1 ? "day" : "days"} left`}
+        </span>
+      </div>
     </section>
   );
 }
@@ -152,7 +145,7 @@ export default function CenterDashboard() {
   const { isAdmin } = useAuth();
   const canManageCenter = isAdmin();
   const centerQuery = useCenter(centerId);
-  const semestersQuery = useSemestersByCenter(centerId);
+  const semestersQuery = useSemestersByCenter(centerId, true, true);
   const setupSummariesQuery = useSemesterSetupSummaries(
     centerId,
     canManageCenter,
@@ -190,17 +183,29 @@ export default function CenterDashboard() {
   const availableSemesters = semesters.filter(
     (semester) => semester.status !== "DRAFT",
   );
+  // isSemesterFinished is the server's rule (India date) for who can open what.
   const currentSemester = availableSemesters.find(
-    (semester) => semesterTiming(semester).tone === "running",
+    (semester) => semesterTiming(semester).tone === "running" && !isSemesterFinished(semester),
   );
   const otherSemesters = availableSemesters.filter(
     (semester) => semester !== currentSemester,
   );
+  // Staff see finished semesters as history only; the server refuses to open them.
+  const semesterHref = (semester: Semester) =>
+    !canManageCenter && isSemesterFinished(semester)
+      ? undefined
+      : semesterCardDestination(projectId, centerId, semester);
   const newSemesterHref = `/projects/${projectId}/centers/${centerId}/semesters/new`;
+  // Staff can't add a semester, so an empty list beside the current one tells
+  // them nothing.
+  const showSemesterList = canManageCenter || !currentSemester || otherSemesters.length > 0;
 
   return (
     <WorkspacePage
-      className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start lg:gap-8"
+      className={cn(
+        "grid gap-6 lg:items-start lg:gap-8",
+        showSemesterList && "lg:grid-cols-[minmax(0,1fr)_24rem]",
+      )}
       withMobileAction={canManageCenter}
     >
       <div className="min-w-0 space-y-6">
@@ -310,64 +315,66 @@ export default function CenterDashboard() {
         )}
       </div>
 
-      <section aria-labelledby="center-semesters" className="space-y-3 lg:sticky lg:top-4">
-        <div className="flex items-end justify-between gap-3">
-          <h2 id="center-semesters" className="text-lg font-semibold text-foreground">
-            {currentSemester ? "Other semesters" : "Semesters"}{" "}
-            <span className="font-normal tabular-nums text-muted-foreground">{otherSemesters.length}</span>
-          </h2>
-          {canManageCenter && (
-            <PrimaryAction to={newSemesterHref} icon={<Plus className="h-5 w-5" aria-hidden="true" />}>
-              New semester
-            </PrimaryAction>
+      {showSemesterList && (
+        <section aria-labelledby="center-semesters" className="space-y-3 lg:sticky lg:top-20">
+          <div className="flex items-end justify-between gap-3">
+            <h2 id="center-semesters" className="text-lg font-semibold text-foreground">
+              {currentSemester ? "Other semesters" : "Semesters"}{" "}
+              <span className="font-normal tabular-nums text-muted-foreground">{otherSemesters.length}</span>
+            </h2>
+            {canManageCenter && (
+              <PrimaryAction to={newSemesterHref} icon={<Plus className="h-5 w-5" aria-hidden="true" />}>
+                New semester
+              </PrimaryAction>
+            )}
+          </div>
+  
+          {otherSemesters.length > 0 ? (
+            <EntityList label="Semesters">
+              {otherSemesters.map((semester) => (
+                <EntityRow
+                  key={semester.id}
+                  href={semesterHref(semester)}
+                  title={semester.name}
+                  leading={
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <CalendarDays className="h-5 w-5" aria-hidden="true" />
+                    </span>
+                  }
+                  status={<StatusBadge {...semesterTiming(semester)} />}
+                  meta={
+                    <span className="tabular-nums">
+                      {formatDate(semester.startDate)} – {formatDate(semester.endDate)}
+                    </span>
+                  }
+                />
+              ))}
+            </EntityList>
+          ) : currentSemester ? (
+            <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+              No past or upcoming semesters yet.
+            </p>
+          ) : (
+            <EmptyState
+              icon={CalendarDays}
+              title={
+                canManageCenter
+                  ? draftSummaries.length > 0
+                    ? "No active semesters yet"
+                    : "Create this centre's first semester"
+                  : "No semesters are available"
+              }
+              description={
+                canManageCenter
+                  ? draftSummaries.length > 0
+                    ? "Finish the draft setup above, then activate it."
+                    : "Start a semester draft, then set up students and staff."
+                  : "Ask an administrator to create or assign a semester."
+              }
+            />
           )}
-        </div>
-
-        {otherSemesters.length > 0 ? (
-          <EntityList label="Semesters">
-            {otherSemesters.map((semester) => (
-              <EntityRow
-                key={semester.id}
-                href={semesterCardDestination(projectId, centerId, semester)}
-                title={semester.name}
-                leading={
-                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <CalendarDays className="h-5 w-5" aria-hidden="true" />
-                  </span>
-                }
-                status={<StatusBadge {...semesterTiming(semester)} />}
-                meta={
-                  <span className="tabular-nums">
-                    {formatDate(semester.startDate)} – {formatDate(semester.endDate)}
-                  </span>
-                }
-              />
-            ))}
-          </EntityList>
-        ) : currentSemester ? (
-          <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-            No past or upcoming semesters yet.
-          </p>
-        ) : (
-          <EmptyState
-            icon={CalendarDays}
-            title={
-              canManageCenter
-                ? draftSummaries.length > 0
-                  ? "No active semesters yet"
-                  : "Create this centre's first semester"
-                : "No semesters are available"
-            }
-            description={
-              canManageCenter
-                ? draftSummaries.length > 0
-                  ? "Finish the draft setup above, then activate it."
-                  : "Start a semester draft, then set up students and staff."
-                : "Ask an administrator to create or assign a semester."
-            }
-          />
-        )}
-      </section>
+        </section>
+      )}
     </WorkspacePage>
   );
 }

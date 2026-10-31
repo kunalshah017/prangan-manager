@@ -32,6 +32,15 @@ export const openSemesterAssignment = (today: string = indiaToday()) => ({
   ],
 });
 
+// The opposite of an open semester: archived or past its last day. Used only
+// to list past semesters; it never grants access.
+export const finishedSemester = (today: string = indiaToday()) => ({
+  OR: [
+    { status: "ARCHIVED" as const },
+    { endDate: { lt: new Date(`${today}T00:00:00.000Z`) } },
+  ],
+});
+
 export const finishedSemesterMessage = (semesterName: string) =>
   `${semesterName} has finished. Assign a current semester instead.`;
 
