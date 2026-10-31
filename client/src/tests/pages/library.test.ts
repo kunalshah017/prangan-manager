@@ -145,7 +145,7 @@ describe("library PDF performance", () => {
     );
 
     expect(packageJson.dependencies["pdfjs-dist"]).toBe("5.4.296");
-    expect(packageJson.dependencies["react-pdf"]).toBe("^10.2.0");
+    expect(packageJson.dependencies["react-pdf"]).toBe("^10.5.0");
   });
 
   it("removes the obsolete IndexedDB full-book cache", async () => {

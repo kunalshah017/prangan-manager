@@ -35,7 +35,7 @@ export async function apiRequest<T>(
   const unsafeMethod = ["POST", "PUT", "PATCH", "DELETE"].includes(
     (options.method || "GET").toUpperCase(),
   );
-  let csrfToken: string | null = null;
+  let csrfToken: string | null;
   try {
     csrfToken = unsafeMethod ? await getCsrfToken(API_BASE_URL) : null;
   } catch {

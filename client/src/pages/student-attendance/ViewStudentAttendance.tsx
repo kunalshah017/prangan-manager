@@ -355,11 +355,11 @@ export const ViewStudentAttendance = () => {
           levels.forEach((level) => {
             summaryRows.push([levelLabel(level), ...Array(columns - 1).fill("")]);
             Array.from(students.values()).filter((student) => student.level === level).sort((a, b) => a.name.localeCompare(b.name)).forEach((student) => {
-              let present = 0; let absent = 0; let holidays = 0;
+              let present = 0; let absent = 0;
               const monthly = months.flatMap(({ key }) => {
                 const value = student.months.get(key);
                 if (!value) return ["-", "-", "-"];
-                present += value.present; absent += value.absent; holidays += value.holidays;
+                present += value.present; absent += value.absent;
                 const total = value.present + value.absent;
                 return [value.present, value.absent, `${total ? (value.present / total * 100).toFixed(1) : "0.0"}%`];
               });

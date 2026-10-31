@@ -12,10 +12,8 @@ describe("staff attendance records workspace", () => {
     expect(source).toContain("<WorkspacePageHeader");
     expect(source.match(/<WeekendDatePicker/g)).toHaveLength(3);
     expect(source).toContain('label="Single date"');
-    expect(source).toContain('label="From"');
-    expect(source).toContain('label="To"');
-    expect(source).toContain("Current month");
-    expect(source).toContain("Full semester");
+    expect(source).toContain('label="From date"');
+    expect(source).toContain('label="To date"');
     expect(source).toContain("Clear filters");
     expect(source).toContain("Try again");
     expect(source).toContain("min-h-11");

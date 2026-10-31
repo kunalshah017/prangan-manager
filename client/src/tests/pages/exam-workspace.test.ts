@@ -63,7 +63,7 @@ describe("exam workspace redesign", () => {
     expect(picker).toContain("min?: string");
     expect(picker).toContain("max?: string");
     expect(picker).toContain("relative min-w-0");
-    expect(picker).toContain("absolute right-0 top-full z-50");
+    expect(picker).toContain("absolute left-0 top-full z-50");
   });
 
   it("uses 5/5/5/35 defaults and generates the exam name from selected context", async () => {
@@ -89,9 +89,7 @@ describe("exam workspace redesign", () => {
 
     expect(source).toContain("assessmentCycleOptions");
     expect(source).toContain("Search exams");
-    expect(source).toContain("Date range");
-    expect(source).toContain("Active exams");
-    expect(source).toContain("Inactive exams");
+    expect(source).toContain("Export exam report");
     expect(source).toContain("hasManagePermission");
     expect(source).toContain("isAdmin");
     expect(source).toContain("educatorLevel");

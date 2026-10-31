@@ -217,7 +217,7 @@ const BankDetails: React.FC = () => {
         }
         // Expect UPI QR: upi://pay?...&pa=<upiId>
         const text = result.text.trim();
-        let extracted = '';
+        let extracted: string;
         try {
             if (text.startsWith('upi://')) {
                 const url = new URL(text);

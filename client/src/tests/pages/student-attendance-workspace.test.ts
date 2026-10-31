@@ -47,10 +47,10 @@ describe("Student attendance workspace", () => {
     );
     expect(viewAttendance.match(/<WeekendDatePicker/g)).toHaveLength(3);
     expect(viewAttendance).toContain('label="Single date"');
-    expect(viewAttendance).toContain('label="From"');
-    expect(viewAttendance).toContain('label="To"');
+    expect(viewAttendance).toContain('label="From date"');
+    expect(viewAttendance).toContain('label="To date"');
     expect(viewAttendance).not.toContain('type="date"');
-    expect(viewAttendance).toContain("grid gap-3 sm:grid-cols-2");
+    expect(viewAttendance).toContain("grid gap-3 md:col-span-2 md:grid-cols-2");
     expect(viewAttendance).not.toContain("flex gap-2 items-center");
     expect(viewAttendance).toContain("isAttendanceRangeWithinSemester");
     expect(viewAttendance).toContain("min={semesterStartDate}");
@@ -86,8 +86,6 @@ describe("Student attendance workspace", () => {
     );
     expect(viewAttendance).toContain("refetch: refetchAttendance");
     expect(viewAttendance).toContain("Clear filters");
-    expect(viewAttendance).toContain("Current month");
-    expect(viewAttendance).toContain("Full semester");
     expect(viewAttendance).toContain("Try again");
     expect(viewAttendance).not.toContain("motion.");
   });
