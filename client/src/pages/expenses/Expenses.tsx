@@ -27,7 +27,8 @@ import {
   useVoidExpense,
 } from "@/hooks/useExpenseQueries";
 import { useSemester } from "@/hooks/useSemesterQueries";
-import { formatINR, indiaBusinessDate } from "@/lib/remuneration";
+import { formatCalendarDate, formatMoment, indiaToday } from "@/lib/dates";
+import { formatINR } from "@/lib/remuneration";
 import type { Expense } from "@/types/api";
 
 const categories = [
@@ -40,22 +41,14 @@ const categories = [
   "Other",
 ];
 
-const today = () => new Date().toISOString().slice(0, 10);
-const dateOnly = (value: string) =>
-  new Date(`${value}T00:00:00.000Z`).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-
-const emptyForm = {
-  incurredOn: today(),
+// New expenses default to today in India, where they are spent.
+const emptyForm = () => ({
+  incurredOn: indiaToday(),
   title: "",
   category: "",
   amount: "",
   notes: "",
-};
+});
 
 const ExpenseSource = ({ expense }: { expense: Expense }) => (
   <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
@@ -127,7 +120,7 @@ export const Expenses = () => {
         notes: form.notes.trim() || undefined,
       });
       setAddOpen(false);
-      setForm(emptyForm);
+      setForm(emptyForm());
       toast.success("Expense added.");
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Expense could not be added.");
@@ -278,7 +271,7 @@ export const Expenses = () => {
                     <tbody className="divide-y">
                       {data.expenses.map((expense) => (
                         <tr key={expense.id} className="align-top hover:bg-muted/30">
-                          <td className="whitespace-nowrap px-4 py-4">{dateOnly(expense.incurredOn)}</td>
+                          <td className="whitespace-nowrap px-4 py-4">{formatCalendarDate(expense.incurredOn)}</td>
                           <td className="max-w-sm px-4 py-4"><p className="font-semibold">{expense.title}</p>{expense.notes && <p className="mt-1 text-muted-foreground">{expense.notes}</p>}<ExpenseSource expense={expense} /></td>
                           <td className="px-4 py-4">{expense.category}</td>
                           <td className="whitespace-nowrap px-4 py-4 text-right font-semibold tabular-nums">{formatINR(expense.amount)}</td>
@@ -295,7 +288,7 @@ export const Expenses = () => {
                 {data.expenses.map((expense) => (
                   <article key={expense.id} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-3">
-                      <div><p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><CalendarDays className="h-4 w-4 text-primary" />{dateOnly(expense.incurredOn)}</p><h2 className="mt-2 font-semibold">{expense.title}</h2><p className="mt-1 text-sm text-muted-foreground">{expense.category}</p></div>
+                      <div><p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><CalendarDays className="h-4 w-4 text-primary" />{formatCalendarDate(expense.incurredOn)}</p><h2 className="mt-2 font-semibold">{expense.title}</h2><p className="mt-1 text-sm text-muted-foreground">{expense.category}</p></div>
                       <p className="shrink-0 text-lg font-semibold tabular-nums">{formatINR(expense.amount)}</p>
                     </div>
                     <div className="mt-3 flex items-center justify-between gap-3">
@@ -304,7 +297,7 @@ export const Expenses = () => {
                       </span>
                       {expense.status === "VOIDED" && expense.voidedAt && (
                         <span className="text-xs text-muted-foreground">
-                          Voided {dateOnly(indiaBusinessDate(expense.voidedAt) ?? "")}
+                          Voided {formatMoment(expense.voidedAt, { dateStyle: "medium" })}
                         </span>
                       )}
                     </div>

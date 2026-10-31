@@ -1,3 +1,4 @@
+import { isValidDateFormat } from "../utils/dateHelpers.js";
 import { AssessmentCycle } from "../generated/prisma/index.js";
 import type {
   CreateExamRequest,
@@ -31,14 +32,10 @@ const isNonblankString = (input: unknown): input is string =>
 const isPositiveMark = (input: unknown): input is number =>
   typeof input === "number" && Number.isFinite(input) && input > 0;
 
-const isDate = (input: unknown): input is string =>
-  typeof input === "string" &&
-  input.trim().length > 0 &&
-  !Number.isNaN(Date.parse(input));
-
+// An exam is held on a calendar day: "YYYY-MM-DD", a Saturday or Sunday.
 const isWeekendDate = (input: unknown): input is string => {
-  if (!isDate(input)) return false;
-  const day = new Date(input).getUTCDay();
+  if (typeof input !== "string" || !isValidDateFormat(input)) return false;
+  const day = new Date(`${input}T00:00:00.000Z`).getUTCDay();
   return day === 0 || day === 6;
 };
 

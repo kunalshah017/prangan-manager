@@ -532,8 +532,6 @@ function App() {
           confirmText={pwaRecovery?.kind === 'update' ? 'Update now' : 'Clear cache and reload'}
           variant={pwaRecovery?.kind === 'update' ? 'default' : 'warning'}
         />
-
-        {/* {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />} */}
       </QueryClientProvider>
     </>
   )

@@ -29,17 +29,10 @@ import {
 import { cn } from "@/lib/utils";
 import { levelName } from "@/lib/levels";
 import type { Student } from "@/types/api";
+import { formatCalendarDate } from "@/lib/dates";
 
 type RosterView = "all" | "incomplete";
 type LevelFilter = "ALL" | string;
-
-const formatDate = (value: string) =>
-  new Date(value).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
 
 const whatsAppHref = (value: string) => {
   const digits = value.replace(/\D/g, "");
@@ -191,7 +184,7 @@ function StudentRosterCard({ student, editHref, context }: { student: Student; e
             {missing.length > 0 && <span className="rounded-full bg-warning/15 px-2.5 py-1 text-xs font-semibold text-warning-foreground">{completion}% complete</span>}
           </div>
           <div className="mt-3 grid gap-1.5 text-sm text-muted-foreground sm:grid-cols-2">
-            {student.dob && <p className="flex items-center gap-2"><CalendarDays className="h-4 w-4" aria-hidden="true" />{formatDate(student.dob)}</p>}
+            {student.dob && <p className="flex items-center gap-2"><CalendarDays className="h-4 w-4" aria-hidden="true" />{formatCalendarDate(student.dob)}</p>}
             {student.schoolName && <p className="flex items-center gap-2 truncate"><GraduationCap className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="truncate">{student.schoolName}</span></p>}
           </div>
         </div>

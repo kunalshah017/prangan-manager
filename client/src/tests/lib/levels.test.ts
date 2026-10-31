@@ -68,7 +68,7 @@ describe("managed level helpers", () => {
     const secondary = academicLevel({ id: "secondary", journeyOrder: 200 });
     const source = [
       { id: "unmapped", name: "Aarav", level: null },
-      { id: "secondary", name: "Aditi", level: secondary },
+      { id: "secondary", name: "Asha", level: secondary },
       { id: "primary-z", name: "Zoya", level: primary },
       { id: "primary-a", name: "Anaya", level: primary },
     ];

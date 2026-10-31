@@ -97,7 +97,11 @@ const LayoutShell = () => {
     }, [location.pathname]);
 
     const handleLogout = async () => {
-        await logout();
+        try {
+            await logout();
+        } catch {
+            // This device is signed out either way; see useLogout.
+        }
         navigate("/login");
     };
 

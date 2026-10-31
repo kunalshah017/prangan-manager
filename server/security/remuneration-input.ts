@@ -1,8 +1,5 @@
-const dateOnly = /^\d{4}-\d{2}-\d{2}$/;
-
-const validDateOnly = (value: string) =>
-  dateOnly.test(value) &&
-  new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value;
+import { isValidDateFormat } from "../utils/dateHelpers.js";
+import { hasAtMostTwoDecimals } from "../utils/money.js";
 
 export const parseRemunerationPeriodInput = (input: unknown) => {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
@@ -23,13 +20,13 @@ export const parseRemunerationPeriodInput = (input: unknown) => {
     typeof amountPerDay !== "number" ||
     !Number.isFinite(amountPerDay) ||
     amountPerDay < 0 ||
-    Math.round(amountPerDay * 100) !== amountPerDay * 100
+    !hasAtMostTwoDecimals(amountPerDay)
   ) {
     throw new Error(
       "Daily remuneration must be zero or more with at most two decimal places.",
     );
   }
-  if (typeof effectiveFrom !== "string" || !validDateOnly(effectiveFrom)) {
+  if (typeof effectiveFrom !== "string" || !isValidDateFormat(effectiveFrom)) {
     throw new Error("Effective from must be a valid date.");
   }
   return { userId, amountPerDay, effectiveFrom };

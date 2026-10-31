@@ -22,11 +22,24 @@ test("destructive fixtures require an explicit local development environment", (
       }),
     /ALLOW_DESTRUCTIVE_SEED=true/,
   );
+  const flags = {
+    NODE_ENV: "development",
+    ALLOW_LOCAL_SEED: "true",
+    ALLOW_DESTRUCTIVE_SEED: "true",
+  };
+  assert.throws(
+    () =>
+      assertDestructiveLocalSeedAllowed({
+        ...flags,
+        DATABASE_URL: "postgresql://u:p@ep-example-pooler.neon.tech/db",
+      }),
+    /localhost DATABASE_URL/,
+  );
+  assert.throws(() => assertDestructiveLocalSeedAllowed(flags), /localhost/);
   assert.doesNotThrow(() =>
     assertDestructiveLocalSeedAllowed({
-      NODE_ENV: "development",
-      ALLOW_LOCAL_SEED: "true",
-      ALLOW_DESTRUCTIVE_SEED: "true",
+      ...flags,
+      DATABASE_URL: "postgresql://u:p@localhost:5432/prangan_manager",
     }),
   );
 });

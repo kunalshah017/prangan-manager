@@ -8,14 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUser } from "@/hooks/useUserQueries";
 import { buttonVariants } from "@/lib/button-variants";
 import { cn } from "@/lib/utils";
-
-const formatDate = (value: string) =>
-    new Date(value).toLocaleDateString("en-GB", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-        timeZone: "UTC",
-    });
+import { formatCalendarDate, formatMoment } from "@/lib/dates";
 
 // The admin's view of a user: the same page everyone sees as their profile,
 // read-only, with editing handed to Edit user. Bank details arrive masked.
@@ -50,8 +43,8 @@ const UserDetails = () => {
         <DetailList items={[
             { label: "Phone", value: user.phone || "Not added" },
             { label: "Qualification", value: user.qualification || "Not added" },
-            { label: "Date of birth", value: user.dob ? formatDate(user.dob) : "Not added" },
-            { label: "Member since", value: formatDate(user.createdAt) },
+            { label: "Date of birth", value: user.dob ? formatCalendarDate(user.dob) : "Not added" },
+            { label: "Member since", value: formatMoment(user.createdAt, { dateStyle: "medium" }) },
             { label: "Address", value: user.address || "Not added", wide: true },
         ]} />
     );

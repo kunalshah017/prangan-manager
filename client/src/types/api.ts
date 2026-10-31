@@ -737,18 +737,6 @@ export interface ActiveUsersResponse {
   };
 }
 
-export interface MarkAttendanceRequest {
-  userId: string;
-  date: string;
-  status: "PRESENT" | "ABSENT" | "NOT_AVAILABLE" | "HOLIDAY";
-  roleAssignmentId: string;
-  projectId: string;
-  centerId: string;
-  semesterId: string;
-  notes?: string;
-  holidayReason?: string;
-}
-
 export interface BulkMarkAttendanceRequest {
   date: string;
   attendances: {
@@ -764,18 +752,6 @@ export interface BulkMarkAttendanceRequest {
 }
 
 // Student Attendance Request Types
-export interface MarkStudentAttendanceRequest {
-  studentId: string;
-  enrollmentId: string;
-  date: string;
-  status: "PRESENT" | "ABSENT" | "HOLIDAY";
-  projectId: string;
-  centerId: string;
-  semesterId: string;
-  notes?: string;
-  holidayReason?: string;
-}
-
 export interface BulkMarkStudentAttendanceRequest {
   date: string;
   status: "PRESENT" | "ABSENT" | "HOLIDAY";
@@ -789,11 +765,6 @@ export interface BulkMarkStudentAttendanceRequest {
     notes?: string;
   }[];
   holidayReason?: string;
-}
-
-export interface MarkAttendanceResponse {
-  message: string;
-  attendance: AttendanceRecord;
 }
 
 export interface BulkMarkAttendanceResponse {

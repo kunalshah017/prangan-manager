@@ -1,4 +1,5 @@
 import type { Center, Semester } from "@/types/api";
+import { indiaToday } from "@/lib/dates";
 
 export const projectStatus = (status?: "ACTIVE" | "INACTIVE") =>
   (status ?? "ACTIVE") === "ACTIVE"
@@ -14,10 +15,10 @@ export const sortCentresByRecentUpdate = (centres: Center[] | undefined) =>
 // Matches the server rule: a finished semester takes no new roles.
 export const isSemesterFinished = (
   semester: Pick<Semester, "status" | "endDate">,
-  today: string = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date()),
+  today: string = indiaToday(),
 ) => semester.status === "ARCHIVED" || semester.endDate.slice(0, 10) < today;
 
-// A semester's label comes from today's date, so the one being taught now
+// A semester's label comes from today's date in India, so the one being taught now
 // stands out; drafts and archived semesters keep their stored status.
 export const semesterTiming = (
   semester: Pick<Semester, "status" | "startDate" | "endDate">,
@@ -25,7 +26,7 @@ export const semesterTiming = (
 ) => {
   if (semester.status === "DRAFT") return { tone: "draft" as const, label: "Draft" };
   if (semester.status === "ARCHIVED") return { tone: "ended" as const, label: "Archived" };
-  const day = today.toISOString().slice(0, 10);
+  const day = indiaToday(today);
   if (day < semester.startDate.slice(0, 10)) return { tone: "inactive" as const, label: "Upcoming" };
   if (day > semester.endDate.slice(0, 10)) return { tone: "ended" as const, label: "Ended" };
   return { tone: "running" as const, label: "Active" };
@@ -40,7 +41,7 @@ export function semesterProgress(
 ) {
   const start = Date.parse(semester.startDate.slice(0, 10));
   const end = Date.parse(semester.endDate.slice(0, 10));
-  const day = Date.parse(today.toISOString().slice(0, 10));
+  const day = Date.parse(indiaToday(today));
   const totalDays = Math.max(1, Math.round((end - start) / DAY_MS) + 1);
   const elapsedDays = Math.min(
     totalDays,

@@ -1,3 +1,4 @@
+import { escapeHtml } from "./escape-html.js";
 import {
   CommittedDays,
   SubRole,
@@ -21,14 +22,6 @@ const committedDayLabels: Record<CommittedDays, string> = {
   [CommittedDays.SUNDAY]: "Sunday",
   [CommittedDays.BOTH]: "Saturday and Sunday",
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 
 const singleLine = (value: string) => value.replace(/[\r\n]+/g, " ").trim();
 

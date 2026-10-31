@@ -8,7 +8,7 @@ import {
 
 test("one continuing message consolidates every next-semester assignment", () => {
   const message = renderSemesterActivationEmail({
-    recipientName: "Aditi",
+    recipientName: "Asha",
     centerName: "Tulip Centre",
     semesterName: "Year 2026-27",
     decision: "ASSIGN",
@@ -27,7 +27,7 @@ test("one continuing message consolidates every next-semester assignment", () =>
   });
 
   assert.match(message.subject, /welcome.*2026-27/i);
-  assert.match(message.html, /Aditi/);
+  assert.match(message.html, /Asha/);
   assert.match(message.html, /Tulip Centre/);
   assert.match(message.html, /Educator/);
   assert.match(message.html, /Primary B/);
@@ -41,7 +41,7 @@ test("one continuing message consolidates every next-semester assignment", () =>
 
 test("a departing user receives an appreciative centre farewell", () => {
   const message = renderSemesterActivationEmail({
-    recipientName: "Rossni",
+    recipientName: "Meera",
     centerName: "Tulip Centre",
     semesterName: "Year 2026-27",
     decision: "NOT_CONTINUING",
@@ -86,7 +86,7 @@ test("job building produces one deduplicated message per transition user", () =>
       {
         userId: "user-1",
         email: "aditi@example.org",
-        name: "Aditi",
+        name: "Asha",
         decision: "ASSIGN",
         assignments: [
           { subRole: SubRole.EDUCATOR, levelName: "Primary B" },
@@ -97,7 +97,7 @@ test("job building produces one deduplicated message per transition user", () =>
       {
         userId: "user-2",
         email: "rossni@example.org",
-        name: "Rossni",
+        name: "Meera",
         decision: "NOT_CONTINUING",
         assignments: [],
         dailyRate: null,
@@ -133,7 +133,7 @@ test("job building refuses to produce multiple emails for a repeated user", () =
   const repeatedUser = {
     userId: "user-1",
     email: "aditi@example.org",
-    name: "Aditi",
+    name: "Asha",
     decision: "ASSIGN" as const,
     assignments: [{ subRole: SubRole.EDUCATOR, levelName: "Primary B" }],
     dailyRate: 750,

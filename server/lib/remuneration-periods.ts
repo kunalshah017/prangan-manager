@@ -1,24 +1,11 @@
+import { isValidDateFormat } from "../utils/dateHelpers.js";
+import { hasAtMostTwoDecimals } from "../utils/money.js";
+
 export type RemunerationPeriod = {
   effectiveFrom: string;
   effectiveTo: string | null;
   amountPerDay: number;
 };
-
-const dateOnly = /^\d{4}-\d{2}-\d{2}$/;
-
-const isDateOnly = (value: string) =>
-  dateOnly.test(value) &&
-  new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value;
-
-export const findRemunerationPeriod = <T extends RemunerationPeriod>(
-  periods: T[],
-  attendanceDate: string,
-): T | null =>
-  periods.find(
-    (period) =>
-      period.effectiveFrom <= attendanceDate &&
-      (period.effectiveTo === null || attendanceDate <= period.effectiveTo),
-  ) ?? null;
 
 export const validateRemunerationPeriods = (
   periods: RemunerationPeriod[],
@@ -34,14 +21,14 @@ export const validateRemunerationPeriods = (
     if (
       !Number.isFinite(period.amountPerDay) ||
       period.amountPerDay < 0 ||
-      Math.round(period.amountPerDay * 100) !== period.amountPerDay * 100
+      !hasAtMostTwoDecimals(period.amountPerDay)
     ) {
       errors.push(
         "Daily remuneration must be zero or more with at most two decimal places.",
       );
     }
     if (
-      !isDateOnly(period.effectiveFrom) ||
+      !isValidDateFormat(period.effectiveFrom) ||
       period.effectiveFrom < semesterStart ||
       period.effectiveFrom > semesterEnd
     ) {
@@ -49,7 +36,7 @@ export const validateRemunerationPeriods = (
     }
     if (
       period.effectiveTo !== null &&
-      (!isDateOnly(period.effectiveTo) ||
+      (!isValidDateFormat(period.effectiveTo) ||
         period.effectiveTo < semesterStart ||
         period.effectiveTo > semesterEnd)
     ) {

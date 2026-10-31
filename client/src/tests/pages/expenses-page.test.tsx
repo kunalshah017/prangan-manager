@@ -41,7 +41,8 @@ describe("administrator expenses page", () => {
     expect(page).toContain("value={form.");
     expect(page).toContain("useCreateManualExpense");
     expect(page).toContain("useVoidExpense");
-    expect(page).toContain("indiaBusinessDate(expense.voidedAt)");
+    // A void is a moment: shown in the viewer's own time zone.
+    expect(page).toContain("formatMoment(expense.voidedAt");
     expect(page).not.toContain("expense.voidedAt.slice");
     expect(page).not.toMatch(/delete expense/i);
   });

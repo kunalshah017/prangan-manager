@@ -12,6 +12,7 @@ import ImageUpload from '@/components/ui/image-upload';
 import { PersonNameFields, type PersonNameField } from '@/components/ui/person-name-fields';
 import { useAuth } from '@/hooks/useAuth';
 import { ThemedLogo } from "@/components/ThemedLogo";
+import { indiaToday } from '@/lib/dates';
 
 const Register = () => {
     const [firstName, setFirstName] = useState('');
@@ -70,9 +71,7 @@ const Register = () => {
         if (!dateOfBirth) {
             newErrors.dateOfBirth = 'Date of birth is required';
         } else {
-            const birthDate = new Date(dateOfBirth);
-            const today = new Date();
-            const age = today.getFullYear() - birthDate.getFullYear();
+            const age = Number(indiaToday().slice(0, 4)) - Number(dateOfBirth.slice(0, 4));
             if (age < 18 || age > 100) {
                 newErrors.dateOfBirth = 'Age must be between 18 and 100 years';
             }
@@ -207,6 +206,7 @@ const Register = () => {
                                         placeholder="Upload your profile image"
                                         disabled={isLoading}
                                         variant="rounded"
+                                        forRegistration
                                         className="w-full"
                                     />
                                     {errors.profileImageUrl && (

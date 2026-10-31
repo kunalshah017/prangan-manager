@@ -46,22 +46,16 @@ test("user-attendance controllers enforce the shared scope policy before writes 
   );
   assertAuthorizationPrecedesService(
     source,
-    "markAttendanceController",
-    "markAttendance(attendanceData, markedBy)",
-  );
-  assertAuthorizationPrecedesService(
-    source,
     "markBulkAttendanceController",
     "markBulkAttendance(bulkData, markedBy)",
   );
 });
 
-test("attendance list and summary deny unscoped non-admin requests before service reads", async () => {
+test("attendance list denies unscoped non-admin requests before service reads", async () => {
   const source = await readSource("../../controllers/attendance.controller.ts");
 
   for (const [exportName, serviceCall] of [
     ["getAttendanceController", "getAttendanceRecords(requestData)"],
-    ["getAttendanceSummaryController", "getAttendanceSummary(requestData)"],
   ] as const) {
     const block = controllerBlock(source, exportName);
     assert.match(block, /request\.user\.role === Role\.ADMIN/);
@@ -82,69 +76,33 @@ test("attendance list lets a volunteer read only their own records without a sco
   assert.match(block, /const requestData: GetAttendanceRequest = \{[\s\S]*userId,/);
   // A volunteer's own read covers only roles they still hold.
   assert.match(block, /activeAssignmentsOnly: !isAdmin && isOwnRecords,/);
-  // The summary endpoint keeps the full scope policy.
-  const summary = controllerBlock(source, "getAttendanceSummaryController");
-  assert.doesNotMatch(summary, /isOwnRecords/);
-});
-
-test("auto-mark validates a complete canonical scope after its admin guard", async () => {
-  const source = await readSource("../../controllers/attendance.controller.ts");
-  const block = controllerBlock(source, "autoMarkAttendanceController");
-  const adminGuardIndex = block.indexOf("request.user.role !== Role.ADMIN");
-  const scopeValidationIndex = block.indexOf(
-    "hasCompleteAttendanceScope(scope)",
-  );
-  const serviceIndex = block.indexOf("autoMarkAttendance(");
-
-  assert.ok(adminGuardIndex >= 0, "expected admin-only guard");
-  assert.ok(
-    scopeValidationIndex > adminGuardIndex,
-    "expected scope validation after admin guard",
-  );
-  assert.ok(
-    serviceIndex > scopeValidationIndex,
-    "expected service call after scope validation",
-  );
-});
-
-test("single attendance marking returns 400 for an invalid role assignment", async () => {
-  const source = await readSource("../../controllers/attendance.controller.ts");
-  const block = controllerBlock(source, "markAttendanceController");
-
-  assert.match(
-    block,
-    /Invalid attendance role assignment[\s\S]*reply\.status\(400\)/,
-  );
 });
 
 test("user attendance writes parse raw bodies and public catches do not expose error details", async () => {
   const source = await readSource("../../controllers/attendance.controller.ts");
 
   assert.match(source, /security\/attendance-input\.js/);
-  for (const [exportName, parser] of [
-    ["markAttendanceController", "parseMarkAttendanceRequest(request.body)"],
-    [
-      "markBulkAttendanceController",
-      "parseMarkBulkAttendanceRequest(request.body)",
-    ],
-  ] as const) {
-    const block = controllerBlock(source, exportName);
-    const parserIndex = block.indexOf(parser);
-    const serviceIndex = block.indexOf(
-      exportName === "markAttendanceController"
-        ? "markAttendance(attendanceData, markedBy)"
-        : "markBulkAttendance(bulkData, markedBy)",
-    );
+  const block = controllerBlock(source, "markBulkAttendanceController");
+  const parserIndex = block.indexOf("parseMarkBulkAttendanceRequest(request.body)");
+  const serviceIndex = block.indexOf("markBulkAttendance(bulkData, markedBy)");
 
-    assert.ok(parserIndex >= 0, `${exportName} parses raw input`);
-    assert.ok(
-      serviceIndex > parserIndex,
-      `${exportName} parses before service work`,
-    );
-  }
+  assert.ok(parserIndex >= 0, "bulk marking parses raw input");
+  assert.ok(serviceIndex > parserIndex, "bulk marking parses before service work");
 
   assert.doesNotMatch(source, /details:\s*error\.message/);
   assert.doesNotMatch(source, /error:\s*error\.message/);
+});
+
+test("staff attendance is only written for weekend days inside the semester", async () => {
+  const source = await readSource("../../controllers/attendance.controller.ts");
+  const block = controllerBlock(source, "markBulkAttendanceController");
+  const weekendIndex = block.indexOf("getRelevantCommittedDays(bulkData.date)");
+  const semesterIndex = block.indexOf("assertStudentAttendanceDatesWithinSemester(");
+  const serviceIndex = block.indexOf("markBulkAttendance(bulkData, markedBy)");
+
+  assert.ok(weekendIndex >= 0, "bulk marking checks the weekday");
+  assert.ok(semesterIndex >= 0, "bulk marking checks the semester range");
+  assert.ok(serviceIndex > weekendIndex && serviceIndex > semesterIndex);
 });
 
 test("user attendance writes validate role-assignment linkage with one scoped lookup before writing", async () => {
@@ -156,7 +114,6 @@ test("user attendance writes validate role-assignment linkage with one scoped lo
   );
 
   for (const [functionName, writeCall] of [
-    ["markAttendance", "prisma.userAttendance.findFirst("],
     ["markBulkAttendance", "prisma.$transaction("],
   ] as const) {
     const block = controllerBlock(source, functionName);
@@ -191,16 +148,8 @@ test("student-attendance controllers resolve exact scoped student access before 
   );
 
   for (const [exportName, serviceCall] of [
-    ["markStudentAttendance", "markAttendance("],
     ["markBulkStudentAttendance", "markBulkAttendance("],
     ["getStudentAttendance", "StudentAttendanceService.getAttendance("],
-    ["getAttendanceByDate", "getAttendanceByDate("],
-    ["getStudentsWithoutAttendance", "getStudentsWithoutAttendance("],
-    [
-      "getStudentAttendanceById",
-      "StudentAttendanceService.getStudentAttendance(",
-    ],
-    ["getStudentAttendanceStats", "getStudentAttendanceStats("],
   ] as const) {
     const block = controllerBlock(source, exportName);
     const authorizationIndex = block.indexOf("requireStudentAttendanceAccess(");
@@ -215,44 +164,6 @@ test("student-attendance controllers resolve exact scoped student access before 
       `${exportName} calls service after resolving student attendance access`,
     );
   }
-});
-
-test("student-attendance mutations read persisted scope before authorization and mutation", async () => {
-  const source = await readSource(
-    "../../controllers/student-attendance.controller.ts",
-  );
-
-  for (const [exportName, serviceCall] of [
-    ["updateStudentAttendance", "updateAttendance("],
-    ["deleteStudentAttendance", "deleteAttendance("],
-  ] as const) {
-    const block = controllerBlock(source, exportName);
-    const scopeIndex = block.indexOf("getAttendanceScope(attendanceId)");
-    const authorizationIndex = block.indexOf("requireStudentAttendanceAccess(");
-    const serviceIndex = block.indexOf(serviceCall);
-
-    assert.ok(
-      scopeIndex >= 0,
-      `${exportName} looks up persisted attendance scope`,
-    );
-    assert.ok(
-      authorizationIndex > scopeIndex,
-      `${exportName} authorizes persisted scope after lookup`,
-    );
-    assert.ok(
-      serviceIndex > authorizationIndex,
-      `${exportName} mutates after authorization`,
-    );
-  }
-});
-
-test("bulk attendance estimate remains free of student attendance scope resolution", async () => {
-  const source = await readSource(
-    "../../controllers/student-attendance.controller.ts",
-  );
-  const block = controllerBlock(source, "getBulkAttendanceEstimate");
-
-  assert.equal(block.includes("resolveStudentAttendanceAccess("), false);
 });
 
 test("student-attendance controller public errors do not expose internal error messages", async () => {

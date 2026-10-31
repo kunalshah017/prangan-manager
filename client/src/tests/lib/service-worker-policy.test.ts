@@ -2,8 +2,6 @@ import { readFile } from "node:fs/promises";
 import { createContext, runInContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
 
-import { shouldHandleServiceWorkerRequest } from "@/lib/service-worker-policy";
-
 const origin = "https://prangan.example";
 
 type WorkerEvent = Record<string, unknown>;
@@ -74,101 +72,10 @@ const workerRequest = (
   };
 };
 
-const request = (
-  overrides: Partial<
-    Parameters<typeof shouldHandleServiceWorkerRequest>[0]
-  > = {},
-) => ({
-  method: "GET",
-  url: `${origin}/dashboard`,
-  origin,
-  destination: "",
-  mode: "cors",
-  hasAuthorization: false,
-  ...overrides,
-});
-
-describe("shouldHandleServiceWorkerRequest", () => {
-  it.each(["POST", "PUT", "PATCH", "DELETE"])(
-    "bypasses %s requests",
-    (method) => {
-      expect(shouldHandleServiceWorkerRequest(request({ method }))).toBe(false);
-    },
-  );
-
-  it("bypasses external origins", () => {
-    expect(
-      shouldHandleServiceWorkerRequest(
-        request({ url: "https://cdn.example/app.js" }),
-      ),
-    ).toBe(false);
-  });
-
-  it.each(["/api", "/api/", "/api/v1/users", "/api/v1/users?active=true"])(
-    "bypasses same-origin API path %s",
-    (pathname) => {
-      expect(
-        shouldHandleServiceWorkerRequest(
-          request({ url: `${origin}${pathname}` }),
-        ),
-      ).toBe(false);
-    },
-  );
-
-  it("does not treat an api-prefixed ordinary path as the API", () => {
-    expect(
-      shouldHandleServiceWorkerRequest(request({ url: `${origin}/apiary` })),
-    ).toBe(true);
-  });
-
-  it("bypasses requests containing Authorization", () => {
-    expect(
-      shouldHandleServiceWorkerRequest(request({ hasAuthorization: true })),
-    ).toBe(false);
-  });
-
-  it("bypasses PDF requests", () => {
-    expect(
-      shouldHandleServiceWorkerRequest(
-        request({ url: `${origin}/documents/report.pdf` }),
-      ),
-    ).toBe(false);
-  });
-
-  it.each([
-    "/@vite/client",
-    "/src/main.tsx",
-    "/node_modules/.vite/deps/react.js?v=stale",
-  ])("bypasses Vite development module %s", (pathname) => {
-    expect(
-      shouldHandleServiceWorkerRequest(
-        request({ url: `${origin}${pathname}` }),
-      ),
-    ).toBe(false);
-  });
-
-  it.each([
-    ["script", "cors", "/assets/app.js"],
-    ["style", "cors", "/assets/app.css"],
-    ["image", "no-cors", "/images/logo.png"],
-    ["font", "cors", "/fonts/app.woff2"],
-    ["document", "navigate", "/dashboard"],
-    ["", "cors", "/manifest.json"],
-  ])(
-    "handles eligible same-origin %s requests",
-    (destination, mode, pathname) => {
-      expect(
-        shouldHandleServiceWorkerRequest(
-          request({ url: `${origin}${pathname}`, destination, mode }),
-        ),
-      ).toBe(true);
-    },
-  );
-});
-
 describe("public service worker policy", () => {
   it.each([
     ["same-origin API GET", { url: `${origin}/api/v1/users` }],
+    ["POST request", { method: "POST" }],
     ["same-origin authorized GET", { authorization: true }],
     [
       "Vite optimized dependency",
@@ -205,7 +112,7 @@ describe("public service worker policy", () => {
     expect(respondWith).toHaveBeenCalledOnce();
     await responsePromise;
     expect(fetchMock).toHaveBeenCalledOnce();
-    expect(caches.open).toHaveBeenCalledWith("prangan-runtime-v9");
+    expect(caches.open).toHaveBeenCalledWith("prangan-runtime-v10");
     expect(runtimeCache.put).toHaveBeenCalledOnce();
   });
 
@@ -235,7 +142,7 @@ describe("public service worker policy", () => {
   );
 
   it("deletes only prior namespaced caches during activation", async () => {
-    const currentCaches = ["prangan-static-v9", "prangan-runtime-v9"];
+    const currentCaches = ["prangan-static-v10", "prangan-runtime-v10", "prangan-pdfs-v3"];
     const priorCaches = [
       "prangan-static",
       "prangan-runtime",
@@ -245,8 +152,11 @@ describe("public service worker policy", () => {
       "prangan-runtime-v5",
       "prangan-static-v6",
       "prangan-runtime-v6",
+      "prangan-static-v9",
+      "prangan-runtime-v9",
+      "prangan-pdfs-v2",
     ];
-    const preservedCaches = ["prangan-pdfs-v2", "unrelated-cache"];
+    const preservedCaches = ["unrelated-cache"];
     const { listeners, caches, clients } = await loadWorker([
       ...currentCaches,
       ...preservedCaches,
@@ -304,7 +214,7 @@ describe("public service worker policy", () => {
   it("uses versioned app caches and only removes prior app cache versions", async () => {
     const source = await readWorker();
 
-    expect(source).toContain('const CACHE_VERSION = "v9";');
+    expect(source).toContain('const CACHE_VERSION = "v10";');
     expect(source).toContain(
       "const STATIC_CACHE = `prangan-static-${CACHE_VERSION}`;",
     );
@@ -312,11 +222,79 @@ describe("public service worker policy", () => {
       "const RUNTIME_CACHE = `prangan-runtime-${CACHE_VERSION}`;",
     );
     expect(source).not.toContain("CACHE_NAME");
-    expect(source).not.toContain("Date.now()");
+    expect(source).not.toMatch(/_CACHE = .*Date\.now/);
     expect(source).toContain('cacheName.startsWith("prangan-static")');
     expect(source).toContain('cacheName.startsWith("prangan-runtime")');
+    expect(source).toContain('cacheName.startsWith("prangan-pdfs")');
     expect(source).toContain("cacheName !== STATIC_CACHE");
     expect(source).toContain("cacheName !== RUNTIME_CACHE");
     expect(source).toContain("cacheName !== PDF_CACHE");
+  });
+});
+
+describe("coursebook cache", () => {
+  const store = "https://abc.private.blob.vercel-storage.com";
+  const DAY = 24 * 60 * 60 * 1000;
+
+  const loadBookWorker = async (saved: Record<string, Response> = {}) => {
+    const worker = await loadWorker();
+    const stored = new Map(Object.entries(saved));
+    const bookCache = {
+      match: vi.fn(async (key: string) => stored.get(key)?.clone()),
+      put: vi.fn(async (key: string, response: Response) => {
+        stored.set(key, new Response(await response.arrayBuffer(), { headers: response.headers }));
+      }),
+    };
+    worker.caches.open.mockResolvedValue(bookCache);
+    worker.fetchMock.mockImplementation(async () => new Response("%PDF-1.7 book", { headers: { "Content-Length": "13" } }));
+
+    const open = async (url: string, headers: string[] = []) => {
+      let reply: Promise<Response> | undefined;
+      const saving: Promise<unknown>[] = [];
+      worker.listeners.get("fetch")?.({
+        request: { ...workerRequest({ url }), headers: { has: (name: string) => headers.includes(name) } },
+        respondWith: (value: Promise<Response>) => { reply = value; },
+        waitUntil: (value: Promise<unknown>) => { saving.push(value); },
+      });
+      if (!reply) return undefined;
+      const response = await reply;
+      const body = await response.text();
+      await Promise.all(saving);
+      return { status: response.status, body };
+    };
+    return { ...worker, stored, bookCache, open };
+  };
+
+  it("downloads a book once and reopens it from the device under any signature", async () => {
+    const { open, fetchMock, stored } = await loadBookWorker();
+
+    expect(await open(`${store}/books/b1.pdf?vercel-blob-signature=first`)).toEqual({ status: 200, body: "%PDF-1.7 book" });
+    expect(await open(`${store}/books/b1.pdf?vercel-blob-signature=second`)).toEqual({ status: 200, body: "%PDF-1.7 book" });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect([...stored.keys()]).toEqual([`${store}/books/b1.pdf`]);
+  });
+
+  it("downloads a book again after 30 days", async () => {
+    const old = new Response("old", { headers: { "sw-cached-at": String(Date.now() - 31 * DAY) } });
+    const { open, fetchMock } = await loadBookWorker({ [`${store}/books/b1.pdf`]: old });
+
+    expect((await open(`${store}/books/b1.pdf?s=1`))?.body).toBe("%PDF-1.7 book");
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("does not keep a refused link", async () => {
+    const { open, fetchMock, bookCache } = await loadBookWorker();
+    fetchMock.mockImplementation(async () => new Response("expired", { status: 403 }));
+
+    expect((await open(`${store}/books/b1.pdf?s=old`))?.status).toBe(403);
+    expect(bookCache.put).not.toHaveBeenCalled();
+  });
+
+  it("leaves page-range requests to the network", async () => {
+    const { open, fetchMock } = await loadBookWorker();
+
+    expect(await open(`${store}/books/b1.pdf?s=1`, ["Range"])).toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

@@ -3,6 +3,7 @@ import type {
   RemunerationPeriod,
   RemunerationUser,
 } from "@/types/api";
+import { indiaDate } from "./dates";
 
 export type RemunerationRow = {
   userId: string;
@@ -41,7 +42,6 @@ export type MonthlyRemunerationSummary = {
   status: "READY" | "NEEDS_RATE" | "NO_PAYABLE_ATTENDANCE";
 };
 
-const APP_TIME_ZONE = "Asia/Kolkata";
 const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const ISO_DATE_TIME_PATTERN =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})?$/;
@@ -75,15 +75,7 @@ export const indiaBusinessDate = (value: Date | string) => {
   }
   const date = value instanceof Date ? value : new Date(value);
   if (!Number.isFinite(date.getTime())) return null;
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: APP_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((item) => item.type === type)?.value;
-  return `${part("year")}-${part("month")}-${part("day")}`;
+  return indiaDate(date);
 };
 
 const toPaise = (amount: number) =>

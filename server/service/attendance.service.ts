@@ -4,18 +4,14 @@ import {
   SubRole,
 } from "../generated/prisma/index.js";
 import { prisma } from "../lib/prisma.js";
+import { buildRemunerationSourceKey } from "./expense.service.js";
 import {
   GetActiveUsersForAttendanceRequest,
   GetActiveUsersForAttendanceResponse,
-  MarkAttendanceRequest,
   MarkBulkAttendanceRequest,
-  MarkAttendanceResponse,
   GetAttendanceRequest,
   GetAttendanceResponse,
-  GetAttendanceSummaryRequest,
-  GetAttendanceSummaryResponse,
   AttendanceUser,
-  AttendanceSummary,
 } from "../types/attendance.types.js";
 
 export const getRelevantCommittedDays = (date: string): CommittedDays[] => {
@@ -123,159 +119,7 @@ export const getActiveUsersForAttendance = async (
   };
 };
 
-/**
- * Mark attendance for a single user
- */
-export const markAttendance = async (
-  request: MarkAttendanceRequest,
-  markedBy: string,
-): Promise<MarkAttendanceResponse> => {
-  const {
-    userId,
-    date,
-    status,
-    roleAssignmentId,
-    projectId,
-    centerId,
-    semesterId,
-    notes,
-    holidayReason,
-  } = request;
-
-  // Validate holiday reason is provided when status is HOLIDAY
-  if (status === AttendanceStatus.HOLIDAY && !holidayReason) {
-    throw new Error("Holiday reason is required when marking as holiday");
-  }
-
-  const [roleAssignment] = await prisma.userRoleAssignments.findMany({
-    where: {
-      id: { in: [roleAssignmentId] },
-      isActive: true,
-      projectId,
-      centerId,
-      semesterId,
-      subRole: { in: [SubRole.EDUCATOR, SubRole.CENTER_MANAGER] },
-    },
-    select: { id: true, userId: true },
-  });
-
-  if (roleAssignment?.userId !== userId) {
-    throw new Error("Invalid attendance role assignment");
-  }
-
-  // Check if attendance already exists for this date and context
-  const existingAttendance = await prisma.userAttendance.findFirst({
-    where: {
-      userId,
-      date: new Date(date),
-      projectId,
-      centerId,
-      semesterId,
-      roleAssignmentId,
-    },
-  });
-
-  let attendance;
-
-  if (existingAttendance) {
-    // Update existing attendance
-    attendance = await prisma.userAttendance.update({
-      where: {
-        id: existingAttendance.id,
-      },
-      data: {
-        status,
-        roleAssignmentId,
-        notes,
-        holidayReason:
-          status === AttendanceStatus.HOLIDAY ? holidayReason : null,
-        markedBy,
-        markedAt: new Date(),
-      },
-      include: {
-        user: {
-          select: { name: true, email: true },
-        },
-        project: {
-          select: { name: true },
-        },
-        center: {
-          select: { name: true },
-        },
-        semester: {
-          select: { name: true },
-        },
-      },
-    });
-  } else {
-    // Create new attendance record
-    attendance = await prisma.userAttendance.create({
-      data: {
-        userId,
-        date: new Date(date),
-        status,
-        roleAssignmentId,
-        projectId,
-        centerId,
-        semesterId,
-        notes,
-        holidayReason:
-          status === AttendanceStatus.HOLIDAY ? holidayReason : null,
-        markedBy,
-        markedAt: new Date(),
-      },
-      include: {
-        user: {
-          select: { name: true, email: true },
-        },
-        project: {
-          select: { name: true },
-        },
-        center: {
-          select: { name: true },
-        },
-        semester: {
-          select: { name: true },
-        },
-      },
-    });
-  }
-
-  return {
-    message: "Attendance marked successfully",
-    attendance: {
-      id: attendance.id,
-      userId: attendance.userId,
-      date: attendance.date.toISOString().split("T")[0],
-      status: attendance.status as AttendanceStatus,
-      projectId: attendance.projectId,
-      centerId: attendance.centerId,
-      semesterId: attendance.semesterId,
-      notes: attendance.notes || undefined,
-      holidayReason: attendance.holidayReason || undefined,
-      markedBy: attendance.markedBy || undefined,
-      markedAt: attendance.markedAt?.toISOString(),
-    },
-  };
-};
-
-/**
- * Mark attendance for multiple users in bulk - Optimized for serverless environments
- *
- * PERFORMANCE OPTIMIZATION:
- * - Uses a single transaction instead of individual markAttendance() calls
- * - Processes records in batches to prevent memory issues
- * - Includes 8-second timeout to stay under Vercel's 10-second limit
- * - Pre-validates all data to fail fast on errors
- *
- * ALTERNATIVE: For even better performance with very large batches, consider using raw SQL:
- * ```sql
- * INSERT INTO "UserAttendance" ("userId","roleAssignmentId","date","status","projectId","centerId","semesterId","markedBy","markedAt")
- * VALUES ...
- * ON CONFLICT ("userId","date","projectId","centerId","semesterId")
- * DO UPDATE SET "status"=EXCLUDED."status", "markedBy"=EXCLUDED."markedBy", "markedAt"=EXCLUDED."markedAt"
- * ```
- */
+// Marks one class day for many staff in a single transaction.
 export const markBulkAttendance = async (
   request: MarkBulkAttendanceRequest,
   markedBy: string,
@@ -302,6 +146,22 @@ export const markBulkAttendance = async (
     const assignmentUserIds = new Map(
       roleAssignments.map((assignment) => [assignment.id, assignment.userId]),
     );
+    // Payments can't be undone, so a paid month's attendance stays as paid.
+    const month = date.slice(0, 7);
+    const paidUserIds = new Set(
+      (
+        await prisma.expense.findMany({
+          where: {
+            OR: attendances.map(({ userId }) => ({
+              sourceKey: {
+                startsWith: buildRemunerationSourceKey(semesterId, userId, month),
+              },
+            })),
+          },
+          select: { payeeUserId: true },
+        })
+      ).map((expense) => expense.payeeUserId),
+    );
 
     // Pre-validate all attendance data
     const validAttendances: typeof attendances = [];
@@ -312,6 +172,13 @@ export const markBulkAttendance = async (
       ) {
         errors.push(
           `User ${attendanceData.userId}: Invalid attendance role assignment`,
+        );
+        continue;
+      }
+
+      if (paidUserIds.has(attendanceData.userId)) {
+        errors.push(
+          `User ${attendanceData.userId}: ${month} is already paid, so this attendance can't change`,
         );
         continue;
       }
@@ -545,185 +412,3 @@ export const getAttendanceRecords = async (
   };
 };
 
-/**
- * Get attendance summary/report for users
- */
-export const getAttendanceSummary = async (
-  request: GetAttendanceSummaryRequest,
-): Promise<GetAttendanceSummaryResponse> => {
-  const { startDate, endDate, projectId, centerId, semesterId, userIds } =
-    request;
-
-  const whereClause: any = {
-    date: {
-      gte: new Date(`${startDate}T00:00:00.000Z`),
-      lte: new Date(`${endDate}T23:59:59.999Z`),
-    },
-  };
-
-  if (projectId) whereClause.projectId = projectId;
-  if (centerId) whereClause.centerId = centerId;
-  if (semesterId) whereClause.semesterId = semesterId;
-  if (userIds && userIds.length > 0) whereClause.userId = { in: userIds };
-
-  const attendances = await prisma.userAttendance.findMany({
-    where: whereClause,
-    include: {
-      user: {
-        select: { name: true, email: true },
-      },
-    },
-    orderBy: {
-      user: { name: "asc" },
-    },
-  });
-
-  // Group by user and calculate summary
-  const userSummaryMap = new Map<string, AttendanceSummary>();
-
-  attendances.forEach((attendance: any) => {
-    const userId = attendance.userId;
-
-    if (!userSummaryMap.has(userId)) {
-      userSummaryMap.set(userId, {
-        userId,
-        userName: attendance.user.name,
-        userEmail: attendance.user.email,
-        totalDays: 0,
-        presentDays: 0,
-        absentDays: 0,
-        notAvailableDays: 0,
-        holidayDays: 0,
-        attendancePercentage: 0,
-      });
-    }
-
-    const summary = userSummaryMap.get(userId)!;
-    summary.totalDays++;
-
-    switch (attendance.status) {
-      case "PRESENT":
-        summary.presentDays++;
-        break;
-      case "ABSENT":
-        summary.absentDays++;
-        break;
-      case "NOT_AVAILABLE":
-        summary.notAvailableDays++;
-        break;
-      case "HOLIDAY":
-        summary.holidayDays++;
-        break;
-    }
-  });
-
-  // Calculate attendance percentage (excluding holidays and not available days)
-  const summaryArray = Array.from(userSummaryMap.values()).map((summary) => {
-    const workingDays =
-      summary.totalDays - summary.holidayDays - summary.notAvailableDays;
-    summary.attendancePercentage =
-      workingDays > 0
-        ? Math.round((summary.presentDays / workingDays) * 100)
-        : 0;
-    return summary;
-  });
-
-  // Calculate period info
-  const start = new Date(`${startDate}T00:00:00.000Z`);
-  const end = new Date(`${endDate}T00:00:00.000Z`);
-  const timeDiff = end.getTime() - start.getTime();
-  const totalDays = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
-
-  // Count weekend days in the period
-  let weekendDays = 0;
-  for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
-    if (getRelevantCommittedDays(d.toISOString().slice(0, 10)).length > 0) {
-      weekendDays++;
-    }
-  }
-
-  return {
-    summary: summaryArray,
-    periodInfo: {
-      startDate,
-      endDate,
-      totalDays,
-      weekendDays,
-    },
-  };
-};
-
-/**
- * Auto-mark attendance based on committed days logic
- */
-export const autoMarkAttendance = async (
-  date: string,
-  projectId: string,
-  centerId: string,
-  semesterId: string,
-): Promise<{ message: string; processedCount: number }> => {
-  const requestDate = new Date(date);
-  const relevantCommittedDays = getRelevantCommittedDays(date);
-
-  // Only process weekend days
-  if (relevantCommittedDays.length === 0) {
-    return {
-      message: "Auto-marking only works for weekend days",
-      processedCount: 0,
-    };
-  }
-
-  // Get all active users for this date
-  const activeUsers = await getActiveUsersForAttendance({
-    date,
-    projectId,
-    centerId,
-    semesterId,
-  });
-
-  let processedCount = 0;
-
-  for (const user of activeUsers.users) {
-    for (const roleAssignment of user.roleAssignments) {
-      try {
-        // Check if attendance already exists
-        const existingAttendance = await prisma.userAttendance.findFirst({
-          where: {
-            userId: user.id,
-            date: requestDate,
-            projectId,
-            centerId: centerId,
-            semesterId: semesterId,
-          },
-        });
-
-        if (!existingAttendance) {
-          // Mark as NOT_AVAILABLE by default (will be overridden when they mark present)
-          await prisma.userAttendance.create({
-            data: {
-              userId: user.id,
-              date: requestDate,
-              status: AttendanceStatus.NOT_AVAILABLE,
-              roleAssignmentId: roleAssignment.id,
-              projectId,
-              centerId,
-              semesterId,
-              notes: "Auto-marked as not available",
-            },
-          });
-          processedCount++;
-        }
-      } catch (error) {
-        console.error(
-          `Error auto-marking attendance for user ${user.id}:`,
-          error,
-        );
-      }
-    }
-  }
-
-  return {
-    message: `Auto-marked attendance for ${processedCount} user assignments`,
-    processedCount,
-  };
-};

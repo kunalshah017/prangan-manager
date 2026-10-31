@@ -85,37 +85,6 @@ export const useRemunerationUsers = ({
   });
 };
 
-export const useUpdateRemunerationRates = ({
-  projectId,
-  centerId,
-  semesterId,
-}: {
-  projectId: string;
-  centerId: string;
-  semesterId: string;
-}) => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (rates: Array<{ userId: string; dailyRate: number }>) =>
-      api.put("/users/remuneration/rates", {
-        projectId,
-        centerId,
-        semesterId,
-        rates,
-      }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: [
-          "users",
-          "remuneration",
-          projectId,
-          centerId,
-          semesterId,
-        ],
-      }),
-  });
-};
-
 export const useSetRemunerationPeriod = ({
   projectId,
   centerId,

@@ -9,6 +9,8 @@ import {
 } from '../../lib/book-progress';
 import { cn } from '../../lib/utils';
 import { useSemester } from '@/hooks/useSemesterQueries';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api-client';
 import { Document, Page, pdfjs } from 'react-pdf';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
@@ -142,6 +144,15 @@ const BookReader: React.FC = () => {
         : `/library${location.search}`;
     const semesterQuery = useSemester(semesterId ?? '');
     const [book, setBook] = useState<Book | null>(null);
+    // Book links come from the API, for signed-in readers only, and expire after
+    // an hour: keep one link while the book is open, fetch a new one each opening.
+    const pdfLink = useQuery({
+        queryKey: ['library', 'pdf-url', book?.id],
+        queryFn: () => api.get<{ url: string }>(`/library/books/${encodeURIComponent(book!.id)}/pdf-url`),
+        enabled: Boolean(book),
+        staleTime: Infinity,
+        gcTime: 0,
+    });
     const [numPages, setNumPages] = useState<number>(0);
     const [currentPage, setCurrentPage] = useState<number>(1);
     const [isIndexOpen, setIsIndexOpen] = useState(false);
@@ -412,6 +423,21 @@ const BookReader: React.FC = () => {
     if (!book) return null;
 
     const pageWidth = Math.round((baseWidth || 600) * zoom);
+    const loadingBook = (
+        <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+                <div className="w-16 h-16 border-4 border-orange-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                <p className="text-muted-foreground">Loading book...</p>
+            </div>
+        </div>
+    );
+    const bookLoadFailed = (
+        <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+                <p className="text-red-600">Failed to load PDF</p>
+            </div>
+        </div>
+    );
 
     return (
         <div className="flex flex-col h-screen bg-muted overflow-hidden">
@@ -488,25 +514,13 @@ const BookReader: React.FC = () => {
             >
                 <div ref={contentRef} className="flex min-h-full w-max min-w-full flex-col items-center gap-6 px-2 pb-20 will-change-transform sm:px-4">
                     <Document
-                            file={book.pdfUrl}
+                            file={pdfLink.data?.url}
                             onLoadSuccess={onDocumentLoadSuccess}
                             options={PDF_OPTIONS}
                             className="flex w-full flex-col items-center gap-6"
-                            loading={
-                                <div className="flex items-center justify-center min-h-[400px]">
-                                    <div className="text-center">
-                                        <div className="w-16 h-16 border-4 border-orange-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                                        <p className="text-muted-foreground">Loading book...</p>
-                                    </div>
-                                </div>
-                            }
-                            error={
-                                <div className="flex items-center justify-center min-h-[400px]">
-                                    <div className="text-center">
-                                        <p className="text-red-600">Failed to load PDF</p>
-                                    </div>
-                                </div>
-                            }
+                            loading={loadingBook}
+                            noData={pdfLink.isError ? bookLoadFailed : loadingBook}
+                            error={bookLoadFailed}
                         >
                             {allPageNumbers.map((bookPageNum) => {
                                 const pdfPageNum = bookPageNum + PDF_OFFSET;

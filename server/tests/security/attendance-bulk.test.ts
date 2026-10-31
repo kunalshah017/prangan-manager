@@ -12,6 +12,9 @@ const request = {
   semesterId: "semester-1",
 };
 
+// No month in these tests is paid yet.
+prisma.expense.findMany = (async () => []) as typeof prisma.expense.findMany;
+
 const validAttendance = (userId: string, roleAssignmentId: string) => ({
   userId,
   roleAssignmentId,
@@ -111,6 +114,53 @@ test("bulk attendance persists valid preflight entries while reporting invalid a
     assert.match(result.errors[0], /Invalid attendance role assignment/);
   } finally {
     prisma.userRoleAssignments.findMany = originalFindMany;
+    prisma.$transaction = originalTransaction;
+  }
+});
+
+test("attendance in a month that is already paid is not changed", async () => {
+  const originalFindMany = prisma.userRoleAssignments.findMany;
+  const originalExpenses = prisma.expense.findMany;
+  const originalTransaction = prisma.$transaction;
+  let transactions = 0;
+  let paidLookup: unknown;
+
+  prisma.userRoleAssignments.findMany = (async () => [
+    { id: "assignment-1", userId: "user-1" },
+  ]) as typeof prisma.userRoleAssignments.findMany;
+  prisma.expense.findMany = (async (query: unknown) => {
+    paidLookup = query;
+    return [{ payeeUserId: "user-1" }];
+  }) as typeof prisma.expense.findMany;
+  prisma.$transaction = (async () => {
+    transactions += 1;
+    return 0;
+  }) as typeof prisma.$transaction;
+
+  try {
+    const result = await markBulkAttendance(
+      { ...request, attendances: [validAttendance("user-1", "assignment-1")] },
+      "manager-1",
+    );
+
+    assert.equal(result.processedCount, 0);
+    assert.match(result.errors[0] ?? "", /2026-07 is already paid/);
+    assert.equal(transactions, 0);
+    assert.deepEqual(paidLookup, {
+      where: {
+        OR: [
+          {
+            sourceKey: {
+              startsWith: "remuneration:semester-1:user-1:2026-07",
+            },
+          },
+        ],
+      },
+      select: { payeeUserId: true },
+    });
+  } finally {
+    prisma.userRoleAssignments.findMany = originalFindMany;
+    prisma.expense.findMany = originalExpenses;
     prisma.$transaction = originalTransaction;
   }
 });

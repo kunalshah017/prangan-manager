@@ -243,14 +243,19 @@ export const initializeSemesterTransition = async (
     assignmentsByUser.set(assignment.userId, current);
   }
   const userIds = [...assignmentsByUser.keys()];
-  const previousRates = userIds.length
-    ? await transaction.semesterRemunerationRate.findMany({
+  // The rate in effect at the end of the source semester: its latest period.
+  const previousPeriods = userIds.length
+    ? await transaction.semesterRemunerationPeriod.findMany({
         where: { userId: { in: userIds }, semesterId: sourceSemesterId },
+        orderBy: { effectiveFrom: "desc" },
       })
     : [];
-  const rateByUser = new Map(
-    previousRates.map((rate) => [rate.userId, Number(rate.dailyRate)]),
-  );
+  const rateByUser = new Map<string, number>();
+  for (const period of previousPeriods) {
+    if (!rateByUser.has(period.userId)) {
+      rateByUser.set(period.userId, Number(period.amountPerDay));
+    }
+  }
 
   const staffPlan = [...assignmentsByUser.entries()].map(
     ([userId, assignments]) => {
@@ -745,17 +750,6 @@ export const activateSemesterTransition = async (
           payableRoles.has(assignment.subRole),
         )
       ) {
-        await transaction.semesterRemunerationRate.upsert({
-          where: {
-            userId_semesterId: { userId: decision.userId, semesterId },
-          },
-          create: {
-            userId: decision.userId,
-            semesterId,
-            dailyRate: decision.dailyRate!,
-          },
-          update: { dailyRate: decision.dailyRate! },
-        });
         await transaction.semesterRemunerationPeriod.upsert({
           where: {
             userId_semesterId_effectiveFrom: {

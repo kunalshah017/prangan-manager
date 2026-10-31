@@ -69,8 +69,13 @@ export const useCurrentUser = (probeSession: boolean) => {
 export const useLogout = () => {
   return useMutation({
     mutationFn: async () => {
-      await api.post("/users/logout");
-      useAuthStore.getState().clearAuth();
+      // Clear this device even if the server can't be reached: on a shared
+      // phone the next person must not open the app as this user.
+      try {
+        await api.post("/users/logout");
+      } finally {
+        useAuthStore.getState().clearAuth();
+      }
     },
   });
 };

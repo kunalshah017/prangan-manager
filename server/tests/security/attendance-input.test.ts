@@ -3,17 +3,11 @@ import test from "node:test";
 
 import { Role } from "../../generated/prisma/index.js";
 import {
-  autoMarkAttendanceController,
   getActiveUsersController,
   getAttendanceController,
-  getAttendanceSummaryController,
-  markAttendanceController,
   markBulkAttendanceController,
 } from "../../controllers/attendance.controller.js";
-import {
-  parseMarkAttendanceRequest,
-  parseMarkBulkAttendanceRequest,
-} from "../../security/attendance-input.js";
+import { parseMarkBulkAttendanceRequest } from "../../security/attendance-input.js";
 import { isValidDateFormat } from "../../utils/dateHelpers.js";
 
 const createReply = () => {
@@ -42,16 +36,6 @@ const createReply = () => {
   };
 };
 
-const singleAttendance = {
-  userId: "user-1",
-  roleAssignmentId: "assignment-1",
-  date: "2026-07-17",
-  status: "PRESENT",
-  projectId: "project-1",
-  centerId: "center-1",
-  semesterId: "semester-1",
-};
-
 const bulkAttendance = {
   date: "2026-07-17",
   projectId: "project-1",
@@ -64,27 +48,14 @@ const bulkAttendance = {
 
 test("user attendance parsers reject non-record bodies and invalid status or holiday metadata", () => {
   for (const input of [null, [], "attendance", 42]) {
-    assert.ok("error" in parseMarkAttendanceRequest(input));
     assert.ok("error" in parseMarkBulkAttendanceRequest(input));
   }
 
   assert.ok(
     "error" in
-      parseMarkAttendanceRequest({ ...singleAttendance, status: "LATE" }),
-  );
-  assert.ok(
-    "error" in
       parseMarkBulkAttendanceRequest({
         ...bulkAttendance,
         attendances: [{ ...bulkAttendance.attendances[0], status: "LATE" }],
-      }),
-  );
-  assert.ok(
-    "error" in
-      parseMarkAttendanceRequest({
-        ...singleAttendance,
-        status: "HOLIDAY",
-        holidayReason: " ",
       }),
   );
   assert.ok(
@@ -102,11 +73,7 @@ test("user attendance parsers reject non-record bodies and invalid status or hol
   );
 });
 
-test("user attendance parsers produce typed canonical requests", () => {
-  const single = parseMarkAttendanceRequest({
-    ...singleAttendance,
-    notes: "Present for the session",
-  });
+test("the bulk attendance parser produces a typed canonical request", () => {
   const bulk = parseMarkBulkAttendanceRequest({
     ...bulkAttendance,
     attendances: [
@@ -118,9 +85,6 @@ test("user attendance parsers produce typed canonical requests", () => {
     ],
   });
 
-  assert.deepEqual(single, {
-    data: { ...singleAttendance, notes: "Present for the session" },
-  });
   assert.deepEqual(bulk, {
     data: {
       ...bulkAttendance,
@@ -161,20 +125,6 @@ test("user attendance date controllers reject calendar-invalid dates before serv
       getAttendanceController,
       { user: admin, query: { startDate: "2026-02-30" } },
     ],
-    [
-      getAttendanceSummaryController,
-      {
-        user: admin,
-        query: { startDate: "2026-02-30", endDate: "2026-03-01" },
-      },
-    ],
-    [
-      autoMarkAttendanceController,
-      {
-        user: admin,
-        body: { date: "2026-02-30", ...scope },
-      },
-    ],
   ] as const) {
     const response = createReply();
 
@@ -186,22 +136,12 @@ test("user attendance date controllers reject calendar-invalid dates before serv
 
 test("user attendance controllers reject malformed bodies before service work", async () => {
   for (const [controller, body] of [
-    [markAttendanceController, null],
     [markBulkAttendanceController, null],
-    [markAttendanceController, { ...singleAttendance, status: "LATE" }],
     [
       markBulkAttendanceController,
       {
         ...bulkAttendance,
         attendances: [{ ...bulkAttendance.attendances[0], status: "LATE" }],
-      },
-    ],
-    [
-      markAttendanceController,
-      {
-        ...singleAttendance,
-        status: "HOLIDAY",
-        holidayReason: " ",
       },
     ],
     [
@@ -235,4 +175,22 @@ test("user attendance controllers reject malformed bodies before service work", 
 
     assert.equal(response.statusCode, 400);
   }
+});
+
+test("staff attendance can't be marked on a weekday", async () => {
+  const response = createReply();
+  await markBulkAttendanceController(
+    {
+      user: { id: "admin-1", name: "Admin", email: "admin@example.com", role: Role.ADMIN },
+      // 2026-10-05 is a Monday.
+      body: { ...bulkAttendance, date: "2026-10-05" },
+    } as never,
+    response.reply as never,
+  );
+
+  assert.equal(response.statusCode, 400);
+  assert.match(
+    String((response.payload as { error?: string }).error),
+    /Saturday or Sunday/,
+  );
 });

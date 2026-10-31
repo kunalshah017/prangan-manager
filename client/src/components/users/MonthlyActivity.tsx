@@ -7,6 +7,7 @@ import { useAttendanceRecords } from "@/hooks/useAttendanceQueries";
 import { buildMonthlyActivity, type ActivityDay } from "@/lib/user-activity";
 import { cn } from "@/lib/utils";
 import type { User } from "@/types/api";
+import { indiaToday } from "@/lib/dates";
 
 const dayStyles: Record<ActivityDay["status"], { label: string; icon: typeof Check; className: string }> = {
   PRESENT: { label: "Present", icon: Check, className: "border-success/30 bg-success/10 text-success-foreground" },
@@ -26,9 +27,10 @@ const dayLabel = (date: string) =>
 const formatAmount = (amount: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount);
 
+// The last year of class days, up to today in India.
 const lastYearStart = () => {
-  const date = new Date();
-  date.setUTCFullYear(date.getUTCFullYear() - 1);
+  const date = new Date(`${indiaToday()}T00:00:00.000Z`);
+  date.setUTCFullYear(date.getUTCFullYear() - 1); // 29 Feb rolls to 1 Mar
   return date.toISOString().slice(0, 10);
 };
 
@@ -40,7 +42,7 @@ interface MonthlyActivityProps {
 // Month by month: which days someone worked and what that month pays. Days are
 // shown as dates, not tallies, so a gap or a missed weekend is easy to spot.
 export function MonthlyActivity({ user, isSelf }: MonthlyActivityProps) {
-  const range = useMemo(() => ({ startDate: lastYearStart(), endDate: new Date().toISOString().slice(0, 10) }), []);
+  const range = useMemo(() => ({ startDate: lastYearStart(), endDate: indiaToday() }), []);
   const attendanceQuery = useAttendanceRecords({ userId: user.id, ...range, limit: 1000 });
   const months = useMemo(
     () => buildMonthlyActivity(user, attendanceQuery.data?.attendances ?? []),

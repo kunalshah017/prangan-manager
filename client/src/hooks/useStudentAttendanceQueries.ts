@@ -3,7 +3,6 @@ import { api } from "@/lib/api-client";
 import type {
   StudentAttendanceRecordsResponse,
   BulkMarkStudentAttendanceRequest,
-  MarkStudentAttendanceRequest,
   StudentsBySemesterResponse,
 } from "@/types/api";
 
@@ -84,42 +83,6 @@ export const useBulkMarkStudentAttendance = () => {
   return useMutation({
     mutationFn: async (data: BulkMarkStudentAttendanceRequest) => {
       return api.post("/student-attendance/bulk", data);
-    },
-    onSuccess: (_, variables) => {
-      // Invalidate related queries
-      queryClient.invalidateQueries({ queryKey: ["student-attendance"] });
-      queryClient.invalidateQueries({
-        queryKey: [
-          "student-attendance",
-          {
-            projectId: variables.projectId,
-            centerId: variables.centerId,
-            semesterId: variables.semesterId,
-          },
-        ],
-      });
-    },
-    retry: (failureCount, error) => {
-      // Don't retry on client errors (4xx)
-      if (
-        error.message.includes("400") ||
-        error.message.includes("401") ||
-        error.message.includes("403")
-      ) {
-        return false;
-      }
-      return failureCount < 3;
-    },
-  });
-};
-
-// Mark single student attendance
-export const useMarkStudentAttendance = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (data: MarkStudentAttendanceRequest) => {
-      return api.post("/student-attendance/mark", data);
     },
     onSuccess: (_, variables) => {
       // Invalidate related queries

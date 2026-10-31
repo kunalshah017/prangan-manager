@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { calendarDate, isValidDateFormat } from "../utils/dateHelpers.js";
 import { buildScoreComponents } from "../security/exam-score-input.js";
 import {
   CreateExamRequest,
@@ -116,7 +117,7 @@ export const createExam = async (
       cycle,
       name,
       description,
-      examDate: new Date(examDate),
+      examDate: calendarDate(examDate),
       listeningMaxMarks,
       speakingMaxMarks,
       readingMaxMarks,
@@ -216,14 +217,11 @@ export const getExams = async (
       ...(semesterLevelId && { semesterLevelId }),
       ...(cycle && { cycle }),
       ...(isActive !== undefined && { isActive }),
-      ...(startDate && {
+      // One range: two separate examDate spreads would drop the first bound.
+      ...((startDate || endDate) && {
         examDate: {
-          gte: new Date(startDate),
-        },
-      }),
-      ...(endDate && {
-        examDate: {
-          lte: new Date(endDate),
+          ...(startDate && isValidDateFormat(startDate) && { gte: calendarDate(startDate) }),
+          ...(endDate && isValidDateFormat(endDate) && { lte: calendarDate(endDate) }),
         },
       }),
     },
@@ -287,7 +285,7 @@ export const updateExam = async (
   }
 
   if (data.examDate) {
-    updateData.examDate = new Date(data.examDate);
+    updateData.examDate = calendarDate(data.examDate);
   }
 
   const updatedExam = await prisma.exam.update({

@@ -1,21 +1,3 @@
-export interface StudentAttendanceCreateInput {
-  studentId: string;
-  date: string; // YYYY-MM-DD format
-  status: "PRESENT" | "ABSENT" | "HOLIDAY";
-  enrollmentId: string;
-  projectId: string;
-  centerId: string;
-  semesterId: string;
-  notes?: string;
-  holidayReason?: string;
-}
-
-export interface StudentAttendanceUpdateInput {
-  status?: "PRESENT" | "ABSENT" | "HOLIDAY";
-  notes?: string;
-  holidayReason?: string | null;
-}
-
 export interface StudentAttendanceFilter {
   studentId?: string;
   date?: string;
@@ -80,14 +62,6 @@ export interface StudentAttendanceWithDetails {
     id: string;
     name: string;
   } | null;
-}
-
-export interface StudentAttendanceStats {
-  totalDays: number;
-  presentDays: number;
-  absentDays: number;
-  holidayDays: number;
-  attendancePercentage: number;
 }
 
 export interface BulkStudentAttendanceInput {

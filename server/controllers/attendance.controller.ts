@@ -1,16 +1,13 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import {
   getActiveUsersForAttendance,
-  markAttendance,
+  getRelevantCommittedDays,
   markBulkAttendance,
   getAttendanceRecords,
-  getAttendanceSummary,
-  autoMarkAttendance,
 } from "../service/attendance.service.js";
 import {
   GetActiveUsersForAttendanceRequest,
   GetAttendanceRequest,
-  GetAttendanceSummaryRequest,
 } from "../types/attendance.types.js";
 import { AttendanceStatus, Role } from "../generated/prisma/index.js";
 import {
@@ -18,10 +15,11 @@ import {
   hasCompleteAttendanceScope,
 } from "../security/attendance-authorization.js";
 import { getActiveUserScopeAssignments } from "../service/user.service.js";
+import { parseMarkBulkAttendanceRequest } from "../security/attendance-input.js";
 import {
-  parseMarkAttendanceRequest,
-  parseMarkBulkAttendanceRequest,
-} from "../security/attendance-input.js";
+  assertStudentAttendanceDatesWithinSemester,
+  StudentAttendanceSemesterDateError,
+} from "../service/student-attendance.service.js";
 import { isValidDateFormat } from "../utils/dateHelpers.js";
 
 // Define AuthenticatedRequest type locally
@@ -135,62 +133,6 @@ export const getActiveUsersController = async (
 };
 
 /**
- * Mark attendance for a single user
- * POST /api/v1/attendance/mark
- */
-export const markAttendanceController = async (
-  request: AuthenticatedRequest<{
-    Body: unknown;
-  }>,
-  reply: FastifyReply,
-) => {
-  try {
-    const parsedAttendance = parseMarkAttendanceRequest(request.body);
-    if ("error" in parsedAttendance) {
-      return reply.status(400).send({ error: parsedAttendance.error });
-    }
-
-    const attendanceData = parsedAttendance.data;
-    const markedBy = request.user.id;
-
-    const scope = {
-      projectId: attendanceData.projectId,
-      centerId: attendanceData.centerId,
-      semesterId: attendanceData.semesterId,
-    };
-    if (!hasCompleteAttendanceScope(scope)) {
-      return reply.status(400).send({
-        error: "projectId, centerId, and semesterId must be canonical IDs",
-      });
-    }
-
-    if (!(await authorizeUserAttendanceScope(request.user, scope))) {
-      return reply.status(403).send({
-        error: "You are not authorized to manage user attendance",
-      });
-    }
-
-    const result = await markAttendance(attendanceData, markedBy);
-
-    return reply.status(200).send(result);
-  } catch (error: unknown) {
-    console.error("Mark attendance controller error:", error);
-    if (
-      error instanceof Error &&
-      error.message.includes("Invalid attendance role assignment")
-    ) {
-      return reply.status(400).send({
-        error: "Invalid attendance role assignment",
-      });
-    }
-
-    return reply.status(500).send({
-      error: "Failed to mark attendance",
-    });
-  }
-};
-
-/**
  * Mark attendance for multiple users in bulk
  * POST /api/v1/attendance/bulk-mark
  * Optimized for serverless environments to avoid timeouts
@@ -235,6 +177,24 @@ export const markBulkAttendanceController = async (
       return reply.status(403).send({
         error: "You are not authorized to manage user attendance",
       });
+    }
+
+    // Attendance drives pay, so only class days inside the semester count.
+    if (getRelevantCommittedDays(bulkData.date).length === 0) {
+      return reply.status(400).send({
+        error: "Attendance can only be marked on a Saturday or Sunday.",
+      });
+    }
+    try {
+      await assertStudentAttendanceDatesWithinSemester(bulkData.semesterId, [
+        bulkData.date,
+      ]);
+    } catch (error) {
+      if (error instanceof StudentAttendanceSemesterDateError) {
+        const publicMessage = error.message;
+        return reply.status(400).send({ error: publicMessage });
+      }
+      throw error;
     }
 
     const result = await markBulkAttendance(bulkData, markedBy);
@@ -377,130 +337,3 @@ export const getAttendanceController = async (
   }
 };
 
-/**
- * Get attendance summary/report
- * GET /api/v1/attendance/summary
- */
-export const getAttendanceSummaryController = async (
-  request: AuthenticatedRequest<{
-    Querystring: {
-      startDate: string;
-      endDate: string;
-      projectId?: string;
-      centerId?: string;
-      semesterId?: string;
-      userIds?: string;
-    };
-  }>,
-  reply: FastifyReply,
-) => {
-  try {
-    const { startDate, endDate, projectId, centerId, semesterId, userIds } =
-      request.query;
-
-    if (!startDate || !endDate) {
-      return reply.status(400).send({
-        error: "startDate and endDate are required",
-      });
-    }
-
-    // Validate date formats
-    if (!isValidDateFormat(startDate) || !isValidDateFormat(endDate)) {
-      return reply.status(400).send({
-        error: "Dates must be in YYYY-MM-DD format",
-      });
-    }
-
-    const scope = { projectId, centerId, semesterId };
-    const isAdmin = request.user.role === Role.ADMIN;
-    if (!isAdmin) {
-      if (!hasCompleteAttendanceScope(scope)) {
-        return reply.status(403).send({
-          error: "You are not authorized to manage user attendance",
-        });
-      }
-
-      if (!(await authorizeUserAttendanceScope(request.user, scope))) {
-        return reply.status(403).send({
-          error: "You are not authorized to manage user attendance",
-        });
-      }
-    }
-
-    const requestData: GetAttendanceSummaryRequest = {
-      startDate,
-      endDate,
-      projectId,
-      centerId,
-      semesterId,
-      userIds: userIds ? userIds.split(",") : undefined,
-    };
-
-    const result = await getAttendanceSummary(requestData);
-
-    return reply.status(200).send({
-      message: "Attendance summary retrieved successfully",
-      data: result,
-    });
-  } catch (error: unknown) {
-    console.error("Get attendance summary controller error:", error);
-    return reply.status(500).send({
-      error: "Failed to get attendance summary",
-    });
-  }
-};
-
-/**
- * Auto-mark attendance for a date (admin only)
- * POST /api/v1/attendance/auto-mark
- */
-export const autoMarkAttendanceController = async (
-  request: AuthenticatedRequest<{
-    Body: {
-      date: string;
-      projectId: string;
-      centerId: string;
-      semesterId: string;
-    };
-  }>,
-  reply: FastifyReply,
-) => {
-  try {
-    // Check if user is admin
-    if (request.user.role !== Role.ADMIN) {
-      return reply.status(403).send({
-        error: "Only admins can auto-mark attendance",
-      });
-    }
-
-    const { date, projectId, centerId, semesterId } = request.body;
-
-    const scope = { projectId, centerId, semesterId };
-    if (!hasCompleteAttendanceScope(scope)) {
-      return reply.status(400).send({
-        error: "projectId, centerId, and semesterId must be canonical IDs",
-      });
-    }
-
-    // Validate date format
-    if (!isValidDateFormat(date)) {
-      return reply.status(400).send({
-        error: "Date must be in YYYY-MM-DD format",
-      });
-    }
-
-    const result = await autoMarkAttendance(
-      date,
-      projectId,
-      centerId,
-      semesterId,
-    );
-
-    return reply.status(200).send(result);
-  } catch (error: unknown) {
-    console.error("Auto-mark attendance controller error:", error);
-    return reply.status(500).send({
-      error: "Failed to auto-mark attendance",
-    });
-  }
-};

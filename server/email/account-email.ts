@@ -1,5 +1,6 @@
 import { EMAIL_TEMPLATES } from "../constants/email_templates.js";
 import type { EnqueueEmailInput } from "../service/email-queue.service.js";
+import { escapeHtml } from "./escape-html.js";
 
 export const buildRegistrationApprovalEmailJob = ({
   userId,
@@ -18,8 +19,8 @@ export const buildRegistrationApprovalEmailJob = ({
   to: email,
   subject: EMAIL_TEMPLATES.VERIFICATION_SUCCESS.subject,
   html: EMAIL_TEMPLATES.VERIFICATION_SUCCESS.getTemplate({
-    name,
-    email,
+    name: escapeHtml(name),
+    email: escapeHtml(email),
     activationUrl,
     roleAssignmentDetails,
   }),
@@ -40,9 +41,9 @@ export const buildRegistrationRejectionEmailJob = ({
   to: email,
   subject: "Registration Update - Prangan Foundation",
   html: EMAIL_TEMPLATES.VERIFICATION_REJECTED.getTemplate({
-    name,
-    email,
-    rejectionReason,
+    name: escapeHtml(name),
+    email: escapeHtml(email),
+    rejectionReason: escapeHtml(rejectionReason),
   }),
 });
 
@@ -60,5 +61,8 @@ export const buildPasswordResetEmailJob = ({
   dedupeKey: `password-reset:${accountTokenId}`,
   to: email,
   subject: "Reset your Prangan password",
-  html: EMAIL_TEMPLATES.PASSWORD_RESET.getTemplate({ name, resetUrl }),
+  html: EMAIL_TEMPLATES.PASSWORD_RESET.getTemplate({
+    name: escapeHtml(name),
+    resetUrl,
+  }),
 });

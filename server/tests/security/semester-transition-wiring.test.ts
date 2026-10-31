@@ -42,7 +42,12 @@ test("semester transition activation is transactional and leaves its source unto
   assert.match(service, /prisma\.\$transaction/);
   assert.match(service, /studentEnrollments\.upsert/);
   assert.match(service, /userRoleAssignments\.create/);
-  assert.match(service, /semesterRemunerationRate\.upsert/);
+  assert.doesNotMatch(service, /semesterRemunerationRate\./);
+  // Setup copies each person's latest rate period, not an older rate.
+  assert.match(
+    service,
+    /semesterRemunerationPeriod\.findMany\(\{\s*where: \{ userId: \{ in: userIds \}, semesterId: sourceSemesterId \},\s*orderBy: \{ effectiveFrom: "desc" \}/,
+  );
   assert.match(service, /semesterRemunerationPeriod\.upsert/);
   assert.match(service, /SemesterStatus\.ACTIVE/);
   assert.match(service, /SemesterTransitionStatus\.COMPLETED/);
@@ -129,19 +134,4 @@ test("semester setup derives promotion suggestions from authoritative pre-assess
   assert.match(service, /promotionSuggestion/);
   assert.match(service, /examDate:\s*"desc"/);
   assert.match(service, /createdAt:\s*"desc"/);
-});
-
-test("remuneration rates have an authenticated scoped update endpoint", async () => {
-  const [routes, controller, service] = await Promise.all([
-    readFile(serverFile("routes/user.route.ts"), "utf8"),
-    readFile(serverFile("controllers/user.controller.ts"), "utf8"),
-    readFile(serverFile("service/user.service.ts"), "utf8"),
-  ]);
-
-  assert.match(routes, /"\/users\/remuneration\/rates"/);
-  assert.match(routes, /updateRemunerationRatesController/);
-  assert.match(controller, /canAccessScope/);
-  assert.match(controller, /updateSemesterRemunerationRates/);
-  assert.match(service, /export const updateSemesterRemunerationRates/);
-  assert.match(service, /semesterRemunerationRate\.upsert/);
 });

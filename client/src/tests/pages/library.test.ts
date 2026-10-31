@@ -38,18 +38,8 @@ describe("library PDF performance", () => {
       "Learn with Cambridge: Primary C — Semester 1",
       "Learn with Cambridge: Primary C — Semester 2",
     ]);
-    expect(bookCatalog[0].pdfUrl).toContain(
-      "learn_with_cambridge_primary_a_semester_1-8dGKA0IabpfdPcieQSR8b6KJNGy2pD.pdf",
-    );
-    expect(bookCatalog[3].pdfUrl).toContain(
-      "learn_with_cambridge_primary_b_semester_2-iYCjgKDV4AsihizZDnZCFRp1lWXZmv.pdf",
-    );
-    expect(bookCatalog[4].pdfUrl).toContain(
-      "learn_with_cambridge_primary_c_semester_1-9oU5I0iBP1r3cmkkuMjBGDtGFmhPoq.pdf",
-    );
-    expect(bookCatalog[5].pdfUrl).toContain(
-      "learn_with_cambridge_primary_c_semester_2-ryYDSNm1CoMgBg1jHb7Js4vnwzTEwT.pdf",
-    );
+    // Book links come from the API only, never from the public bundle.
+    expect(JSON.stringify(bookCatalog)).not.toContain("blob.vercel-storage.com");
   });
 
   it("shows the reviewed table of contents for every Primary book", () => {
@@ -126,7 +116,8 @@ describe("library PDF performance", () => {
     expect(reader).toContain('aria-label="Previous page"');
     expect(reader).toContain('aria-label="Next page"');
     expect(reader).toContain('aria-label="Open table of contents"');
-    expect(reader).toContain("file={book.pdfUrl}");
+    expect(reader).toContain("file={pdfLink.data?.url}");
+    expect(reader).toContain("/pdf-url`");
     expect(reader).toContain("navigate(libraryHref)");
     expect(reader).toContain("`${semesterDashboardHref}/library`");
     expect(reader).toContain('aria-label="Zoom in"');

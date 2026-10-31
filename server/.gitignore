@@ -50,3 +50,6 @@ Thumbs.db
 # Script artifacts
 scripts/future-profession-progress.json
 scripts/temp-images/
+
+# Photos downloaded by scripts/cloudinary-cleanup.js
+backups/

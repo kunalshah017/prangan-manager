@@ -15,8 +15,8 @@ model Centers {
   imageUrl            String?
   metadata            Json?
   projectId           String
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
+  createdAt           DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime              @updatedAt @db.Timestamptz(3)
   project             Projects              @relation(fields: [projectId], references: [id])
   semesters           Semesters[]
   enrollments         StudentEnrollments[]
@@ -36,8 +36,8 @@ model Projects {
   projectType         String?
   imageUrl            String?
   status              ProjectStatus         @default(ACTIVE)
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
+  createdAt           DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime              @updatedAt @db.Timestamptz(3)
   centers             Centers[]
   enrollments         StudentEnrollments[]
   userRoleAssignments UserRoleAssignments[]
@@ -51,12 +51,12 @@ model Projects {
 model Semesters {
   id                  String                       @id @default(cuid())
   name                String
-  startDate           DateTime
-  endDate             DateTime
+  startDate           DateTime                     @db.Date
+  endDate             DateTime                     @db.Date
   centerId            String
   status              SemesterStatus               @default(DRAFT)
-  createdAt           DateTime                     @default(now())
-  updatedAt           DateTime                     @updatedAt
+  createdAt           DateTime                     @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime                     @updatedAt @db.Timestamptz(3)
   center              Centers                      @relation(fields: [centerId], references: [id])
   enrollments         StudentEnrollments[]
   userRoleAssignments UserRoleAssignments[]
@@ -83,7 +83,7 @@ model User {
   sessionVersion             Int                          @default(0)
   profileImageUrl            String? // Added new column as optional
   status                     UserStatus                   @default(PENDING)
-  dob                        DateTime?
+  dob                        DateTime?                    @db.Date
   phone                      String?
   qualification              String?
   address                    String?
@@ -95,8 +95,8 @@ model User {
   bankBranch                 String?
   upiId                      String?
   reimbursementAmount        Decimal                      @default(0) @db.Decimal(10, 2)
-  createdAt                  DateTime                     @default(now())
-  updatedAt                  DateTime                     @updatedAt
+  createdAt                  DateTime                     @default(now()) @db.Timestamptz(3)
+  updatedAt                  DateTime                     @updatedAt @db.Timestamptz(3)
   roleAssignments            UserRoleAssignments[]
   attendance                 UserAttendance[]
   markedAttendance           UserAttendance[]             @relation("AttendanceMarkedBy")
@@ -148,10 +148,10 @@ model Expense {
   status      ExpenseStatus @default(ACTIVE)
   createdBy   String
   voidedBy    String?
-  voidedAt    DateTime?
+  voidedAt    DateTime?     @db.Timestamptz(3)
   voidReason  String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  createdAt   DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime      @updatedAt @db.Timestamptz(3)
 
   project       Projects  @relation(fields: [projectId], references: [id], onDelete: Restrict)
   center        Centers   @relation(fields: [centerId], references: [id], onDelete: Restrict)
@@ -170,9 +170,9 @@ model AccountToken {
   userId    String
   type      AccountTokenType
   tokenHash String           @unique
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime         @default(now())
+  expiresAt DateTime         @db.Timestamptz(3)
+  usedAt    DateTime?        @db.Timestamptz(3)
+  createdAt DateTime         @default(now()) @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -192,13 +192,13 @@ model EmailJob {
   status      EmailJobStatus @default(PENDING)
   attempts    Int            @default(0)
   maxAttempts Int            @default(5)
-  availableAt DateTime       @default(now())
-  lockedAt    DateTime?
+  availableAt DateTime       @default(now()) @db.Timestamptz(3)
+  lockedAt    DateTime?      @db.Timestamptz(3)
   lockToken   String?
   lastError   String?
-  sentAt      DateTime?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  sentAt      DateTime?      @db.Timestamptz(3)
+  createdAt   DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime       @updatedAt @db.Timestamptz(3)
 
   @@index([status, availableAt])
   @@index([status, lockedAt])
@@ -214,10 +214,10 @@ model UserRoleAssignments {
   semesterLevelId String? // Managed semester level
   committedDays   CommittedDays? // Only for CENTER_MANAGER & EDUCATOR sub-roles, null for others
   isActive        Boolean        @default(true)
-  assignedAt      DateTime       @default(now())
-  endedAt         DateTime? // Set when the assignment stops being active
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  assignedAt      DateTime       @default(now()) @db.Timestamptz(3)
+  endedAt         DateTime?      @db.Timestamptz(3) // Set when the assignment stops being active
+  createdAt       DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime       @updatedAt @db.Timestamptz(3)
 
   user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   project       Projects?        @relation(fields: [projectId], references: [id])
@@ -239,7 +239,7 @@ model Students {
   firstName                String?
   middleName               String?
   lastName                 String?
-  dob                      DateTime?
+  dob                      DateTime?            @db.Date
   phoneNumber              String?
   whatsappNumber           String?
   alternateNumber          String?
@@ -252,8 +252,8 @@ model Students {
   familyIncome             String? // Family income bracket (e.g., "0-25000", "25000-50000", etc.)
   futureProfession         String? // Student's aspirational future profession/career goal
   futureProfessionImageUrl String? // AI-generated image of student in their future profession
-  createdAt                DateTime             @default(now())
-  updatedAt                DateTime             @updatedAt
+  createdAt                DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime             @updatedAt @db.Timestamptz(3)
   enrollments              StudentEnrollments[]
   attendance               StudentAttendance[]
   examScores               StudentExamScore[]
@@ -266,11 +266,11 @@ model StudentEnrollments {
   semesterId      String
   semesterLevelId String // Managed semester level
   projectId       String // Direct relation to project
-  enrolledAt      DateTime  @default(now())
-  promotedAt      DateTime? // When promoted to next level
+  enrolledAt      DateTime  @default(now()) @db.Timestamptz(3)
+  promotedAt      DateTime? @db.Timestamptz(3) // When promoted to next level
   isActive        Boolean   @default(true)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
 
   student       Students            @relation(fields: [studentId], references: [id])
   center        Centers             @relation(fields: [centerId], references: [id])
@@ -296,9 +296,9 @@ model StudentAttendance {
   notes         String? // Optional notes for the attendance
   holidayReason String? // Reason for holiday (only when status is HOLIDAY)
   markedBy      String? // UserId of who marked the attendance
-  markedAt      DateTime? // When the attendance was marked
-  createdAt     DateTime                @default(now())
-  updatedAt     DateTime                @updatedAt
+  markedAt      DateTime?               @db.Timestamptz(3) // When the attendance was marked
+  createdAt     DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime                @updatedAt @db.Timestamptz(3)
 
   student      Students           @relation(fields: [studentId], references: [id], onDelete: Cascade)
   enrollment   StudentEnrollments @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
@@ -328,9 +328,9 @@ model UserAttendance {
   notes            String? // Optional notes for the attendance
   holidayReason    String? // Reason for holiday (only when status is HOLIDAY)
   markedBy         String? // UserId of who marked the attendance
-  markedAt         DateTime? // When the attendance was marked
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  markedAt         DateTime?        @db.Timestamptz(3) // When the attendance was marked
+  createdAt        DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime         @updatedAt @db.Timestamptz(3)
 
   user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   // NoAction: deleting an assignment must never take attendance (and the pay
@@ -414,8 +414,8 @@ model SemesterTransition {
   staffPlan        Json                     @default("[]")
   status           SemesterTransitionStatus @default(DRAFT)
   updatedBy        String?
-  createdAt        DateTime                 @default(now())
-  updatedAt        DateTime                 @updatedAt
+  createdAt        DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime                 @updatedAt @db.Timestamptz(3)
 
   semester       Semesters  @relation("TargetSemesterTransition", fields: [semesterId], references: [id], onDelete: Cascade)
   sourceSemester Semesters? @relation("SourceSemesterTransition", fields: [sourceSemesterId], references: [id], onDelete: SetNull)
@@ -430,8 +430,8 @@ model SemesterRemunerationRate {
   userId     String
   semesterId String
   dailyRate  Decimal  @db.Decimal(10, 2)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   semester Semesters @relation(fields: [semesterId], references: [id], onDelete: Cascade)
@@ -449,8 +449,8 @@ model SemesterRemunerationPeriod {
   effectiveTo   DateTime? @db.Date
   createdBy     String?
   updatedBy     String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
 
   user          User      @relation("RemunerationOwner", fields: [userId], references: [id], onDelete: Cascade)
   semester      Semesters @relation(fields: [semesterId], references: [id], onDelete: Cascade)
@@ -472,8 +472,8 @@ model AcademicLevel {
   name         String
   journeyOrder Int      @unique
   isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
 
   semesterLevels SemesterLevel[]
 
@@ -485,8 +485,8 @@ model SemesterLevel {
   semesterId      String
   academicLevelId String
   isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(3)
 
   semester      Semesters             @relation(fields: [semesterId], references: [id], onDelete: Cascade)
   academicLevel AcademicLevel         @relation(fields: [academicLevelId], references: [id], onDelete: Restrict)
@@ -514,8 +514,8 @@ model Syllabus {
   name            String // e.g., "English SA-1 Syllabus", "Mathematics Complete Syllabus"
   description     String?
   isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(3)
 
   project       Projects        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   center        Centers         @relation(fields: [centerId], references: [id], onDelete: Cascade)
@@ -539,8 +539,8 @@ model SyllabusTopic {
   status       SyllabusTopicStatus @default(PENDING)
   orderIndex   Int // For maintaining order within same parent
   metadata     Json? // For storing additional flexible data
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  createdAt    DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime            @updatedAt @db.Timestamptz(3)
 
   syllabus     Syllabus              @relation(fields: [syllabusId], references: [id], onDelete: Cascade)
   parent       SyllabusTopic?        @relation("TopicHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
@@ -559,7 +559,7 @@ model SyllabusProgressLog {
   newStatus      SyllabusTopicStatus
   updatedBy      String // UserId who updated the status
   notes          String?
-  createdAt      DateTime            @default(now())
+  createdAt      DateTime            @default(now()) @db.Timestamptz(3)
 
   topic SyllabusTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
   user  User          @relation(fields: [updatedBy], references: [id])
@@ -603,8 +603,8 @@ model Exam {
   totalMaxMarks     Int // Total maximum marks (sum of LSRW)
 
   isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
   project       Projects           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   center        Centers            @relation(fields: [centerId], references: [id], onDelete: Cascade)
@@ -634,10 +634,10 @@ model StudentExamScore {
   // Metadata
   remarks   String? // Optional remarks/comments
   gradedBy  String? // UserId of who graded/entered the scores
-  gradedAt  DateTime? // When the scores were entered
+  gradedAt  DateTime? @db.Timestamptz(3) // When the scores were entered
   isAbsent  Boolean   @default(false) // If student was absent for the exam
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
 
   exam       Exam               @relation(fields: [examId], references: [id], onDelete: Cascade)
   student    Students           @relation(fields: [studentId], references: [id], onDelete: Cascade)

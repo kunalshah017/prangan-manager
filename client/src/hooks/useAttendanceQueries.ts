@@ -3,8 +3,6 @@ import { api } from "@/lib/api-client";
 import type {
   ActiveUsersResponse,
   AttendanceRecordsResponse,
-  MarkAttendanceRequest,
-  MarkAttendanceResponse,
   BulkMarkAttendanceRequest,
   BulkMarkAttendanceResponse,
   AttendanceUser,
@@ -111,32 +109,6 @@ export const useAttendanceRecords = (params: {
       };
     },
     enabled: params.enabled ?? true,
-  });
-};
-
-// Attendance Mutations
-export const useMarkAttendance = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (
-      attendanceData: MarkAttendanceRequest,
-    ): Promise<MarkAttendanceResponse> => {
-      return api.post<MarkAttendanceResponse>(
-        "/attendance/mark",
-        attendanceData,
-      );
-    },
-    onSuccess: (_, variables) => {
-      // Invalidate and refetch attendance records
-      queryClient.invalidateQueries({
-        queryKey: ["attendance", "records"],
-      });
-      // Also invalidate active users for the specific date
-      queryClient.invalidateQueries({
-        queryKey: ["attendance", "active-users", variables.date],
-      });
-    },
   });
 };
 

@@ -1398,68 +1398,35 @@ _All student attendance routes require authentication_
 - Educators can perform all operations for their exact active assignment, limited to their assigned levels.
 - Create, bulk create, list, date views, history, statistics, update, and delete all apply this policy. Update and delete authorize against the persisted attendance record's scope and enrollment level.
 
-#### POST /api/v1/student-attendance
-
-Create or update one student's attendance. Returns `200`.
-
-```json
-{
-  "studentId": "student_id",
-  "enrollmentId": "enrollment_id",
-  "date": "2024-01-15",
-  "status": "PRESENT",
-  "projectId": "project_id",
-  "centerId": "center_id",
-  "semesterId": "semester_id",
-  "notes": "Present and participating well"
-}
-```
-
-`date` must be a real calendar date in `YYYY-MM-DD` format. `HOLIDAY` requires a non-empty `holidayReason`.
-
 #### POST /api/v1/student-attendance/bulk
 
 Create or update attendance for multiple students in one exact project, center, and semester scope. Returns `200`, `207` for partial success, or `400` when every item fails.
 
 The body contains `date`, `status`, `projectId`, `centerId`, `semesterId`, `studentAttendances`, and, for holiday records, `holidayReason`.
 
-#### GET `/api/v1/student-attendance/bulk/estimate?studentCount=<positive integer>`
-
-Planning endpoint for estimating bulk attendance processing. Authentication is required. It accepts one positive integer `studentCount` and returns an estimate only; it does not return student or attendance data. This endpoint deliberately has no scope policy because it does not read or modify scoped attendance records.
-
 #### GET /api/v1/student-attendance
 
 List attendance records. Optional query parameters: `studentId`, `projectId`, `centerId`, `semesterId`, `date`, `dateFrom`, `dateTo`, and `status`.
-
-#### GET /api/v1/student-attendance/by-date
-
-List attendance records for `date` with query parameters `date`, `projectId`, `centerId`, and `semesterId`. `date`, `centerId`, and `semesterId` are required; `projectId` further narrows the result when supplied.
-
-#### GET /api/v1/student-attendance/students-without-attendance
-
-List enrolled students with no attendance record for query parameters `date`, `projectId`, `centerId`, and `semesterId`. `date`, `centerId`, and `semesterId` are required; `projectId` is optional.
-
-#### GET /api/v1/student-attendance/student/:studentId
-
-List one student's attendance history. Optional query parameters: `projectId`, `centerId`, `semesterId`, `date`, `dateFrom`, `dateTo`, and `status`.
-
-#### GET /api/v1/student-attendance/student/:studentId/stats
-
-Get one student's attendance statistics. Optional query parameters: `projectId`, `centerId`, `semesterId`, `dateFrom`, and `dateTo`.
-
-#### PUT /api/v1/student-attendance/:attendanceId
-
-Update an attendance record. The body may contain only `status`, `notes`, and `holidayReason`. Returns `200`.
-
-#### DELETE /api/v1/student-attendance/:attendanceId
-
-Delete an attendance record. Returns `200`.
 
 #### Student Attendance Status Values
 
 - `PRESENT`: Student was present for the session
 - `ABSENT`: Student was absent from the session
 - `HOLIDAY`: It was a holiday (no classes scheduled)
+
+### Upload and Library Routes
+
+#### GET /api/v1/uploads/image-signature
+
+Signed in. Returns `{ cloudName, apiKey, allowed_formats, folder, timestamp, signature }` for one direct Cloudinary image upload. Limited to 30 an hour per person.
+
+#### GET /api/v1/uploads/registration-image-signature
+
+Public, for the sign-up photo. Same response, `prangan-manager/registrations` folder. All anonymous callers share 20 an hour.
+
+#### GET /api/v1/library/books/:bookId/pdf-url
+
+Signed in. Returns `{ url }`, a link to the book's PDF in the private store that expires after an hour. 404 for an invalid book id, 503 if the store isn't configured.
 
 ### Project Routes
 
@@ -2073,71 +2040,6 @@ Authorization: Bearer <jwt_token>
 }
 ```
 
-#### POST /api/v1/attendance/mark
-
-Mark attendance for a single user.
-
-**Headers:**
-
-```
-Authorization: Bearer <jwt_token>
-```
-
-**Body:**
-
-```json
-{
-  "userId": "user_id",
-  "date": "2024-07-27",
-  "status": "PRESENT",
-  "roleAssignmentId": "assignment_id",
-  "projectId": "project_id",
-  "centerId": "center_id",
-  "semesterId": "semester_id",
-  "notes": "On time",
-  "holidayReason": "National Holiday"
-}
-```
-
-**Field Requirements:**
-
-**Required Fields:**
-
-- `userId` (string): ID of the user
-- `date` (string): Date in YYYY-MM-DD format
-- `status` (string): PRESENT, ABSENT, NOT_AVAILABLE, or HOLIDAY
-- `projectId` (string): ID of the project
-- `centerId` (string): ID of the center
-- `semesterId` (string): ID of the semester
-- `roleAssignmentId` (string): ID of the specific role assignment
-
-**Optional Fields:**
-
-- `notes` (string): Additional notes
-- `holidayReason` (string): Required when status is HOLIDAY
-
-The submitted role assignment must be active, belong to the stated user, match the stated project, center, and semester exactly, and have an `EDUCATOR` or `CENTER_MANAGER` sub-role.
-
-**Response (200):**
-
-```json
-{
-  "message": "Attendance marked successfully",
-  "attendance": {
-    "id": "attendance_id",
-    "userId": "user_id",
-    "date": "2024-07-27",
-    "status": "PRESENT",
-    "projectId": "project_id",
-    "centerId": "center_id",
-    "semesterId": "semester_id",
-    "notes": "On time",
-    "markedBy": "marker_user_id",
-    "markedAt": "2024-07-27T10:00:00.000Z"
-  }
-}
-```
-
 #### POST /api/v1/attendance/bulk-mark
 
 Mark attendance for multiple users in bulk.
@@ -2249,84 +2151,6 @@ Authorization: Bearer <jwt_token>
 }
 ```
 
-#### GET /api/v1/attendance/summary
-
-Get attendance summary/report for users within a date range.
-
-**Headers:**
-
-```
-Authorization: Bearer <jwt_token>
-```
-
-**Query Parameters:**
-
-- `startDate` (string, required): Real UTC calendar date in YYYY-MM-DD format
-- `endDate` (string, required): Real UTC calendar date in YYYY-MM-DD format
-- `projectId` (string, optional): Canonical project ID
-- `centerId` (string, optional): Canonical center ID
-- `semesterId` (string, optional): Canonical semester ID
-- `userIds` (string, optional): Comma-separated canonical user IDs to filter by
-
-**Response (200):**
-
-```json
-{
-  "message": "Attendance summary retrieved successfully",
-  "data": {
-    "summary": [
-      {
-        "userId": "user_id",
-        "userName": "John Doe",
-        "userEmail": "john@example.com",
-        "totalDays": 8,
-        "presentDays": 6,
-        "absentDays": 1,
-        "notAvailableDays": 0,
-        "holidayDays": 1,
-        "attendancePercentage": 86
-      }
-    ],
-    "periodInfo": {
-      "startDate": "2024-07-01",
-      "endDate": "2024-07-31",
-      "totalDays": 31,
-      "weekendDays": 8
-    }
-  }
-}
-```
-
-#### POST /api/v1/attendance/auto-mark
-
-Auto-mark attendance for all eligible users on a specific date (Admin only). This creates NOT_AVAILABLE records for users who haven't been marked present.
-
-**Headers:**
-
-```
-Authorization: Bearer <admin_jwt_token>
-```
-
-**Body:**
-
-```json
-{
-  "date": "2024-07-27",
-  "projectId": "project_id",
-  "centerId": "center_id",
-  "semesterId": "semester_id"
-}
-```
-
-**Response (200):**
-
-```json
-{
-  "message": "Auto-marked attendance for 5 user assignments",
-  "processedCount": 5
-}
-```
-
 ## Attendance Logic
 
 The attendance system follows these rules:
@@ -2336,10 +2160,10 @@ The attendance system follows these rules:
 3. **Status Logic**:
    - **PRESENT**: User explicitly marked as present (client sends entry)
    - **ABSENT**: User was expected but didn't show up on their committed day
-   - **NOT_AVAILABLE**: User was not available on a day they weren't committed to, or auto-marked
+   - **NOT_AVAILABLE**: User was not available on a day they weren't committed to
    - **HOLIDAY**: Marked as holiday with a reason (applies to all users)
+4. **Pay rules**: `bulk-mark` rejects weekdays and dates outside the semester, and refuses entries in a month already paid for that person (payments can't be undone). Payment is once per person per calendar month.
 
-4. **Auto-marking**: Admins can auto-mark all eligible users as NOT_AVAILABLE, which can later be updated to PRESENT when users check in
 
 5. **Hierarchy**: Attendance can be tracked at project, center, and semester levels for flexible reporting
 

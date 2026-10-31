@@ -42,6 +42,7 @@ import type {
   RemunerationUser,
 } from "@/types/api";
 import { useAuthStore } from "@/stores/authStore";
+import { formatCalendarDate } from "@/lib/dates";
 
 type PaymentState = "READY" | "INCOMPLETE" | "NO_PAYMENT_DUE" | "PAID";
 
@@ -59,12 +60,7 @@ const stateStyle: Record<PaymentState, string> = {
   PAID: "bg-success/15 text-success-foreground",
 };
 
-const dateLabel = (value: string) =>
-  new Date(value).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+const dateLabel = (value: string) => formatCalendarDate(value, undefined, "en-IN");
 
 const scheduleLabel = (
   periods: RemunerationPeriod[] | undefined,

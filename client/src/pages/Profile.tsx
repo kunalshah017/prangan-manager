@@ -11,14 +11,7 @@ import { FormField } from "@/components/workspace/FormParts";
 import { useAuth } from "@/hooks/useAuth";
 import { useUpdateBankDetails, useUpdateMyProfile } from "@/hooks/useAuthQueries";
 import type { User } from "@/types/api";
-
-const formatDate = (value: string) =>
-    new Date(value).toLocaleDateString("en-GB", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-        timeZone: "UTC",
-    });
+import { formatCalendarDate } from "@/lib/dates";
 
 const maskAccountNumber = (value?: string | null) => {
     if (!value) return "Not added";
@@ -64,7 +57,7 @@ export default function Profile() {
             phone: currentUser.phone ?? "",
             qualification: currentUser.qualification ?? "",
             address: currentUser.address ?? "",
-            dob: currentUser.dob ? new Date(currentUser.dob).toISOString().slice(0, 10) : "",
+            dob: currentUser.dob ? currentUser.dob.slice(0, 10) : "",
             profileImageUrl: currentUser.profileImageUrl ?? "",
         });
         setPayment({
@@ -214,6 +207,7 @@ export default function Profile() {
                 values={profile}
                 onChange={(field, value) => setProfile((current) => ({ ...current, [field]: value }))}
                 disabled={updateProfile.isPending}
+                emailReadOnly={user.role !== "ADMIN"}
             />
             {formButtons(cancelProfile, updateProfile.isPending, "Save details")}
         </form>
@@ -223,7 +217,7 @@ export default function Profile() {
             <DetailList items={[
                 { label: "Phone", value: user.phone || "Not added" },
                 { label: "Qualification", value: user.qualification || "Not added" },
-                { label: "Date of birth", value: user.dob ? formatDate(user.dob) : "Not added" },
+                { label: "Date of birth", value: user.dob ? formatCalendarDate(user.dob) : "Not added" },
                 { label: "Address", value: user.address || "Not added", wide: true },
             ]} />
         </div>

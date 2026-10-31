@@ -57,7 +57,6 @@ export interface BookInfo {
 
 export interface Book {
   id: string;
-  pdfUrl: string;
   coverUrl: string;
   pdfOffset: number;
   bookInfo: BookInfo;
@@ -130,18 +129,15 @@ const createLearnWithCambridgeBook = ({
   level,
   semester,
   coverUrl,
-  pdfUrl,
 }: {
   id: string;
   isbn: string;
   level: "Primary A" | "Primary B" | "Primary C";
   semester: 1 | 2;
   coverUrl: string;
-  pdfUrl: string;
 }): Book => ({
   id,
   coverUrl,
-  pdfUrl,
   pdfOffset: 9,
   bookInfo: {
     title: `Learn with Cambridge: ${level} — Semester ${semester}`,
@@ -176,8 +172,6 @@ export const books: Book[] = [
     semester: 1,
     coverUrl:
       "/images/library/learn_with_cambridge_primary_a_semester_1.webp",
-    pdfUrl:
-      "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/learn_with_cambridge_primary_a_semester_1-8dGKA0IabpfdPcieQSR8b6KJNGy2pD.pdf",
   }),
   createLearnWithCambridgeBook({
     id: "learn-with-cambridge-primary-a-semester-2",
@@ -186,8 +180,6 @@ export const books: Book[] = [
     semester: 2,
     coverUrl:
       "/images/library/learn_with_cambridge_primary_a_semester_2.webp",
-    pdfUrl:
-      "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/learn_with_cambridge_primary_a_semester_2-nyIfa47YFcvhQ8IwTENtG7lxWRcUDY.pdf",
   }),
   createLearnWithCambridgeBook({
     id: "learn-with-cambridge-primary-b-semester-1",
@@ -196,8 +188,6 @@ export const books: Book[] = [
     semester: 1,
     coverUrl:
       "/images/library/learn_with_cambridge_primary_b_semester_1.webp",
-    pdfUrl:
-      "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/learn_with_cambridge_primary_b_semester_1-UKcbAB222NwdH4l7z28XLwesrQJ383.pdf",
   }),
   createLearnWithCambridgeBook({
     id: "learn-with-cambridge-primary-b-semester-2",
@@ -206,8 +196,6 @@ export const books: Book[] = [
     semester: 2,
     coverUrl:
       "/images/library/learn_with_cambridge_primary_b_semester_2.webp",
-    pdfUrl:
-      "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/learn_with_cambridge_primary_b_semester_2-iYCjgKDV4AsihizZDnZCFRp1lWXZmv.pdf",
   }),
   createLearnWithCambridgeBook({
     id: "learn-with-cambridge-primary-c-semester-1",
@@ -216,8 +204,6 @@ export const books: Book[] = [
     semester: 1,
     coverUrl:
       "/images/library/learn_with_cambridge_primary_c_semester_1.webp",
-    pdfUrl:
-      "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/learn_with_cambridge_primary_c_semester_1-9oU5I0iBP1r3cmkkuMjBGDtGFmhPoq.pdf",
   }),
   createLearnWithCambridgeBook({
     id: "learn-with-cambridge-primary-c-semester-2",
@@ -226,14 +212,10 @@ export const books: Book[] = [
     semester: 2,
     coverUrl:
       "/images/library/learn_with_cambridge_primary_c_semester_2.webp",
-    pdfUrl:
-      "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/learn_with_cambridge_primary_c_semester_2-ryYDSNm1CoMgBg1jHb7Js4vnwzTEwT.pdf",
   }),
   {
     id: "communicate-cambridge-1",
     coverUrl: "/images/library/cambridge_english_level_1.webp",
-    pdfUrl:
-      "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/cambridge_english_level_1.pdf",
     pdfOffset: 11,
     bookInfo: {
       title: "Communicate with Cambridge: Coursebook 1",
@@ -869,8 +851,6 @@ export const books: Book[] = [
   {
     id: "communicate-cambridge-2",
     coverUrl: "/images/library/cambridge_english_level_2.webp",
-    pdfUrl:
-      "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/cambridge_english_level_2.pdf?v=2026-revised",
     pdfOffset: 11,
     bookInfo: {
       title: "Communicate with Cambridge: Coursebook 2",
@@ -1369,8 +1349,6 @@ export const books: Book[] = [
   {
     id: "communicate-cambridge-3",
     coverUrl: "/images/library/cambridge_english_level_3.webp",
-    pdfUrl:
-      "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/cambridge_english_level_3.pdf",
     pdfOffset: 11,
     bookInfo: {
       title: "Communicate with Cambridge: Coursebook 3",
@@ -1902,8 +1880,6 @@ export const books: Book[] = [
   {
     id: "communicate-cambridge-4",
     coverUrl: "/images/library/cambridge_english_level_4.webp",
-    pdfUrl:
-      "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/cambridge_english_level_4.pdf",
     pdfOffset: 11,
     bookInfo: {
       title: "Communicate with Cambridge: Coursebook 4",
@@ -2440,8 +2416,6 @@ export const books: Book[] = [
   {
     id: "grammar-gear-level-1",
     coverUrl: "/images/library/grammar_gear_level_1.webp",
-    pdfUrl:
-      "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/grammar_gear_level_1.pdf",
     pdfOffset: 7,
     bookInfo: {
       title: "Grammar Gear 1",
@@ -2730,8 +2704,6 @@ export const books: Book[] = [
   {
     id: "grammar-gear-level-2",
     coverUrl: "/images/library/grammar_gear_level_2.webp",
-    pdfUrl:
-      "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/grammar_gear_level_2.pdf",
     pdfOffset: 7,
     bookInfo: {
       title: "Grammar Gear 2",
@@ -3030,8 +3002,6 @@ export const books: Book[] = [
   {
     id: "grammar-gear-level-3",
     coverUrl: "/images/library/grammar_gear_level_3.webp",
-    pdfUrl:
-      "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/grammar_gear_level_3.pdf",
     pdfOffset: 7,
     bookInfo: {
       title: "Grammar Gear 3",
@@ -3345,8 +3315,6 @@ export const books: Book[] = [
   {
     id: "grammar-gear-level-4",
     coverUrl: "/images/library/grammar_gear_level_4.webp",
-    pdfUrl:
-      "https://cermlj2dqa0j2jal.public.blob.vercel-storage.com/grammar_gear_level_4.pdf",
     pdfOffset: 7,
     bookInfo: {
       title: "Grammar Gear 4",

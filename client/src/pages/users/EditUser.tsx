@@ -62,7 +62,7 @@ const EditUser = () => {
             email: user.email || '',
             phone: user.phone || '',
             qualification: user.qualification || '',
-            dob: user.dob ? new Date(user.dob).toISOString().split('T')[0] : '',
+            dob: user.dob ? user.dob.slice(0, 10) : '',
             address: user.address || '',
         });
         setRole(user.role || 'USER');
@@ -120,7 +120,7 @@ const EditUser = () => {
                     firstName: details.firstName.trim(),
                     middleName: details.middleName.trim() || null,
                     lastName: details.lastName.trim() || null,
-                    dob: details.dob ? new Date(details.dob).toISOString() : null,
+                    dob: details.dob || null,
                 },
                 roleAssignments: role === 'ADMIN' ? [] : roleAssignments.map((assignment) => ({
                     subRole: assignment.subRole,

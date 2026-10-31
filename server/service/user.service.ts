@@ -289,35 +289,6 @@ export const setSemesterRemunerationPeriod = async ({
   }
 };
 
-export const updateSemesterRemunerationRates = async ({
-  semesterId,
-  rates,
-}: {
-  semesterId: string;
-  rates: Array<{ userId: string; dailyRate: number }>;
-}) => {
-  try {
-    return await prisma.$transaction(
-      rates.map((rate) =>
-        prisma.semesterRemunerationRate.upsert({
-          where: {
-            userId_semesterId: { userId: rate.userId, semesterId },
-          },
-          create: {
-            userId: rate.userId,
-            semesterId,
-            dailyRate: rate.dailyRate,
-          },
-          update: { dailyRate: rate.dailyRate },
-        }),
-      ),
-    );
-  } catch (error: unknown) {
-    console.error("Error updating semester remuneration rates:", error);
-    return "Failed to update remuneration rates";
-  }
-};
-
 export const getContextStaff = async ({
   projectId,
   centerId,

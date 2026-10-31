@@ -29,14 +29,8 @@ import { buildDashboardModel, hasCompleteBankDetails } from "@/lib/dashboard";
 import { levelName, sortByJourneyOrder } from "@/lib/levels";
 import { cn } from "@/lib/utils";
 import type { ContextStaffUser, Student } from "@/types/api";
-
-const formatDate = (date: string) =>
-    new Date(date).toLocaleDateString("en-GB", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-        timeZone: "UTC",
-    });
+import { formatCalendarDate, formatMoment, indiaToday } from "@/lib/dates";
+import { isWeekendDate } from "@/utils/helper";
 
 const isSameContext = (
     assignment: NonNullable<ContextStaffUser["roleAssignments"]>[number],
@@ -126,8 +120,9 @@ export default function Dashboard() {
     const context = { projectId, centerId, semesterId };
     const dashboardModel = buildDashboardModel(user, context);
     const today = useMemo(() => new Date(), []);
-    const todayString = today.toISOString().slice(0, 10);
-    const isWeekend = today.getDay() === 0 || today.getDay() === 6;
+    // Class days and birthdays follow the day in India, wherever the viewer is.
+    const todayString = useMemo(() => indiaToday(today), [today]);
+    const isWeekend = isWeekendDate(todayString);
 
     const semesterQuery = useSemester(semesterId);
     const centerQuery = useCenter(centerId);
@@ -242,7 +237,7 @@ export default function Dashboard() {
     });
     const syllabusStatistics = syllabusStatisticsQuery.data;
     const exams = examsQuery.data || [];
-    const upcomingExams = exams.filter((exam) => new Date(exam.examDate).getTime() >= today.getTime()).length;
+    const upcomingExams = exams.filter((exam) => exam.examDate.slice(0, 10) >= todayString).length;
     const completedExams = exams.length - upcomingExams;
 
     const missingStudentLevels = useMemo(() => {
@@ -264,18 +259,13 @@ export default function Dashboard() {
     }, [dashboardModel.capabilities.markStaffAttendance, isWeekend, staff, staffAttendanceQuery.data]);
 
     const birthdays = useMemo(() => {
-        const month = today.getMonth();
-        const date = today.getDate();
-        const hasBirthday = (dob?: string | null) => {
-            if (!dob) return false;
-            const value = new Date(dob);
-            return !Number.isNaN(value.getTime()) && value.getMonth() === month && value.getDate() === date;
-        };
+        const monthDay = todayString.slice(5, 10);
+        const hasBirthday = (dob?: string | null) => Boolean(dob) && dob!.slice(5, 10) === monthDay;
         const people: Array<Student | ContextStaffUser> = [];
         if (dashboardModel.visibility.students) people.push(...students.filter((student) => hasBirthday(student.dob)));
         if (dashboardModel.visibility.staff) people.push(...staff.filter((person) => hasBirthday(person.dob)));
         return people;
-    }, [dashboardModel.visibility.staff, dashboardModel.visibility.students, staff, students, today]);
+    }, [dashboardModel.visibility.staff, dashboardModel.visibility.students, staff, students, todayString]);
 
     const actionHref = (label: string) =>
         dashboardModel.actionGroups.flatMap((group) => group.actions).find((action) => action.label === label)?.href;
@@ -371,7 +361,7 @@ export default function Dashboard() {
             <WorkspacePageHeader
                 title={semester.name}
                 badge={dashboardModel.roleLabel}
-                description={<>{center.name} · {formatDate(semester.startDate)} – {formatDate(semester.endDate)}{assignedSemesterLevel ? ` · ${levelName(assignedSemesterLevel)}` : ""}</>}
+                description={<>{center.name} · {formatCalendarDate(semester.startDate)} – {formatCalendarDate(semester.endDate)}{assignedSemesterLevel ? ` · ${levelName(assignedSemesterLevel)}` : ""}</>}
             />
 
             {attentionItems.length === 0 ? (
@@ -451,7 +441,7 @@ export default function Dashboard() {
                                     {ongoingItems.slice(0, 5).map((item) => (
                                         <div key={item.id} className="flex items-center justify-between gap-4 py-3 first:pt-1 last:pb-0">
                                             <p className="min-w-0 truncate text-sm font-medium text-foreground">{item.title}</p>
-                                            <span className="shrink-0 text-xs text-muted-foreground">{formatDate(item.updatedAt)}</span>
+                                            <span className="shrink-0 text-xs text-muted-foreground">{formatMoment(item.updatedAt, { dateStyle: "medium" })}</span>
                                         </div>
                                     ))}
                                 </div>

@@ -1,19 +1,9 @@
+import { isValidDateFormat } from "../utils/dateHelpers.js";
 import { StudentAttendanceStatus } from "../generated/prisma/index.js";
-import type {
-  BulkStudentAttendanceInput,
-  StudentAttendanceCreateInput,
-  StudentAttendanceUpdateInput,
-} from "../types/student-attendance.types.js";
-
-const updateFields = new Set(["status", "notes", "holidayReason"]);
-const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+import type { BulkStudentAttendanceInput } from "../types/student-attendance.types.js";
 
 type StudentAttendanceParseResult<T> = { data: T } | { error: string };
 
-type StudentAttendanceUpdateParseResult =
-  StudentAttendanceParseResult<StudentAttendanceUpdateInput>;
-type StudentAttendanceCreateParseResult =
-  StudentAttendanceParseResult<StudentAttendanceCreateInput>;
 type BulkStudentAttendanceParseResult =
   StudentAttendanceParseResult<BulkStudentAttendanceInput>;
 
@@ -23,19 +13,8 @@ const isRecord = (input: unknown): input is Record<string, unknown> =>
 const isCanonicalString = (input: unknown): input is string =>
   typeof input === "string" && input.length > 0 && input === input.trim();
 
-const isDate = (input: unknown): input is string => {
-  if (!isCanonicalString(input) || !datePattern.test(input)) {
-    return false;
-  }
-
-  const [year, month, day] = input.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
-  );
-};
+const isDate = (input: unknown): input is string =>
+  typeof input === "string" && isValidDateFormat(input);
 
 const isNonblankString = (input: unknown): input is string =>
   typeof input === "string" && input.trim().length > 0;
@@ -52,67 +31,6 @@ const holidayReasonFor = (
 ): string | null | undefined => {
   if (status !== StudentAttendanceStatus.HOLIDAY) return null;
   return isNonblankString(holidayReason) ? holidayReason : undefined;
-};
-
-export const parseStudentAttendanceCreate = (
-  input: unknown,
-): StudentAttendanceCreateParseResult => {
-  if (!isRecord(input)) {
-    return { error: "Student attendance data is invalid" };
-  }
-
-  const requiredFields = [
-    "studentId",
-    "enrollmentId",
-    "date",
-    "projectId",
-    "centerId",
-    "semesterId",
-  ] as const;
-  if (requiredFields.some((field) => !isCanonicalString(input[field]))) {
-    return {
-      error: "Student attendance IDs and date must be canonical strings",
-    };
-  }
-  const studentId = input.studentId as string;
-  const enrollmentId = input.enrollmentId as string;
-  const date = input.date as string;
-  const projectId = input.projectId as string;
-  const centerId = input.centerId as string;
-  const semesterId = input.semesterId as string;
-  if (!isDate(date)) {
-    return { error: "Date must be in YYYY-MM-DD format" };
-  }
-  if (!isAttendanceStatus(input.status)) {
-    return { error: "Attendance status is invalid" };
-  }
-  if ("notes" in input && typeof input.notes !== "string") {
-    return { error: "Attendance notes must be a string" };
-  }
-
-  const holidayReason = holidayReasonFor(input.status, input.holidayReason);
-  if (
-    input.status === StudentAttendanceStatus.HOLIDAY &&
-    holidayReason === undefined
-  ) {
-    return {
-      error: "A holiday reason is required when marking attendance as HOLIDAY",
-    };
-  }
-
-  return {
-    data: {
-      studentId,
-      enrollmentId,
-      date,
-      projectId,
-      centerId,
-      semesterId,
-      status: input.status,
-      ...(typeof input.notes === "string" && { notes: input.notes }),
-      ...(holidayReason && { holidayReason }),
-    },
-  };
 };
 
 export const parseBulkStudentAttendance = (
@@ -202,73 +120,4 @@ export const parseBulkStudentAttendance = (
       ...(holidayReason && { holidayReason }),
     },
   };
-};
-
-export const parseStudentAttendanceUpdate = (
-  input: unknown,
-): StudentAttendanceUpdateParseResult => {
-  if (!isRecord(input)) {
-    return { error: "Attendance update data is invalid" };
-  }
-
-  const record = input;
-  if (Object.keys(record).some((field) => !updateFields.has(field))) {
-    return { error: "Only status, notes, and holidayReason may be updated" };
-  }
-
-  if (Object.keys(record).length === 0) {
-    return { error: "At least one attendance field must be updated" };
-  }
-
-  if (
-    "status" in record &&
-    !Object.values(StudentAttendanceStatus).includes(
-      record.status as StudentAttendanceStatus,
-    )
-  ) {
-    return { error: "Attendance status is invalid" };
-  }
-
-  if ("notes" in record && typeof record.notes !== "string") {
-    return { error: "Attendance notes must be a string" };
-  }
-
-  if (
-    "holidayReason" in record &&
-    (typeof record.holidayReason !== "string" ||
-      record.holidayReason.trim().length === 0)
-  ) {
-    return { error: "Holiday reason must be a non-empty string" };
-  }
-
-  if (
-    record.status === StudentAttendanceStatus.HOLIDAY &&
-    !record.holidayReason
-  ) {
-    return {
-      error: "A holiday reason is required when marking attendance as HOLIDAY",
-    };
-  }
-
-  if (
-    "holidayReason" in record &&
-    record.status !== StudentAttendanceStatus.HOLIDAY
-  ) {
-    return { error: "A holiday reason can only be set when status is HOLIDAY" };
-  }
-
-  const data: StudentAttendanceUpdateInput = {};
-  if ("status" in record)
-    data.status = record.status as StudentAttendanceStatus;
-  if ("notes" in record) data.notes = record.notes as string;
-  if ("holidayReason" in record)
-    data.holidayReason = record.holidayReason as string;
-  if (
-    record.status === StudentAttendanceStatus.PRESENT ||
-    record.status === StudentAttendanceStatus.ABSENT
-  ) {
-    data.holidayReason = null;
-  }
-
-  return { data };
 };

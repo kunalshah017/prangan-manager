@@ -66,7 +66,9 @@ export const getSessionCookieOptions = (
   return {
     httpOnly: true,
     secure: production,
-    sameSite: production ? ("none" as const) : ("lax" as const),
+    // Browsers reach the API on the client's own origin (Vercel rewrite), so
+    // cookies never need to travel cross-site, e.g. inside another site's frame.
+    sameSite: "lax" as const,
     path: "/",
     maxAge: SESSION_MAX_AGE_SECONDS,
   };
@@ -80,7 +82,7 @@ export const getCsrfCookieOptions = (
   return {
     httpOnly: true,
     secure: production,
-    sameSite: production ? ("none" as const) : ("lax" as const),
+    sameSite: "lax" as const,
     path: "/",
     maxAge: SESSION_MAX_AGE_SECONDS,
   };

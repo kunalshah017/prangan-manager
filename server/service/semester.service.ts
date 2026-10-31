@@ -3,7 +3,7 @@ import type {
   CreateSemesterInput,
   UpdateSemesterInput,
 } from "../types/semester.type.js";
-import { convertToDateTime } from "../utils/dateHelpers.js";
+import { calendarDate } from "../utils/dateHelpers.js";
 import { AcademicLevelServiceError } from "./academic-level.service.js";
 import { SemesterStatus } from "../generated/prisma/index.js";
 import { initializeSemesterTransition } from "./semester-transition.service.js";
@@ -40,8 +40,8 @@ export const CreateSemester = async (
     const semester = await transaction.semesters.create({
       data: {
         name: semesterData.name,
-        startDate: convertToDateTime(semesterData.startDate, false)!,
-        endDate: convertToDateTime(semesterData.endDate, true)!,
+        startDate: calendarDate(semesterData.startDate),
+        endDate: calendarDate(semesterData.endDate),
         centerId: semesterData.centerId,
         ...(updatedBy && { status: SemesterStatus.DRAFT }),
       },
@@ -139,10 +139,10 @@ export const updateSemester = async (
           name: semesterFields.name,
         }),
         ...(semesterFields.startDate !== undefined && {
-          startDate: convertToDateTime(semesterFields.startDate, false),
+          startDate: calendarDate(semesterFields.startDate),
         }),
         ...(semesterFields.endDate !== undefined && {
-          endDate: convertToDateTime(semesterFields.endDate, true),
+          endDate: calendarDate(semesterFields.endDate),
         }),
       },
     });

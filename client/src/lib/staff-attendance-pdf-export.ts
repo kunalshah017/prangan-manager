@@ -11,6 +11,13 @@ type ExportMetadata = {
   periodLabel: string;
 };
 
+
+// Times are printed in the zone of the person exporting, so the header names it.
+const viewerZone = () =>
+  new Intl.DateTimeFormat("en-GB", { timeZoneName: "short" })
+    .formatToParts(new Date())
+    .find((part) => part.type === "timeZoneName")?.value ?? "local time";
+
 export type StaffAttendancePdfExportInput = ExportMetadata & {
   records: AttendanceRecord[];
   timeframe: "single" | "range";
@@ -162,7 +169,7 @@ const drawSingleDatePage = (
     ]);
   autoTable(doc, {
     startY: 43,
-    head: [["S.No", "Name", "Role", "Status", "Time", "Marked by"]],
+    head: [["S.No", "Name", "Role", "Status", `Time (${viewerZone()})`, "Marked by"]],
     body: rows,
     theme: "grid",
     styles: { fontSize: 9, cellPadding: 3, lineWidth: 0.2, lineColor: [190, 180, 165] },

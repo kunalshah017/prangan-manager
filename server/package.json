@@ -16,6 +16,8 @@
     "db:seed:2026-27-curriculum": "tsx scripts/seed-2026-27-curriculum.ts",
     "db:update:level-2-syllabus": "tsx scripts/update-level-2-communicate-syllabus.ts",
     "db:end-finished-semester-roles": "tsx scripts/end-finished-semester-assignments.ts",
+    "db:reset-unset-passwords": "tsx scripts/reset-unset-passwords.ts",
+    "db:report:date-anomalies": "tsx scripts/report-date-anomalies.ts",
     "db:verify:semester-level-cutover": "tsx scripts/verify-semester-level-cutover.ts",
     "db:backfill:person-names": "tsx scripts/backfill-person-names.ts",
     "db:verify:semester-level-integrity": "tsx scripts/verify-semester-level-integrity.ts",
@@ -32,7 +34,9 @@
   "dependencies": {
     "@fastify/cookie": "^11.1.5",
     "@fastify/cors": "^11.3.1",
+    "@fastify/rate-limit": "^10.3.0",
     "@prisma/client": "^6.19.3",
+    "@vercel/blob": "^2.8.2",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.11.0",
     "dotenv": "^18.0.9",
@@ -41,7 +45,8 @@
     "nodemailer": "^10.3.1"
   },
   "overrides": {
-    "deepmerge-ts": "^8.0.2"
+    "deepmerge-ts": "^8.0.2",
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

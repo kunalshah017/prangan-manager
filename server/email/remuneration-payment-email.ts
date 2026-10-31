@@ -1,13 +1,7 @@
+import { escapeHtml } from "./escape-html.js";
+
 const LOGO_URL =
   "https://manager.pranganfoundation.org/images/logo/prangan-logo-light-mode.png";
-
-const escapeHtml = (value: string) =>
-  value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 
 const singleLine = (value: string) => value.replace(/[\r\n]+/g, " ").trim();
 

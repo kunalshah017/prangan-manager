@@ -8,11 +8,11 @@ import {
   calculateRemuneration,
   clipMonthToSemester,
   createManualExpense,
-  dateOnlyInIndia,
   listExpenses,
   markRemunerationPaid,
   voidExpense,
 } from "../../service/expense.service.js";
+import { indiaToday } from "../../lib/role-assignments.js";
 
 const date = (value: string) => new Date(`${value}T00:00:00.000Z`);
 
@@ -62,11 +62,11 @@ test("expense service clips a payment month to semester boundaries", () => {
 
 test("payment dates use the India business date around midnight", () => {
   assert.equal(
-    dateOnlyInIndia(new Date("2026-07-24T18:29:59.000Z")),
+    indiaToday(new Date("2026-07-24T18:29:59.000Z")),
     "2026-07-24",
   );
   assert.equal(
-    dateOnlyInIndia(new Date("2026-07-24T18:30:00.000Z")),
+    indiaToday(new Date("2026-07-24T18:30:00.000Z")),
     "2026-07-25",
   );
 });
@@ -150,8 +150,8 @@ test("expense service builds stable source keys and immutable metadata snapshots
   };
 
   assert.equal(
-    buildRemunerationSourceKey("semester-1", "user-1", period),
-    "remuneration:semester-1:user-1:2026-07-10:2026-07-31",
+    buildRemunerationSourceKey("semester-1", "user-1", "2026-07"),
+    "remuneration:semester-1:user-1:2026-07",
   );
   assert.deepEqual(buildRemunerationMetadata("2026-07", period, calculation), {
     selectedMonth: "2026-07",
@@ -302,7 +302,7 @@ test("duplicate remuneration payment conflicts map to ALREADY_PAID", async () =>
   let attendanceWhere: Record<string, unknown> | undefined;
   const transaction = {
     expense: {
-      findUnique: async () => null,
+      findFirst: async () => null,
       create: async () => {
         throw { code: "P2002" };
       },
@@ -362,7 +362,7 @@ test("bulk payment creates one expense and email only for the ready user", async
   const queuedEmails: Array<Record<string, unknown>> = [];
   const transaction = {
     expense: {
-      findUnique: async () => null,
+      findFirst: async () => null,
       create: async ({ data }: { data: Record<string, unknown> }) => {
         createdExpenses.push(data);
         return { id: "expense-1", ...data };
@@ -438,12 +438,21 @@ test("bulk payment creates one expense and email only for the ready user", async
   );
 });
 
-test("an existing remuneration expense short-circuits without queueing email", async () => {
+test("a month paid under the old period-based key is not paid again", async () => {
   let userReads = 0;
   let queuedEmails = 0;
+  // Paid while the semester started on Jul 10; its dates have changed since.
+  const legacyKey = "remuneration:semester-1:user-1:2026-07-10:2026-07-31";
   const transaction = {
     expense: {
-      findUnique: async () => ({ id: "expense-1" }),
+      findFirst: async ({
+        where,
+      }: {
+        where: { sourceKey: { startsWith: string } };
+      }) =>
+        legacyKey.startsWith(where.sourceKey.startsWith)
+          ? { id: "expense-1" }
+          : null,
     },
     emailJob: {
       upsert: async () => {
@@ -488,7 +497,7 @@ test("a payment transaction rolls back its expense when email queueing fails", a
       let stagedExpense: Record<string, unknown> | undefined;
       const transaction = {
         expense: {
-          findUnique: async () => null,
+          findFirst: async () => null,
           create: async ({ data }: { data: Record<string, unknown> }) => {
             stagedExpense = data;
             return { id: "expense-1", ...data };
@@ -561,7 +570,7 @@ test("concurrent payment requests commit exactly one expense and email", async (
         let stagedEmail: Record<string, unknown> | undefined;
         const transaction = {
           expense: {
-            findUnique: async () =>
+            findFirst: async () =>
               committedExpenses.length ? { id: "expense-1" } : null,
             create: async ({ data }: { data: Record<string, unknown> }) => {
               stagedExpense = data;

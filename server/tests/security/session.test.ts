@@ -65,7 +65,7 @@ test("production sessions require an explicit client origin", () => {
   );
 });
 
-test("session cookies are HttpOnly and secure for production cross-origin clients", () => {
+test("session cookies are HttpOnly, secure in production, and never sent cross-site", () => {
   const development = getSessionCookieOptions({ NODE_ENV: "development" });
   const production = getSessionCookieOptions({ NODE_ENV: "production" });
   const azure = getSessionCookieOptions({
@@ -77,9 +77,9 @@ test("session cookies are HttpOnly and secure for production cross-origin client
   assert.equal(development.sameSite, "lax");
   assert.equal(production.httpOnly, true);
   assert.equal(production.secure, true);
-  assert.equal(production.sameSite, "none");
+  assert.equal(production.sameSite, "lax");
   assert.equal(azure.secure, true);
-  assert.equal(azure.sameSite, "none");
+  assert.equal(azure.sameSite, "lax");
 });
 
 test("CSRF validation requires a timing-safe exact token match", () => {

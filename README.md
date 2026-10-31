@@ -5,10 +5,11 @@ education programs. It brings project administration, center operations,
 semester planning, student records, attendance, curriculum, assessments,
 payments, and classroom resources into one scoped workspace.
 
-This repository is private. The handbook is intended for Prangan engineers,
-administrators, and operators. Do not copy production credentials, database
-URLs, private keys, user data, or protected reports into this file or any other
-tracked document.
+This repository is public: anyone can read every file and the full git
+history. Never commit production credentials, database URLs, private keys,
+file links, user data, or protected reports to this file or any other tracked
+file. A secret that was ever committed must be rotated; deleting it later does
+not remove it from history.
 
 ## Contents
 
@@ -281,7 +282,6 @@ prangan-manager/
 │       ├── stores/          Client state
 │       ├── tests/           Vitest regression tests
 │       └── types/           Client API contracts
-├── docs/                    Operations guides, designs, and plans
 ├── server/                  Fastify API and background worker
 │   ├── controllers/         HTTP request orchestration
 │   ├── email/               Email payload builders
@@ -308,7 +308,7 @@ There is no root `package.json`. Run npm commands from either `client/` or
 - npm
 - PostgreSQL
 - Git
-- A Cloudinary unsigned upload preset if image uploads are needed
+- Cloudinary API credentials on the server if image uploads are needed
 - SMTP credentials if activation, password reset, transition, and payment
   emails need to be delivered locally
 
@@ -366,8 +366,6 @@ cp .env.example .env
 
 ```dotenv
 VITE_API_BASE_URL=http://localhost:4000/api/v1
-VITE_CLOUDINARY_CLOUD_NAME=
-VITE_CLOUDINARY_UPLOAD_PRESET=
 ```
 
 ### 4. Prepare the database
@@ -417,8 +415,6 @@ Expected response fields include `status: "OK"`, a timestamp, and
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `VITE_API_BASE_URL` | Development override only | Full local API base URL including `/api/v1`. Development falls back to `http://localhost:4000/api/v1`; production uses the same-origin `/api/v1` proxy. |
-| `VITE_CLOUDINARY_CLOUD_NAME` | For uploads | Cloudinary cloud name used by the browser upload helper. |
-| `VITE_CLOUDINARY_UPLOAD_PRESET` | For uploads | Unsigned Cloudinary upload preset. Restrict the preset in Cloudinary. |
 | `VITE_BUILD_TIME` | No | Injected by Vite during build. Do not add it manually unless reproducing build metadata behavior. |
 
 Only variables prefixed with `VITE_` are exposed to browser code. Never place a
@@ -442,6 +438,10 @@ client environment.
 | `EMAIL_PASS` | For email | SMTP password or provider app password. |
 | `EMAIL_FROM_NAME` | No | Display name for outgoing mail. |
 | `EMAIL_FROM_ADDRESS` | No | From address. Falls back to `EMAIL_USER`. |
+| `CLOUDINARY_CLOUD_NAME` | For uploads | Cloudinary account name. |
+| `CLOUDINARY_API_KEY` | For uploads | Cloudinary API key, returned with each upload signature. |
+| `CLOUDINARY_API_SECRET` | For uploads | Signs browser uploads. Never expose it to Vite. |
+| `BLOB_READ_WRITE_TOKEN` | For the library | Key of the private Vercel Blob store that holds the coursebook PDFs at `books/<bookId>.pdf`. The server uses it to sign links that expire after an hour. |
 
 Azure sets `WEBSITE_SITE_NAME` or `WEBSITE_HOSTNAME`. The session configuration
 uses those values to detect Azure production behavior and allow the managed
@@ -459,12 +459,31 @@ Prangan client origins.
 
 | Variable | Used by | Purpose |
 | --- | --- | --- |
-| `CLOUDINARY_CLOUD_NAME` | Server media scripts | Cloudinary account name. |
-| `CLOUDINARY_API_KEY` | Server media scripts | Cloudinary server API key. |
-| `CLOUDINARY_API_SECRET` | Server media scripts | Cloudinary server API secret. Never expose it to Vite. |
 | `OPENROUTER_API_KEY` | Profession-image generator | Generates student future-profession images through the configured model provider. |
 
 ## Database and Prisma
+
+### Dates and times
+
+Two kinds of time, one rule each:
+
+| Kind | Examples | Stored as | Sent as | Shown as |
+| --- | --- | --- | --- | --- |
+| Calendar day | semester start/end, attendance, exam, expense, rate and birth dates | `DATE` | `"YYYY-MM-DD"` (responses may add `T00:00:00.000Z`; only the first 10 characters count) | the same day for every viewer: `formatCalendarDate` in `client/src/lib/dates.ts` |
+| Moment | `createdAt`, `markedAt`, `voidedAt`, `sentAt` | `TIMESTAMPTZ` (UTC) | ISO with `Z` | the viewer's own time zone: `formatMoment`; exports name the zone |
+
+"Today" in business rules (default class day, running semester, paid month,
+birthdays) is the day in India: `indiaToday` on the server
+(`server/lib/role-assignments.ts`) and in the client (`client/src/lib/dates.ts`).
+The API rejects calendar dates that are not `YYYY-MM-DD`; never send
+`toISOString()` of a local midnight, which is the day before east of UTC.
+
+Migration `20261031120000_dates_as_date_instants_as_timestamptz` moved semester
+and birth dates to `DATE` (repairing India midnights stored as 18:30 UTC and
+end dates stored as 23:59:59.999 UTC) and every moment to `TIMESTAMPTZ`. Run
+`npm run db:report:date-anomalies` before and after applying it: it lists the
+rows the migration moves and the ones only a person can fix, such as
+attendance recorded on a weekday.
 
 ### Schema
 
@@ -517,9 +536,6 @@ Before applying:
 5. Run parity or backfill verification required by the migration.
 6. Smoke test `/health` and an authenticated workflow.
 
-The migration policy is described in
-[`docs/OPERATIONS.md`](docs/OPERATIONS.md).
-
 ### Managed semester-level hard cutover
 
 Operational records use only `semesterLevelId`. The contract migration removes
@@ -535,8 +551,7 @@ npm run db:verify:semester-level-integrity
 ```
 
 The verifier must report zero missing, orphaned, cross-semester, and duplicate
-canonical references before and after migration. See
-[`docs/OPERATIONS_MANAGED_LEVELS.md`](docs/OPERATIONS_MANAGED_LEVELS.md).
+canonical references before and after migration.
 
 ## Development commands
 
@@ -674,18 +689,20 @@ npm run db:backfill:person-names -- \
   --report=/absolute/protected/person-name-backfill.jsonl
 ```
 
-The tool refuses unsafe report paths and existing report files. Full sequencing
-is documented in [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
+The tool refuses unsafe report paths and existing report files.
 
 ## Authentication and security
 
 ### Sessions
 
 - The API stores authentication in the `prangan_session` HTTP-only cookie.
-- Sessions expire after eight hours.
-- Production cookies are secure and use `SameSite=None` for the separate Vercel
-  and Azure origins.
-- Development cookies use `SameSite=Lax`.
+- Sessions last 30 days from their last renewal; active people are renewed at
+  most once a day.
+- Cookies use `SameSite=Lax` (secure in production): browsers reach the API on
+  the client's own origin through the Vercel rewrite, and the client sends
+  `X-Frame-Options: DENY`, so no page can be framed by another site.
+- Login, registration and password-reset requests are limited per email
+  address (`@fastify/rate-limit`, in memory: one API process).
 - Session tokens include the user's session version. Revocation increments the
   version and invalidates older tokens.
 
@@ -778,16 +795,21 @@ update recovery. PDF responses are not stored in the runtime cache.
 
 ### Images
 
-The browser uploads images directly through the configured Cloudinary unsigned
-preset. The server-side Cloudinary credentials are reserved for maintenance
-scripts and must never be shipped to the client.
+The browser uploads images directly to Cloudinary with a signature from the API
+(`/uploads/image-signature`, or `/uploads/registration-image-signature` on the
+public sign-up page, which is limited to a few uploads an hour). Keep every
+unsigned upload preset disabled in Cloudinary; the API secret never reaches
+the client.
 
 ### Library data
 
-Book covers, PDF URLs, printed-page offsets, levels, sections, topics, and table
-of contents entries are code-managed in
+Book covers, printed-page offsets, levels, sections, topics, and table of
+contents entries are code-managed in
 [`client/src/data/books.ts`](client/src/data/books.ts). Update its related tests
-when changing a book's page alignment or structure.
+when changing a book's page alignment or structure. The PDFs live in a private
+Vercel Blob store at `books/<bookId>.pdf`; the reader asks
+`/library/books/:bookId/pdf-url` for a link that expires after an hour. To add
+or replace a book, upload its PDF to the store under that name.
 
 ## Deployment
 
@@ -801,13 +823,6 @@ when changing a book's page alignment or structure.
 - SPA rewrites to `index.html`
 - no-cache behavior for the service worker and HTML shell
 - immutable caching for hashed assets
-
-Required production variables:
-
-```text
-VITE_CLOUDINARY_CLOUD_NAME
-VITE_CLOUDINARY_UPLOAD_PRESET
-```
 
 Production browser requests use `https://manager.pranganfoundation.org/api/v1`.
 The API rewrite must remain before the SPA fallback in `client/vercel.json` so
@@ -847,6 +862,10 @@ EMAIL_USER
 EMAIL_PASS
 EMAIL_FROM_NAME
 EMAIL_FROM_ADDRESS
+CLOUDINARY_CLOUD_NAME
+CLOUDINARY_API_KEY
+CLOUDINARY_API_SECRET
+BLOB_READ_WRITE_TOKEN
 ```
 
 Set `CLIENT_ORIGIN` when adding an approved client origin that is not already
@@ -1020,20 +1039,16 @@ The application deliberately does not runtime-cache PDF files.
 
 ### Image upload fails
 
-Confirm the client cloud name and unsigned upload preset. Check preset folder,
-format, file-size, and origin restrictions in Cloudinary. Never solve a browser
-upload failure by adding `CLOUDINARY_API_SECRET` to the client.
+Confirm the `CLOUDINARY_*` settings on the API: the signature endpoints return
+503 without them. A 429 from `/uploads/registration-image-signature` means the
+hourly sign-up allowance is used up. Never solve an upload failure by adding
+`CLOUDINARY_API_SECRET` to the client or re-enabling an unsigned preset.
 
 ## Internal documentation
 
 | Document | Purpose |
 | --- | --- |
-| [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | Fixtures, migration discipline, Azure release checks, and structured name rollout. |
-| [`docs/OPERATIONS_MANAGED_LEVELS.md`](docs/OPERATIONS_MANAGED_LEVELS.md) | Managed semester-level backfill and parity verification. |
 | [`server/API_DOCS.md`](server/API_DOCS.md) | Extended API endpoint reference. |
-| [`docs/REMEDIATION_ROADMAP.md`](docs/REMEDIATION_ROADMAP.md) | Historical and planned remediation work. |
-| [`docs/superpowers/specs/`](docs/superpowers/specs/) | Approved feature and behavior designs. |
-| [`docs/superpowers/plans/`](docs/superpowers/plans/) | Implementation plans and verification steps. |
 
 Source code remains authoritative when a document and implementation disagree.
 Update the relevant document in the same change that alters a command,

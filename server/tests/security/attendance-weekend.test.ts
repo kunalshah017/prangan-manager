@@ -6,7 +6,6 @@ import { prisma } from "../../lib/prisma.js";
 import {
   getActiveUsersForAttendance,
   getAttendanceRecords,
-  getAttendanceSummary,
   getRelevantCommittedDays,
 } from "../../service/attendance.service.js";
 
@@ -37,26 +36,6 @@ test("relevant committed days select Saturday, Sunday, or neither for UTC dates"
     CommittedDays.BOTH,
   ]);
   assert.deepEqual(getRelevantCommittedDays("2026-07-20"), []);
-});
-
-test("attendance summary counts UTC weekend dates despite a simulated negative-offset weekday", async () => {
-  const originalFindMany = prisma.userAttendance.findMany;
-  const originalGetDay = Date.prototype.getDay;
-  prisma.userAttendance.findMany =
-    (async () => []) as typeof prisma.userAttendance.findMany;
-  Date.prototype.getDay = () => 5;
-
-  try {
-    const summary = await getAttendanceSummary({
-      startDate: "2026-07-18",
-      endDate: "2026-07-19",
-    });
-
-    assert.equal(summary.periodInfo.weekendDays, 2);
-  } finally {
-    prisma.userAttendance.findMany = originalFindMany;
-    Date.prototype.getDay = originalGetDay;
-  }
 });
 
 test("active user attendance selection returns every active staff assignment in the exact weekend context", async () => {
@@ -128,7 +107,7 @@ test("attendance records include the staff profile image used by the client matr
         id: "attendance-1",
         userId: "user-1",
         user: {
-          name: "Aditi Ratnaparkhi",
+          name: "Asha Shah",
           email: "aditi@example.com",
           profileImageUrl: "https://images.example/aditi.jpg",
         },
@@ -166,7 +145,7 @@ test("attendance records include the staff profile image used by the client matr
     assert.equal(query.include.user.select.profileImageUrl, true);
     assert.deepEqual(result.attendances[0].user, {
       id: "user-1",
-      name: "Aditi Ratnaparkhi",
+      name: "Asha Shah",
       email: "aditi@example.com",
       profileImageUrl: "https://images.example/aditi.jpg",
     });

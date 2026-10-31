@@ -13,7 +13,6 @@ test("semester settings and remuneration controllers are admin-only", async () =
   for (const controller of [
     "getSemesterUsersController",
     "getRemunerationUsersController",
-    "updateRemunerationRatesController",
     "setRemunerationPeriodController",
   ]) {
     const start = source.indexOf(`export const ${controller}`);

@@ -63,3 +63,7 @@ export const extractGeneralUserUpdate = (
     ),
   };
 };
+
+// One plain address: no lists, display names or angle brackets.
+export const isEmailAddress = (value: string): boolean =>
+  /^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>"]+$/.test(value);

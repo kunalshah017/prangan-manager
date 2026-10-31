@@ -1,32 +1,38 @@
-import { Cloudinary } from "@cloudinary/url-gen";
+import { api } from "./api-client";
 
-// Cloudinary configuration
-export const cloudinary = new Cloudinary({
-  cloud: {
-    cloudName: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME,
-  },
-});
-
-// Upload configuration
-export const CLOUDINARY_CONFIG = {
-  cloudName: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME,
-  uploadPreset: import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET,
-  uploadUrl: `https://api.cloudinary.com/v1_1/${
-    import.meta.env.VITE_CLOUDINARY_CLOUD_NAME
-  }/image/upload`,
+type UploadSignature = {
+  cloudName: string;
+  apiKey: string;
+  allowed_formats: string;
+  folder: string;
+  timestamp: number;
+  signature: string;
 };
 
-// Upload function
-export const uploadToCloudinary = async (file: File): Promise<string> => {
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("upload_preset", CLOUDINARY_CONFIG.uploadPreset);
-
+// The server signs each upload; the Cloudinary account takes no unsigned ones.
+// People registering aren't signed in yet, so they use the public signature.
+export const uploadToCloudinary = async (
+  file: File,
+  { forRegistration = false } = {},
+): Promise<string> => {
   try {
-    const response = await fetch(CLOUDINARY_CONFIG.uploadUrl, {
-      method: "POST",
-      body: formData,
-    });
+    const signed = await api.get<UploadSignature>(
+      forRegistration
+        ? "/uploads/registration-image-signature"
+        : "/uploads/image-signature",
+    );
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("api_key", signed.apiKey);
+    formData.append("allowed_formats", signed.allowed_formats);
+    formData.append("folder", signed.folder);
+    formData.append("timestamp", String(signed.timestamp));
+    formData.append("signature", signed.signature);
+
+    const response = await fetch(
+      `https://api.cloudinary.com/v1_1/${signed.cloudName}/image/upload`,
+      { method: "POST", body: formData },
+    );
 
     if (!response.ok) {
       throw new Error("Upload failed");

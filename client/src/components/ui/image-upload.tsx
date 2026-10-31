@@ -18,6 +18,8 @@ interface ImageUploadProps {
     required?: boolean;
     placeholder?: string;
     variant?: 'default' | 'rounded';
+    /** On the public sign-up page, before the person has an account. */
+    forRegistration?: boolean;
 }
 
 const ImageUpload: React.FC<ImageUploadProps> = ({
@@ -31,7 +33,8 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
     label = "Image",
     required = false,
     placeholder = "Click to upload or drag and drop",
-    variant = 'default'
+    variant = 'default',
+    forRegistration = false
 }) => {
     const [isUploading, setIsUploading] = useState(false);
     const [dragActive, setDragActive] = useState(false);
@@ -56,7 +59,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
 
         setIsUploading(true);
         try {
-            const imageUrl = await uploadToCloudinary(file);
+            const imageUrl = await uploadToCloudinary(file, { forRegistration });
             onChange(imageUrl);
         } catch (err) {
             setError('Failed to upload image. Please try again.');

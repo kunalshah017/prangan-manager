@@ -12,6 +12,7 @@ import { levelName } from "@/lib/levels";
 import { activeAssignments, SUB_ROLE_LABELS } from "@/lib/user-display";
 import { cn } from "@/lib/utils";
 import type { User, UserAssignment } from "@/types/api";
+import { formatMoment } from "@/lib/dates";
 
 export type ProfileTab = "about" | "work" | "activity" | "payments";
 
@@ -117,10 +118,9 @@ export function ProfileHeader({ user, action }: { user: Pick<User, "name" | "ema
   );
 }
 
+// Start and end are moments: shown in the viewer's own zone.
 const monthYear = (value?: string | null) =>
-  value
-    ? new Date(value).toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "Asia/Kolkata" })
-    : null;
+  value ? formatMoment(value, { month: "short", year: "numeric" }) : null;
 
 function AssignmentRows({ assignments, past = false }: { assignments: UserAssignment[]; past?: boolean }) {
   return (

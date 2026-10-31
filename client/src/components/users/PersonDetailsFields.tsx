@@ -21,11 +21,13 @@ interface PersonDetailsFieldsProps {
   onChange: (field: PersonDetailsField, value: string) => void;
   errors?: Partial<Record<PersonDetailsField, string>>;
   disabled?: boolean;
+  /** Only admins change emails: a changed email would redirect password resets. */
+  emailReadOnly?: boolean;
 }
 
 // The same details, with the same labels, whether someone edits their own
 // profile or an admin edits theirs.
-export function PersonDetailsFields({ idPrefix, values, onChange, errors = {}, disabled = false }: PersonDetailsFieldsProps) {
+export function PersonDetailsFields({ idPrefix, values, onChange, errors = {}, disabled = false, emailReadOnly = false }: PersonDetailsFieldsProps) {
   const field = (name: PersonDetailsField, label: string, type: string, autoComplete: string) => (
     <FormField htmlFor={`${idPrefix}-${name}`} label={label} required={name === "email"}>
       <Input
@@ -34,6 +36,7 @@ export function PersonDetailsFields({ idPrefix, values, onChange, errors = {}, d
         value={values[name]}
         autoComplete={autoComplete}
         disabled={disabled}
+        readOnly={emailReadOnly && name === "email"}
         aria-invalid={errors[name] ? true : undefined}
         aria-describedby={errors[name] ? `${idPrefix}-${name}-error` : undefined}
         onChange={(event) => onChange(name, event.target.value)}

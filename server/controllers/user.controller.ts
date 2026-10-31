@@ -35,7 +35,6 @@ import {
   getUserAccessibleStudents,
   resolveEffectiveEnrollmentContext,
   validateEnrollmentHierarchy,
-  updateSemesterRemunerationRates,
   setSemesterRemunerationPeriod,
   updateSemesterUserAssignments,
 } from "../service/user.service.js";
@@ -54,6 +53,7 @@ import {
 } from "../generated/prisma/index.js";
 import { prisma } from "../lib/prisma.js";
 import {
+  indiaToday,
   endedAssignmentData,
   findSecondEducatorLevel,
   finishedSemesterMessage,
@@ -66,9 +66,8 @@ import {
   resolvePersonNameUpdate,
 } from "../lib/person-name.js";
 import {
-  convertToDateTime,
+  calendarDate,
   isValidDateFormat,
-  isValidISOFormat,
 } from "../utils/dateHelpers.js";
 import {
   patchUserBankDetails,
@@ -81,8 +80,12 @@ import {
   canManageStudentProfile,
   canReadStudentEnrollment,
 } from "../security/student-authorization.js";
-import { extractGeneralUserUpdate } from "../security/user-update.js";
+import {
+  extractGeneralUserUpdate,
+  isEmailAddress,
+} from "../security/user-update.js";
 import { parseRemunerationPeriodInput } from "../security/remuneration-input.js";
+import { createRawAccountToken } from "../security/account-token.js";
 import {
   CSRF_COOKIE_NAME,
   createSessionToken,
@@ -263,9 +266,10 @@ export const registerUser = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
     const data = request.body as UserRegistrationRequest;
 
-    if (!data.email) {
-      return errorHandle("Email is required.", reply, 400);
+    if (typeof data.email !== "string" || !isEmailAddress(data.email.trim())) {
+      return errorHandle("A valid email address is required.", reply, 400);
     }
+    data.email = data.email.trim();
 
     let resolvedName;
     try {
@@ -281,25 +285,18 @@ export const registerUser = asyncHandle(
     // Validate DOB if provided
     let dobDate: Date | null = null;
     if (data.dob) {
-      if (!isValidDateFormat(data.dob) && !isValidISOFormat(data.dob)) {
+      if (!isValidDateFormat(data.dob)) {
         return errorHandle(
-          "Invalid date format. Please use YYYY-MM-DD or ISO format.",
+          "Invalid date format. Please use YYYY-MM-DD.",
           reply,
           400,
         );
       }
 
-      dobDate = convertToDateTime(data.dob) ?? null;
-      if (!dobDate) {
-        return errorHandle(
-          "Invalid date provided for date of birth.",
-          reply,
-          400,
-        );
-      }
+      dobDate = calendarDate(data.dob);
 
-      // Validate DOB is not in the future
-      if (dobDate > new Date()) {
+      // Validate DOB is not in the future (a calendar day, compared with India's today)
+      if (data.dob > indiaToday()) {
         return errorHandle(
           "Date of birth cannot be in the future.",
           reply,
@@ -308,7 +305,7 @@ export const registerUser = asyncHandle(
       }
 
       // Validate reasonable age (between 5 and 120 years)
-      const age = new Date().getFullYear() - dobDate.getFullYear();
+      const age = Number(indiaToday().slice(0, 4)) - Number(data.dob.slice(0, 4));
       if (age < 5 || age > 120) {
         return errorHandle("Please provide a valid date of birth.", reply, 400);
       }
@@ -316,7 +313,8 @@ export const registerUser = asyncHandle(
 
     const [checkUser, hashedPassword] = await Promise.all([
       getUserByEmail(data.email),
-      bcryptjs.hash("pending-account-password", 10),
+      // Nobody knows this password; the activation link sets the real one.
+      bcryptjs.hash(createRawAccountToken(), 10),
     ]);
 
     if (checkUser) {
@@ -521,8 +519,11 @@ const buildRegistrationRoleDetails = async (
       if (assignment.semesterId) {
         const semester = await getSemesterById(assignment.semesterId);
         if (semester && typeof semester !== "string") {
-          const startDate = new Date(semester.startDate).toLocaleDateString();
-          const endDate = new Date(semester.endDate).toLocaleDateString();
+          // Calendar days: format the stored day itself, not the server's zone.
+          const day = (date: Date) =>
+            date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+          const startDate = day(semester.startDate);
+          const endDate = day(semester.endDate);
           detail += `<p><strong>📅 Semester:</strong> ${semester.name} (${startDate} - ${endDate})</p>`;
         }
       }
@@ -855,6 +856,8 @@ export const activateAccount = asyncHandle(
   },
 );
 
+const PASSWORD_RESET_REPEAT_MS = 5 * 60 * 1000;
+
 export const requestPasswordReset = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
     const body = request.body as { email?: unknown };
@@ -867,7 +870,17 @@ export const requestPasswordReset = asyncHandle(
     if (
       user &&
       typeof user !== "string" &&
-      user.status === UserStatus.APPROVED
+      user.status === UserStatus.APPROVED &&
+      // A fresh link is still in their inbox; repeats would only cancel it.
+      !(await prisma.accountToken.findFirst({
+        where: {
+          userId: user.id,
+          type: AccountTokenType.PASSWORD_RESET,
+          usedAt: null,
+          createdAt: { gt: new Date(Date.now() - PASSWORD_RESET_REPEAT_MS) },
+        },
+        select: { id: true },
+      }))
     ) {
       try {
         await prisma.$transaction(async (tx) => {
@@ -1120,25 +1133,18 @@ export const addStudent = asyncHandle(
     // Validate DOB if provided
     let dobDate: Date | null = null;
     if (data.dob) {
-      if (!isValidDateFormat(data.dob) && !isValidISOFormat(data.dob)) {
+      if (!isValidDateFormat(data.dob)) {
         return errorHandle(
-          "Invalid date format for DOB. Please use YYYY-MM-DD or ISO format.",
+          "Invalid date format for DOB. Please use YYYY-MM-DD.",
           reply,
           400,
         );
       }
 
-      dobDate = convertToDateTime(data.dob) ?? null;
-      if (!dobDate) {
-        return errorHandle(
-          "Invalid date provided for date of birth.",
-          reply,
-          400,
-        );
-      }
+      dobDate = calendarDate(data.dob);
 
-      // Validate DOB is not in the future
-      if (dobDate > new Date()) {
+      // Validate DOB is not in the future (a calendar day, compared with India's today)
+      if (data.dob > indiaToday()) {
         return errorHandle(
           "Date of birth cannot be in the future.",
           reply,
@@ -1147,7 +1153,7 @@ export const addStudent = asyncHandle(
       }
 
       // Validate reasonable age for students (between 3 and 25 years)
-      const age = new Date().getFullYear() - dobDate.getFullYear();
+      const age = Number(indiaToday().slice(0, 4)) - Number(data.dob.slice(0, 4));
       if (age < 3 || age > 25) {
         return errorHandle(
           "Please provide a valid date of birth for the student.",
@@ -1401,25 +1407,18 @@ export const updateStudentController = asyncHandle(
       if (data.dob === "" || data.dob === null) {
         updateData.dob = null;
       } else {
-        if (!isValidDateFormat(data.dob) && !isValidISOFormat(data.dob)) {
+        if (!isValidDateFormat(data.dob)) {
           return errorHandle(
-            "Invalid date format for DOB. Please use YYYY-MM-DD or ISO format.",
+            "Invalid date format for DOB. Please use YYYY-MM-DD.",
             reply,
             400,
           );
         }
 
-        const dobDate = convertToDateTime(data.dob) ?? null;
-        if (!dobDate) {
-          return errorHandle(
-            "Invalid date provided for date of birth.",
-            reply,
-            400,
-          );
-        }
+        const dobDate = calendarDate(data.dob);
 
-        // Validate DOB is not in the future
-        if (dobDate > new Date()) {
+        // Validate DOB is not in the future (a calendar day, compared with India's today)
+        if (data.dob > indiaToday()) {
           return errorHandle(
             "Date of birth cannot be in the future.",
             reply,
@@ -1428,7 +1427,7 @@ export const updateStudentController = asyncHandle(
         }
 
         // Validate reasonable age for students (between 3 and 25 years)
-        const age = new Date().getFullYear() - dobDate.getFullYear();
+        const age = Number(indiaToday().slice(0, 4)) - Number(data.dob.slice(0, 4));
         if (age < 3 || age > 25) {
           return errorHandle(
             "Please provide a valid date of birth for the student.",
@@ -2091,92 +2090,6 @@ export const getSemesterUsersController = asyncHandle(
   },
 );
 
-export const updateRemunerationRatesController = asyncHandle(
-  async (request: FastifyRequest, reply: FastifyReply) => {
-    const authUser = request.user;
-    if (!authUser) return errorHandle("Authentication required.", reply, 401);
-    if (authUser.role !== Role.ADMIN) {
-      return errorHandle("Only admins can administer remuneration.", reply, 403);
-    }
-
-    const body = request.body as {
-      projectId?: unknown;
-      centerId?: unknown;
-      semesterId?: unknown;
-      rates?: unknown;
-    };
-    const projectId =
-      typeof body?.projectId === "string" ? body.projectId.trim() : "";
-    const centerId =
-      typeof body?.centerId === "string" ? body.centerId.trim() : "";
-    const semesterId =
-      typeof body?.semesterId === "string" ? body.semesterId.trim() : "";
-    if (!projectId || !centerId || !semesterId || !Array.isArray(body.rates)) {
-      return errorHandle(
-        "Project, center, semester, and rates are required.",
-        reply,
-        400,
-      );
-    }
-
-    const rates: Array<{ userId: string; dailyRate: number }> = [];
-    const seen = new Set<string>();
-    for (const [index, raw] of body.rates.entries()) {
-      if (
-        typeof raw !== "object" ||
-        raw === null ||
-        Array.isArray(raw) ||
-        Object.keys(raw).some(
-          (key) => !["userId", "dailyRate"].includes(key),
-        )
-      ) {
-        return errorHandle(`Rate ${index + 1} is invalid.`, reply, 400);
-      }
-      const { userId, dailyRate } = raw as {
-        userId?: unknown;
-        dailyRate?: unknown;
-      };
-      if (
-        typeof userId !== "string" ||
-        !userId.trim() ||
-        seen.has(userId.trim()) ||
-        typeof dailyRate !== "number" ||
-        !Number.isFinite(dailyRate) ||
-        dailyRate < 0 ||
-        Math.round(dailyRate * 100) !== dailyRate * 100
-      ) {
-        return errorHandle(`Rate ${index + 1} is invalid.`, reply, 400);
-      }
-      seen.add(userId.trim());
-      rates.push({ userId: userId.trim(), dailyRate });
-    }
-
-    const scope = { projectId, centerId, semesterId };
-
-    const payees = await getRemunerationUsers(scope);
-    if (typeof payees === "string") return errorHandle(payees, reply, 500);
-    const eligibleIds = new Set(payees.map((payee) => payee.id));
-    if (rates.some((rate) => !eligibleIds.has(rate.userId))) {
-      return errorHandle(
-        "Every rate must belong to an eligible payee in this semester.",
-        reply,
-        400,
-      );
-    }
-
-    const result = await updateSemesterRemunerationRates({
-      semesterId,
-      rates,
-    });
-    if (typeof result === "string") return errorHandle(result, reply, 500);
-    return successHandle(
-      { message: "Semester remuneration rates updated.", rates: result },
-      reply,
-      200,
-    );
-  },
-);
-
 export const setRemunerationPeriodController = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
     const authUser = request.user;
@@ -2672,22 +2585,30 @@ export const updateUserController = asyncHandle(
       profileImageUrl?: string;
     };
 
-    // Validate required fields
+    if (data.email !== undefined && !isEmailAddress(data.email.trim())) {
+      return errorHandle("A valid email address is required.", reply, 400);
+    }
+    // A changed email redirects password resets, so only admins may change it.
     if (
       data.email !== undefined &&
-      (!data.email.trim() || !/\S+@\S+\.\S+/.test(data.email))
+      authUser.role !== Role.ADMIN &&
+      data.email.trim() !== authUser.email
     ) {
-      return errorHandle("Valid email is required.", reply, 400);
+      return errorHandle(
+        "Ask an administrator to change your email address.",
+        reply,
+        403,
+      );
     }
 
     try {
       // Parse DOB if provided
       let dobDate: Date | null = null;
       if (data.dob) {
-        dobDate = new Date(data.dob);
-        if (isNaN(dobDate.getTime())) {
-          return errorHandle("Invalid date of birth format.", reply, 400);
+        if (!isValidDateFormat(data.dob)) {
+          return errorHandle("Date of birth must be YYYY-MM-DD.", reply, 400);
         }
+        dobDate = calendarDate(data.dob);
       }
 
       // Update user basic details

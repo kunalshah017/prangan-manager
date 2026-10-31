@@ -32,14 +32,7 @@ import {
   semesterCardDestination,
 } from "@/lib/workspace-hierarchy";
 import type { Semester } from "@/types/api";
-
-const formatDate = (value: string) =>
-  new Date(value).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+import { formatCalendarDate } from "@/lib/dates";
 
 function SetupProgress({
   label,
@@ -131,7 +124,7 @@ function CurrentSemesterCard({
         />
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 text-sm tabular-nums text-muted-foreground">
-        <span>{formatDate(semester.startDate)} – {formatDate(semester.endDate)}</span>
+        <span>{formatCalendarDate(semester.startDate)} – {formatCalendarDate(semester.endDate)}</span>
         <span>
           {daysLeft === 0 ? "Last day" : `${daysLeft} ${daysLeft === 1 ? "day" : "days"} left`}
         </span>
@@ -344,7 +337,7 @@ export default function CenterDashboard() {
                   status={<StatusBadge {...semesterTiming(semester)} />}
                   meta={
                     <span className="tabular-nums">
-                      {formatDate(semester.startDate)} – {formatDate(semester.endDate)}
+                      {formatCalendarDate(semester.startDate)} – {formatCalendarDate(semester.endDate)}
                     </span>
                   }
                 />

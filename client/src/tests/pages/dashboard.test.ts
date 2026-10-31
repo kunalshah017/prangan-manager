@@ -62,7 +62,8 @@ describe("semester dashboard", () => {
   });
 
   it("removes stale navigation state and formats semester dates in UTC", () => {
-    expect(dashboard).toContain('timeZone: "UTC"');
+    // Semester dates are calendar days: never shifted by the viewer's zone.
+    expect(dashboard).toContain("formatCalendarDate(semester.startDate)");
     expect(dashboard).not.toContain("sessionStorage");
     expect(dashboard).not.toContain("dashboardContext");
   });

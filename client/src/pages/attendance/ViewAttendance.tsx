@@ -49,6 +49,7 @@ import {
   getWeekendOnOrBefore,
   isWeekendDate,
 } from "@/utils/helper";
+import { formatMoment, indiaToday } from "@/lib/dates";
 
 type RoleFilter = "ALL" | "CENTER_MANAGER" | "EDUCATOR";
 type StatusFilter =
@@ -117,7 +118,7 @@ export const ViewAttendance = () => {
 
   const setCurrentMonth = useCallback(() => {
     if (!semesterStartDate || !semesterEndDate) return;
-    const today = formatDateToLocal(new Date());
+    const today = indiaToday();
     const referenceDate =
       today < semesterStartDate
         ? semesterStartDate
@@ -363,8 +364,16 @@ export const ViewAttendance = () => {
         "Holiday reason": record.holidayReason || "",
         Notes: record.notes || "",
         "Marked by": record.markedByName || "System",
+        // A moment, in the viewer's zone, with the zone written out.
         "Marked at": record.markedAt
-          ? new Date(record.markedAt).toLocaleString()
+          ? formatMoment(record.markedAt, {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+              timeZoneName: "short",
+            })
           : "",
         "Reimbursement rate": reimbursementRate ?? "Rate not set",
         Remuneration:

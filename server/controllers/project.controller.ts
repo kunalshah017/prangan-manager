@@ -26,6 +26,17 @@ const canAccessProjectResource = (
       (assignment) => assignment.isActive && assignment.projectId === projectId,
     ));
 
+// Only these fields come from the request body. Anything else would reach
+// Prisma as a nested write, e.g. {"expenses":{"deleteMany":{}}}.
+const projectFields = (body: unknown): Partial<Project> => {
+  const input = (body ?? {}) as Record<string, unknown>;
+  const fields: Record<string, unknown> = {};
+  for (const key of ["name", "description", "projectType", "imageUrl", "status", "metadata"]) {
+    if (input[key] !== undefined) fields[key] = input[key];
+  }
+  return fields;
+};
+
 export const createProject = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user; // Assuming user is set in the request by authentication middleware
@@ -34,7 +45,7 @@ export const createProject = asyncHandle(
       return errorHandle("Only admins can create projects.", reply, 403);
     }
 
-    const data = request.body as Partial<Project>;
+    const data = projectFields(request.body);
 
     if (!data.name) {
       return errorHandle(
@@ -86,7 +97,7 @@ export const updateProjectController = asyncHandle(
     }
 
     const { id } = request.params as { id: string };
-    const data = request.body as Partial<Project>;
+    const data = projectFields(request.body);
 
     if (!id) {
       return errorHandle("Project ID is required.", reply, 400);

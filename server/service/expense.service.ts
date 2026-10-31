@@ -11,6 +11,7 @@ import {
   emitCommitTrigger,
 } from "../lib/commit-triggers.js";
 import { prisma } from "../lib/prisma.js";
+import { indiaToday } from "../lib/role-assignments.js";
 import type {
   ExpenseListQuery,
   ExpenseScopeInput,
@@ -31,21 +32,18 @@ export class ExpenseServiceError extends Error {
 }
 
 const dateOnly = (value: Date) => value.toISOString().slice(0, 10);
-export const dateOnlyInIndia = (value: Date) => {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Kolkata",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(value);
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((item) => item.type === type)?.value;
-  return `${part("year")}-${part("month")}-${part("day")}`;
-};
 
 export type ExpensePeriod = {
   periodStart: Date;
   periodEnd: Date;
+};
+
+const monthBounds = (month: string): ExpensePeriod => {
+  const [year, monthNumber] = month.split("-").map(Number);
+  return {
+    periodStart: new Date(Date.UTC(year, monthNumber - 1, 1)),
+    periodEnd: new Date(Date.UTC(year, monthNumber, 0)),
+  };
 };
 
 export const clipMonthToSemester = (
@@ -53,9 +51,7 @@ export const clipMonthToSemester = (
   semesterStart: Date,
   semesterEnd: Date,
 ): ExpensePeriod => {
-  const [year, monthNumber] = month.split("-").map(Number);
-  const monthStart = new Date(Date.UTC(year, monthNumber - 1, 1));
-  const monthEnd = new Date(Date.UTC(year, monthNumber, 0));
+  const { periodStart: monthStart, periodEnd: monthEnd } = monthBounds(month);
   const periodStart =
     monthStart > semesterStart ? monthStart : semesterStart;
   const periodEnd = monthEnd < semesterEnd ? monthEnd : semesterEnd;
@@ -142,12 +138,13 @@ export const calculateRemuneration = (
   };
 };
 
+// One payment per person per calendar month. Keys written before this were
+// `...:<periodStart>:<periodEnd>`, which also start with `...:<month>`.
 export const buildRemunerationSourceKey = (
   semesterId: string,
   userId: string,
-  period: ExpensePeriod,
-) =>
-  `remuneration:${semesterId}:${userId}:${dateOnly(period.periodStart)}:${dateOnly(period.periodEnd)}`;
+  month: string,
+) => `remuneration:${semesterId}:${userId}:${month}`;
 
 export const buildRemunerationMetadata = (
   selectedMonth: string,
@@ -203,9 +200,12 @@ export const listExpenses = async (
   database: Database = prisma,
 ) => {
   const semester = await validateScope(input, database);
-  const period = input.month
-    ? clipMonthToSemester(input.month, semester.startDate, semester.endDate)
-    : null;
+  // Rejects months outside the semester, but lists the whole calendar month so
+  // a payment stays visible after the semester dates move.
+  if (input.month) {
+    clipMonthToSemester(input.month, semester.startDate, semester.endDate);
+  }
+  const period = input.month ? monthBounds(input.month) : null;
   const records = await database.expense.findMany({
     where: {
       projectId: input.projectId,
@@ -307,7 +307,6 @@ export const voidExpense = async (
     where: { id: expenseId },
   });
   if (!expense) throw new ExpenseServiceError("Expense not found.", 404);
-  await validateScope(expense, database);
   if (
     expense.expenseType !== "MANUAL" ||
     expense.status !== ExpenseStatus.ACTIVE
@@ -385,12 +384,12 @@ const payOneUser = async (
   const sourceKey = buildRemunerationSourceKey(
     input.semesterId,
     userId,
-    period,
+    input.month,
   );
   try {
     return await database.$transaction(async (transaction) => {
-      const existing = await transaction.expense.findUnique({
-        where: { sourceKey },
+      const existing = await transaction.expense.findFirst({
+        where: { sourceKey: { startsWith: sourceKey } },
         select: { id: true },
       });
       if (existing) return { userId, status: "ALREADY_PAID" };
@@ -497,7 +496,7 @@ const payOneUser = async (
           paymentMonth: input.month,
           presentDayCount: calculation.presentDayCount,
           amount: calculation.amount,
-          paymentDate: dateOnlyInIndia(now),
+          paymentDate: indiaToday(now),
         }),
         transaction,
       );

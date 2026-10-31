@@ -30,13 +30,13 @@ import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { StudentAttendanceRecord } from "@/types/api";
 import {
-  formatDateToLocal,
   getClosestWeekendWithinRange,
   getNearestWeekend,
   getWeekendOnOrAfter,
   getWeekendOnOrBefore,
   isWeekendDate,
 } from "@/utils/helper";
+import { calendarDay, indiaToday } from "@/lib/dates";
 
 type LevelGroup = {
   key: string;
@@ -118,9 +118,9 @@ export const ViewStudentAttendance = () => {
 
   useEffect(() => {
     if (!semesterStartDate || !semesterEndDate || hasAppliedSemesterDefault.current) return;
-    const today = formatDateToLocal(new Date());
+    const today = indiaToday();
     const referenceDate = today < semesterStartDate ? semesterStartDate : today > semesterEndDate ? semesterEndDate : today;
-    const monthStart = formatDateToLocal(new Date(`${referenceDate}T00:00:00`).getFullYear() ? new Date(new Date(`${referenceDate}T00:00:00`).getFullYear(), new Date(`${referenceDate}T00:00:00`).getMonth(), 1) : new Date());
+    const monthStart = `${referenceDate.slice(0, 7)}-01`;
     const start = getWeekendOnOrAfter(monthStart < semesterStartDate ? semesterStartDate : monthStart, referenceDate);
     const end = getWeekendOnOrBefore(referenceDate, start);
     const classDate = getClosestWeekendWithinRange(getNearestWeekend(), semesterStartDate, semesterEndDate);
@@ -222,7 +222,7 @@ export const ViewStudentAttendance = () => {
     "S.No": index + 1,
     "Student Name": record.student?.name ?? "Unknown student",
     Level: levelLabel(levelKey(record)),
-    Date: new Date(record.date).toLocaleDateString(),
+    Date: calendarDay(record.date),
     Status: record.status,
     "Holiday Reason": record.holidayReason ?? "",
     "Marked By": record.markedByUser?.name ?? "System",

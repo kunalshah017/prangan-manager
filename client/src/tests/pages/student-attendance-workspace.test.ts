@@ -78,7 +78,8 @@ describe("Student attendance workspace", () => {
     expect(viewAttendance).toContain("<WorkspacePage>");
     expect(viewAttendance).toContain("<WorkspacePageHeader");
     expect(viewAttendance).toContain("getNearestWeekend");
-    expect(viewAttendance).toContain("formatDateToLocal");
+    // The default range starts from today in India, wherever the viewer is.
+    expect(viewAttendance).toContain("indiaToday()");
     expect(viewAttendance).toContain("hasAppliedSemesterDefault");
     expect(viewAttendance).toContain("semester?.startDate.slice(0, 10)");
     expect(viewAttendance).toMatch(

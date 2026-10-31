@@ -1,10 +1,45 @@
 // Service worker for PWA functionality with proper cache management
-const CACHE_VERSION = "v9";
+const CACHE_VERSION = "v10";
 const STATIC_CACHE = `prangan-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `prangan-runtime-${CACHE_VERSION}`;
-const PDF_CACHE = "prangan-pdfs-v2"; // Incremented version for new caching strategy
-const PDF_CACHE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
-const MAX_PDF_SIZE = 50 * 1024 * 1024; // 50MB max for caching
+const PDF_CACHE = "prangan-pdfs-v3";
+const PDF_CACHE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days, as the old public book links allowed
+
+// Coursebooks come from the private Blob store through links that expire, so the
+// browser cache (keyed by the whole link) would download them on every opening.
+// Keep each book under its link without the signature instead: streamed the
+// first time, read from the device after that, fetched again after 30 days.
+const isBookRequest = (request, url) =>
+  url.hostname.endsWith(".private.blob.vercel-storage.com") &&
+  url.pathname.startsWith("/books/") &&
+  !request.headers.has("Range");
+
+const serveBook = (event, url) => {
+  const key = `${url.origin}${url.pathname}`;
+  event.respondWith(
+    caches.open(PDF_CACHE).then(async (cache) => {
+      const cached = await cache.match(key);
+      const savedAt = Number(cached?.headers.get("sw-cached-at"));
+      if (cached && Date.now() - savedAt < PDF_CACHE_MAX_AGE) return cached;
+
+      const response = await fetch(event.request).catch(() => undefined);
+      if (!response) return cached ?? Response.error();
+      if (response.status !== 200 || !response.body) return response;
+
+      const headers = { "Content-Type": "application/pdf" };
+      const length = response.headers.get("Content-Length");
+      if (length) headers["Content-Length"] = length;
+      const [forReader, forCache] = response.body.tee();
+      // Finish saving even if the reader closes early; a full disk only skips saving.
+      event.waitUntil(
+        cache
+          .put(key, new Response(forCache, { headers: { ...headers, "sw-cached-at": String(Date.now()) } }))
+          .catch(() => {}),
+      );
+      return new Response(forReader, { headers });
+    }),
+  );
+};
 
 const offlineResponse = () =>
   new Response("Temporarily unavailable while offline.", {
@@ -53,7 +88,8 @@ self.addEventListener("activate", (event) => {
               cacheName !== RUNTIME_CACHE &&
               cacheName !== PDF_CACHE &&
               (cacheName.startsWith("prangan-static") ||
-                cacheName.startsWith("prangan-runtime"));
+                cacheName.startsWith("prangan-runtime") ||
+                cacheName.startsWith("prangan-pdfs"));
 
             if (isPriorAppCache) {
               console.log("[SW] Deleting old cache:", cacheName);
@@ -79,12 +115,17 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Skip external requests (including external PDFs - now handled by IndexedDB)
+  if (isBookRequest(request, url)) {
+    serveBook(event, url);
+    return;
+  }
+
+  // Skip other external requests
   if (url.origin !== location.origin) {
     return;
   }
 
-  // Skip PDF files - they are now cached in IndexedDB by the app
+  // Skip same-origin PDF files
   if (url.pathname.endsWith(".pdf")) {
     return;
   }

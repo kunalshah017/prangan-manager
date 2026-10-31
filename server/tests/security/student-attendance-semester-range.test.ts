@@ -106,47 +106,6 @@ test("student attendance reads return 400 before querying records outside the se
   }
 });
 
-test("single attendance marking rejects an out-of-range date before upsert", async () => {
-  const originalEnrollmentFindFirst = prisma.studentEnrollments.findFirst;
-  const originalUpsert = prisma.studentAttendance.upsert;
-  let upserts = 0;
-  prisma.studentEnrollments.findFirst = (async () => ({
-    id: "enrollment-1",
-    studentId: "student-1",
-    projectId: "project-1",
-    centerId: "center-1",
-    semesterId: "semester-1",
-    semester,
-  })) as typeof prisma.studentEnrollments.findFirst;
-  prisma.studentAttendance.upsert = (async () => {
-    upserts += 1;
-    throw new Error("upsert should not run");
-  }) as typeof prisma.studentAttendance.upsert;
-
-  try {
-    await assert.rejects(
-      () =>
-        StudentAttendanceService.markAttendance(
-          {
-            studentId: "student-1",
-            enrollmentId: "enrollment-1",
-            projectId: "project-1",
-            centerId: "center-1",
-            semesterId: "semester-1",
-            date: "2026-05-02",
-            status: "PRESENT",
-          },
-          "admin-1",
-        ),
-      StudentAttendanceSemesterDateError,
-    );
-    assert.equal(upserts, 0);
-  } finally {
-    prisma.studentEnrollments.findFirst = originalEnrollmentFindFirst;
-    prisma.studentAttendance.upsert = originalUpsert;
-  }
-});
-
 test("bulk attendance marking rejects an out-of-range date before enrollment processing", async () => {
   const originalSemesterFindUnique = prisma.semesters.findUnique;
   const originalEnrollmentFindMany = prisma.studentEnrollments.findMany;
@@ -193,37 +152,6 @@ test("student attendance weekend guard accepts Saturday and Sunday and rejects w
       error.message ===
         "Student attendance can only be marked on Saturday or Sunday",
   );
-});
-
-test("single attendance marking rejects a weekday before enrollment lookup", async () => {
-  const originalEnrollmentFindFirst = prisma.studentEnrollments.findFirst;
-  let enrollmentQueries = 0;
-  prisma.studentEnrollments.findFirst = (async () => {
-    enrollmentQueries += 1;
-    return null;
-  }) as typeof prisma.studentEnrollments.findFirst;
-
-  try {
-    await assert.rejects(
-      () =>
-        StudentAttendanceService.markAttendance(
-          {
-            studentId: "student-1",
-            enrollmentId: "enrollment-1",
-            projectId: "project-1",
-            centerId: "center-1",
-            semesterId: "semester-1",
-            date: "2026-04-27",
-            status: "PRESENT",
-          },
-          "admin-1",
-        ),
-      StudentAttendanceWeekendDateError,
-    );
-    assert.equal(enrollmentQueries, 0);
-  } finally {
-    prisma.studentEnrollments.findFirst = originalEnrollmentFindFirst;
-  }
 });
 
 test("bulk attendance marking rejects a weekday before semester or enrollment lookup", async () => {

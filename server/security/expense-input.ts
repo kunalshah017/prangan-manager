@@ -1,3 +1,6 @@
+import { isValidDateFormat } from "../utils/dateHelpers.js";
+import { hasAtMostTwoDecimals } from "../utils/money.js";
+
 type ParseResult<T> = { data: T } | { error: string };
 
 export type ExpenseStatusInput = "ACTIVE" | "VOIDED";
@@ -62,21 +65,6 @@ const isMonth = (value: string) => {
   const year = Number(match[1]);
   const month = Number(match[2]);
   return year >= 1 && month >= 1 && month <= 12;
-};
-
-const isDateOnly = (value: string) => {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return false;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return (
-    year >= 1 &&
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
-  );
 };
 
 export const parseExpenseListQuery = (
@@ -155,7 +143,7 @@ export const parseManualExpenseInput = (
   const title = trimmed(input.title);
   const category = trimmed(input.category);
   const incurredOn = trimmed(input.incurredOn);
-  if (!title || !category || !incurredOn || !isDateOnly(incurredOn)) {
+  if (!title || !category || !incurredOn || !isValidDateFormat(incurredOn)) {
     return { error: "Title, category, and a valid expense date are required." };
   }
   if (
@@ -163,7 +151,7 @@ export const parseManualExpenseInput = (
     !Number.isFinite(input.amount) ||
     input.amount <= 0 ||
     input.amount >= 10_000_000_000 ||
-    Number(input.amount.toFixed(2)) !== input.amount
+    !hasAtMostTwoDecimals(input.amount)
   ) {
     return { error: "Amount must be a positive value with at most two decimals." };
   }

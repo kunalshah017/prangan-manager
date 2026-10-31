@@ -4,12 +4,8 @@ import test from "node:test";
 import { Role } from "../../generated/prisma/index.js";
 import { prisma } from "../../lib/prisma.js";
 import {
-  deleteStudentAttendance,
-  getBulkAttendanceEstimate,
   getStudentAttendance,
   markBulkStudentAttendance,
-  markStudentAttendance,
-  updateStudentAttendance,
 } from "../../controllers/student-attendance.controller.js";
 import { StudentAttendanceService } from "../../service/student-attendance.service.js";
 
@@ -41,55 +37,6 @@ const createReply = () => {
       return payload;
     },
   };
-};
-
-test("bulk attendance estimate accepts only canonical positive student counts", async () => {
-  for (const studentCount of [
-    "12junk",
-    "1.9",
-    "1e3",
-    "0",
-    "-1",
-    " ",
-    undefined,
-  ]) {
-    const response = createReply();
-    await getBulkAttendanceEstimate(
-      { query: studentCount === undefined ? {} : { studentCount } } as any,
-      response.reply as any,
-    );
-
-    assert.equal(
-      response.statusCode,
-      400,
-      `studentCount ${String(studentCount)}`,
-    );
-    assert.deepEqual(response.payload, {
-      message: "Valid student count is required",
-    });
-  }
-
-  const response = createReply();
-  await getBulkAttendanceEstimate(
-    { query: { studentCount: "150" } } as any,
-    response.reply as any,
-  );
-
-  assert.equal(response.statusCode, 200);
-  assert.equal(
-    (response.payload as { estimate: { studentCount: number } }).estimate
-      .studentCount,
-    150,
-  );
-});
-
-const attendanceScope = {
-  projectId: "project-1",
-  centerId: "center-1",
-  semesterId: "semester-1",
-  enrollment: {
-    semesterLevelId: "semester-level-1",
-  },
 };
 
 const mockSemesterBounds = () => {
@@ -132,34 +79,6 @@ test("student attendance reads pass internal semester-level IDs to the enrollmen
     );
   } finally {
     prisma.studentAttendance.findMany = originalFindMany;
-  }
-});
-
-test("student attendance scope lookup selects only canonical scope and enrollment level", async () => {
-  const originalFindUnique = prisma.studentAttendance.findUnique;
-  let query: unknown;
-
-  prisma.studentAttendance.findUnique = (async (args: unknown) => {
-    query = args;
-    return null;
-  }) as typeof prisma.studentAttendance.findUnique;
-
-  try {
-    await StudentAttendanceService.getAttendanceScope("attendance-1");
-
-    assert.deepEqual(query, {
-      where: { id: "attendance-1" },
-      select: {
-        projectId: true,
-        centerId: true,
-        semesterId: true,
-        enrollment: {
-          select: { semesterLevelId: true },
-        },
-      },
-    });
-  } finally {
-    prisma.studentAttendance.findUnique = originalFindUnique;
   }
 });
 
@@ -329,175 +248,15 @@ test("a malformed non-admin attendance list scope is denied before reading atten
   }
 });
 
-test("attendance updates reject linkage fields before looking up or mutating attendance", async () => {
+test("bulk attendance rejects malformed or semantically invalid bodies before calling services", async () => {
   const service = StudentAttendanceService as any;
-  const originalGetAttendanceScope = service.getAttendanceScope;
-  const originalUpdateAttendance = service.updateAttendance;
-  let scopeLookups = 0;
-  let updateCalls = 0;
-  service.getAttendanceScope = async () => {
-    scopeLookups++;
-    return attendanceScope;
-  };
-  service.updateAttendance = async () => {
-    updateCalls++;
-    return {};
-  };
-
-  try {
-    const response = createReply();
-    await updateStudentAttendance(
-      {
-        user: { id: "admin-1", role: Role.ADMIN },
-        params: { attendanceId: "attendance-1" },
-        body: { status: "PRESENT", projectId: "project-2" },
-      } as any,
-      response.reply as any,
-    );
-
-    assert.equal(response.statusCode, 400);
-    assert.equal(scopeLookups, 0);
-    assert.equal(updateCalls, 0);
-  } finally {
-    service.getAttendanceScope = originalGetAttendanceScope;
-    service.updateAttendance = originalUpdateAttendance;
-  }
-});
-
-test("denied persisted attendance scope never invokes update or delete", async () => {
-  const service = StudentAttendanceService as any;
-  const originalGetAttendanceScope = service.getAttendanceScope;
-  const originalUpdateAttendance = service.updateAttendance;
-  const originalDeleteAttendance = service.deleteAttendance;
-  const originalFindMany = prisma.userRoleAssignments.findMany;
-  let updateCalls = 0;
-  let deleteCalls = 0;
-  service.getAttendanceScope = async () => attendanceScope;
-  service.updateAttendance = async () => {
-    updateCalls++;
-    return {};
-  };
-  service.deleteAttendance = async () => {
-    deleteCalls++;
-  };
-  prisma.userRoleAssignments.findMany =
-    (async () => []) as typeof prisma.userRoleAssignments.findMany;
-
-  try {
-    for (const [controller, body] of [
-      [updateStudentAttendance, { status: "PRESENT" }],
-      [deleteStudentAttendance, undefined],
-    ] as const) {
-      const response = createReply();
-      await controller(
-        {
-          user: { id: "educator-1", role: Role.USER },
-          params: { attendanceId: "attendance-1" },
-          body,
-        } as any,
-        response.reply as any,
-      );
-
-      assert.equal(response.statusCode, 403);
-    }
-
-    assert.equal(updateCalls, 0);
-    assert.equal(deleteCalls, 0);
-  } finally {
-    service.getAttendanceScope = originalGetAttendanceScope;
-    service.updateAttendance = originalUpdateAttendance;
-    service.deleteAttendance = originalDeleteAttendance;
-    prisma.userRoleAssignments.findMany = originalFindMany;
-  }
-});
-
-test("attendance updates pass only allowlisted status data to the service", async () => {
-  const service = StudentAttendanceService as any;
-  const originalGetAttendanceScope = service.getAttendanceScope;
-  const originalUpdateAttendance = service.updateAttendance;
-  let updateArgs: unknown[] | undefined;
-  service.getAttendanceScope = async () => attendanceScope;
-  service.updateAttendance = async (...args: unknown[]) => {
-    updateArgs = args;
-    return { id: "attendance-1" };
-  };
-
-  try {
-    const response = createReply();
-    await updateStudentAttendance(
-      {
-        user: { id: "admin-1", role: Role.ADMIN },
-        params: { attendanceId: "attendance-1" },
-        body: { status: "PRESENT" },
-      } as any,
-      response.reply as any,
-    );
-
-    assert.equal(response.statusCode, 200);
-    assert.deepEqual(updateArgs, [
-      "attendance-1",
-      { status: "PRESENT", holidayReason: null },
-      "admin-1",
-    ]);
-  } finally {
-    service.getAttendanceScope = originalGetAttendanceScope;
-    service.updateAttendance = originalUpdateAttendance;
-  }
-});
-
-test("attendance updates persist an explicit null holiday reason for non-holiday status", async () => {
-  const originalFindUnique = prisma.studentAttendance.findUnique;
-  const originalUpdate = prisma.studentAttendance.update;
-  let updateData: unknown;
-  prisma.studentAttendance.findUnique = (async () => ({
-    id: "attendance-1",
-  })) as typeof prisma.studentAttendance.findUnique;
-  prisma.studentAttendance.update = (async (args: { data: unknown }) => {
-    updateData = args.data;
-    return { id: "attendance-1" };
-  }) as typeof prisma.studentAttendance.update;
-
-  try {
-    await StudentAttendanceService.updateAttendance(
-      "attendance-1",
-      { status: "PRESENT", holidayReason: null },
-      "admin-1",
-    );
-
-    assert.equal(
-      (updateData as { holidayReason?: unknown }).holidayReason,
-      null,
-    );
-  } finally {
-    prisma.studentAttendance.findUnique = originalFindUnique;
-    prisma.studentAttendance.update = originalUpdate;
-  }
-});
-
-test("create and bulk attendance reject malformed or semantically invalid bodies before calling services", async () => {
-  const service = StudentAttendanceService as any;
-  const originalMarkAttendance = service.markAttendance;
   const originalMarkBulkAttendance = service.markBulkAttendance;
-  let markAttendanceCalls = 0;
   let markBulkAttendanceCalls = 0;
-  service.markAttendance = async () => {
-    markAttendanceCalls++;
-    return {};
-  };
   service.markBulkAttendance = async () => {
     markBulkAttendanceCalls++;
     return { processedCount: 0, errors: [], attendances: [] };
   };
 
-  const createBody = {
-    studentId: "student-1",
-    enrollmentId: "enrollment-1",
-    date: "2026-07-18",
-    projectId: "project-1",
-    centerId: "center-1",
-    semesterId: "semester-1",
-    status: "PRESENT",
-  };
   const bulkBody = {
     date: "2026-07-18",
     projectId: "project-1",
@@ -511,10 +270,7 @@ test("create and bulk attendance reject malformed or semantically invalid bodies
 
   try {
     for (const [controller, body] of [
-      [markStudentAttendance, null],
       [markBulkStudentAttendance, null],
-      [markStudentAttendance, { ...createBody, status: "LATE" }],
-      [markStudentAttendance, { ...createBody, status: "HOLIDAY" }],
       [markBulkStudentAttendance, { ...bulkBody, status: "LATE" }],
       [markBulkStudentAttendance, { ...bulkBody, status: "HOLIDAY" }],
     ] as const) {
@@ -527,23 +283,16 @@ test("create and bulk attendance reject malformed or semantically invalid bodies
       assert.equal(response.statusCode, 400);
     }
 
-    assert.equal(markAttendanceCalls, 0);
     assert.equal(markBulkAttendanceCalls, 0);
   } finally {
-    service.markAttendance = originalMarkAttendance;
     service.markBulkAttendance = originalMarkBulkAttendance;
   }
 });
 
-test("admin create and bulk requests still require complete attendance context", async () => {
+test("admin bulk requests still require complete attendance context", async () => {
   const service = StudentAttendanceService as any;
-  const originalMarkAttendance = service.markAttendance;
   const originalMarkBulkAttendance = service.markBulkAttendance;
   let markCalls = 0;
-  service.markAttendance = async () => {
-    markCalls++;
-    return {};
-  };
   service.markBulkAttendance = async () => {
     markCalls++;
     return { processedCount: 0, errors: [], attendances: [] };
@@ -551,14 +300,6 @@ test("admin create and bulk requests still require complete attendance context",
 
   try {
     for (const [controller, body] of [
-      [
-        markStudentAttendance,
-        {
-          studentId: "student-1",
-          enrollmentId: "enrollment-1",
-          date: "2026-07-18",
-        },
-      ],
       [
         markBulkStudentAttendance,
         {
@@ -581,7 +322,6 @@ test("admin create and bulk requests still require complete attendance context",
 
     assert.equal(markCalls, 0);
   } finally {
-    service.markAttendance = originalMarkAttendance;
     service.markBulkAttendance = originalMarkBulkAttendance;
   }
 });

@@ -1,4 +1,5 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
+import rateLimit from "@fastify/rate-limit";
 import {
   registerUser,
   loginUser,
@@ -33,7 +34,6 @@ import {
   getContextStaffController,
   getRemunerationUsersController,
   getSemesterUsersController,
-  updateRemunerationRatesController,
   setRemunerationPeriodController,
   updateSemesterUserAssignmentsController,
   updateMyBankDetails,
@@ -41,13 +41,35 @@ import {
 } from "../controllers/user.controller.js";
 import { authChecker } from "../utils/authChecker.js";
 
+// Counted per email, not per IP: behind the Vercel and Azure proxies an IP
+// is either shared by everyone or set by the caller.
+const limitPerEmail = (max: number, timeWindow: string) => ({
+  config: {
+    rateLimit: {
+      max,
+      timeWindow,
+      keyGenerator: (request: FastifyRequest) =>
+        String((request.body as { email?: unknown } | undefined)?.email ?? "")
+          .trim()
+          .toLowerCase(),
+    },
+  },
+});
+
 export const userRoutes = async (fastify: FastifyInstance): Promise<void> => {
+  // preHandler so the parsed body (the email) is available to the key.
+  await fastify.register(rateLimit, { global: false, hook: "preHandler" });
+
   // User routes
-  fastify.post("/users/register", registerUser);
-  fastify.post("/users/login", loginUser);
+  fastify.post("/users/register", limitPerEmail(5, "1 hour"), registerUser);
+  fastify.post("/users/login", limitPerEmail(10, "15 minutes"), loginUser);
   fastify.post("/users/logout", { preHandler: authChecker }, logoutUser);
   fastify.post("/users/activate", activateAccount);
-  fastify.post("/users/password-reset", requestPasswordReset);
+  fastify.post(
+    "/users/password-reset",
+    limitPerEmail(5, "1 hour"),
+    requestPasswordReset,
+  );
   fastify.post("/users/password-reset/complete", completePasswordReset);
   fastify.get("/users", { preHandler: authChecker }, getAllUsersController);
   fastify.get("/users/me", { preHandler: authChecker }, getCurrentUser);
@@ -65,11 +87,6 @@ export const userRoutes = async (fastify: FastifyInstance): Promise<void> => {
     "/users/semester-users/:userId/assignments",
     { preHandler: authChecker },
     updateSemesterUserAssignmentsController,
-  );
-  fastify.put(
-    "/users/remuneration/rates",
-    { preHandler: authChecker },
-    updateRemunerationRatesController,
   );
   fastify.put(
     "/users/remuneration/periods",

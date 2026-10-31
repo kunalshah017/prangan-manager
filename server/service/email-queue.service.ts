@@ -58,6 +58,9 @@ export type ClaimedEmailJob = {
   maxAttempts: number;
 };
 
+// Bodies can hold one-time account links, so finished jobs keep none.
+const FINISHED_JOB_BODY = { html: "", text: null };
+
 export const claimNextEmailJob = async (
   now = new Date(),
 ): Promise<ClaimedEmailJob | null> => {
@@ -74,6 +77,7 @@ export const claimNextEmailJob = async (
       lockToken: null,
       lockedAt: null,
       lastError: "Delivery worker stopped during the final attempt.",
+      ...FINISHED_JOB_BODY,
     },
   });
 
@@ -192,6 +196,7 @@ export const completeEmailJob = async (
       lockedAt: null,
       lockToken: null,
       lastError: null,
+      ...FINISHED_JOB_BODY,
     },
   });
 };
@@ -219,6 +224,7 @@ export const failEmailJob = async (
       lockedAt: null,
       lockToken: null,
       lastError: error.message.slice(0, 2_000),
+      ...(terminal ? FINISHED_JOB_BODY : {}),
     },
   });
 };

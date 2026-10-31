@@ -15,9 +15,7 @@ import { useUser, useVerifyUser } from '@/hooks/useUserQueries';
 import { buttonVariants } from '@/lib/button-variants';
 import { cn } from '@/lib/utils';
 import type { RoleAssignment } from '@/types/api';
-
-const formatDate = (value: string) =>
-    new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
+import { formatCalendarDate, formatMoment } from '@/lib/dates';
 
 const REQUESTS = '/users?view=requests';
 
@@ -114,9 +112,9 @@ const ReviewRegistration = () => {
             <ProfileHeader user={applicant} />
 
             <DetailList items={[
-                { label: 'Applied', value: formatDate(applicant.createdAt) },
+                { label: 'Applied', value: formatMoment(applicant.createdAt, { dateStyle: 'medium' }) },
                 { label: 'Qualification', value: applicant.qualification || 'Not given' },
-                { label: 'Date of birth', value: applicant.dob ? formatDate(applicant.dob) : 'Not given' },
+                { label: 'Date of birth', value: applicant.dob ? formatCalendarDate(applicant.dob) : 'Not given' },
                 { label: 'Address', value: applicant.address || 'Not given', wide: true },
             ]} />
 

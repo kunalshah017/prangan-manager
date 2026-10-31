@@ -1,14 +1,10 @@
+import { isValidDateFormat } from "../utils/dateHelpers.js";
 import { AttendanceStatus } from "../generated/prisma/index.js";
-import type {
-  MarkAttendanceRequest,
-  MarkBulkAttendanceRequest,
-} from "../types/attendance.types.js";
+import type { MarkBulkAttendanceRequest } from "../types/attendance.types.js";
 
 type ParseResult<T> = { data: T } | { error: string };
 
 type AttendanceEntry = MarkBulkAttendanceRequest["attendances"][number];
-
-const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 const isRecord = (input: unknown): input is Record<string, unknown> =>
   typeof input === "object" && input !== null && !Array.isArray(input);
@@ -16,19 +12,8 @@ const isRecord = (input: unknown): input is Record<string, unknown> =>
 const isCanonicalNonblankString = (input: unknown): input is string =>
   typeof input === "string" && input.length > 0 && input === input.trim();
 
-const isDate = (input: unknown): input is string => {
-  if (!isCanonicalNonblankString(input) || !datePattern.test(input)) {
-    return false;
-  }
-
-  const [year, month, day] = input.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
-  );
-};
+const isDate = (input: unknown): input is string =>
+  typeof input === "string" && isValidDateFormat(input);
 
 const isAttendanceStatus = (input: unknown): input is AttendanceStatus =>
   typeof input === "string" &&
@@ -111,22 +96,6 @@ const parseScope = (
       semesterId: input.semesterId,
     },
   };
-};
-
-export const parseMarkAttendanceRequest = (
-  input: unknown,
-): ParseResult<MarkAttendanceRequest> => {
-  if (!isRecord(input)) {
-    return { error: "Attendance data is invalid" };
-  }
-
-  const scope = parseScope(input);
-  if ("error" in scope) return scope;
-
-  const entry = parseEntry(input);
-  if ("error" in entry) return entry;
-
-  return { data: { ...scope.data, ...entry.data } };
 };
 
 export const parseMarkBulkAttendanceRequest = (

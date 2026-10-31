@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   getClosestWeekendWithinRange,
+  getNearestWeekend,
   getWeekendOnOrAfter,
   getWeekendOnOrBefore,
   isWeekendDate,
@@ -31,5 +32,13 @@ describe("weekend-only attendance dates", () => {
     expect(getWeekendOnOrBefore("2026-04-30", "2026-04-01")).toBe("2026-04-26");
     expect(getWeekendOnOrAfter("2026-04-25", "2026-04-30")).toBe("2026-04-25");
     expect(getWeekendOnOrBefore("2026-04-26", "2026-04-01")).toBe("2026-04-26");
+  });
+
+  it("defaults to the next class day in India, wherever the viewer is", () => {
+    // Friday 20:00 UTC is already Saturday 01:30 in India.
+    expect(getNearestWeekend(new Date("2026-11-27T20:00:00.000Z"))).toBe("2026-11-28");
+    // Sunday 19:00 UTC is Monday 00:30 in India: the next class day is Saturday.
+    expect(getNearestWeekend(new Date("2026-11-29T19:00:00.000Z"))).toBe("2026-12-05");
+    expect(getNearestWeekend(new Date("2026-11-29T10:00:00.000Z"))).toBe("2026-11-29");
   });
 });

@@ -1,4 +1,5 @@
 import { CommittedDays, SubRole } from "../generated/prisma/index.js";
+import { hasAtMostTwoDecimals } from "../utils/money.js";
 
 export type StudentTransitionDecision = {
   sourceEnrollmentId: string;
@@ -241,7 +242,7 @@ export const parseStaffTransitionPlan = (
       dailyRate !== undefined &&
       (!Number.isFinite(dailyRate) ||
         dailyRate < 0 ||
-        Math.round(dailyRate * 100) !== dailyRate * 100)
+        !hasAtMostTwoDecimals(dailyRate))
     ) {
       return { error: `Staff decision ${index + 1} has an invalid daily rate.` };
     }

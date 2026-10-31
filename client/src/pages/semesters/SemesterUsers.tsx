@@ -27,6 +27,7 @@ import {
 } from "@/hooks/useUserQueries";
 import { formatINR, validateRemunerationRate } from "@/lib/remuneration";
 import type { RoleAssignment, SemesterUser } from "@/types/api";
+import { indiaToday } from "@/lib/dates";
 
 const ROLE_OPTIONS: Array<{ value: RoleAssignment["subRole"]; label: string }> = [
   { value: "EDUCATOR", label: "Educator" },
@@ -42,7 +43,6 @@ const roleLabel = (role: string) =>
   ROLE_OPTIONS.find((option) => option.value === role)?.label ??
   role.replaceAll("_", " ");
 
-const todayDate = () => new Date().toISOString().slice(0, 10);
 
 const currentPeriod = (person: SemesterUser, date: string) =>
   person.remunerationPeriods.find(
@@ -82,7 +82,7 @@ function SemesterUserSettings({
         committedDays: assignment.committedDays,
       })),
   );
-  const current = currentPeriod(person, todayDate());
+  const current = currentPeriod(person, indiaToday());
   const [amount, setAmount] = useState(
     current ? String(current.amountPerDay) : "",
   );
@@ -462,7 +462,7 @@ export default function SemesterUsers() {
           const payable = activeRoles.some((assignment) =>
             ["EDUCATOR", "CENTER_MANAGER"].includes(assignment.subRole),
           );
-          const current = currentPeriod(person, todayDate());
+          const current = currentPeriod(person, indiaToday());
           const isExpanded = expanded === person.id;
           return (
             <article key={person.id} className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
