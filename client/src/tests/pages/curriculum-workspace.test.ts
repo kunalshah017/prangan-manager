@@ -53,6 +53,15 @@ describe("curriculum workspace redesign", () => {
     expect(progress.match(/function TopicStatusControl/g)).toHaveLength(1);
   });
 
+  it("lets a long topic be saved as still in progress, on leaf topics only", async () => {
+    const progress = await readSyllabusPage("SyllabusProgress.tsx");
+
+    expect(progress).toContain('nextStatus === topic.status && nextStatus !== "ONGOING"');
+    expect(progress).toContain("canCheckIn={getSubtopics(topic).length === 0}");
+    expect(progress).toContain('topic.status === "ONGOING" && !disabled');
+    expect(progress).toContain("Still in progress");
+  });
+
   it("does not issue curriculum detail queries before route access is established", async () => {
     const [edit, progress, hooks] = await Promise.all([
       readSyllabusPage("EditSyllabus.tsx"),

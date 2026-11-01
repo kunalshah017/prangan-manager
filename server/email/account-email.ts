@@ -47,6 +47,34 @@ export const buildRegistrationRejectionEmailJob = ({
   }),
 });
 
+export const buildAccessRestoredEmailJob = ({
+  userId,
+  email,
+  name,
+  signInUrl,
+  roleAssignmentDetails,
+  restoredAt,
+}: {
+  userId: string;
+  email: string;
+  name: string;
+  signInUrl: string;
+  roleAssignmentDetails: string;
+  restoredAt: Date;
+}): EnqueueEmailInput => ({
+  // Access can be restored more than once, so each restore gets its own email.
+  dedupeKey: `access-restored:${userId}:${restoredAt.getTime()}`,
+  to: email,
+  subject: EMAIL_TEMPLATES.VERIFICATION_SUCCESS.restoredSubject,
+  html: EMAIL_TEMPLATES.VERIFICATION_SUCCESS.getTemplate({
+    name: escapeHtml(name),
+    email: escapeHtml(email),
+    signInUrl,
+    roleAssignmentDetails,
+    restored: true,
+  }),
+});
+
 export const buildPasswordResetEmailJob = ({
   accountTokenId,
   email,

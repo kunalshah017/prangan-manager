@@ -22,6 +22,7 @@ import type {
   StudentTransitionDecision,
 } from "../security/semester-transition-input.js";
 import { enqueueEmail } from "./email-queue.service.js";
+import { notifyUsers } from "./notification.service.js";
 
 type Transaction = Prisma.TransactionClient;
 
@@ -853,8 +854,35 @@ export const activateSemesterTransition = async (
   });
   if (result.queuedEmailCount > 0) {
     emitCommitTrigger(EMAIL_JOB_COMMITTED);
+    notifySemesterTeamInBackground(semesterId);
   }
   return result;
+};
+
+// Tells everyone placed in the semester that it has started. Runs after the
+// activation committed; a failure here never undoes the activation.
+const notifySemesterTeamInBackground = (semesterId: string) => {
+  void Promise.all([
+    prisma.semesters.findUnique({
+      where: { id: semesterId },
+      select: { name: true, centerId: true, center: { select: { name: true, projectId: true } } },
+    }),
+    prisma.userRoleAssignments.findMany({
+      where: { semesterId, isActive: true },
+      distinct: ["userId"],
+      select: { userId: true },
+    }),
+  ])
+    .then(([semester, team]) =>
+      semester
+        ? notifyUsers(team.map((assignment) => assignment.userId), {
+            title: `${semester.name} has started`,
+            body: `You're on the team at ${semester.center.name}.`,
+            href: `/projects/${semester.center.projectId}/centers/${semester.centerId}/semesters/${semesterId}/dashboard`,
+          })
+        : undefined,
+    )
+    .catch((error) => console.error("Notification failed:", (error as Error).message));
 };
 
 export const getCenterSemesterTransitionSummaries = async (

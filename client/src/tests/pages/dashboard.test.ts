@@ -14,9 +14,9 @@ describe("semester dashboard", () => {
     expect(dashboard).toContain("dashboardModel.visibility.staff");
     expect(dashboard).toContain("dashboardModel.visibility.curriculum");
     expect(dashboard).toContain("enabled: dashboardModel.visibility.staff");
-    expect(dashboard).toContain(
-      "enabled: dashboardModel.visibility.staffAttendance",
-    );
+    // Attendance to-dos live in notifications, so today's records aren't loaded.
+    expect(dashboard).not.toContain("useAttendanceRecords");
+    expect(dashboard).not.toContain("useStudentAttendanceRecords");
     expect(dashboard).toContain(
       "semesterLevelId: dashboardModel.assignedSemesterLevelId",
     );
@@ -24,9 +24,9 @@ describe("semester dashboard", () => {
     expect(dashboard).not.toContain(
       "semesterLevelId: dashboardModel.assignedLevel",
     );
-    expect(dashboard).toContain("useSyllabusStatistics");
-    expect(dashboard).toContain("useExams");
-    expect(dashboard).toContain("enabled: dashboardModel.visibility.exams");
+    // The snapshot numbers are gone, so their queries are not loaded.
+    expect(dashboard).not.toContain("useSyllabusStatistics");
+    expect(dashboard).not.toContain("useExams");
     expect(dashboard).not.toContain("ProtectedComponent");
     expect(dashboard).not.toContain("allowedSubRoles");
   });
@@ -37,20 +37,17 @@ describe("semester dashboard", () => {
     expect(dashboard).toContain("resolveSemesterLevelId(student)");
     expect(dashboard).not.toContain("semesterLevelIdByCode");
     expect(dashboard).not.toContain("reference?.level");
-    expect(dashboard).toContain("levelName(");
     expect(dashboard).not.toContain("const levelOrder =");
     expect(dashboard).not.toContain('PRIMARY_A: "Primary A"');
     expect(dashboard).not.toContain('"LEVEL_4"');
   });
 
-  it("uses a responsive operational layout and semantic tokens", () => {
-    expect(dashboard).toContain("lg:grid-cols-12");
-    expect(dashboard).toContain("lg:col-span-8");
-    expect(dashboard).toContain("lg:col-span-4");
-    expect(dashboard).toContain("Needs attention");
-    expect(dashboard).toContain("Semester snapshot");
-    expect(dashboard).toContain("Quick actions");
-    expect(dashboard).toContain("min-h-11");
+  it("uses one phone-first layout with a desktop side column and semantic tokens", () => {
+    expect(dashboard).toContain("lg:grid-cols-[minmax(0,1fr)_24rem]");
+    expect(dashboard).not.toContain("Semester snapshot");
+    expect(dashboard).not.toContain("Quick actions");
+    expect(dashboard).not.toContain("sm:hidden");
+    expect(dashboard).not.toContain("hidden sm:block");
     expect(dashboard).toContain("bg-card");
     expect(dashboard).toContain("text-muted-foreground");
     expect(dashboard).not.toMatch(
@@ -61,14 +58,16 @@ describe("semester dashboard", () => {
     }
   });
 
-  it("removes stale navigation state and formats semester dates in UTC", () => {
-    // Semester dates are calendar days: never shifted by the viewer's zone.
-    expect(dashboard).toContain("formatCalendarDate(semester.startDate)");
+  it("removes stale navigation state and does not repeat the centre or dates", () => {
+    // The breadcrumb names the centre; the centre dashboard shows the dates.
+    expect(dashboard).not.toContain("formatCalendarDate");
+    expect(dashboard).not.toContain("useCenter(");
+    expect(dashboard).not.toContain("roleLabel");
     expect(dashboard).not.toContain("sessionStorage");
     expect(dashboard).not.toContain("dashboardContext");
   });
 
-  it("uses focused dashboard primitives", () => {
+  it("uses the tile launcher and no snapshot metrics", () => {
     expect(
       existsSync(
         new URL(
@@ -84,20 +83,16 @@ describe("semester dashboard", () => {
           import.meta.url,
         ),
       ),
-    ).toBe(true);
+    ).toBe(false);
     expect(dashboard).toContain("<DashboardAction");
-    expect(dashboard).toContain("<DashboardMetric");
+    expect(dashboard).not.toContain("DashboardMetric");
   });
 
-  it("shows changing semester outcomes instead of permissions or fixed configuration", () => {
-    expect(dashboard).toContain('label="Curriculum progress"');
-    expect(dashboard).toContain('label="Active exams"');
-    expect(dashboard).toContain("completionPercentage");
-    expect(dashboard).toContain("upcomingExams");
-    expect(dashboard).toContain("completedExams");
-    expect(dashboard).not.toContain('label="Active syllabi"');
-    expect(dashboard).not.toContain('label="Assessment access"');
-    expect(dashboard).not.toContain('value="Open"');
+  it("lists in-progress topics only when one syllabus is in view", () => {
+    expect(dashboard).toContain(
+      "visibleSyllabi.length === 1 ? visibleSyllabi[0] : undefined",
+    );
+    expect(dashboard).toContain("ongoingItems.length > 0 &&");
   });
 
   it("uses one clear heading per dashboard section", () => {
@@ -112,7 +107,7 @@ describe("semester dashboard", () => {
     }
   });
 
-  it("uses a compact mobile-first tool launcher without a duplicated masthead action", () => {
+  it("uses one compact tool launcher for every screen size", () => {
     const action = readFileSync(
       new URL(
         "../../components/dashboard/DashboardAction.tsx",
@@ -123,13 +118,12 @@ describe("semester dashboard", () => {
 
     expect(dashboard).toContain("grid-cols-3");
     expect(dashboard).toContain("min-[380px]:grid-cols-4");
-    expect(dashboard).toContain("sm:hidden");
-    expect(dashboard).toContain('variant="tile"');
+    expect(dashboard).toContain('aria-label="Semester tools"');
     expect(dashboard).toContain("dashboardModel.actionGroups.map((group)");
-    expect(dashboard).toContain("Mobile tool group");
     expect(dashboard).toContain("group.label");
     expect(dashboard).not.toContain("primaryAction");
-    expect(action).toContain('variant?: "row" | "tile"');
+    expect(action).not.toContain("variant");
+    expect(action).not.toContain("action.description");
     expect(action).toContain("action.mobileLabel");
     expect(action).toContain("h-[4.5rem]");
     expect(action).toContain("grid-rows-[1.5rem_2rem]");
@@ -144,28 +138,11 @@ describe("semester dashboard", () => {
     expect(dashboard).not.toContain('"Add student"');
   });
 
-  it("renders the all-clear attention state as a compact mobile status", () => {
-    expect(dashboard).toContain("Mobile semester status");
-    expect(dashboard).toContain("All caught up");
-    expect(dashboard).toContain('headingId="attention-title"');
-    expect(dashboard).toContain('className="hidden sm:block"');
-    expect(dashboard.indexOf('aria-label="Mobile semester status"')).toBeLessThan(
-      dashboard.indexOf('aria-label="Mobile semester tools"'),
-    );
-  });
-
-  it("puts Needs attention before mobile tools and links incomplete bank details to payment settings", () => {
-    expect(dashboard).toContain("hasCompleteBankDetails(user)");
-    expect(dashboard).toContain('title: "Complete your bank details"');
-    expect(dashboard).toContain('actionLabel: "Complete bank details"');
-    expect(dashboard).toContain('href: "/profile#payment"');
-    expect(dashboard).toContain('className="sm:hidden"');
-    expect(dashboard).toContain('className="hidden sm:block"');
-    expect(
-      dashboard.indexOf('headingId="mobile-attention-title"'),
-    ).toBeLessThan(
-      dashboard.indexOf('aria-label="Mobile semester tools"'),
-    );
+  it("leaves to-dos to notifications: no Needs attention list", () => {
+    expect(dashboard).not.toContain("Needs attention");
+    expect(dashboard).not.toContain("Add your bank details");
+    expect(dashboard).not.toContain("All caught up");
+    expect(dashboard).not.toContain("actionLabel");
   });
 
   it("keeps administration out while exposing the Library from semester actions", () => {

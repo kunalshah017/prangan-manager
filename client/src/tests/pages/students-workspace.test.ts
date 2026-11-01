@@ -38,6 +38,10 @@ describe("Students workspace", () => {
     expect(students).not.toContain("motion.div");
   });
 
+  it("opens on Needs details from the student details reminder", () => {
+    expect(students).toContain('searchParams.get("view") === "incomplete" ? "incomplete" : "all"');
+  });
+
   it("shows profile completion only when details are missing", () => {
     expect(students).toContain("missing.length > 0 && (");
     expect(students).not.toContain(

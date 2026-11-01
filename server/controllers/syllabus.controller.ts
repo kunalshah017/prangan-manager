@@ -37,6 +37,7 @@ import {
   ImportSyllabusFromTemplateRequest,
 } from "../types/syllabus.types.js";
 import { Role, SubRole } from "../generated/prisma/index.js";
+import { resolveCurriculumRemindersInBackground } from "../service/reminder.service.js";
 import { getActiveUserScopeAssignments } from "../service/user.service.js";
 import { canAccessScope } from "../security/authorization.js";
 import {
@@ -555,6 +556,9 @@ export const updateTopicStatusController = async (
     }
 
     const topic = await updateTopicStatus(id, data, request.user.id);
+    if (scope.semesterId && scope.semesterLevelId) {
+      resolveCurriculumRemindersInBackground(scope.semesterId, scope.semesterLevelId);
+    }
 
     return reply.status(200).send({
       message: "Topic status updated successfully",

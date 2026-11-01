@@ -103,7 +103,6 @@ describe("buildDashboardModel", () => {
       "Curriculum",
       "Exams",
       "Library",
-      "Semester users",
       "Mark staff attendance",
       "View staff attendance",
       "Remuneration",

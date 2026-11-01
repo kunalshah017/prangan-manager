@@ -27,12 +27,14 @@ interface EntityRowProps {
   leading?: ReactNode;
   meta?: ReactNode;
   status?: ReactNode;
+  // A button of its own, e.g. dismiss; it sits above the row's link.
+  action?: ReactNode;
 }
 
 // A row opens its entity; the whole row is the target and the chevron says so.
 // Editing lives on the entity's own page, so rows never look like form fields.
 // Without href the row is shown for reference only: muted, with nothing to tap.
-export function EntityRow({ href, title, leading, meta, status }: EntityRowProps) {
+export function EntityRow({ href, title, leading, meta, status, action }: EntityRowProps) {
   if (!href) {
     return (
       <li className="flex min-h-[4.5rem] items-center gap-3 px-3 py-3 opacity-60 sm:gap-4 sm:px-4">
@@ -44,6 +46,7 @@ export function EntityRow({ href, title, leading, meta, status }: EntityRowProps
           </div>
           {meta && <div className="mt-0.5 text-sm leading-5 text-muted-foreground">{meta}</div>}
         </div>
+        {action}
       </li>
     );
   }
@@ -63,6 +66,7 @@ export function EntityRow({ href, title, leading, meta, status }: EntityRowProps
         </div>
         {meta && <div className="mt-0.5 text-sm leading-5 text-muted-foreground">{meta}</div>}
       </div>
+      {action && <div className="relative z-10 shrink-0">{action}</div>}
       <ChevronRight
         className="h-5 w-5 shrink-0 text-muted-foreground transition-[color,transform] group-hover:translate-x-0.5 group-hover:text-primary group-focus-within:text-primary motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"
         aria-hidden="true"

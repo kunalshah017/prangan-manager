@@ -14,6 +14,8 @@ import { academicLevelRoutes } from "./routes/academic-level.routes.js";
 import { expenseRoutes } from "./routes/expense.routes.js";
 import { uploadRoutes } from "./routes/upload.routes.js";
 import { libraryRoutes } from "./routes/library.routes.js";
+import { notificationRoutes } from "./routes/notification.routes.js";
+import { runDueReminders } from "./service/reminder.service.js";
 import cookie from "@fastify/cookie";
 import { createCsrfToken, requireCsrfToken } from "./security/csrf.js";
 import {
@@ -53,8 +55,11 @@ fastify.get("/api/v1/auth/csrf", async (_request, reply) => {
   return { csrfToken };
 });
 
-// Health check endpoint
+// Health check endpoint. The uptime monitor calls it every 5 minutes, which
+// also makes it the clock for scheduled reminders: they touch the database
+// only when one is due, so Neon can still sleep between pings.
 fastify.get("/health", async (request: FastifyRequest, reply: FastifyReply) => {
+  void runDueReminders();
   return {
     status: "OK",
     timestamp: new Date().toISOString(),
@@ -77,6 +82,7 @@ fastify.register(academicLevelRoutes, { prefix: "/api/v1" });
 fastify.register(expenseRoutes, { prefix: "/api/v1" });
 fastify.register(uploadRoutes, { prefix: "/api/v1" });
 fastify.register(libraryRoutes, { prefix: "/api/v1" });
+fastify.register(notificationRoutes, { prefix: "/api/v1" });
 
 const start = async (): Promise<void> => {
   try {

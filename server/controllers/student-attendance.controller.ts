@@ -11,6 +11,7 @@ import {
   hasCompleteAttendanceScope,
 } from "../security/attendance-authorization.js";
 import { parseBulkStudentAttendance } from "../security/student-attendance-update.js";
+import { resolveAttendanceRemindersInBackground } from "../service/reminder.service.js";
 import { getActiveUserScopeAssignments } from "../service/user.service.js";
 import { isValidDateFormat } from "../utils/dateHelpers.js";
 
@@ -180,6 +181,9 @@ export const markBulkStudentAttendance = async (
       userId,
       access.allowedSemesterLevelIds,
     );
+    if (result.processedCount > 0) {
+      resolveAttendanceRemindersInBackground(bulkData.semesterId, bulkData.date);
+    }
 
     const hasErrors = result.errors.length > 0;
     const allFailed = result.processedCount === 0 && hasErrors;

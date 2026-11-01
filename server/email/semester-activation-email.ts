@@ -7,7 +7,7 @@ import {
 const LOGO_URL =
   "https://manager.pranganfoundation.org/images/logo/prangan-logo-light-mode.png";
 
-const roleLabels: Record<SubRole, string> = {
+export const roleLabels: Record<SubRole, string> = {
   [SubRole.TRAINING_DEVELOPMENT]: "Training and development",
   [SubRole.RECRUITMENT]: "Recruitment",
   [SubRole.GROWTH_DEVELOPMENT]: "Growth and development",

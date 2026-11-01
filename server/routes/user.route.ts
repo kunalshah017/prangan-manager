@@ -12,6 +12,7 @@ import {
   updateUserController,
   verifyUser,
   revokeUserAccessController,
+  restoreUserAccessController,
   GetUnverifiedUsers,
   addStudent,
   getStudents,
@@ -33,9 +34,7 @@ import {
   deleteUserAssignmentController,
   getContextStaffController,
   getRemunerationUsersController,
-  getSemesterUsersController,
   setRemunerationPeriodController,
-  updateSemesterUserAssignmentsController,
   updateMyBankDetails,
   updateUserBankDetailsAsAdmin,
 } from "../controllers/user.controller.js";
@@ -78,16 +77,6 @@ export const userRoutes = async (fastify: FastifyInstance): Promise<void> => {
     { preHandler: authChecker },
     getRemunerationUsersController,
   );
-  fastify.get(
-    "/users/semester-users",
-    { preHandler: authChecker },
-    getSemesterUsersController,
-  );
-  fastify.put(
-    "/users/semester-users/:userId/assignments",
-    { preHandler: authChecker },
-    updateSemesterUserAssignmentsController,
-  );
   fastify.put(
     "/users/remuneration/periods",
     { preHandler: authChecker },
@@ -107,6 +96,11 @@ export const userRoutes = async (fastify: FastifyInstance): Promise<void> => {
     "/users/:userId/access",
     { preHandler: authChecker },
     revokeUserAccessController,
+  );
+  fastify.post(
+    "/users/:userId/access",
+    { preHandler: authChecker },
+    restoreUserAccessController,
   );
   fastify.put(
     "/users/:userId",

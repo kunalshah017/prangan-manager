@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
@@ -12,8 +12,13 @@ import { ErrorState, ListPageSkeleton } from '@/components/workspace/PageState';
 import { WorkspacePage } from '@/components/workspace/WorkspacePage';
 import { Input } from '@/components/ui/form-controls';
 import { FormField } from '@/components/workspace/FormParts';
-import { useRevokeUserAccess, useUpdateUser, useUpdateUserBankDetails, useUser, type BankDetailsPatch } from '@/hooks/useUserQueries';
+import { useSemesters } from '@/hooks/useSemesterQueries';
+import { useRevokeUserAccess, useSaveRemunerationPeriod, useUpdateUser, useUpdateUserBankDetails, useUser, type BankDetailsPatch } from '@/hooks/useUserQueries';
+import { indiaToday } from '@/lib/dates';
+import { rateChanges, type RateDraft, type RatePeriod } from '@/lib/semester-rates';
 import type { RoleAssignment } from '@/types/api';
+
+const NO_PERIODS: RatePeriod[] = [];
 
 const BANK_FIELDS: Array<{ field: keyof BankDetailsPatch | 'confirmAccountNumber'; label: string }> = [
     { field: 'bankAccountNumber', label: 'New account number' },
@@ -43,6 +48,15 @@ const EditUser = () => {
     const updateUserMutation = useUpdateUser();
     const revokeUserAccess = useRevokeUserAccess();
     const updateBank = useUpdateUserBankDetails();
+    const saveRate = useSaveRemunerationPeriod();
+    const { data: semesters = [] } = useSemesters();
+    const [rateDrafts, setRateDrafts] = useState<Record<string, RateDraft>>({});
+    const periods = user?.remunerationPeriods ?? NO_PERIODS;
+    const changeRate = useCallback((semesterId: string, draft: RateDraft) => {
+        setRateDrafts((current) => ({ ...current, [semesterId]: draft }));
+    }, []);
+    // Kept stable: the role form re-checks its errors whenever this changes.
+    const rates = useMemo(() => ({ periods, drafts: rateDrafts, onChange: changeRate }), [periods, rateDrafts, changeRate]);
     const [bank, setBank] = useState<Record<string, string>>({});
     const [confirmRevoke, setConfirmRevoke] = useState(false);
     const [details, setDetails] = useState<PersonDetails>(emptyDetails);
@@ -134,11 +148,20 @@ const EditUser = () => {
             if (Object.keys(bankPatch).length > 0) {
                 await updateBank.mutateAsync({ userId, bank: bankPatch });
             }
-            toast.success('Changes saved.');
-            navigate(userPage);
         } catch {
             toast.error('Unable to save changes. Try again.');
+            return;
         }
+        // Rates need the roles saved first: only paid roles can have one.
+        const changes = role === 'ADMIN' ? [] : rateChanges({ assignments: roleAssignments, periods, drafts: rateDrafts, semesters, today: indiaToday() });
+        try {
+            for (const change of changes) await saveRate.mutateAsync({ ...change, userId });
+        } catch (failure) {
+            toast.error(`Roles saved, but the daily rate wasn't: ${failure instanceof Error ? failure.message : 'try again'}.`);
+            return;
+        }
+        toast.success('Changes saved.');
+        navigate(userPage);
     };
 
     const currentBankValue = (field: string) => {
@@ -194,6 +217,7 @@ const EditUser = () => {
                             roleAssignments={roleAssignments}
                             onChange={setRoleAssignments}
                             userRole={role}
+                            rates={rates}
                             onValidationChange={(isValid: boolean, messages: string[]) => {
                                 setIsAssignmentValid(isValid);
                                 setAssignmentErrors(messages);
@@ -231,7 +255,7 @@ const EditUser = () => {
                 <FormActions
                     submitLabel="Save changes"
                     pendingLabel="Saving changes..."
-                    isPending={updateUserMutation.isPending || updateBank.isPending}
+                    isPending={updateUserMutation.isPending || updateBank.isPending || saveRate.isPending}
                     onCancel={() => navigate(userPage)}
                 />
             </form>

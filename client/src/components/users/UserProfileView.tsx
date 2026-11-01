@@ -43,11 +43,13 @@ interface UserProfileViewProps {
 // someone. The sections are the same; only what can be edited differs.
 export function UserProfileView({ user, isSelf, title, about, payments, headerAction, footer }: UserProfileViewProps) {
   const location = useLocation();
-  const [tab, setTab] = useState<ProfileTab>(location.hash === "#payment" ? "payments" : "about");
+  // Links can open a tab: #payment (bank details), #activity (the "Remuneration paid" notification).
+  const tabFromHash = location.hash === "#payment" ? "payments" : location.hash === "#activity" ? "activity" : null;
+  const [tab, setTab] = useState<ProfileTab>(tabFromHash ?? "about");
 
   useEffect(() => {
-    if (location.hash === "#payment") setTab("payments");
-  }, [location.hash]);
+    if (tabFromHash) setTab(tabFromHash);
+  }, [tabFromHash]);
 
   return (
     <WorkspacePage className="space-y-5 lg:max-w-4xl">

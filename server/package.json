@@ -9,7 +9,7 @@
     "build": "tsc && npm run copy-prisma",
     "copy-prisma": "node scripts/copy-prisma.js",
     "start": "node dist/server.js",
-    "test": "tsx --test \"tests/**/*.test.ts\"",
+    "test": "tsx --test --import ./tests/offline-env.ts \"tests/**/*.test.ts\"",
     "postinstall": "prisma generate",
     "generate-profession-images": "node scripts/generate-future-profession-images.js",
     "generate-profession-images:trial": "node scripts/generate-future-profession-images.js --trial",
@@ -31,7 +31,8 @@
     "dotenv": "^18.0.9",
     "fastify": "^5.12.7",
     "jsonwebtoken": "^9.0.3",
-    "nodemailer": "^10.3.1"
+    "nodemailer": "^10.3.1",
+    "web-push": "^3.6.7"
   },
   "overrides": {
     "deepmerge-ts": "^8.0.2",
@@ -42,6 +43,7 @@
     "@types/cors": "^2.8.19",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.19.2",
+    "@types/web-push": "^3.6.4",
     "prisma": "^6.19.3",
     "ts-node": "^10.9.2",
     "tsx": "^4.23.15",

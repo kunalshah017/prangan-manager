@@ -71,7 +71,7 @@ describe("user management filters", () => {
     ]);
 
     // The chosen account type is sent as-is, with assignments only for volunteers.
-    expect(review).toContain("status: 'APPROVED',\n                role,");
+    expect(review).toContain("status: 'APPROVED', role, roleAssignments");
     expect(review).toContain("<SystemRoleChoice");
     // Revoking is a confirmed danger-zone action on the edit page, not a list button.
     expect(users).not.toContain("useRevokeUserAccess");

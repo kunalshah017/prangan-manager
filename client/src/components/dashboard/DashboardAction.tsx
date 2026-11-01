@@ -27,49 +27,21 @@ const icons = {
     inbox: Inbox,
 };
 
-export function DashboardAction({
-    action,
-    compact = false,
-    variant = "row",
-}: {
-    action: DashboardActionItem;
-    compact?: boolean;
-    variant?: "row" | "tile";
-}) {
+// A launcher tile: icon over a short label, the whole tile is the target.
+export function DashboardAction({ action }: { action: DashboardActionItem }) {
     const Icon = icons[action.icon];
-
-    if (variant === "tile") {
-        return (
-            <Link
-                to={action.href}
-                aria-label={action.label}
-                className="group grid h-[4.5rem] min-w-0 grid-rows-[1.5rem_2rem] content-center items-start justify-items-center gap-1 rounded-lg border border-border bg-card px-2 text-center shadow-sm transition-colors active:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-                <span className="flex h-6 w-6 items-center justify-center self-start text-muted-foreground transition-colors group-active:text-foreground">
-                    <Icon className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <span className="line-clamp-2 flex h-8 items-center justify-center text-[0.6875rem] font-semibold leading-4 text-foreground min-[380px]:text-xs">
-                    {action.mobileLabel}
-                </span>
-            </Link>
-        );
-    }
 
     return (
         <Link
             to={action.href}
-            className="group flex min-h-11 items-center gap-3 rounded-md border border-border bg-background px-3 py-2.5 text-left transition-colors hover:border-primary/35 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={action.label}
+            className="group grid h-[4.5rem] min-w-0 grid-rows-[1.5rem_2rem] content-center items-start justify-items-center gap-1 rounded-xl border border-border bg-card px-2 text-center transition-colors hover:border-primary/30 hover:bg-accent/60 active:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-20 motion-reduce:transition-none"
         >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground transition-colors group-hover:text-foreground">
-                <Icon className="h-4 w-4" aria-hidden="true" />
+            <span className="flex h-6 w-6 items-center justify-center self-start text-muted-foreground transition-colors group-hover:text-primary group-active:text-foreground">
+                <Icon className="h-5 w-5" aria-hidden="true" />
             </span>
-            <span className="min-w-0">
-                <span className="block text-sm font-semibold text-foreground">{action.label}</span>
-                {!compact && (
-                    <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
-                        {action.description}
-                    </span>
-                )}
+            <span className="line-clamp-2 flex h-8 items-center justify-center text-xs font-semibold leading-4 text-foreground sm:text-[0.8125rem]">
+                {action.mobileLabel}
             </span>
         </Link>
     );

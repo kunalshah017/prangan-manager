@@ -6,7 +6,20 @@ import { useProjects } from '@/hooks/useProjectQueries';
 import { useCenters } from '@/hooks/useCenterQueries';
 import { useSemesters } from '@/hooks/useSemesterQueries';
 import { SemesterLevelSelect } from '@/components/levels/SemesterLevelSelect';
+import { Input } from '@/components/ui/form-controls';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { formatMoment, indiaToday } from '@/lib/dates';
+import { formatINR } from '@/lib/remuneration';
+import {
+    currentRate,
+    initialDraft,
+    isPaidRole,
+    rateErrors,
+    rateHolderIndex,
+    semesterPeriods,
+    type RateDraft,
+    type RatePeriod,
+} from '@/lib/semester-rates';
 import type { RoleAssignment, Center, Semester } from '@/types/api';
 
 interface RoleAssignmentFormProps {
@@ -16,6 +29,13 @@ interface RoleAssignmentFormProps {
     onValidationChange?: (isValid: boolean, errors: string[]) => void;
     // A new form can wait until the first attempt to list what is missing.
     showErrors?: boolean;
+    // Daily rates, edited on each paid role: the person's saved history and
+    // the edits not saved yet, by semester.
+    rates?: {
+        periods: RatePeriod[];
+        drafts: Record<string, RateDraft>;
+        onChange: (semesterId: string, draft: RateDraft) => void;
+    };
 }
 
 const SUB_ROLES = [
@@ -40,7 +60,9 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
     userRole,
     onValidationChange,
     showErrors = true,
+    rates,
 }) => {
+    const today = indiaToday();
     const { data: projects = [] } = useProjects();
 
     // Fetch all centers
@@ -148,10 +170,14 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
             errors.push(`Assignments ${first.index + 1} and ${index + 1}: an educator teaches one level per semester at ${centerLabel}. Keep one.`);
         });
 
+        if (rates) {
+            errors.push(...rateErrors({ assignments: roleAssignments, periods: rates.periods, drafts: rates.drafts, semesters: allSemesters, today }));
+        }
+
         const isValid = errors.length === 0;
 
         return { isValid, errors, duplicates };
-    }, [roleAssignments, projects, allCenters]);
+    }, [roleAssignments, projects, allCenters, rates, allSemesters, today]);
 
     // Call the validation callback when validation changes
     React.useEffect(() => {
@@ -373,6 +399,28 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
                                     options={COMMITTED_DAYS.map((day) => ({ value: day.value, label: day.label }))}
                                 />
                             )}
+                            {rates && isPaidRole(assignment.subRole) && assignment.semesterId && (() => {
+                                const semesterId = assignment.semesterId;
+                                const holder = rateHolderIndex(roleAssignments, semesterId);
+                                if (holder !== index) {
+                                    return (
+                                        <p className="text-sm text-muted-foreground sm:col-span-2">
+                                            Paid at the daily rate in assignment {holder + 1}: one rate per semester.
+                                        </p>
+                                    );
+                                }
+                                const semester = allSemesters.find((candidate) => candidate.id === semesterId);
+                                return (
+                                    <RateField
+                                        id={fieldId('rate')}
+                                        semester={semester}
+                                        periods={rates.periods}
+                                        today={today}
+                                        draft={rates.drafts[semesterId] ?? initialDraft(rates.periods, semester, today)}
+                                        onChange={(draft) => rates.onChange(semesterId, draft)}
+                                    />
+                                );
+                            })()}
                         </div>
                     </fieldset>
                 );
@@ -389,6 +437,67 @@ const RoleAssignmentForm: React.FC<RoleAssignmentFormProps> = ({
         </div>
     );
 };
+
+const formatDay = (value: string) => formatMoment(value.slice(0, 10), { dateStyle: 'medium', timeZone: 'UTC' });
+
+// The daily rate for the semester. Changing a saved rate asks when the new one
+// starts; earlier days keep the old rate.
+function RateField({
+    id,
+    semester,
+    periods,
+    today,
+    draft,
+    onChange,
+}: {
+    id: string;
+    semester?: Semester;
+    periods: RatePeriod[];
+    today: string;
+    draft: RateDraft;
+    onChange: (draft: RateDraft) => void;
+}) {
+    const saved = semester ? currentRate(periods, semester.id, today) : null;
+    const history = semester ? semesterPeriods(periods, semester.id) : [];
+    const changed = Boolean(saved) && draft.amount.trim() !== '' && Number(draft.amount) !== Number(saved?.amountPerDay);
+    return (
+        <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+            <div className="space-y-2">
+                <label htmlFor={id} className="block text-sm font-semibold text-foreground">Daily rate (₹)</label>
+                <Input
+                    id={id}
+                    inputMode="decimal"
+                    value={draft.amount}
+                    onChange={(event) => onChange({ ...draft, amount: event.target.value })}
+                    placeholder="For example, 500"
+                />
+            </div>
+            {changed && (
+                <div className="space-y-2">
+                    <label htmlFor={`${id}-from`} className="block text-sm font-semibold text-foreground">New rate starts on</label>
+                    <Input
+                        id={`${id}-from`}
+                        type="date"
+                        min={semester?.startDate.slice(0, 10)}
+                        max={semester?.endDate.slice(0, 10)}
+                        value={draft.from}
+                        onChange={(event) => onChange({ ...draft, from: event.target.value })}
+                    />
+                </div>
+            )}
+            {history.length > 1 && (
+                <ul className="space-y-1 text-sm text-muted-foreground sm:col-span-2" aria-label="Rate history">
+                    {history.map((period) => (
+                        <li key={period.id}>
+                            {formatINR(Number(period.amountPerDay))} a day from {formatDay(period.effectiveFrom)}
+                            {period.effectiveTo ? ` to ${formatDay(period.effectiveTo)}` : ''}
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
+    );
+}
 
 // A labelled shared Select. Radix reserves the empty string for "nothing
 // chosen", which is what an unset field shows.

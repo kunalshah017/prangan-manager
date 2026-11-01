@@ -5,7 +5,11 @@ import {
   SubRole,
   UserStatus,
 } from "../generated/prisma/index.js";
-import { buildRemunerationPaymentEmailJob } from "../email/remuneration-payment-email.js";
+import {
+  buildRemunerationPaymentEmailJob,
+  formatAmount,
+  monthLabel,
+} from "../email/remuneration-payment-email.js";
 import {
   EMAIL_JOB_COMMITTED,
   emitCommitTrigger,
@@ -19,6 +23,7 @@ import type {
   RemunerationPaymentInput,
 } from "../security/expense-input.js";
 import { enqueueEmail } from "./email-queue.service.js";
+import { notifyUsers } from "./notification.service.js";
 
 type Database = typeof prisma | Prisma.TransactionClient;
 
@@ -514,6 +519,35 @@ const payOneUser = async (
     }
     throw error;
   }
+};
+
+// Each person paid is also told in the app, with the amount. Called by the
+// route, after the payments are saved.
+export const notifyRemunerationPaidInBackground = (
+  input: RemunerationPaymentInput,
+  results: PaymentResult[],
+) => {
+  const paid = results.flatMap((result) =>
+    result.status === "PAID" ? [result] : [],
+  );
+  if (paid.length === 0) return;
+  void prisma.semesters
+    .findUnique({
+      where: { id: input.semesterId },
+      select: { center: { select: { name: true } } },
+    })
+    .then(async (semester) => {
+      for (const result of paid) {
+        await notifyUsers([result.userId], {
+          title: "Remuneration paid",
+          body: `${formatAmount(result.amount)} for ${monthLabel(input.month)} at ${semester?.center.name ?? "your centre"}.`,
+          href: "/profile#activity",
+        });
+      }
+    })
+    .catch((error) =>
+      console.error("Notification failed:", (error as Error).message),
+    );
 };
 
 export const markRemunerationPaid = async (

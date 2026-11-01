@@ -50,8 +50,9 @@ describe("unified profile workspace", () => {
     expect(view).not.toContain("assignment.level)");
   });
 
-  it("opens the Payments tab for #payment links", () => {
-    expect(view).toContain('location.hash === "#payment" ? "payments" : "about"');
+  it("opens the Payments tab for #payment links and Activity for #activity", () => {
+    expect(view).toContain('location.hash === "#payment" ? "payments" : location.hash === "#activity" ? "activity" : null');
+    expect(view).toContain('useState<ProfileTab>(tabFromHash ?? "about")');
     expect(view).toContain('<div id="payment">');
   });
 

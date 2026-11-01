@@ -11,7 +11,6 @@ test("semester settings and remuneration controllers are admin-only", async () =
   const source = await readFile(controllerUrl, "utf8");
 
   for (const controller of [
-    "getSemesterUsersController",
     "getRemunerationUsersController",
     "setRemunerationPeriodController",
   ]) {

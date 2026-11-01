@@ -1,18 +1,20 @@
 export const EMAIL_TEMPLATES = {
   VERIFICATION_SUCCESS: {
     subject: "🎉 Account Verification - Welcome to Prangan Foundation",
+    restoredSubject: "🌟 Access Restored - Welcome back to Prangan Foundation",
+    // The same email welcomes a person whose access was restored: they already
+    // have a password, so the button signs them in instead of setting one.
     getTemplate: (data: {
       name: string;
       email: string;
-      activationUrl: string;
       roleAssignmentDetails: string;
-    }) => `
+    } & ({ activationUrl: string; restored?: false } | { signInUrl: string; restored: true })) => `
     <!DOCTYPE html>
     <html>
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Account Verification</title>
+      <title>${data.restored ? "Access Restored" : "Account Verification"}</title>
       <style>
         body { font-family: Arial, Helvetica, sans-serif; line-height: 1.55; color: #172033; margin: 0; padding: 24px 12px; background-color: #f3f6f8; }
         .container { max-width: 600px; margin: 0 auto; background: #ffffff; padding: 32px; border-radius: 12px; box-shadow: 0 8px 24px rgba(23,32,51,0.10); }
@@ -42,13 +44,15 @@ export const EMAIL_TEMPLATES = {
       <div class="container">
         <div class="header">
           <img src="https://prangan-manager.vercel.app/images/logo/prangan-logo-light-mode.png" alt="Prangan Foundation Logo" class="logo" />
-          <h1>🌟 Welcome to Prangan</h1>
-          <p>Your account has been successfully verified!</p>
+          <h1>${data.restored ? "🌟 Welcome back to Prangan" : "🌟 Welcome to Prangan"}</h1>
+          <p>${data.restored ? "Your access has been restored!" : "Your account has been successfully verified!"}</p>
         </div>
         
         <p>Dear <strong class="accent-text">${data.name}</strong>,</p>
         
-        <p>Congratulations! Your account has been <span class="accent-text">approved</span>. Set a password to activate it.</p>
+        ${data.restored
+          ? `<p>Your access to Prangan Manager has been <span class="accent-text">restored</span>. Sign in with your email and the password you used before.</p>`
+          : `<p>Congratulations! Your account has been <span class="accent-text">approved</span>. Set a password to activate it.</p>`}
         
         <div class="credentials">
           <h3>📋 Your Account</h3>
@@ -61,17 +65,21 @@ export const EMAIL_TEMPLATES = {
         ${data.roleAssignmentDetails}
         
         <div class="button-container">
-          <a href="${data.activationUrl}" class="login-button">Set your password</a>
+          ${data.restored
+            ? `<a href="${data.signInUrl}" class="login-button">Sign in</a>`
+            : `<a href="${data.activationUrl}" class="login-button">Set your password</a>`}
         </div>
 
         <p class="warning">
-          This secure activation link expires in <strong>24 hours</strong>. If it
-          expires, request a new password link from the sign-in page.
+          ${data.restored
+            ? `Forgot your password? Choose <strong>Forgot password</strong> on the sign-in page to set a new one.`
+            : `This secure activation link expires in <strong>24 hours</strong>. If it
+          expires, request a new password link from the sign-in page.`}
         </p>
         
         <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff8c00;">
           <h3 style="color: #ff8c00; margin: 0 0 10px 0;">📋 Next steps</h3>
-          <p style="margin: 5px 0;">1. Click the button above to set your password.</p>
+          <p style="margin: 5px 0;">${data.restored ? "1. Click the button above to open the sign-in page." : "1. Click the button above to set your password."}</p>
           <p style="margin: 5px 0;">2. Sign in with your email: <strong>${data.email}</strong>.</p>
         </div>
 

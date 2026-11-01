@@ -33,6 +33,7 @@ import {
   type ExamScope,
 } from "../security/exam-authorization.js";
 import { getActiveUserScopeAssignments } from "../service/user.service.js";
+import { resolveExamScoreRemindersInBackground } from "../service/reminder.service.js";
 import {
   parseBulkCreateScores,
   parseCreateStudentScore,
@@ -398,6 +399,7 @@ export const createStudentScoreController = async (
     }
 
     const score = await createStudentScore(data, gradedBy);
+    resolveExamScoreRemindersInBackground(data.examId);
 
     return reply.status(201).send({
       message: "Student score created successfully",
@@ -430,6 +432,7 @@ export const bulkCreateScoresController = async (
     }
 
     const scores = await bulkCreateScores(data, gradedBy);
+    resolveExamScoreRemindersInBackground(data.examId);
 
     return reply.status(201).send({
       message: `${scores.length} student scores created successfully`,

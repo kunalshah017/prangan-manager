@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
+    Bell,
     ChevronDown,
     FolderOpen,
     LogOut,
@@ -9,9 +10,12 @@ import {
     User,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import BreadcrumbNavigation from "@/components/BreadcrumbNavigation";
+import { AttentionNudge } from "@/components/notifications/AttentionNudge";
+import { NotificationPrompt } from "@/components/notifications/NotificationPrompt";
 import { MobileNavigation } from "@/components/navigation/MobileNavigation";
 import { PageTitleProvider } from "@/components/navigation/PageTitle";
 import { useCurrentPageTitle } from "@/components/navigation/page-title-context";
@@ -20,8 +24,11 @@ import { WorkspaceTree } from "@/components/navigation/WorkspaceTree";
 import PWAInstallButton from "@/components/PWAInstallButton";
 import { ProfilePicture } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
+import { useNotifications } from "@/hooks/useNotificationQueries";
 import { useProjects } from "@/hooks/useProjectQueries";
 import { can } from "@/lib/access";
+import { closeFinishedTaskNotifications, isNotificationPromptDue, markNotificationPromptAnswered } from "@/lib/push";
+import { queryKeys } from "@/lib/query-client";
 import {
     buildNavigationModel,
     getNavigationContextFromPathname,
@@ -51,6 +58,55 @@ const LayoutShell = () => {
     const profileRef = useRef<HTMLDivElement>(null);
 
     const { data: projects = [] } = useProjects();
+    const queryClient = useQueryClient();
+    const notifications = useNotifications().data;
+    // Open to-dos keep the badge lit until they're done; updates until read.
+    const openTasks = notifications?.notifications.filter((notification) => notification.kind === "TASK") ?? [];
+    const badgeCount = (notifications?.unreadCount ?? 0) + openTasks.length;
+
+    // While a to-do is open the bell rings and a note shows under it: when the
+    // app opens or comes back into view, and each time a dashboard opens.
+    const [nudges, setNudges] = useState(0);
+    const [seenPath, setSeenPath] = useState(location.pathname);
+    if (seenPath !== location.pathname) {
+        setSeenPath(location.pathname);
+        if (location.pathname === "/projects" || location.pathname.endsWith("/dashboard")) setNudges((count) => count + 1);
+    }
+    useEffect(() => {
+        const onVisible = () => {
+            if (document.visibilityState === "visible") setNudges((count) => count + 1);
+        };
+        document.addEventListener("visibilitychange", onVisible);
+        return () => document.removeEventListener("visibilitychange", onVisible);
+    }, []);
+    const nudge = openTasks.length > 0 && location.pathname !== "/notifications";
+    const [notificationPromptDue, setNotificationPromptDue] = useState(isNotificationPromptDue);
+    const finishNotificationPrompt = useCallback(() => {
+        markNotificationPromptAnswered();
+        setNotificationPromptDue(false);
+    }, []);
+
+    // The service worker reports pushes (refresh the bell) and taps on a
+    // notification while the app is open (go to its page).
+    useEffect(() => {
+        if (!("serviceWorker" in navigator)) return;
+        const onMessage = (event: MessageEvent) => {
+            if (event.data?.type === "notification") {
+                void queryClient.invalidateQueries({ queryKey: queryKeys.notifications });
+            }
+            if (event.data?.type === "notification-open" && typeof event.data.href === "string") {
+                navigate(event.data.href);
+            }
+        };
+        navigator.serviceWorker.addEventListener("message", onMessage);
+        return () => navigator.serviceWorker.removeEventListener("message", onMessage);
+    }, [navigate, queryClient]);
+
+    useEffect(() => {
+        if (!notifications) return;
+        const openKeys = notifications.notifications.flatMap((notification) => (notification.key ? [notification.key] : []));
+        void closeFinishedTaskNotifications(openKeys).catch(() => undefined);
+    }, [notifications]);
     const canViewWorkspace = can(user, "workspace.view");
     const visibleProjects = projects.filter((project) =>
         can(user, "workspace.view", { projectId: project.id }),
@@ -187,7 +243,30 @@ const LayoutShell = () => {
                         </>
                     )}
 
-                    <div ref={profileRef} className="relative ml-auto hidden md:block">
+                    <div className="relative ml-auto shrink-0">
+                        <Link
+                            to="/notifications"
+                            aria-label={badgeCount ? `Notifications, ${badgeCount} new` : "Notifications"}
+                            className={cn(
+                                "relative flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                location.pathname === "/notifications" && "bg-accent text-foreground",
+                            )}
+                        >
+                            {/* A new key restarts the ring on each nudge. */}
+                            <Bell key={nudges} className={cn("h-5 w-5", nudge && "animate-bell-ring")} aria-hidden="true" />
+                            {badgeCount > 0 && (
+                                <span
+                                    aria-hidden="true"
+                                    className="absolute right-1 top-1 flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full bg-primary px-1 text-[0.6875rem] font-semibold tabular-nums leading-none text-primary-foreground"
+                                >
+                                    {badgeCount > 9 ? "9+" : badgeCount}
+                                </span>
+                            )}
+                        </Link>
+                        {nudge && <AttentionNudge key={nudges} count={openTasks.length} />}
+                    </div>
+
+                    <div ref={profileRef} className="relative ml-1 hidden md:block">
                         <button
                             type="button"
                             onClick={() => {
@@ -232,6 +311,8 @@ const LayoutShell = () => {
                     </div>
                 </div>
             </header>
+
+            {notificationPromptDue && <NotificationPrompt onDone={finishNotificationPrompt} />}
 
             <MobileNavigation
                 open={mobileOpen}

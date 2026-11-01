@@ -7,7 +7,6 @@ import {
   Copy,
   Clock3,
   Search,
-  Settings2,
   Users,
   WalletCards,
 } from "lucide-react";
@@ -406,15 +405,6 @@ export const Remuneration = () => {
         title="Remuneration"
         badge={semesterQuery.data?.name}
         description="Review attendance, confirm applicable schedules, and record monthly payments."
-        action={
-          <Link
-            to={`/projects/${projectId}/centers/${centerId}/semesters/${semesterId}/dashboard/users`}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 text-sm font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <Settings2 className="h-4 w-4" />
-            Manage remuneration settings
-          </Link>
-        }
       />
 
       <section className="mt-6 flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-end">
@@ -507,7 +497,9 @@ export const Remuneration = () => {
                     <div className="mt-4 flex items-center justify-between gap-3 border-t pt-4">
                       <p className="text-xs text-muted-foreground">
                         {paymentState === "INCOMPLETE"
-                          ? "Add missing remuneration in Semester Users."
+                          ? isAdmin
+                            ? <>A pay rate is missing. <Link to={`/users/${row.userId}/edit`} className="font-semibold text-primary underline-offset-2 hover:underline">Set rate</Link></>
+                            : "A pay rate is missing. An administrator sets it."
                           : paymentState === "NO_PAYMENT_DUE"
                             ? "No payable attendance in this month."
                             : isAdmin

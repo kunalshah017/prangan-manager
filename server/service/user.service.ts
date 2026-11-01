@@ -15,6 +15,8 @@ import {
   SECOND_EDUCATOR_LEVEL_MESSAGE,
   openSemesterAssignment,
 } from "../lib/role-assignments.js";
+import { notifyNewRolesInBackground } from "./notification.service.js";
+import { resolveStudentDetailsRemindersInBackground } from "./reminder.service.js";
 import {
   adminBankSummarySelect,
   adminUserDetailSelect,
@@ -186,30 +188,29 @@ const previousUtcDate = (date: string) => {
   return value;
 };
 
-export const setSemesterRemunerationPeriod = async ({
-  projectId,
-  centerId,
-  semesterId,
-  userId,
-  amountPerDay,
-  effectiveFrom,
-  actorId,
-}: {
+type RemunerationPeriodInput = {
   projectId: string;
   centerId: string;
   semesterId: string;
   userId: string;
   amountPerDay: number;
   effectiveFrom: string;
-  actorId: string;
-}) => {
-  const semester = await prisma.semesters.findFirst({
+};
+type Database = typeof prisma | Prisma.TransactionClient;
+
+// Why a daily rate can't be saved, or null: the semester must be in scope, the
+// person needs a paid role there, and the rate must fit the semester.
+export const checkRemunerationPeriod = async (
+  database: Database,
+  { projectId, centerId, semesterId, userId, amountPerDay, effectiveFrom }: RemunerationPeriodInput,
+) => {
+  const semester = await database.semesters.findFirst({
     where: { id: semesterId, centerId, center: { projectId } },
     select: { startDate: true, endDate: true },
   });
   if (!semester) return "Semester not found in this scope.";
 
-  const eligible = await prisma.userRoleAssignments.findFirst({
+  const eligible = await database.userRoleAssignments.findFirst({
     where: {
       userId,
       projectId,
@@ -221,66 +222,76 @@ export const setSemesterRemunerationPeriod = async ({
   });
   if (!eligible) return "This person is not eligible for remuneration.";
 
-  const semesterStart = semester.startDate.toISOString().slice(0, 10);
-  const semesterEnd = semester.endDate.toISOString().slice(0, 10);
   const validationErrors = validateRemunerationPeriods(
     [{ amountPerDay, effectiveFrom, effectiveTo: null }],
-    semesterStart,
-    semesterEnd,
+    semester.startDate.toISOString().slice(0, 10),
+    semester.endDate.toISOString().slice(0, 10),
   );
-  if (validationErrors.length > 0) return validationErrors[0];
+  return validationErrors[0] ?? null;
+};
 
+// Saves a rate from a date: it ends the rate before it and runs until the next.
+export const applyRemunerationPeriod = async (
+  tx: Prisma.TransactionClient,
+  { semesterId, userId, amountPerDay, effectiveFrom, actorId }: RemunerationPeriodInput & { actorId: string },
+) => {
+  const existing = await tx.semesterRemunerationPeriod.findMany({
+    where: { userId, semesterId },
+    orderBy: { effectiveFrom: "asc" },
+  });
+  const sameDate = existing.find(
+    (period) =>
+      period.effectiveFrom.toISOString().slice(0, 10) === effectiveFrom,
+  );
+  if (sameDate) {
+    await tx.semesterRemunerationPeriod.update({
+      where: { id: sameDate.id },
+      data: { amountPerDay, updatedBy: actorId },
+    });
+  } else {
+    const earlier = existing.filter(
+      (period) =>
+        period.effectiveFrom.toISOString().slice(0, 10) < effectiveFrom,
+    );
+    const before = earlier[earlier.length - 1];
+    const after = existing.find(
+      (period) =>
+        period.effectiveFrom.toISOString().slice(0, 10) > effectiveFrom,
+    );
+    if (before) {
+      await tx.semesterRemunerationPeriod.update({
+        where: { id: before.id },
+        data: { effectiveTo: previousUtcDate(effectiveFrom), updatedBy: actorId },
+      });
+    }
+    await tx.semesterRemunerationPeriod.create({
+      data: {
+        userId,
+        semesterId,
+        amountPerDay,
+        effectiveFrom: new Date(`${effectiveFrom}T00:00:00.000Z`),
+        effectiveTo: after
+          ? previousUtcDate(after.effectiveFrom.toISOString().slice(0, 10))
+          : null,
+        createdBy: actorId,
+        updatedBy: actorId,
+      },
+    });
+  }
+  return tx.semesterRemunerationPeriod.findMany({
+    where: { userId, semesterId },
+    orderBy: { effectiveFrom: "asc" },
+  });
+};
+
+export const setSemesterRemunerationPeriod = async (
+  period: RemunerationPeriodInput & { actorId: string },
+) => {
+  const problem = await checkRemunerationPeriod(prisma, period);
+  if (problem) return problem;
   try {
     return await prisma.$transaction(
-      async (tx) => {
-        const existing = await tx.semesterRemunerationPeriod.findMany({
-          where: { userId, semesterId },
-          orderBy: { effectiveFrom: "asc" },
-        });
-        const sameDate = existing.find(
-          (period) =>
-            period.effectiveFrom.toISOString().slice(0, 10) === effectiveFrom,
-        );
-        if (sameDate) {
-          await tx.semesterRemunerationPeriod.update({
-            where: { id: sameDate.id },
-            data: { amountPerDay, updatedBy: actorId },
-          });
-        } else {
-          const earlier = existing.filter(
-            (period) =>
-              period.effectiveFrom.toISOString().slice(0, 10) < effectiveFrom,
-          );
-          const before = earlier[earlier.length - 1];
-          const after = existing.find(
-            (period) =>
-              period.effectiveFrom.toISOString().slice(0, 10) > effectiveFrom,
-          );
-          if (before) {
-            await tx.semesterRemunerationPeriod.update({
-              where: { id: before.id },
-              data: { effectiveTo: previousUtcDate(effectiveFrom), updatedBy: actorId },
-            });
-          }
-          await tx.semesterRemunerationPeriod.create({
-            data: {
-              userId,
-              semesterId,
-              amountPerDay,
-              effectiveFrom: new Date(`${effectiveFrom}T00:00:00.000Z`),
-              effectiveTo: after
-                ? previousUtcDate(after.effectiveFrom.toISOString().slice(0, 10))
-                : null,
-              createdBy: actorId,
-              updatedBy: actorId,
-            },
-          });
-        }
-        return tx.semesterRemunerationPeriod.findMany({
-          where: { userId, semesterId },
-          orderBy: { effectiveFrom: "asc" },
-        });
-      },
+      (tx) => applyRemunerationPeriod(tx, period),
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
   } catch (error: unknown) {
@@ -317,75 +328,6 @@ export const getContextStaff = async ({
   } catch (error: unknown) {
     console.error("Error fetching context staff:", error);
     return "Failed to fetch context staff";
-  }
-};
-
-export const getSemesterUsers = async ({
-  projectId,
-  centerId,
-  semesterId,
-}: {
-  projectId: string;
-  centerId: string;
-  semesterId: string;
-}) => {
-  try {
-    const users = await prisma.user.findMany({
-      where: {
-        status: UserStatus.APPROVED,
-        OR: [
-          { roleAssignments: { some: { projectId, centerId, semesterId } } },
-          { attendance: { some: { projectId, centerId, semesterId } } },
-        ],
-      },
-      select: {
-        id: true,
-        name: true,
-        firstName: true,
-        middleName: true,
-        lastName: true,
-        email: true,
-        profileImageUrl: true,
-        roleAssignments: {
-          where: { projectId, centerId, semesterId },
-          select: {
-            id: true,
-            subRole: true,
-            projectId: true,
-            centerId: true,
-            semesterId: true,
-            semesterLevelId: true,
-            committedDays: true,
-            isActive: true,
-            semesterLevel: { include: { academicLevel: true } },
-          },
-          orderBy: { assignedAt: "asc" },
-        },
-        remunerationPeriods: {
-          where: { semesterId },
-          select: {
-            id: true,
-            amountPerDay: true,
-            effectiveFrom: true,
-            effectiveTo: true,
-          },
-          orderBy: { effectiveFrom: "asc" },
-        },
-      },
-      orderBy: { name: "asc" },
-    });
-    return users.map((user) => ({
-      ...user,
-      remunerationPeriods: user.remunerationPeriods.map((period) => ({
-        ...period,
-        amountPerDay: Number(period.amountPerDay),
-        effectiveFrom: period.effectiveFrom.toISOString().slice(0, 10),
-        effectiveTo: period.effectiveTo?.toISOString().slice(0, 10) ?? null,
-      })),
-    }));
-  } catch (error: unknown) {
-    console.error("Error fetching semester users:", error);
-    return "Failed to fetch semester users";
   }
 };
 
@@ -514,6 +456,7 @@ export const createStudent = async (studentData: any) => {
         enrollments: true,
       },
     });
+    resolveStudentDetailsRemindersInBackground(student.id);
     return student;
   } catch (error: unknown) {
     console.error("Error creating student:", error);
@@ -589,6 +532,7 @@ export const updateStudent = async (id: string, studentData: any) => {
       }
     }
 
+    resolveStudentDetailsRemindersInBackground(id);
     // Return updated student with enrollments
     const updatedStudent = await prisma.students.findUnique({
       where: { id },
@@ -1390,7 +1334,8 @@ export const bulkUpdateUserAssignments = async (
       assignmentKeys.add(key);
     }
 
-    return await prisma.$transaction(async (tx) => {
+    const createdRoles: any[] = [];
+    const reconciled = await prisma.$transaction(async (tx) => {
       const assignmentKey = (assignment: {
         subRole: SubRole;
         projectId?: string | null;
@@ -1465,64 +1410,18 @@ export const bulkUpdateUserAssignments = async (
           },
         });
         reconciledAssignments.push(created);
+        createdRoles.push(created);
       }
       return reconciledAssignments;
     });
+    // Only after the roles are saved, and only for the ones that are new.
+    notifyNewRolesInBackground(userId, createdRoles);
+    return reconciled;
   } catch (error: unknown) {
     if (error instanceof AcademicLevelServiceError) return error;
     console.error("Error bulk updating user assignments:", error);
     return "Failed to bulk update user assignments - Please run 'prisma generate' first";
   }
-};
-
-export const updateSemesterUserAssignments = async ({
-  userId,
-  projectId,
-  centerId,
-  semesterId,
-  assignments,
-}: {
-  userId: string;
-  projectId: string;
-  centerId: string;
-  semesterId: string;
-  assignments: Array<{
-    subRole: SubRole;
-    semesterLevelId?: string;
-    committedDays?: CommittedDays;
-  }>;
-}) => {
-  const outsideScope = await prisma.userRoleAssignments.findMany({
-    where: {
-      userId,
-      isActive: true,
-      NOT: { projectId, centerId, semesterId },
-    },
-    select: {
-      subRole: true,
-      projectId: true,
-      centerId: true,
-      semesterId: true,
-      semesterLevelId: true,
-      committedDays: true,
-    },
-  });
-  return bulkUpdateUserAssignments(userId, [
-    ...outsideScope.map((assignment) => ({
-      ...assignment,
-      projectId: assignment.projectId ?? undefined,
-      centerId: assignment.centerId ?? undefined,
-      semesterId: assignment.semesterId ?? undefined,
-      semesterLevelId: assignment.semesterLevelId ?? undefined,
-      committedDays: assignment.committedDays ?? undefined,
-    })),
-    ...assignments.map((assignment) => ({
-      ...assignment,
-      projectId,
-      centerId,
-      semesterId,
-    })),
-  ]);
 };
 
 // Role-based access functions for projects, centers, semesters

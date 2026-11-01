@@ -175,11 +175,6 @@ export interface RemunerationPaymentResponse {
   results: RemunerationPaymentResult[];
 }
 
-export interface SemesterUser extends ContextStaffUser {
-  email: string;
-  remunerationPeriods: RemunerationPeriod[];
-}
-
 export interface ContextStaffUser {
   id: string;
   name: string;
@@ -520,10 +515,6 @@ export type ContextStaffResponse = EntityListResponse<
   ContextStaffUser,
   "users"
 >;
-export type SemesterUsersResponse = EntityListResponse<
-  SemesterUser,
-  "users"
->;
 
 // Role Assignment Types
 export interface RoleAssignment {
@@ -551,8 +542,29 @@ export type VerifyUserRequest = {
   role: "USER" | "ADMIN";
   roleAssignments?: RoleAssignment[];
   rejectionReason?: string;
+  // Rejecting: false removes the application without emailing the applicant.
+  sendEmail?: boolean;
+  // Daily rates for the paid roles: saved with them and listed in the email.
+  remunerationPeriods?: GrantedRate[];
 };
 export type VerifyUserResponse = MessageResponse;
+
+export type GrantedRate = {
+  projectId: string;
+  centerId: string;
+  semesterId: string;
+  amountPerDay: number;
+  effectiveFrom: string;
+};
+
+// Giving a revoked person access again, the same way a request is approved.
+export type RestoreUserAccessRequest = {
+  userId: string;
+  role: "USER" | "ADMIN";
+  roleAssignments?: RoleAssignment[];
+  remunerationPeriods?: GrantedRate[];
+  sendEmail: boolean;
+};
 
 // Student API Types
 export interface StudentEnrollmentData extends LevelReference {

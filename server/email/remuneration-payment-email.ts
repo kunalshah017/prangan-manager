@@ -5,7 +5,7 @@ const LOGO_URL =
 
 const singleLine = (value: string) => value.replace(/[\r\n]+/g, " ").trim();
 
-const monthLabel = (month: string) => {
+export const monthLabel = (month: string) => {
   const [year, monthNumber] = month.split("-").map(Number);
   return new Intl.DateTimeFormat("en-IN", {
     month: "long",
@@ -14,7 +14,7 @@ const monthLabel = (month: string) => {
   }).format(new Date(Date.UTC(year, monthNumber - 1, 1)));
 };
 
-const formatAmount = (amount: number) =>
+export const formatAmount = (amount: number) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",

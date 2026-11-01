@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Check, Mail, UserX } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -11,27 +11,49 @@ import { DetailList, ProfileHeader } from '@/components/users/UserProfileView';
 import { FormField, FormSection } from '@/components/workspace/FormParts';
 import { EmptyState, ErrorState, ListPageSkeleton } from '@/components/workspace/PageState';
 import { WorkspacePage } from '@/components/workspace/WorkspacePage';
-import { useUser, useVerifyUser } from '@/hooks/useUserQueries';
+import { useSemesters } from '@/hooks/useSemesterQueries';
+import { useRestoreUserAccess, useUser, useVerifyUser } from '@/hooks/useUserQueries';
 import { buttonVariants } from '@/lib/button-variants';
 import { cn } from '@/lib/utils';
 import type { RoleAssignment } from '@/types/api';
-import { formatCalendarDate, formatMoment } from '@/lib/dates';
+import { formatCalendarDate, formatMoment, indiaToday } from '@/lib/dates';
+import { rateChanges, type RateDraft, type RatePeriod } from '@/lib/semester-rates';
+
+// A new volunteer has no saved rates yet.
+const NO_PERIODS: RatePeriod[] = [];
 
 const REQUESTS = '/users?view=requests';
+const REVOKED = '/users?view=revoked';
 
 // One page per application: who they are, what access to give, and a decision.
-// Rejecting happens on the same page, so nothing stacks on a phone.
-const ReviewRegistration = () => {
+// Rejecting happens on the same page, so nothing stacks on a phone. Restoring a
+// revoked person's access uses the same page: roles, rates, then restore.
+const ReviewRegistration = ({ mode = 'review' }: { mode?: 'review' | 'restore' }) => {
+    const restoring = mode === 'restore';
+    const pageTitle = restoring ? 'Restore access' : 'Review registration';
+    const backHref = restoring ? REVOKED : REQUESTS;
     const { userId = '' } = useParams<{ userId: string }>();
     const navigate = useNavigate();
     const { data: applicant, isLoading, error, refetch } = useUser(userId);
     const verifyUser = useVerifyUser();
+    const restoreAccess = useRestoreUserAccess();
     const [role, setRole] = useState<SystemRole>('USER');
     const [assignments, setAssignments] = useState<RoleAssignment[]>([{ subRole: 'EDUCATOR' }]);
     const [assignmentsValid, setAssignmentsValid] = useState(false);
+    const [rateDrafts, setRateDrafts] = useState<Record<string, RateDraft>>({});
+    const { data: semesters = [] } = useSemesters();
+    // A returning person may have had rates before; a new applicant has none.
+    const periods = applicant?.remunerationPeriods ?? NO_PERIODS;
+    const changeRate = useCallback((semesterId: string, draft: RateDraft) => {
+        setRateDrafts((current) => ({ ...current, [semesterId]: draft }));
+    }, []);
+    // Kept stable: the role form re-checks its errors whenever this changes.
+    const rates = useMemo(() => ({ periods, drafts: rateDrafts, onChange: changeRate }), [periods, rateDrafts, changeRate]);
     const [attemptedApprove, setAttemptedApprove] = useState(false);
     const [rejecting, setRejecting] = useState(false);
     const [reason, setReason] = useState('');
+    // Some applications (spam, duplicates) are removed without writing back.
+    const [emailApplicant, setEmailApplicant] = useState(true);
     const reasonRef = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
@@ -39,37 +61,37 @@ const ReviewRegistration = () => {
     }, [rejecting]);
 
     if (isLoading) {
-        return <WorkspacePage><PageTitle title="Review registration" /><ListPageSkeleton label="Loading application" rows={3} /></WorkspacePage>;
+        return <WorkspacePage><PageTitle title={pageTitle} /><ListPageSkeleton label={restoring ? 'Loading person' : 'Loading application'} rows={3} /></WorkspacePage>;
     }
     if (error || !applicant) {
         return (
             <WorkspacePage>
-                <PageTitle title="Review registration" />
+                <PageTitle title={pageTitle} />
                 <ErrorState
-                    title="Application could not be loaded"
-                    description="It may already have been reviewed, or the request could not be completed."
+                    title={restoring ? 'This person could not be loaded' : 'Application could not be loaded'}
+                    description={restoring ? 'Check your connection and try again.' : 'It may already have been reviewed, or the request could not be completed.'}
                     onRetry={() => void refetch()}
-                    backHref={REQUESTS}
-                    backLabel="Back to requests"
+                    backHref={backHref}
+                    backLabel={restoring ? 'Back to revoked users' : 'Back to requests'}
                 />
             </WorkspacePage>
         );
     }
-    if (applicant.status !== 'PENDING') {
+    if (applicant.status !== (restoring ? 'REJECTED' : 'PENDING')) {
         return (
             <WorkspacePage>
-                <PageTitle title="Review registration" />
+                <PageTitle title={pageTitle} />
                 <EmptyState
                     icon={Check}
-                    title="Already reviewed"
-                    description={`${applicant.name}'s application has already been decided.`}
-                    action={<Link to={REQUESTS} className={cn(buttonVariants({ variant: 'outline' }), 'min-h-12')}>Back to requests</Link>}
+                    title={restoring ? 'Access is not revoked' : 'Already reviewed'}
+                    description={restoring ? `${applicant.name} can already sign in.` : `${applicant.name}'s application has already been decided.`}
+                    action={<Link to={backHref} className={cn(buttonVariants({ variant: 'outline' }), 'min-h-12')}>{restoring ? 'Back to revoked users' : 'Back to requests'}</Link>}
                 />
             </WorkspacePage>
         );
     }
 
-    const isBusy = verifyUser.isPending;
+    const isBusy = verifyUser.isPending || restoreAccess.isPending;
     const canApprove = role === 'ADMIN' || (assignments.length > 0 && assignmentsValid);
 
     const approve = async () => {
@@ -81,25 +103,39 @@ const ReviewRegistration = () => {
             );
             return;
         }
+        // Rates go with the roles, so both are saved together and both are in the email.
+        const roleAssignments = role === 'USER' ? assignments : undefined;
+        const remunerationPeriods = role === 'USER' ? rateChanges({ assignments, periods, drafts: rateDrafts, semesters, today: indiaToday() }) : [];
         try {
-            await verifyUser.mutateAsync({
-                userId,
-                status: 'APPROVED',
-                role,
-                roleAssignments: role === 'USER' ? assignments : undefined,
-            });
-            toast.success(`${applicant.name} is approved. They'll get an email to set a password.`);
-            navigate(REQUESTS);
+            if (restoring) {
+                await restoreAccess.mutateAsync({ userId, role, roleAssignments, remunerationPeriods, sendEmail: emailApplicant });
+            } else {
+                await verifyUser.mutateAsync({ userId, status: 'APPROVED', role, roleAssignments, remunerationPeriods });
+            }
         } catch (failure) {
-            toast.error(failure instanceof Error ? failure.message : 'Unable to approve. Try again.');
+            toast.error(failure instanceof Error ? failure.message : restoring ? 'Unable to restore access. Try again.' : 'Unable to approve. Try again.');
+            return;
         }
+        if (restoring) {
+            toast.success(emailApplicant ? `${applicant.name}'s access is restored. They'll get an email.` : `${applicant.name}'s access is restored.`);
+            navigate(`/users/${userId}/details`);
+            return;
+        }
+        toast.success(`${applicant.name} is approved. They'll get an email to set a password.`);
+        navigate(REQUESTS);
     };
 
     const reject = async () => {
-        if (!reason.trim()) return;
+        if (emailApplicant && !reason.trim()) return;
         try {
-            await verifyUser.mutateAsync({ userId, status: 'REJECTED', role: 'USER', rejectionReason: reason.trim() });
-            toast.success(`${applicant.name}'s application was rejected.`);
+            await verifyUser.mutateAsync({
+                userId,
+                status: 'REJECTED',
+                role: 'USER',
+                rejectionReason: emailApplicant ? reason.trim() : undefined,
+                sendEmail: emailApplicant,
+            });
+            toast.success(emailApplicant ? `${applicant.name}'s application was rejected.` : `${applicant.name}'s application was removed. No email was sent.`);
             navigate(REQUESTS);
         } catch (failure) {
             toast.error(failure instanceof Error ? failure.message : 'Unable to reject. Try again.');
@@ -108,11 +144,11 @@ const ReviewRegistration = () => {
 
     return (
         <WorkspacePage className="space-y-5 lg:max-w-4xl" withMobileAction>
-            <PageTitle title="Review registration" />
+            <PageTitle title={pageTitle} />
             <ProfileHeader user={applicant} />
 
             <DetailList items={[
-                { label: 'Applied', value: formatMoment(applicant.createdAt, { dateStyle: 'medium' }) },
+                { label: restoring ? 'Joined' : 'Applied', value: formatMoment(applicant.createdAt, { dateStyle: 'medium' }) },
                 { label: 'Qualification', value: applicant.qualification || 'Not given' },
                 { label: 'Date of birth', value: applicant.dob ? formatCalendarDate(applicant.dob) : 'Not given' },
                 { label: 'Address', value: applicant.address || 'Not given', wide: true },
@@ -120,21 +156,37 @@ const ReviewRegistration = () => {
 
             {rejecting ? (
                 <FormSection id="reject-heading" title="Reject application">
-                    <FormField htmlFor="rejection-reason" label="Reason" required hint="Sent to the applicant by email, so write it to them.">
-                        <Textarea
-                            ref={reasonRef}
-                            id="rejection-reason"
-                            rows={4}
-                            value={reason}
+                    <label className="flex min-h-11 cursor-pointer items-center gap-3 text-base text-foreground">
+                        <input
+                            type="checkbox"
+                            checked={emailApplicant}
                             disabled={isBusy}
-                            aria-describedby="rejection-reason-hint"
-                            onChange={(event) => setReason(event.target.value)}
-                            placeholder="For example: we're not taking new volunteers in your area this semester."
+                            onChange={(event) => setEmailApplicant(event.target.checked)}
+                            className="h-5 w-5 shrink-0 accent-primary"
                         />
-                    </FormField>
+                        Email them the reason
+                    </label>
+                    {emailApplicant && (
+                        <FormField htmlFor="rejection-reason" label="Reason" required hint="Sent to the applicant by email, so write it to them.">
+                            <Textarea
+                                ref={reasonRef}
+                                id="rejection-reason"
+                                rows={4}
+                                value={reason}
+                                disabled={isBusy}
+                                aria-describedby="rejection-reason-hint"
+                                onChange={(event) => setReason(event.target.value)}
+                                placeholder="For example: we're not taking new volunteers in your area this semester."
+                            />
+                        </FormField>
+                    )}
                     <p className="flex items-start gap-2 text-sm text-muted-foreground">
                         <Mail className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                        <span>Goes to {applicant.email}. Their application is then removed.</span>
+                        <span>
+                            {emailApplicant
+                                ? `Goes to ${applicant.email}. Their application is then removed.`
+                                : 'No email is sent. Their application is removed.'}
+                        </span>
                     </p>
                 </FormSection>
             ) : (
@@ -150,7 +202,30 @@ const ReviewRegistration = () => {
                                 userRole={role}
                                 onValidationChange={(isValid: boolean) => setAssignmentsValid(isValid)}
                                 showErrors={attemptedApprove}
+                                rates={rates}
                             />
+                        </FormSection>
+                    )}
+                    {restoring && (
+                        <FormSection id="restore-email-heading" title="Email">
+                            <label className="flex min-h-11 cursor-pointer items-center gap-3 text-base text-foreground">
+                                <input
+                                    type="checkbox"
+                                    checked={emailApplicant}
+                                    disabled={isBusy}
+                                    onChange={(event) => setEmailApplicant(event.target.checked)}
+                                    className="h-5 w-5 shrink-0 accent-primary"
+                                />
+                                Email them that their access is back
+                            </label>
+                            <p className="flex items-start gap-2 text-sm text-muted-foreground">
+                                <Mail className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                                <span>
+                                    {emailApplicant
+                                        ? `Goes to ${applicant.email}, with their roles and daily rate.`
+                                        : 'No email is sent. They can sign in with their old password.'}
+                                </span>
+                            </p>
                         </FormSection>
                     )}
                 </>
@@ -168,11 +243,27 @@ const ReviewRegistration = () => {
                             onClick={() => void reject()}
                             isLoading={isBusy}
                             loadingMessage="Rejecting..."
-                            disabled={!reason.trim()}
+                            disabled={emailApplicant && !reason.trim()}
                             className="min-h-12 flex-1 text-base sm:flex-none"
                         >
                             <UserX className="mr-2 h-4 w-4" aria-hidden="true" />
-                            Send rejection
+                            {emailApplicant ? 'Send rejection' : 'Reject without email'}
+                        </CustomButton>
+                    </>
+                ) : restoring ? (
+                    <>
+                        <Link to={backHref} className={cn(buttonVariants({ variant: 'ghost' }), 'min-h-12 px-5 text-base')}>
+                            Cancel
+                        </Link>
+                        <CustomButton
+                            type="button"
+                            onClick={() => void approve()}
+                            isLoading={isBusy}
+                            loadingMessage="Restoring..."
+                            className="min-h-12 flex-1 text-base sm:flex-none"
+                        >
+                            <Check className="mr-2 h-4 w-4" aria-hidden="true" />
+                            Restore access
                         </CustomButton>
                     </>
                 ) : (

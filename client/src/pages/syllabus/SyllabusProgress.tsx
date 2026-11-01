@@ -152,7 +152,8 @@ const SyllabusProgress = () => {
     topic: SyllabusTopic,
     nextStatus: SyllabusTopicStatus,
   ) => {
-    if (nextStatus === topic.status) return;
+    // The same status is only saved as a check-in on a topic still in progress.
+    if (nextStatus === topic.status && nextStatus !== "ONGOING") return;
     setPendingChange({ topic, nextStatus, subtopics: getSubtopics(topic) });
     setNotes("");
     setUpdateError(null);
@@ -449,6 +450,7 @@ const SyllabusProgress = () => {
                       topic={topic}
                       disabled={!canWriteProgress || updateStatus.isPending}
                       onChange={(status) => requestStatusChange(topic, status)}
+                      canCheckIn={getSubtopics(topic).length === 0}
                     />
                   </div>
                 </div>
@@ -486,6 +488,7 @@ const SyllabusProgress = () => {
                               onChange={(status) =>
                                 requestStatusChange(subtopic, status)
                               }
+                              canCheckIn
                             />
                           </div>
                         ))}
@@ -508,13 +511,21 @@ const SyllabusProgress = () => {
         >
           <div className="space-y-4">
             <p className="text-sm leading-6 text-foreground">
-              Change <strong>{pendingChange.topic.title}</strong> to{" "}
-              <strong>
-                {statusOptions.find(
-                  (option) => option.value === pendingChange.nextStatus,
-                )?.label}
-              </strong>
-              ?
+              {pendingChange.nextStatus === pendingChange.topic.status ? (
+                <>
+                  Save that <strong>{pendingChange.topic.title}</strong> is still in progress?
+                </>
+              ) : (
+                <>
+                  Change <strong>{pendingChange.topic.title}</strong> to{" "}
+                  <strong>
+                    {statusOptions.find(
+                      (option) => option.value === pendingChange.nextStatus,
+                    )?.label}
+                  </strong>
+                  ?
+                </>
+              )}
             </p>
             {pendingChange.subtopics.length > 0 && (
               <p className="rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-warning-foreground">
@@ -563,36 +574,51 @@ const SyllabusProgress = () => {
   );
 };
 
+// A topic that takes several weekends gets "Still in progress", so it can be
+// updated without pretending it moved. Parent topics follow their subtopics.
 function TopicStatusControl({
   topic,
   disabled,
   onChange,
+  canCheckIn = false,
 }: {
   topic: SyllabusTopic;
   disabled: boolean;
   onChange: (status: SyllabusTopicStatus) => void;
+  canCheckIn?: boolean;
 }) {
   return (
-    <label className="grid min-w-0 gap-2">
-      <span className="text-xs font-medium text-muted-foreground">
-        Status for {topic.serialNumber}
-      </span>
-      <select
-        value={topic.status}
-        onChange={(event) =>
-          onChange(event.target.value as SyllabusTopicStatus)
-        }
-        disabled={disabled}
-        aria-label={`Status for ${topic.title}`}
-        className="min-h-11 w-full rounded-md border border-input bg-background px-3 text-base font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {statusOptions.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
+    <div className="grid min-w-0 gap-2">
+      <label className="grid min-w-0 gap-2">
+        <span className="text-xs font-medium text-muted-foreground">
+          Status for {topic.serialNumber}
+        </span>
+        <select
+          value={topic.status}
+          onChange={(event) =>
+            onChange(event.target.value as SyllabusTopicStatus)
+          }
+          disabled={disabled}
+          aria-label={`Status for ${topic.title}`}
+          className="min-h-11 w-full rounded-md border border-input bg-background px-3 text-base font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {statusOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {canCheckIn && topic.status === "ONGOING" && !disabled && (
+        <button
+          type="button"
+          onClick={() => onChange("ONGOING")}
+          className="min-h-11 rounded-md border border-border px-3 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Still in progress
+        </button>
+      )}
+    </div>
   );
 }
 

@@ -12,6 +12,7 @@ import {
   listExpenses,
   markRemunerationPaid,
   voidExpense,
+  notifyRemunerationPaidInBackground,
 } from "../service/expense.service.js";
 import { asyncHandle, errorHandle, successHandle } from "../utils/handler.js";
 
@@ -102,11 +103,9 @@ export const markRemunerationPaidController = asyncHandle(
     const parsed = parseRemunerationPaymentInput(request.body);
     if ("error" in parsed) return errorHandle(parsed.error, reply, 400);
     try {
-      return successHandle(
-        await markRemunerationPaid(parsed.data, administrator.id),
-        reply,
-        200,
-      );
+      const payment = await markRemunerationPaid(parsed.data, administrator.id);
+      notifyRemunerationPaidInBackground(parsed.data, payment.results);
+      return successHandle(payment, reply, 200);
     } catch (error) {
       return handleExpenseError(error, reply);
     }

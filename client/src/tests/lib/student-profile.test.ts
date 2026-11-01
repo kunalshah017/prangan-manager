@@ -45,6 +45,14 @@ describe("student profile completeness", () => {
       "School",
       "Future profession",
     ]);
-    expect(getStudentProfileCompletion(incomplete)).toBe(73);
+    expect(getStudentProfileCompletion(incomplete)).toBe(67);
+  });
+
+  it("counts one parent as enough", () => {
+    const singleParent = student({ fatherName: undefined, fatherOccupation: "" });
+    expect(getMissingStudentDetails(singleParent)).toEqual([]);
+
+    const noParents = student({ fatherName: undefined, motherName: " ", fatherOccupation: undefined, motherOccupation: "" });
+    expect(getMissingStudentDetails(noParents)).toEqual(["Parent name", "Parent occupation"]);
   });
 });

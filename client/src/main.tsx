@@ -18,9 +18,10 @@ const requestPwaRecovery = (kind: 'update' | 'recovery', registration?: ServiceW
 };
 
 if (import.meta.env.DEV) {
+  // Push needs a service worker; ?dev keeps it from caching anything locally.
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then((registrations) => {
-      registrations.forEach((registration) => registration.unregister());
+    void navigator.serviceWorker.register('/sw.js?dev').catch((error) => {
+      console.warn('Service worker registration failed:', error);
     });
   }
   if ('caches' in window) {

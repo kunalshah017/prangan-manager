@@ -55,6 +55,10 @@ export function buildBreadcrumbs({
       : [link("Projects", "/projects"), current("Profile")];
   }
 
+  if (segments[0] === "notifications") {
+    return [link("Projects", "/projects"), current("Notifications")];
+  }
+
   if (segments[0] === "registration-requests") {
     return [current("Registration Requests")];
   }
@@ -90,6 +94,13 @@ export function buildBreadcrumbs({
         link("Administration", "/administration"),
         link("Users", "/users?view=requests"),
         current("Review Registration"),
+      ];
+    }
+    if (segments[2] === "restore") {
+      return [
+        link("Administration", "/administration"),
+        link("Users", "/users?view=revoked"),
+        current("Restore access"),
       ];
     }
     return [link("Administration", "/administration"), current("Users")];
@@ -209,10 +220,6 @@ export function buildBreadcrumbs({
         current("Edit Student"),
       ];
     }
-  }
-
-  if (section === "users") {
-    return [...workspace, semester, current("Semester users")];
   }
 
   if (section === "library") {

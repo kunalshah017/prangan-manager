@@ -1,9 +1,12 @@
 // Service worker for PWA functionality with proper cache management
-const CACHE_VERSION = "v10";
+const CACHE_VERSION = "v11";
 const STATIC_CACHE = `prangan-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `prangan-runtime-${CACHE_VERSION}`;
 const PDF_CACHE = "prangan-pdfs-v3";
 const PDF_CACHE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days, as the old public book links allowed
+// Registered as /sw.js?dev by the dev server: push only, no caching, so local
+// changes always load fresh.
+const DEV_MODE = /[?&]dev\b/.test(location.search || "");
 
 // Coursebooks come from the private Blob store through links that expire, so the
 // browser cache (keyed by the whole link) would download them on every opening.
@@ -63,6 +66,7 @@ const urlsToCache = [
 
 // Install event - cache essential resources
 self.addEventListener("install", (event) => {
+  if (DEV_MODE) return;
   console.log("[SW] Installing service worker");
   event.waitUntil(
     caches
@@ -107,6 +111,7 @@ self.addEventListener("activate", (event) => {
 
 // Fetch event - network first strategy for HTML, cache first for assets
 self.addEventListener("fetch", (event) => {
+  if (DEV_MODE) return;
   const { request } = event;
   const url = new URL(request.url);
 
@@ -245,4 +250,44 @@ self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
   }
+});
+
+// Push: show the message, and tell open windows to refresh the bell.
+self.addEventListener("push", (event) => {
+  let message = { title: "Prangan Manager", body: "", href: "/" };
+  try {
+    message = { ...message, ...event.data.json() };
+  } catch {
+    // An empty or plain-text push still shows the default title.
+  }
+  event.waitUntil(
+    Promise.all([
+      self.registration.showNotification(message.title, {
+        body: message.body,
+        icon: "/pwa-icon-192.png",
+        // A newer reminder for the same to-do replaces the old one.
+        tag: message.key || undefined,
+        data: { href: message.href || "/", key: message.key || null },
+        // Android shows a to-do's button under the message; tapping it opens href too.
+        actions: message.actionLabel ? [{ action: "open", title: message.actionLabel }] : [],
+      }),
+      self.clients
+        .matchAll({ type: "window" })
+        .then((windows) => windows.forEach((client) => client.postMessage({ type: "notification" }))),
+    ]),
+  );
+});
+
+// Tapping a notification opens its page: in the app if it is open, else a new window.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const href = event.notification.data?.href || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      const open = windows.find((client) => client.url.startsWith(location.origin));
+      if (!open) return self.clients.openWindow(href);
+      open.postMessage({ type: "notification-open", href });
+      return open.focus();
+    }),
+  );
 });

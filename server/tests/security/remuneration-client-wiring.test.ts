@@ -50,8 +50,8 @@ test("client remuneration data uses a dedicated scoped contract", async () => {
   assert.match(pageSource, /buildRemunerationRows/);
   assert.match(pageSource, /payeesQuery\.isLoading/);
   assert.match(pageSource, /payeesQuery\.error/);
-  assert.match(pageSource, /Manage remuneration settings/);
-  assert.match(pageSource, /dashboard\/users/);
+  // The semester Team page is gone: rates live on the role in Administration.
+  assert.doesNotMatch(pageSource, /dashboard\/users/);
   for (const state of ["Ready", "Incomplete", "No payment due", "Paid"]) {
     assert.match(pageSource, new RegExp(state));
   }
@@ -124,7 +124,9 @@ test("remuneration exposes incomplete payee data read-only without inventing an 
   );
   assert.match(pageSource, /row\.total === null[\s\S]*"INCOMPLETE"/);
   assert.match(pageSource, /Applicable schedule/);
-  assert.match(pageSource, /Add missing remuneration in Semester Users/);
+  // A missing rate is set on the person's role in Administration.
+  assert.match(pageSource, /A pay rate is missing\./);
+  assert.match(pageSource, /\/users\/\$\{row\.userId\}\/edit/);
   assert.doesNotMatch(pageSource, /useSetRemunerationPeriod/);
   assert.doesNotMatch(pageSource, /\|\|\s*500|\?\?\s*500/);
 });

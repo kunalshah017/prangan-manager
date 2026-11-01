@@ -6,12 +6,11 @@ import type {
   ContextStaffUser,
   RemunerationUser,
   RemunerationUsersResponse,
-  SemesterUser,
-  SemesterUsersResponse,
   User,
   UsersResponse,
   MessageResponse,
   RegistrationRequestsResponse,
+  RestoreUserAccessRequest,
   VerifyUserRequest,
   VerifyUserResponse,
 } from "@/types/api";
@@ -85,98 +84,24 @@ export const useRemunerationUsers = ({
   });
 };
 
-export const useSetRemunerationPeriod = ({
-  projectId,
-  centerId,
-  semesterId,
-}: {
-  projectId: string;
-  centerId: string;
-  semesterId: string;
-}) => {
+// Saves a person's daily rate in one semester from a date: days before it keep
+// their earlier rate. The person needs an educator or centre manager role there.
+export const useSaveRemunerationPeriod = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (period: {
+      projectId: string;
+      centerId: string;
+      semesterId: string;
       userId: string;
       amountPerDay: number;
       effectiveFrom: string;
-    }) =>
-      api.put("/users/remuneration/periods", {
-        projectId,
-        centerId,
-        semesterId,
-        ...period,
-      }),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: ["users", "remuneration", projectId, centerId, semesterId],
-        }),
-        queryClient.invalidateQueries({
-          queryKey: ["users", "semester-users", projectId, centerId, semesterId],
-        }),
-      ]);
-    },
-  });
-};
-
-export const useSemesterUsers = ({
-  projectId,
-  centerId,
-  semesterId,
-}: {
-  projectId?: string;
-  centerId?: string;
-  semesterId?: string;
-}) =>
-  useQuery({
-    queryKey: ["users", "semester-users", projectId, centerId, semesterId],
-    queryFn: async (): Promise<SemesterUser[]> => {
-      const params = new URLSearchParams({
-        projectId: projectId ?? "",
-        centerId: centerId ?? "",
-        semesterId: semesterId ?? "",
-      });
-      const response = await api.get<SemesterUsersResponse>(
-        `/users/semester-users?${params}`,
-      );
-      return response.users;
-    },
-    enabled: Boolean(projectId && centerId && semesterId),
-  });
-
-export const useUpdateSemesterUserAssignments = ({
-  projectId,
-  centerId,
-  semesterId,
-}: {
-  projectId: string;
-  centerId: string;
-  semesterId: string;
-}) => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      userId,
-      assignments,
-    }: {
-      userId: string;
-      assignments: Array<{
-        subRole: ContextStaffUser["roleAssignments"][number]["subRole"];
-        semesterLevelId?: string;
-        committedDays?: "SATURDAY" | "SUNDAY" | "BOTH";
-      }>;
-    }) =>
-      api.put(`/users/semester-users/${userId}/assignments`, {
-        projectId,
-        centerId,
-        semesterId,
-        assignments,
-      }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: ["users", "semester-users", projectId, centerId, semesterId],
-      }),
+    }) => api.put("/users/remuneration/periods", period),
+    onSuccess: (_result, period) =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["user", period.userId] }),
+        queryClient.invalidateQueries({ queryKey: ["users", "remuneration"] }),
+      ]),
   });
 };
 
@@ -227,6 +152,8 @@ export const useVerifyUser = () => {
       role,
       roleAssignments,
       rejectionReason,
+      sendEmail,
+      remunerationPeriods,
     }: VerifyUserRequest): Promise<VerifyUserResponse> => {
       return api.post<VerifyUserResponse>("/users/verify", {
         userId,
@@ -234,6 +161,8 @@ export const useVerifyUser = () => {
         role,
         roleAssignments,
         rejectionReason,
+        sendEmail,
+        remunerationPeriods,
       });
     },
     onSuccess: (_, { userId }) => {
@@ -245,6 +174,19 @@ export const useVerifyUser = () => {
       });
       queryClient.invalidateQueries({ queryKey: ["user", userId] });
     },
+  });
+};
+
+export const useRestoreUserAccess = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, ...grant }: RestoreUserAccessRequest): Promise<MessageResponse> =>
+      api.post(`/users/${userId}/access`, grant),
+    onSuccess: (_result, { userId }) =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.users }),
+        queryClient.invalidateQueries({ queryKey: ["user", userId] }),
+      ]),
   });
 };
 

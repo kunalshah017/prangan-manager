@@ -256,17 +256,6 @@ describe("buildBreadcrumbs", () => {
     expect(breadcrumbs.at(-1)?.label).toBe("Remuneration");
   });
 
-  it("labels semester-level user management", () => {
-    const breadcrumbs = buildBreadcrumbs({
-      pathname:
-        "/projects/project-1/centers/center-1/semesters/semester-1/dashboard/users",
-      params: ids,
-      names,
-    });
-
-    expect(breadcrumbs.at(-1)?.label).toBe("Semester users");
-  });
-
   it.each([
     ["/administration", {}, "Administration"],
     ["/academic-levels", {}, "Level Catalogue"],
@@ -292,7 +281,6 @@ describe("buildBreadcrumbs", () => {
     ["/projects/project-1/centers/center-1/semesters/semester-1/dashboard/students", ids, "Students"],
     ["/projects/project-1/centers/center-1/semesters/semester-1/dashboard/students/new", ids, "New Student"],
     ["/projects/project-1/centers/center-1/semesters/semester-1/dashboard/students/student-1/edit", { ...ids, id: "student-1" }, "Edit Student"],
-    ["/projects/project-1/centers/center-1/semesters/semester-1/dashboard/users", ids, "Semester users"],
     ["/projects/project-1/centers/center-1/semesters/semester-1/dashboard/attendance/view", ids, "View Staff Attendance"],
     ["/projects/project-1/centers/center-1/semesters/semester-1/dashboard/attendance/mark", ids, "Mark Staff Attendance"],
     ["/projects/project-1/centers/center-1/semesters/semester-1/dashboard/attendance/remuneration", ids, "Remuneration"],

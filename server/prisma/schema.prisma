@@ -112,6 +112,8 @@ model User {
   expensesReceived           Expense[]                    @relation("ExpensePayee")
   expensesCreated            Expense[]                    @relation("ExpenseCreatedBy")
   expensesVoided             Expense[]                    @relation("ExpenseVoidedBy")
+  notifications              Notification[]
+  pushSubscriptions          PushSubscription[]
 }
 
 enum AccountTokenType {
@@ -649,4 +651,54 @@ model StudentExamScore {
   @@index([examId])
   @@index([studentId])
   @@index([enrollmentId])
+}
+
+// What a person is told in the app; the same text goes out as a push.
+model Notification {
+  id          String           @id @default(cuid())
+  userId      String
+  title       String
+  body        String
+  href        String?
+  // A to-do can't be dismissed: it clears when the work is done or at expiresAt.
+  kind        NotificationKind @default(UPDATE)
+  // What a to-do is about, e.g. "attendance-staff:{semesterId}:{day}"; also the push tag.
+  key         String?
+  expiresAt   DateTime?        @db.Timestamptz(3)
+  // The to-do's button text, e.g. "Mark attendance"; it opens href.
+  actionLabel String?
+  readAt      DateTime?        @db.Timestamptz(3)
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@index([key])
+}
+
+enum NotificationKind {
+  UPDATE
+  TASK
+}
+
+// One browser or installed app that receives push for a user.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// A scheduled reminder that already went out, so it is sent once per day even
+// when the server restarts.
+model ReminderRun {
+  key       String   @id
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
 }

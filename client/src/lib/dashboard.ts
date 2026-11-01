@@ -14,7 +14,6 @@ export type DashboardActionIcon =
 export interface DashboardAction {
   label: string;
   mobileLabel: string;
-  description: string;
   href: string;
   icon: DashboardActionIcon;
 }
@@ -78,7 +77,6 @@ const action = (
   context: ExactContext,
   label: string,
   mobileLabel: string,
-  description: string,
   suffix: string,
   icon: DashboardActionIcon,
 ): DashboardAction | null =>
@@ -86,7 +84,6 @@ const action = (
     ? {
         label,
         mobileLabel,
-        description,
         href: suffix.startsWith("/")
           ? `/projects/${context.projectId}/centers/${context.centerId}/semesters/${context.semesterId}/dashboard${suffix}`
           : suffix,
@@ -123,7 +120,7 @@ export function buildDashboardModel(
   const exams = can(user, "exams.read", context);
   const actionGroups = [
     {
-      label: "Student operations",
+      label: "Students",
       actions: compact([
         action(
           user,
@@ -131,7 +128,6 @@ export function buildDashboardModel(
           context,
           "View students",
           "Students",
-          "Review enrolled students and their levels.",
           "/students",
           "users",
         ),
@@ -141,7 +137,6 @@ export function buildDashboardModel(
           context,
           "Mark student attendance",
           "Mark students",
-          "Record attendance for the current teaching day.",
           "/student-attendance/mark",
           "calendar-check",
         ),
@@ -151,14 +146,13 @@ export function buildDashboardModel(
           context,
           "View student attendance",
           "Student records",
-          "Review attendance history and patterns.",
           "/student-attendance/view",
           "calendar-days",
         ),
       ]),
     },
     {
-      label: "Academics",
+      label: "Teaching",
       actions: compact([
         action(
           user,
@@ -166,7 +160,6 @@ export function buildDashboardModel(
           context,
           "Curriculum",
           "Curriculum",
-          "Track syllabus topics and classroom progress.",
           "/syllabus",
           "book-open",
         ),
@@ -176,41 +169,26 @@ export function buildDashboardModel(
           context,
           "Exams",
           "Exams",
-          "Review assessments and student scores.",
           "/exams",
           "clipboard-list",
         ),
         {
           label: "Library",
           mobileLabel: "Library",
-          description: "Browse learning books and classroom resources.",
           href: `/projects/${context.projectId}/centers/${context.centerId}/semesters/${context.semesterId}/dashboard/library`,
           icon: "library",
         } satisfies DashboardAction,
       ]),
     },
     {
-      label: "Staff operations",
+      label: "Staff",
       actions: compact([
-        user?.role === "ADMIN"
-          ? action(
-              user,
-              "staffAttendance.read",
-              context,
-              "Semester users",
-              "Team settings",
-              "Manage semester roles and daily remuneration.",
-              "/users",
-              "users",
-            )
-          : null,
         action(
           user,
           "staffAttendance.write",
           context,
           "Mark staff attendance",
           "Mark staff",
-          "Record educator and manager attendance.",
           "/attendance/mark",
           "user-check",
         ),
@@ -220,7 +198,6 @@ export function buildDashboardModel(
           context,
           "View staff attendance",
           "Staff records",
-          "Review staff attendance history.",
           "/attendance/view",
           "calendar-days",
         ),
@@ -231,7 +208,6 @@ export function buildDashboardModel(
               context,
               "Remuneration",
               "Pay",
-              "Review attendance-linked remuneration.",
               "/attendance/remuneration",
               "wallet-cards",
             )
@@ -240,7 +216,6 @@ export function buildDashboardModel(
           ? {
               label: "Expenses",
               mobileLabel: "Expenses",
-              description: "Review remuneration and semester spending.",
               href: `/projects/${context.projectId}/centers/${context.centerId}/semesters/${context.semesterId}/dashboard/expenses`,
               icon: "wallet-cards",
             } satisfies DashboardAction

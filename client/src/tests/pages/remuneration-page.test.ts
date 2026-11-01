@@ -21,7 +21,7 @@ describe("remuneration page UX", () => {
     expect(source).toContain("Incomplete");
     expect(source).toContain("Mark as paid");
     expect(source).toContain("Applicable schedule");
-    expect(source).toContain("Manage remuneration settings");
+    expect(source).toContain("A pay rate is missing.");
     expect(source).not.toContain("Save remuneration");
     expect(source).not.toContain('type="date"');
     expect(source).toContain("lg:grid-cols-2");

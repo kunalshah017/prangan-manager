@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("monthly remuneration payment page", () => {
-  it("is read-only and points remuneration configuration to Semester Users", async () => {
+  it("is read-only and points a missing rate to the person's role in Administration", async () => {
     const source = await readFile(
       new URL("../../pages/attendance/Remuneration.tsx", import.meta.url),
       "utf8",
@@ -14,8 +14,10 @@ describe("monthly remuneration payment page", () => {
     expect(source).not.toContain("Save remuneration");
     expect(source).not.toContain('type="number"');
     expect(source).not.toContain('type="date"');
-    expect(source).toContain("Manage remuneration settings");
-    expect(source).toContain("/dashboard/users");
+    // Rates are set on the person's role in Administration.
+    expect(source).not.toContain("Manage remuneration settings");
+    expect(source).toContain("to={`/users/${row.userId}/edit`}");
+    expect(source).not.toContain("/dashboard/users");
     expect(source).toContain("Applicable schedule");
   });
 

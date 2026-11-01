@@ -17,14 +17,15 @@ import { activeAssignments, assignmentSummary } from "@/lib/user-display";
 import { cn } from "@/lib/utils";
 import type { User } from "@/types/api";
 
-type UsersView = "users" | "requests";
+type UsersView = "users" | "requests" | "revoked";
 
 const formatDate = (value: string) =>
   new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
 const Users = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const view: UsersView = searchParams.get("view") === "requests" ? "requests" : "users";
+  const viewParam = searchParams.get("view");
+  const view: UsersView = viewParam === "requests" || viewParam === "revoked" ? viewParam : "users";
   const { data: users = [], isLoading: usersLoading, error: usersError, refetch: refetchUsers } = useUsers();
   const { data: requests = [], isLoading: requestsLoading, error: requestsError, refetch: refetchRequests } = useRegistrationRequests();
   const { data: projects = [] } = useProjects();
@@ -62,6 +63,9 @@ const Users = () => {
     setSemesterFilter("ALL");
   };
   const approvedUsers = useMemo(() => users.filter((user) => user.status === "APPROVED"), [users]);
+  // Revoking keeps the person's record with a rejected status; turned-down
+  // registrations are deleted, so these are exactly the revoked users.
+  const revokedUsers = useMemo(() => users.filter((user) => user.status === "REJECTED"), [users]);
   const filteredUsers = useMemo(() => approvedUsers.filter((user) => {
     const query = search.trim().toLowerCase();
     const matchesSearch = !query || user.name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query);
@@ -75,10 +79,17 @@ const Users = () => {
     return !query || request.name.toLowerCase().includes(query) || request.email.toLowerCase().includes(query) || request.phone?.toLowerCase().includes(query);
   }).sort((first, second) => new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime()), [requests, search]);
 
+  const filteredRevoked = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return revokedUsers
+      .filter((user) => !query || user.name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query))
+      .sort((first, second) => first.name.localeCompare(second.name));
+  }, [revokedUsers, search]);
+
   const activeFilterCount = [roleFilter, hasProjectChoice ? projectFilter : "ALL", centerFilter, semesterFilter].filter((value) => value !== "ALL").length;
   const hasFilters = !!search || activeFilterCount > 0;
-  const resultCount = view === "users" ? filteredUsers.length : filteredRequests.length;
-  const setView = (nextView: UsersView) => setSearchParams(nextView === "requests" ? { view: "requests" } : {});
+  const resultCount = view === "users" ? filteredUsers.length : view === "requests" ? filteredRequests.length : filteredRevoked.length;
+  const setView = (nextView: UsersView) => setSearchParams(nextView === "users" ? {} : { view: nextView });
   const clearFilters = () => { setSearch(""); setRoleFilter("ALL"); setProjectFilter("ALL"); setCenterFilter("ALL"); setSemesterFilter("ALL"); };
 
   if (usersLoading || requestsLoading) {
@@ -116,17 +127,22 @@ const Users = () => {
             <span className="rounded-full bg-warning/25 px-2 text-sm tabular-nums text-warning-foreground">{requests.length}</span>
           )}
         </button>
+        {(revokedUsers.length > 0 || view === "revoked") && (
+          <button type="button" onClick={() => setView("revoked")} aria-pressed={view === "revoked"} className={tabClass(view === "revoked")}>
+            Revoked <span className="tabular-nums text-muted-foreground">{revokedUsers.length}</span>
+          </button>
+        )}
       </div>
 
       <div className="flex gap-2">
         <label className="relative min-w-0 flex-1">
-          <span className="sr-only">{view === "users" ? "Search users" : "Search requests"}</span>
+          <span className="sr-only">{view === "requests" ? "Search requests" : "Search users"}</span>
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <input
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder={view === "users" ? "Name or email" : "Name, email or phone"}
+            placeholder={view === "requests" ? "Name, email or phone" : "Name or email"}
             className="min-h-12 w-full rounded-md border border-input bg-background py-2 pl-10 pr-3 text-base text-foreground scheme-light placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 dark:scheme-dark"
           />
         </label>
@@ -195,8 +211,28 @@ const Users = () => {
         </div>
       )}
 
-      <section aria-label={view === "users" ? "Users" : "Registration requests"}>
-        {view === "users" ? (
+      <section aria-label={view === "users" ? "Users" : view === "requests" ? "Registration requests" : "Revoked users"}>
+        {view === "revoked" ? (
+          filteredRevoked.length ? (
+            <EntityList label="Revoked users">
+              {filteredRevoked.map((user) => (
+                <EntityRow
+                  key={user.id}
+                  href={`/users/${user.id}/restore`}
+                  title={user.name}
+                  leading={<ProfilePicture imageUrl={user.profileImageUrl} name={user.name} size="md" colorScheme="orange" className="shrink-0" />}
+                  meta={<span className="block truncate">{user.email}</span>}
+                />
+              ))}
+            </EntityList>
+          ) : (
+            <EmptyState
+              icon={UsersRound}
+              title={hasFilters ? "No one matches" : "No revoked users"}
+              description={hasFilters ? "Try a different search." : "People whose access is revoked appear here, ready to restore."}
+            />
+          )
+        ) : view === "users" ? (
           filteredUsers.length ? (
             <EntityList label="Users">
               {filteredUsers.map((user) => (

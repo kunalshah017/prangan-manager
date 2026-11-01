@@ -6,7 +6,6 @@ import {
   getAdminUserById,
   getUserById,
   getContextStaff,
-  getSemesterUsers,
   getRemunerationUsers,
   updateUser,
   getUnverifiedUsers,
@@ -36,9 +35,11 @@ import {
   resolveEffectiveEnrollmentContext,
   validateEnrollmentHierarchy,
   setSemesterRemunerationPeriod,
-  updateSemesterUserAssignments,
+  applyRemunerationPeriod,
+  checkRemunerationPeriod,
 } from "../service/user.service.js";
 import type { EnrollmentScope } from "../service/user.service.js";
+import { formatAmount } from "../email/remuneration-payment-email.js";
 import { getProjectById } from "../service/project.service.js";
 import { getCenterById } from "../service/center.service.js";
 import { getSemesterById } from "../service/semester.service.js";
@@ -50,6 +51,7 @@ import {
   SubRole,
   CommittedDays,
   AccountTokenType,
+  Prisma,
 } from "../generated/prisma/index.js";
 import { prisma } from "../lib/prisma.js";
 import {
@@ -103,11 +105,18 @@ import { AcademicLevelServiceError } from "../service/academic-level.service.js"
 import { resolveSemesterLevelInput } from "../service/semester-level.service.js";
 import { enqueueEmail } from "../service/email-queue.service.js";
 import {
+  clearRegistrationRequestInBackground,
+  notifyAdminsInBackground,
+  registrationRequestMessage,
+} from "../service/notification.service.js";
+import { resolvePayRateRemindersInBackground } from "../service/reminder.service.js";
+import {
   EMAIL_JOB_COMMITTED,
   emitCommitTrigger,
 } from "../lib/commit-triggers.js";
 import {
   buildPasswordResetEmailJob,
+  buildAccessRestoredEmailJob,
   buildRegistrationApprovalEmailJob,
   buildRegistrationRejectionEmailJob,
 } from "../email/account-email.js";
@@ -346,6 +355,8 @@ export const registerUser = asyncHandle(
       return errorHandle(user, reply, 500);
     }
 
+    notifyAdminsInBackground(registrationRequestMessage(user));
+
     return successHandle(
       { message: "User registered successfully" },
       reply,
@@ -389,7 +400,8 @@ export const loginUser = asyncHandle(
     }
     if (user.status === UserStatus.REJECTED) {
       return errorHandle(
-        "Your registration wasn't approved. Please contact a Prangan administrator.",
+        // Turned-down registrations are deleted, so this is someone whose access was revoked.
+        "Your access to Prangan Manager has been removed. Please contact a Prangan administrator.",
         reply,
         403,
       );
@@ -483,8 +495,11 @@ type RegistrationRoleAssignment = {
   committedDays?: string;
 };
 
-const buildRegistrationRoleDetails = async (
+const isPaidRole = (subRole: string) => subRole === "EDUCATOR" || subRole === "CENTER_MANAGER";
+
+export const buildRegistrationRoleDetails = async (
   assignments: RegistrationRoleAssignment[],
+  rates: GrantedRate[] = [],
 ) => {
   if (assignments.length === 0) return "";
   const roleNames: Record<string, string> = {
@@ -546,6 +561,20 @@ const buildRegistrationRoleDetails = async (
               : "Sunday";
         detail += `<p><strong>📅 Committed Days:</strong> ${days}</p>`;
       }
+      // One rate per semester: shown on the first paid role there.
+      const rate = rates.find((item) => item.semesterId === assignment.semesterId);
+      const firstPaid = assignments.find(
+        (item) => isPaidRole(item.subRole) && item.semesterId === assignment.semesterId,
+      );
+      if (rate && firstPaid === assignment) {
+        const from = new Date(`${rate.effectiveFrom}T00:00:00.000Z`).toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          timeZone: "UTC",
+        });
+        detail += `<p><strong>💰 Remuneration:</strong> ${formatAmount(rate.amountPerDay)} per day present, from ${from}</p>`;
+      }
       return `${detail}</div>`;
     }),
   );
@@ -566,6 +595,187 @@ const buildRegistrationRoleDetails = async (
   </div>`;
 };
 
+type GrantedRate = {
+  projectId: string;
+  centerId: string;
+  semesterId: string;
+  amountPerDay: number;
+  effectiveFrom: string;
+};
+
+type GrantedAssignments =
+  | { assignments: RegistrationRoleAssignment[]; rates: GrantedRate[]; roleAssignmentDetails: string }
+  | { error: string; status: number };
+
+// Daily rates sent with the roles: one per semester, each for a paid role given here.
+const parseGrantedRates = (
+  input: unknown,
+  assignments: RegistrationRoleAssignment[],
+): GrantedRate[] | string => {
+  if (input === undefined || input === null) return [];
+  if (!Array.isArray(input)) return "Invalid daily rates.";
+  const rates: GrantedRate[] = [];
+  for (const item of input as Array<Record<string, unknown>>) {
+    const { projectId, centerId, semesterId, amountPerDay, effectiveFrom } = item ?? {};
+    if (
+      typeof projectId !== "string" ||
+      typeof centerId !== "string" ||
+      typeof semesterId !== "string" ||
+      typeof amountPerDay !== "number" ||
+      !Number.isFinite(amountPerDay) ||
+      typeof effectiveFrom !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom)
+    ) {
+      return "Invalid daily rate.";
+    }
+    const paidHere = assignments.some(
+      (assignment) =>
+        isPaidRole(assignment.subRole) &&
+        assignment.projectId === projectId &&
+        assignment.centerId === centerId &&
+        assignment.semesterId === semesterId,
+    );
+    if (!paidHere) return "A daily rate needs an educator or centre manager role in that semester.";
+    if (rates.some((rate) => rate.semesterId === semesterId)) return "One daily rate per semester.";
+    rates.push({ projectId, centerId, semesterId, amountPerDay, effectiveFrom });
+  }
+  return rates;
+};
+
+class GrantRateError extends Error {}
+
+// Saves the granted rates inside the grant's transaction, after the roles.
+const grantRates = async (
+  tx: Prisma.TransactionClient,
+  userId: string,
+  rates: GrantedRate[],
+  actorId: string,
+) => {
+  for (const rate of rates) {
+    const problem = await checkRemunerationPeriod(tx, { ...rate, userId });
+    if (problem) throw new GrantRateError(problem);
+    await applyRemunerationPeriod(tx, { ...rate, userId, actorId });
+  }
+};
+
+// The roles given when approving a request or restoring access: each fits the
+// project > centre > semester hierarchy in a semester still running, and an
+// educator teaches one level per semester.
+const prepareGrantedAssignments = async (
+  role: Role,
+  roleAssignments: RegistrationRoleAssignment[] | undefined,
+  remunerationPeriods?: unknown,
+): Promise<GrantedAssignments> => {
+  const assignments = role === Role.USER ? roleAssignments ?? [] : [];
+  for (const assignment of assignments) {
+    if (!assignment.subRole) {
+      return { error: "SubRole is required for each role assignment.", status: 400 };
+    }
+    if ("level" in assignment) {
+      return { error: "Legacy level is not supported; use semesterLevelId.", status: 400 };
+    }
+    if (
+      assignment.committedDays &&
+      !["CENTER_MANAGER", "EDUCATOR"].includes(assignment.subRole)
+    ) {
+      return { error: "CommittedDays can only be assigned to CENTER_MANAGER or EDUCATOR sub-roles.", status: 400 };
+    }
+  }
+
+  if (findSecondEducatorLevel(assignments)) {
+    return { error: SECOND_EDUCATOR_LEVEL_MESSAGE, status: 422 };
+  }
+  const seenKeys = new Set<string>();
+  const uniqueAssignments = assignments.filter((assignment) => {
+    const key = [
+      assignment.subRole,
+      assignment.projectId ?? "",
+      assignment.centerId ?? "",
+      assignment.semesterId ?? "",
+    ].join("|");
+    if (seenKeys.has(key)) return false;
+    seenKeys.add(key);
+    return true;
+  });
+  // Approved roles must fit the project > centre > semester hierarchy and
+  // belong to a semester that is still running.
+  for (const assignment of uniqueAssignments) {
+    if (!Object.values(SubRole).includes(assignment.subRole as SubRole)) {
+      return { error: "Unknown role in assignment.", status: 400 };
+    }
+    const hierarchy = await validateRoleAssignmentHierarchy({
+      projectId: assignment.projectId || undefined,
+      centerId: assignment.centerId || undefined,
+      semesterId: assignment.semesterId || undefined,
+    });
+    if (!hierarchy.isValid) {
+      return { error: hierarchy.error ?? "Invalid assignment.", status: 400 };
+    }
+    if (assignment.semesterId) {
+      const semester = await prisma.semesters.findUnique({
+        where: { id: assignment.semesterId },
+        select: { name: true, status: true, endDate: true },
+      });
+      if (semester && isSemesterFinished(semester)) {
+        return { error: finishedSemesterMessage(semester.name), status: 422 };
+      }
+    }
+  }
+  const rates = parseGrantedRates(remunerationPeriods, uniqueAssignments);
+  if (typeof rates === "string") return { error: rates, status: 400 };
+  let roleAssignmentDetails = "";
+  try {
+    roleAssignmentDetails = await buildRegistrationRoleDetails(uniqueAssignments, rates);
+  } catch (error) {
+    console.error("Failed to prepare role assignment email details:", error);
+  }
+  return { assignments: uniqueAssignments, rates, roleAssignmentDetails };
+};
+
+// Ends the person's active roles and gives them the granted ones.
+const grantAssignments = async (
+  tx: Prisma.TransactionClient,
+  userId: string,
+  assignments: RegistrationRoleAssignment[],
+) => {
+  await tx.userRoleAssignments.updateMany({
+    where: { userId, isActive: true },
+    data: endedAssignmentData(),
+  });
+  const createdAssignments = [];
+  for (const assignment of assignments) {
+    const semesterLevel =
+      assignment.subRole === "EDUCATOR"
+        ? await resolveSemesterLevelInput({
+            semesterId: assignment.semesterId,
+            semesterLevelId: assignment.semesterLevelId,
+          })
+        : null;
+    createdAssignments.push(
+      await tx.userRoleAssignments.create({
+        data: {
+          userId,
+          subRole: assignment.subRole as SubRole,
+          projectId: assignment.projectId || null,
+          centerId: assignment.centerId || null,
+          semesterId: assignment.semesterId || null,
+          semesterLevelId: semesterLevel?.id || null,
+          committedDays: assignment.committedDays
+            ? (assignment.committedDays as CommittedDays)
+            : null,
+        },
+        include: {
+          project: { select: { id: true, name: true } },
+          center: { select: { id: true, name: true } },
+          semester: { select: { id: true, name: true } },
+          semesterLevel: { include: { academicLevel: true } },
+        },
+      }),
+    );
+  }
+  return createdAssignments;
+};
+
 export const verifyUser = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
     const admin = request.user;
@@ -578,7 +788,11 @@ export const verifyUser = asyncHandle(
       role: Role;
       userId: string;
       rejectionReason?: string;
+      // Rejecting can skip the email to the applicant.
+      sendEmail?: boolean;
       roleAssignments?: RegistrationRoleAssignment[];
+      // Daily rates for the paid roles, saved with them and listed in the email.
+      remunerationPeriods?: unknown;
     };
     if (!data.userId || !data.status || !data.role) {
       return errorHandle("User ID, status, and role are required.", reply, 400);
@@ -609,6 +823,7 @@ export const verifyUser = asyncHandle(
     }
 
     if (data.status === UserStatus.REJECTED) {
+      const emailApplicant = data.sendEmail !== false;
       const rejectionReason =
         data.rejectionReason ||
         "No specific reason was provided. Please contact an administrator for more details.";
@@ -618,6 +833,7 @@ export const verifyUser = asyncHandle(
             where: { id: data.userId, status: UserStatus.PENDING },
           });
           if (deleted.count !== 1) return false;
+          if (!emailApplicant) return true;
           const emailJob = buildRegistrationRejectionEmailJob({
             userId: data.userId,
             email: notificationUser.email,
@@ -634,11 +850,13 @@ export const verifyUser = asyncHandle(
             409,
           );
         }
-        emitCommitTrigger(EMAIL_JOB_COMMITTED);
+        clearRegistrationRequestInBackground(data.userId);
+        if (emailApplicant) emitCommitTrigger(EMAIL_JOB_COMMITTED);
         return successHandle(
           {
-            message:
-              "User rejected and removed from the system. Rejection email queued.",
+            message: emailApplicant
+              ? "User rejected and removed from the system. Rejection email queued."
+              : "User rejected and removed from the system. No email sent.",
             action: "rejected_and_deleted",
           },
           reply,
@@ -650,81 +868,9 @@ export const verifyUser = asyncHandle(
       }
     }
 
-    const assignments =
-      data.role === Role.USER ? data.roleAssignments ?? [] : [];
-    for (const assignment of assignments) {
-      if (!assignment.subRole) {
-        return errorHandle(
-          "SubRole is required for each role assignment.",
-          reply,
-          400,
-        );
-      }
-      if ("level" in assignment) {
-        return errorHandle(
-          "Legacy level is not supported; use semesterLevelId.",
-          reply,
-          400,
-        );
-      }
-      if (
-        assignment.committedDays &&
-        !["CENTER_MANAGER", "EDUCATOR"].includes(assignment.subRole)
-      ) {
-        return errorHandle(
-          "CommittedDays can only be assigned to CENTER_MANAGER or EDUCATOR sub-roles.",
-          reply,
-          400,
-        );
-      }
-    }
-
-    if (findSecondEducatorLevel(assignments)) {
-      return errorHandle(SECOND_EDUCATOR_LEVEL_MESSAGE, reply, 422);
-    }
-    const seenKeys = new Set<string>();
-    const uniqueAssignments = assignments.filter((assignment) => {
-      const key = [
-        assignment.subRole,
-        assignment.projectId ?? "",
-        assignment.centerId ?? "",
-        assignment.semesterId ?? "",
-      ].join("|");
-      if (seenKeys.has(key)) return false;
-      seenKeys.add(key);
-      return true;
-    });
-    // Approved roles must fit the project > centre > semester hierarchy and
-    // belong to a semester that is still running.
-    for (const assignment of uniqueAssignments) {
-      if (!Object.values(SubRole).includes(assignment.subRole as SubRole)) {
-        return errorHandle("Unknown role in assignment.", reply, 400);
-      }
-      const hierarchy = await validateRoleAssignmentHierarchy({
-        projectId: assignment.projectId || undefined,
-        centerId: assignment.centerId || undefined,
-        semesterId: assignment.semesterId || undefined,
-      });
-      if (!hierarchy.isValid) {
-        return errorHandle(hierarchy.error ?? "Invalid assignment.", reply, 400);
-      }
-      if (assignment.semesterId) {
-        const semester = await prisma.semesters.findUnique({
-          where: { id: assignment.semesterId },
-          select: { name: true, status: true, endDate: true },
-        });
-        if (semester && isSemesterFinished(semester)) {
-          return errorHandle(finishedSemesterMessage(semester.name), reply, 422);
-        }
-      }
-    }
-    let roleAssignmentDetails = "";
-    try {
-      roleAssignmentDetails =
-        await buildRegistrationRoleDetails(uniqueAssignments);
-    } catch (error) {
-      console.error("Failed to prepare role assignment email details:", error);
-    }
+    const prepared = await prepareGrantedAssignments(data.role, data.roleAssignments, data.remunerationPeriods);
+    if ("error" in prepared) return errorHandle(prepared.error, reply, prepared.status);
+    const { assignments: uniqueAssignments, rates, roleAssignmentDetails } = prepared;
 
     try {
       const transactionResult = await prisma.$transaction(async (tx) => {
@@ -744,45 +890,11 @@ export const verifyUser = asyncHandle(
           data.userId,
           AccountTokenType.ACTIVATION,
         );
-        let assignmentsResult = null;
-        if (uniqueAssignments.length > 0) {
-          await tx.userRoleAssignments.updateMany({
-            where: { userId: data.userId, isActive: true },
-            data: endedAssignmentData(),
-          });
-          const createdAssignments = [];
-          for (const assignment of uniqueAssignments) {
-            const semesterLevel =
-              assignment.subRole === "EDUCATOR"
-                ? await resolveSemesterLevelInput({
-                    semesterId: assignment.semesterId,
-                    semesterLevelId: assignment.semesterLevelId,
-                  })
-                : null;
-            createdAssignments.push(
-              await tx.userRoleAssignments.create({
-                data: {
-                  userId: data.userId,
-                  subRole: assignment.subRole as SubRole,
-                  projectId: assignment.projectId || null,
-                  centerId: assignment.centerId || null,
-                  semesterId: assignment.semesterId || null,
-                  semesterLevelId: semesterLevel?.id || null,
-                  committedDays: assignment.committedDays
-                    ? (assignment.committedDays as CommittedDays)
-                    : null,
-                },
-                include: {
-                  project: { select: { id: true, name: true } },
-                  center: { select: { id: true, name: true } },
-                  semester: { select: { id: true, name: true } },
-                  semesterLevel: { include: { academicLevel: true } },
-                },
-              }),
-            );
-          }
-          assignmentsResult = createdAssignments;
-        }
+        const assignmentsResult =
+          uniqueAssignments.length > 0
+            ? await grantAssignments(tx, data.userId, uniqueAssignments)
+            : null;
+        await grantRates(tx, data.userId, rates, admin.id);
 
         const emailJob = buildRegistrationApprovalEmailJob({
           userId: userUpdate.id,
@@ -803,6 +915,7 @@ export const verifyUser = asyncHandle(
       }
 
       emitCommitTrigger(EMAIL_JOB_COMMITTED);
+      clearRegistrationRequestInBackground(data.userId);
       const fullUserDetails = await getAdminUserById(
         transactionResult.userUpdate.id,
       );
@@ -817,6 +930,7 @@ export const verifyUser = asyncHandle(
         200,
       );
     } catch (error) {
+      if (error instanceof GrantRateError) return errorHandle(error.message, reply, 400);
       console.error("User approval transaction failed:", error);
       if (error instanceof AcademicLevelServiceError) {
         return errorHandle(error.message, reply, error.statusCode);
@@ -981,6 +1095,86 @@ export const revokeUserAccessController = asyncHandle(
       reply,
       200,
     );
+  },
+);
+
+// Gives a revoked person access again the way a request is approved: a role
+// and assignments in running semesters. Daily rates are then saved like any
+// role's. The email is optional.
+export const restoreUserAccessController = asyncHandle(
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const admin = request.user;
+    if (!admin || admin.role !== Role.ADMIN) {
+      return errorHandle("Only admins can restore portal access.", reply, 403);
+    }
+    const { userId } = request.params as { userId: string };
+    const data = (request.body ?? {}) as {
+      role?: Role;
+      roleAssignments?: RegistrationRoleAssignment[];
+      remunerationPeriods?: unknown;
+      sendEmail?: boolean;
+    };
+    if (!userId || !data.role || !Object.values(Role).includes(data.role)) {
+      return errorHandle("User ID and role are required.", reply, 400);
+    }
+    if (data.role === Role.USER && !data.roleAssignments?.length) {
+      return errorHandle("Give at least one assignment.", reply, 400);
+    }
+    const prepared = await prepareGrantedAssignments(data.role, data.roleAssignments, data.remunerationPeriods);
+    if ("error" in prepared) return errorHandle(prepared.error, reply, prepared.status);
+    const sendEmail = data.sendEmail !== false;
+
+    try {
+      const restored = await prisma.$transaction(async (tx) => {
+        const updated = await tx.user.updateMany({
+          where: { id: userId, status: UserStatus.REJECTED },
+          data: { status: UserStatus.APPROVED, role: data.role },
+        });
+        if (updated.count !== 1) return null;
+        const user = await tx.user.findUnique({
+          where: { id: userId },
+          select: { id: true, email: true, name: true },
+        });
+        if (!user) return null;
+        if (prepared.assignments.length > 0) {
+          await grantAssignments(tx, userId, prepared.assignments);
+        }
+        await grantRates(tx, userId, prepared.rates, admin.id);
+        if (sendEmail) {
+          await enqueueEmail(
+            buildAccessRestoredEmailJob({
+              userId,
+              email: user.email,
+              name: user.name,
+              signInUrl: `${getAllowedClientOrigin()}/login`,
+              roleAssignmentDetails: prepared.roleAssignmentDetails,
+              restoredAt: new Date(),
+            }),
+            tx,
+          );
+        }
+        return user;
+      });
+      if (!restored) {
+        return errorHandle("This person's access isn't revoked.", reply, 409);
+      }
+      if (sendEmail) emitCommitTrigger(EMAIL_JOB_COMMITTED);
+      return successHandle(
+        {
+          message: sendEmail ? "Access restored. Email queued." : "Access restored. No email sent.",
+          user: await getAdminUserById(userId),
+        },
+        reply,
+        200,
+      );
+    } catch (error) {
+      if (error instanceof GrantRateError) return errorHandle(error.message, reply, 400);
+      console.error("Restoring access failed:", error);
+      if (error instanceof AcademicLevelServiceError) {
+        return errorHandle(error.message, reply, error.statusCode);
+      }
+      return errorHandle("Database operation failed.", reply, 500);
+    }
   },
 );
 
@@ -2064,32 +2258,6 @@ export const getRemunerationUsersController = asyncHandle(
   },
 );
 
-export const getSemesterUsersController = asyncHandle(
-  async (request: FastifyRequest, reply: FastifyReply) => {
-    const authUser = request.user;
-    if (!authUser) return errorHandle("Authentication required.", reply, 401);
-    if (authUser.role !== Role.ADMIN) {
-      return errorHandle("Only admins can view semester users.", reply, 403);
-    }
-    const query = request.query as Record<string, unknown>;
-    const scope = {
-      projectId: typeof query.projectId === "string" ? query.projectId.trim() : "",
-      centerId: typeof query.centerId === "string" ? query.centerId.trim() : "",
-      semesterId: typeof query.semesterId === "string" ? query.semesterId.trim() : "",
-    };
-    if (!scope.projectId || !scope.centerId || !scope.semesterId) {
-      return errorHandle("Project, center, and semester are required.", reply, 400);
-    }
-    const users = await getSemesterUsers(scope);
-    if (typeof users === "string") return errorHandle(users, reply, 500);
-    return successHandle(
-      { message: "Semester users retrieved successfully.", users },
-      reply,
-      200,
-    );
-  },
-);
-
 export const setRemunerationPeriodController = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
     const authUser = request.user;
@@ -2145,75 +2313,9 @@ export const setRemunerationPeriodController = asyncHandle(
       actorId: authUser.id,
     });
     if (typeof result === "string") return errorHandle(result, reply, 400);
+    resolvePayRateRemindersInBackground(semesterId);
     return successHandle(
       { message: "Remuneration schedule updated.", periods: result },
-      reply,
-      200,
-    );
-  },
-);
-
-export const updateSemesterUserAssignmentsController = asyncHandle(
-  async (request: FastifyRequest, reply: FastifyReply) => {
-    const authUser = request.user;
-    if (!authUser || authUser.role !== Role.ADMIN) {
-      return errorHandle("Only admins can update semester roles.", reply, 403);
-    }
-    const { userId } = request.params as { userId?: string };
-    const body = (request.body ?? {}) as Record<string, unknown>;
-    const projectId = typeof body.projectId === "string" ? body.projectId.trim() : "";
-    const centerId = typeof body.centerId === "string" ? body.centerId.trim() : "";
-    const semesterId = typeof body.semesterId === "string" ? body.semesterId.trim() : "";
-    if (!userId || !projectId || !centerId || !semesterId || !Array.isArray(body.assignments)) {
-      return errorHandle("User, project, center, semester, and roles are required.", reply, 400);
-    }
-    const assignments: Array<{
-      subRole: SubRole;
-      semesterLevelId?: string;
-      committedDays?: CommittedDays;
-    }> = [];
-    for (const raw of body.assignments) {
-      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-        return errorHandle("Every semester role must be valid.", reply, 400);
-      }
-      const value = raw as Record<string, unknown>;
-      if (
-        Object.keys(value).some(
-          (key) => !["subRole", "semesterLevelId", "committedDays"].includes(key),
-        ) ||
-        typeof value.subRole !== "string" ||
-        !Object.values(SubRole).includes(value.subRole as SubRole)
-      ) {
-        return errorHandle("Every semester role must be valid.", reply, 400);
-      }
-      const subRole = value.subRole as SubRole;
-      const semesterLevelId =
-        typeof value.semesterLevelId === "string" && value.semesterLevelId
-          ? value.semesterLevelId
-          : undefined;
-      const committedDays =
-        typeof value.committedDays === "string" &&
-        Object.values(CommittedDays).includes(value.committedDays as CommittedDays)
-          ? (value.committedDays as CommittedDays)
-          : undefined;
-      if (semesterLevelId && subRole !== SubRole.EDUCATOR) {
-        return errorHandle("Only educators can have a semester level.", reply, 400);
-      }
-      assignments.push({ subRole, semesterLevelId, committedDays });
-    }
-    const result = await updateSemesterUserAssignments({
-      userId,
-      projectId,
-      centerId,
-      semesterId,
-      assignments,
-    });
-    if (result instanceof AcademicLevelServiceError) {
-      return errorHandle(result.message, reply, result.statusCode);
-    }
-    if (typeof result === "string") return errorHandle(result, reply, 400);
-    return successHandle(
-      { message: "Semester roles updated.", assignments: result },
       reply,
       200,
     );

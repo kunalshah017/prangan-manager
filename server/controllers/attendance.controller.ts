@@ -5,6 +5,7 @@ import {
   markBulkAttendance,
   getAttendanceRecords,
 } from "../service/attendance.service.js";
+import { resolveAttendanceRemindersInBackground } from "../service/reminder.service.js";
 import {
   GetActiveUsersForAttendanceRequest,
   GetAttendanceRequest,
@@ -198,6 +199,9 @@ export const markBulkAttendanceController = async (
     }
 
     const result = await markBulkAttendance(bulkData, markedBy);
+    if (result.processedCount > 0) {
+      resolveAttendanceRemindersInBackground(bulkData.semesterId, bulkData.date);
+    }
 
     // Return appropriate status code based on results
     if (result.errors.length > 0 && result.processedCount === 0) {

@@ -42,9 +42,11 @@ describe("workspace page frame", () => {
 
     expect(frame).toContain("export function WorkspacePageHeader");
 
-    for (const source of [dashboard, students, studentForm]) {
+    for (const source of [students, studentForm]) {
       expect(source).toContain("<WorkspacePageHeader");
     }
+    // Redesigned pages put the title in the top bar directly.
+    expect(dashboard).toContain("<PageTitle");
 
     for (const source of [dashboard, students, createStudent, editStudent]) {
       expect(source).toContain("<WorkspacePage");

@@ -41,6 +41,7 @@ export const semesterSetupSummariesKey = (centerId: string) =>
 export const queryKeys = {
   // Auth related
   currentUser: ["user", "me"] as const,
+  notifications: ["notifications"] as const,
 
   // Projects
   projects: ["projects"] as const,

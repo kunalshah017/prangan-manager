@@ -67,3 +67,27 @@ export const validateImageFile = (file: File): string | null => {
 
   return null;
 };
+
+// Photos are uploaded full size (often 1–4 MB). For display, Cloudinary serves a
+// resized, compressed copy, but the account only allows transformations named
+// in advance ("strict transformations"). pm_display = c_limit,w_1200/f_auto/q_auto,
+// marked "allowed for strict transformations" in the Cloudinary console.
+const DISPLAY_TRANSFORMATION = "t_pm_display";
+const UPLOADED_IMAGE = /^https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/v\d+\//;
+let displayCopiesRefused = false;
+
+export const displayImageUrl = (url: string) =>
+  !displayCopiesRefused && UPLOADED_IMAGE.test(url)
+    ? url.replace("/image/upload/", `/image/upload/${DISPLAY_TRANSFORMATION}/`)
+    : url;
+
+// If the account refuses the copy (not set up yet), show originals from now on.
+export const refuseDisplayCopies = () => {
+  displayCopiesRefused = true;
+};
+
+export const fallBackToOriginal = (image: HTMLImageElement, original: string) => {
+  if (image.src === original) return;
+  refuseDisplayCopies();
+  image.src = original;
+};

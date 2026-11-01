@@ -11,7 +11,7 @@ import {
   Search,
   UserRound,
 } from "lucide-react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import ProtectedComponent from "@/components/ProtectedComponent";
 import { ProfilePicture } from "@/components/ui";
@@ -46,7 +46,9 @@ export default function Students() {
   const canReadStudents = can(user, "students.read", context);
   const studentQuery = useStudentsBySemester(semesterId || "", { enabled: canReadStudents });
   const semesterLevelsQuery = useSemesterLevels(semesterId || "");
-  const [view, setView] = useState<RosterView>("all");
+  // The "Complete student details" reminder links here with ?view=incomplete.
+  const [searchParams] = useSearchParams();
+  const [view, setView] = useState<RosterView>(searchParams.get("view") === "incomplete" ? "incomplete" : "all");
   const [levelFilter, setLevelFilter] = useState<LevelFilter>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearch = useDeferredValue(searchQuery.trim().toLocaleLowerCase());

@@ -1,353 +1,357 @@
-import { useState, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Maximize2, X, ChevronRight } from 'lucide-react';
-import type { Student } from '@/types/api';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type Ref } from "react";
+import { createPortal } from "react-dom";
+import { AnimatePresence, motion, useReducedMotion, type PanInfo } from "framer-motion";
+import { ChevronLeft, ChevronRight, Expand, Pause, Play, X } from "lucide-react";
+
+import { displayImageUrl, fallBackToOriginal, refuseDisplayCopies } from "@/lib/cloudinary";
+import type { Student } from "@/types/api";
 
 interface FutureProfessionCarouselProps {
     students: Student[];
     autoPlayInterval?: number;
 }
 
-const FutureProfessionCarousel = ({
-    students,
-    autoPlayInterval = 5000
-}: FutureProfessionCarouselProps) => {
-    const [currentIndex, setCurrentIndex] = useState(0);
-    const [isFullscreen, setIsFullscreen] = useState(false);
-    const [isAutoPlaying, setIsAutoPlaying] = useState(true);
-    const [showFuture, setShowFuture] = useState(false);
-    const [direction, setDirection] = useState(1);
+type ShowcaseStudent = Student & { profileImageUrl: string; futureProfessionImageUrl: string };
 
-    // Filter students who have both images
-    const studentsWithImages = students.filter(
-        (student) => student.profileImageUrl && student.futureProfessionImageUrl
+const SWIPE_DISTANCE = 60;
+// A slow photo never holds the carousel up for longer than this.
+const LOAD_WAIT_MS = 5000;
+
+const loadImage = (src: string) =>
+    new Promise<boolean>((resolve) => {
+        const image = new Image();
+        image.onload = () => resolve(true);
+        image.onerror = () => resolve(false);
+        image.src = src;
+    });
+
+// Each photo is downloaded once, before its slide shows, so slides never
+// appear half-drawn. A refused smaller copy falls back to the original.
+const loading = new Map<string, Promise<void>>();
+const preload = (original: string) => {
+    let pending = loading.get(original);
+    if (!pending) {
+        pending = loadImage(displayImageUrl(original)).then(async (loaded) => {
+            if (loaded) return;
+            refuseDisplayCopies();
+            await loadImage(original);
+        });
+        loading.set(original, pending);
+    }
+    return pending;
+};
+
+const photosOf = (student: ShowcaseStudent) => [student.futureProfessionImageUrl, student.profileImageUrl];
+const whenReady = (student: ShowcaseStudent) =>
+    Promise.race([
+        Promise.all(photosOf(student).map(preload)),
+        new Promise((resolve) => setTimeout(resolve, LOAD_WAIT_MS)),
+    ]);
+
+function Photo({ src, alt, className }: { src: string; alt: string; className?: string }) {
+    return (
+        <img
+            src={displayImageUrl(src)}
+            alt={alt}
+            className={className}
+            draggable={false}
+            decoding="async"
+            onError={(event) => fallBackToOriginal(event.currentTarget, src)}
+        />
+    );
+}
+
+function IconButton({
+    label,
+    onClick,
+    children,
+    tone = "card",
+    ref,
+}: {
+    label: string;
+    onClick: () => void;
+    children: ReactNode;
+    tone?: "card" | "dark";
+    ref?: Ref<HTMLButtonElement>;
+}) {
+    return (
+        <button
+            ref={ref}
+            type="button"
+            onClick={onClick}
+            aria-label={label}
+            className={
+                tone === "dark"
+                    ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    : "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            }
+        >
+            {children}
+        </button>
+    );
+}
+
+// Students today and as their future selves. The future portrait leads; today's
+// photo sits on it like a snapshot.
+const FutureProfessionCarousel = ({ students, autoPlayInterval = 6000 }: FutureProfessionCarouselProps) => {
+    const showcase = useMemo(
+        () => students.filter((student): student is ShowcaseStudent => Boolean(student.profileImageUrl && student.futureProfessionImageUrl)),
+        [students],
+    );
+    const reduceMotion = useReducedMotion();
+    const [position, setPosition] = useState(0);
+    // Moving pictures stop for people who asked for less motion; they can still play them.
+    const [playing, setPlaying] = useState(!reduceMotion);
+    const [held, setHeld] = useState(false);
+    const [enlarged, setEnlarged] = useState(false);
+    const enlargeButton = useRef<HTMLButtonElement>(null);
+    const count = showcase.length;
+    const index = count ? position % count : 0;
+    const current = showcase[index];
+
+    // Moves once the next student's photos are in, so nothing pops in late.
+    const latest = useRef(0);
+    const goTo = useCallback(
+        (target: number) => {
+            if (count === 0) return;
+            const next = (target + count) % count;
+            const request = ++latest.current;
+            void whenReady(showcase[next]).then(() => {
+                if (request === latest.current) setPosition(next);
+            });
+        },
+        [count, showcase],
     );
 
-    // Auto-play logic for compact mode
+    // The students either side load in the background.
     useEffect(() => {
-        if (!isFullscreen && isAutoPlaying && studentsWithImages.length > 0) {
-            const timer = setInterval(() => {
-                // Show future image first
-                if (!showFuture) {
-                    setShowFuture(true);
-                } else {
-                    // Then move to next student
-                    setShowFuture(false);
-                    setDirection(1);
-                    setCurrentIndex((prev) => (prev + 1) % studentsWithImages.length);
-                }
-            }, autoPlayInterval / 2); // Half interval for each image
+        if (count < 2) return;
+        for (const offset of [1, -1]) photosOf(showcase[(index + offset + count) % count]).forEach(preload);
+    }, [count, index, showcase]);
 
-            return () => clearInterval(timer);
-        }
-    }, [isFullscreen, isAutoPlaying, showFuture, studentsWithImages.length, autoPlayInterval]);
-
-    const handleNext = useCallback(() => {
-        setDirection(1);
-        setShowFuture(false);
-        setCurrentIndex((prev) => (prev + 1) % studentsWithImages.length);
-    }, [studentsWithImages.length]);
-
-    const handlePrevious = useCallback(() => {
-        setDirection(-1);
-        setShowFuture(false);
-        setCurrentIndex((prev) => (prev - 1 + studentsWithImages.length) % studentsWithImages.length);
-    }, [studentsWithImages.length]);
-
-    const toggleFullscreen = () => {
-        setIsFullscreen(!isFullscreen);
-        setShowFuture(false);
-        // Resume autoplay when exiting fullscreen
-        if (isFullscreen) {
-            setIsAutoPlaying(true);
-        }
-    };
-
-    // Keyboard navigation for fullscreen mode
     useEffect(() => {
-        if (!isFullscreen) return;
+        if (!playing || held || enlarged || count < 2) return;
+        const timer = setTimeout(() => goTo(index + 1), autoPlayInterval);
+        return () => clearTimeout(timer);
+    }, [autoPlayInterval, count, enlarged, goTo, held, index, playing]);
 
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'ArrowRight') {
-                handleNext();
-            } else if (e.key === 'ArrowLeft') {
-                handlePrevious();
-            } else if (e.key === 'Escape') {
-                setIsFullscreen(false);
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isFullscreen, handleNext, handlePrevious]);
-
-    if (studentsWithImages.length === 0) {
-        return (
-            <div className="rounded-xl border border-primary/30 bg-card/50 p-6 text-center backdrop-blur-sm">
-                <p className="text-muted-foreground">No student profession images available yet.</p>
-            </div>
-        );
-    } const currentStudent = studentsWithImages[currentIndex];
-
-    // Slide variants for animations
-    const slideVariants = {
-        enter: (direction: number) => ({
-            x: direction > 0 ? 1000 : -1000,
-            opacity: 0,
-            scale: 0.8,
-        }),
-        center: {
-            x: 0,
-            opacity: 1,
-            scale: 1,
-        },
-        exit: (direction: number) => ({
-            x: direction > 0 ? -1000 : 1000,
-            opacity: 0,
-            scale: 0.8,
-        }),
+    const swipe = (_event: unknown, info: PanInfo) => {
+        if (info.offset.x <= -SWIPE_DISTANCE) goTo(index + 1);
+        else if (info.offset.x >= SWIPE_DISTANCE) goTo(index - 1);
     };
 
-    // Flip animation for showing future image
-    const flipVariants = {
-        front: { rotateY: 0 },
-        back: { rotateY: 180 },
-    };
+    if (!current) return null;
+    const profession = current.futureProfession?.trim();
 
-    // Compact Mode
-    if (!isFullscreen) {
-        return (
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="relative overflow-hidden rounded-xl border border-primary/30 shadow-lg bg-gradient-to-br from-orange-900 via-amber-800 to-orange-900"
-            >
-                {/* Fullscreen Button - Top Right */}
-                <button
-                    onClick={toggleFullscreen}
-                    className="absolute top-4 right-4 z-20 rounded-full bg-card/80 hover:bg-card p-2 shadow-md transition-all hover:scale-110 hover:shadow-lg backdrop-blur-sm"
-                    aria-label="Enter fullscreen"
-                >
-                    <Maximize2 className="h-4 w-4 text-primary" />
-                </button>
-
-                {/* Compact Carousel */}
-                <div className="relative h-[380px] sm:h-[950px]">
-                    <AnimatePresence initial={false} custom={direction} mode="wait">
-                        <motion.div
-                            key={currentIndex}
-                            custom={direction}
-                            variants={slideVariants}
-                            initial="enter"
-                            animate="center"
-                            exit="exit"
-                            transition={{
-                                x: { type: 'spring', stiffness: 300, damping: 30 },
-                                opacity: { duration: 0.2 },
-                            }}
-                            className="absolute inset-0"
-                        >
-                            {/* Full-size Image with Flip Animation */}
-                            <motion.div
-                                className="relative h-full w-full"
-                                style={{ perspective: 1000 }}
-                                animate={showFuture ? 'back' : 'front'}
-                                variants={flipVariants}
-                                transition={{ duration: 0.6 }}
-                            >
-                                <img
-                                    src={
-                                        showFuture
-                                            ? currentStudent.futureProfessionImageUrl!
-                                            : currentStudent.profileImageUrl!
-                                    }
-                                    alt={currentStudent.name}
-                                    className="h-full w-full object-cover rounded-xl"
-                                />
-                            </motion.div>
-
-                            {/* Bottom Overlay with Student Info - Outside flip animation */}
-                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent pt-16 pb-7 px-4 rounded-b-xl z-10">
-                                <motion.div
-                                    key={`${currentIndex}-${showFuture}`}
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ duration: 0.3 }}
-                                    className="text-center"
-                                >
-                                    <h4 className="mb-2 text-lg sm:text-xl font-bold text-white drop-shadow-lg">
-                                        {currentStudent.name}
-                                    </h4>
-                                    <div className="inline-block rounded-full bg-orange-600 px-3 sm:px-4 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold text-white shadow-lg">
-                                        {showFuture ? `Future ${currentStudent.futureProfession}` : 'Today'}
-                                    </div>
-                                </motion.div>
-                            </div>
-                        </motion.div>
-                    </AnimatePresence>
-                </div>
-
-                {/* Progress Indicator */}
-                <div className="absolute bottom-2 left-0 right-0 flex gap-1 px-4 z-10">
-                    {studentsWithImages.map((_, index) => (
-                        <motion.div
-                            key={index}
-                            className={`h-1 flex-1 rounded-full ${index === currentIndex ? 'bg-card' : 'bg-card/30'
-                                }`}
-                            initial={false}
-                            animate={{
-                                scale: index === currentIndex ? 1.2 : 1,
-                            }}
-                            transition={{ duration: 0.2 }}
-                        />
-                    ))}
-                </div>
-            </motion.div>
-        );
-    }
-
-    // Fullscreen Mode - Render using portal to ensure it's above everything
-    const nextStudent = studentsWithImages[(currentIndex + 1) % studentsWithImages.length];
-    const previousStudent = studentsWithImages[(currentIndex - 1 + studentsWithImages.length) % studentsWithImages.length];
-
-    return createPortal(
-        <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[99999] flex items-center justify-center bg-gradient-to-br from-orange-900 via-amber-800 to-orange-900"
-            style={{ zIndex: 99999 }}
+    return (
+        <section
+            aria-roledescription="carousel"
+            aria-label="Future professions"
+            className="overflow-hidden rounded-xl border border-border bg-card"
+            onMouseEnter={() => setHeld(true)}
+            onMouseLeave={() => setHeld(false)}
+            onFocus={() => setHeld(true)}
+            onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) setHeld(false);
+            }}
         >
-            {/* Close Button - Top Right */}
-            <button
-                onClick={toggleFullscreen}
-                className="absolute top-4 right-4 z-50 rounded-full bg-red-500/80 hover:bg-red-600/90 p-2 sm:p-3 backdrop-blur-sm transition-all hover:scale-110"
-                aria-label="Exit fullscreen"
-            >
-                <X className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-            </button>
-
-            {/* Image Counter - Top Left (subtle) */}
-            <div className="absolute top-4 left-4 z-50 rounded-full bg-black/30 px-3 py-1 backdrop-blur-sm">
-                <span className="text-xs text-white/70">
-                    {currentIndex + 1} / {studentsWithImages.length}
-                </span>
+            <div className="relative aspect-[4/5] overflow-hidden bg-muted" aria-live={playing && !held ? "off" : "polite"}>
+                <AnimatePresence initial={false}>
+                    <motion.figure
+                        key={current.id}
+                        aria-roledescription="slide"
+                        aria-label={`${index + 1} of ${count}`}
+                        className="absolute inset-0 m-0 cursor-zoom-in touch-pan-y"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: reduceMotion ? 0 : 0.5, ease: "easeOut" }}
+                        drag={count > 1 ? "x" : false}
+                        dragConstraints={{ left: 0, right: 0 }}
+                        dragElastic={0.2}
+                        onDragEnd={swipe}
+                        onTap={() => setEnlarged(true)}
+                    >
+                        <Photo
+                            src={current.futureProfessionImageUrl}
+                            alt={profession ? `${current.name} as a future ${profession}` : `${current.name} in the future`}
+                            className="h-full w-full object-cover"
+                        />
+                        <figcaption className="absolute inset-x-0 bottom-0 flex items-end gap-3 bg-gradient-to-t from-black/85 via-black/50 to-transparent px-4 pb-4 pt-24">
+                            <Photo
+                                src={current.profileImageUrl}
+                                alt={`${current.name} today`}
+                                className="h-[5.5rem] w-[4.5rem] shrink-0 -rotate-3 rounded-md border-[3px] border-white object-cover shadow-xl"
+                            />
+                            <div className="min-w-0 pb-1">
+                                <p className="truncate text-lg font-semibold leading-snug text-white">{current.name}</p>
+                                {profession && <p className="truncate text-base font-semibold text-primary">Future {profession}</p>}
+                            </div>
+                        </figcaption>
+                    </motion.figure>
+                </AnimatePresence>
             </div>
 
-            {/* Previous Button - Left Side */}
-            {studentsWithImages.length > 1 && (
-                <button
-                    onClick={handlePrevious}
-                    className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-50 group"
-                    aria-label="Previous student"
-                >
-                    <div className="flex flex-col items-center gap-2">
-                        <div className="rounded-full bg-black p-2 sm:p-3 backdrop-blur-sm transition-all hover:bg-card/30 hover:scale-110">
-                            <ChevronRight className="h-6 w-6 sm:h-8 sm:w-8 rotate-180 text-white" />
-                        </div>
-                        <div className="hidden sm:block rounded-lg bg-black/60 backdrop-blur-sm px-3 py-1.5 max-w-[120px]">
-                            <p className="text-xs text-white/90 text-center truncate">{previousStudent.name}</p>
-                        </div>
-                    </div>
-                </button>
-            )}
+            <div className="flex items-center gap-1 px-2 py-1.5">
+                {count > 1 && (
+                    <>
+                        <IconButton label="Previous student" onClick={() => goTo(index - 1)}>
+                            <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+                        </IconButton>
+                        <IconButton label="Next student" onClick={() => goTo(index + 1)}>
+                            <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                        </IconButton>
+                    </>
+                )}
+                <p className="min-w-0 flex-1 px-1 text-sm tabular-nums text-muted-foreground">
+                    {count > 1 && `${index + 1} of ${count}`}
+                </p>
+                {count > 1 && (
+                    <IconButton label={playing ? "Pause slideshow" : "Play slideshow"} onClick={() => setPlaying((value) => !value)}>
+                        {playing ? <Pause className="h-5 w-5" aria-hidden="true" /> : <Play className="h-5 w-5" aria-hidden="true" />}
+                    </IconButton>
+                )}
+                <IconButton ref={enlargeButton} label="View larger" onClick={() => setEnlarged(true)}>
+                    <Expand className="h-5 w-5" aria-hidden="true" />
+                </IconButton>
+            </div>
 
-            {/* Next Button - Right Side */}
-            {studentsWithImages.length > 1 && (
-                <button
-                    onClick={handleNext}
-                    className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-50 group"
-                    aria-label="Next student"
-                >
-                    <div className="flex flex-col items-center gap-2">
-                        <div className="rounded-full bg-black p-2 sm:p-3 backdrop-blur-sm transition-all hover:bg-card/30 hover:scale-110">
-                            <ChevronRight className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
-                        </div>
-                        <div className="hidden sm:block rounded-lg bg-black/60 backdrop-blur-sm px-3 py-1.5 max-w-[120px]">
-                            <p className="text-xs text-white/90 text-center truncate">{nextStudent.name}</p>
-                        </div>
-                    </div>
-                </button>
-            )}
-
-            <AnimatePresence initial={false} custom={direction} mode="wait">
-                <motion.div
-                    key={currentIndex}
-                    custom={direction}
-                    variants={slideVariants}
-                    initial="enter"
-                    animate="center"
-                    exit="exit"
-                    transition={{
-                        x: { type: 'spring', stiffness: 200, damping: 25 },
-                        opacity: { duration: 0.3 },
+            {enlarged && (
+                <EnlargedView
+                    student={current}
+                    position={`${index + 1} of ${count}`}
+                    onPrevious={count > 1 ? () => goTo(index - 1) : undefined}
+                    onNext={count > 1 ? () => goTo(index + 1) : undefined}
+                    onClose={() => {
+                        setEnlarged(false);
+                        // Back to where the large view was opened from (a tap on the photo too).
+                        enlargeButton.current?.focus();
                     }}
-                    className="relative h-full w-full flex items-center justify-center"
-                >
-                    {/* Images Container - Responsive Layout */}
-                    <div className="flex flex-col sm:flex-row h-full w-full items-center justify-center">
-                        {/* Current Image - Top on mobile, Left on desktop */}
-                        <motion.div
-                            initial={{ opacity: 0, x: -50 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: 0.2 }}
-                            className="relative h-1/2 sm:h-full w-full sm:w-1/2"
-                        >
-                            <img
-                                src={currentStudent.profileImageUrl!}
-                                alt={`${currentStudent.name} - Current`}
-                                className="h-full w-full object-cover"
-                            />
-                            {/* Label Overlay - Bottom Center */}
-                            <div className="absolute bottom-6 sm:bottom-12 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-sm px-3 sm:px-6 py-1.5 sm:py-3 rounded-full z-10">
-                                <p className="text-white text-xs md:text-base lg:text-lg font-semibold">Today</p>
-                            </div>
-                        </motion.div>
-
-                        {/* Future Image - Bottom on mobile, Right on desktop */}
-                        <motion.div
-                            initial={{ opacity: 0, x: 50 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: 0.3 }}
-                            className="relative h-1/2 sm:h-full w-full sm:w-1/2"
-                        >
-                            <img
-                                src={currentStudent.futureProfessionImageUrl!}
-                                alt={`${currentStudent.name} - Future`}
-                                className="h-full w-full object-cover"
-                            />
-                            {/* Label Overlay - Bottom Center (higher on mobile to avoid overlap) */}
-                            <div className="absolute bottom-24 sm:bottom-12 left-1/2 -translate-x-1/2 bg-orange-600/90 backdrop-blur-sm px-3 sm:px-6 py-1.5 sm:py-3 rounded-full z-10">
-                                <p className="text-white text-xs md:text-base lg:text-lg font-semibold">Future {currentStudent.futureProfession}</p>
-                            </div>
-                        </motion.div>
-                    </div>
-
-                    {/* Bottom Overlay - Student Info */}
-                    <motion.div
-                        initial={{ opacity: 0, y: 50 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.4 }}
-                        className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent pt-12 md:pt-20 pb-3 md:pb-6 px-4 md:px-6"
-                    >
-                        {/* Student Name & Profession */}
-                        <div className="text-center">
-                            <h2 className="text-lg md:text-3xl lg:text-4xl xl:text-5xl font-bold text-white mb-1 md:mb-2 drop-shadow-lg">
-                                {currentStudent.name}
-                            </h2>
-                            <div className="inline-block bg-orange-600 px-2.5 md:px-6 py-0.5 md:py-2 rounded-full shadow-lg">
-                                <p className="text-xs md:text-lg lg:text-xl font-semibold text-white">
-                                    {currentStudent.futureProfession}
-                                </p>
-                            </div>
-                        </div>
-                    </motion.div>
-                </motion.div>
-            </AnimatePresence>
-        </motion.div>,
-        document.body
+                    reduceMotion={Boolean(reduceMotion)}
+                />
+            )}
+        </section>
     );
 };
+
+// Both photos as large as the screen allows: today above the future on phones,
+// side by side on wider screens.
+function EnlargedView({
+    student,
+    position,
+    onPrevious,
+    onNext,
+    onClose,
+    reduceMotion,
+}: {
+    student: ShowcaseStudent;
+    position: string;
+    onPrevious?: () => void;
+    onNext?: () => void;
+    onClose: () => void;
+    reduceMotion: boolean;
+}) {
+    const dialogRef = useRef<HTMLDivElement>(null);
+    const profession = student.futureProfession?.trim();
+    const future = profession ? `Future ${profession}` : "In the future";
+
+    // Focus moves in and the page behind stops scrolling.
+    useEffect(() => {
+        dialogRef.current?.querySelector<HTMLElement>("button")?.focus();
+        const overflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        return () => {
+            document.body.style.overflow = overflow;
+        };
+    }, []);
+
+    const onKeyDown = (event: ReactKeyboardEvent) => {
+        if (event.key === "Escape") onClose();
+        else if (event.key === "ArrowRight") onNext?.();
+        else if (event.key === "ArrowLeft") onPrevious?.();
+        else if (event.key === "Tab") {
+            // Keep focus inside the dialog.
+            const buttons = [...(dialogRef.current?.querySelectorAll<HTMLElement>("button") ?? [])];
+            const first = buttons[0];
+            const last = buttons.at(-1);
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last?.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first?.focus();
+            }
+        }
+    };
+
+    return createPortal(
+        <div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="future-profession-name"
+            onKeyDown={onKeyDown}
+            className="fixed inset-0 z-[100] flex flex-col bg-black text-white"
+        >
+            <header className="flex items-start gap-3 px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))] sm:px-8">
+                <div className="min-w-0 flex-1">
+                    <h2 id="future-profession-name" className="truncate text-xl font-semibold sm:text-3xl">
+                        {student.name}
+                    </h2>
+                    <p className="text-base font-semibold text-primary sm:text-lg">{future}</p>
+                </div>
+                <IconButton label="Close" onClick={onClose} tone="dark">
+                    <X className="h-5 w-5" aria-hidden="true" />
+                </IconButton>
+            </header>
+
+            <motion.div
+                key={student.id}
+                className="grid min-h-0 flex-1 grid-cols-1 content-center gap-3 px-4 sm:grid-cols-2 sm:gap-8 sm:px-8"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: reduceMotion ? 0 : 0.4 }}
+                drag={onNext ? "x" : false}
+                dragConstraints={{ left: 0, right: 0 }}
+                dragElastic={0.2}
+                onDragEnd={(_event, info) => {
+                    if (info.offset.x <= -SWIPE_DISTANCE) onNext?.();
+                    else if (info.offset.x >= SWIPE_DISTANCE) onPrevious?.();
+                }}
+            >
+                {[
+                    { src: student.profileImageUrl, caption: "Today", alt: `${student.name} today` },
+                    { src: student.futureProfessionImageUrl, caption: future, alt: `${student.name}, ${future.toLowerCase()}` },
+                ].map((photo) => (
+                    <figure key={photo.caption} className="m-0 flex min-w-0 flex-col items-center gap-2 justify-self-center">
+                        <Photo
+                            src={photo.src}
+                            alt={photo.alt}
+                            className="aspect-[4/5] w-full max-w-[calc((100dvh-15rem)*0.4)] rounded-xl object-cover sm:max-w-[calc(70dvh*0.8)]"
+                        />
+                        <figcaption className="text-sm text-white/75 sm:text-base">{photo.caption}</figcaption>
+                    </figure>
+                ))}
+            </motion.div>
+
+            <footer className="flex items-center justify-center gap-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+                {onPrevious && (
+                    <IconButton label="Previous student" onClick={onPrevious} tone="dark">
+                        <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+                    </IconButton>
+                )}
+                <p className="min-w-[5rem] text-center text-sm tabular-nums text-white/75" aria-live="polite">
+                    {position}
+                </p>
+                {onNext && (
+                    <IconButton label="Next student" onClick={onNext} tone="dark">
+                        <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                    </IconButton>
+                )}
+            </footer>
+        </div>,
+        document.body,
+    );
+}
 
 export default FutureProfessionCarousel;

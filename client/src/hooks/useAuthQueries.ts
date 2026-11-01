@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import { markNotificationPromptDue, unsubscribeDevice } from "@/lib/push";
 import { queryKeys } from "@/lib/query-client";
 import {
   establishAuthenticatedSession,
@@ -30,6 +31,7 @@ export const useLogin = () => {
         queryClient,
         setAuth: useAuthStore.getState().setAuth,
       });
+      markNotificationPromptDue();
     },
     onError: () => {
       useAuthStore.getState().clearAuth();
@@ -72,6 +74,8 @@ export const useLogout = () => {
       // Clear this device even if the server can't be reached: on a shared
       // phone the next person must not open the app as this user.
       try {
+        // While still signed in, so the server forgets this device's pushes.
+        await unsubscribeDevice().catch(() => undefined);
         await api.post("/users/logout");
       } finally {
         useAuthStore.getState().clearAuth();

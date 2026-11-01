@@ -34,7 +34,6 @@ const CreateSemester = lazy(() => import('./pages/semesters/CreateSemester'))
 const EditSemester = lazy(() => import('./pages/semesters/EditSemester'))
 const SemesterSetup = lazy(() => import('./pages/semesters/SemesterSetup'))
 const Dashboard = lazy(() => import('./pages/semesters/Dashboard'))
-const SemesterUsers = lazy(() => import('./pages/semesters/SemesterUsers'))
 const Students = lazy(() => import('./pages/students/Students'))
 const CreateStudent = lazy(() => import('./pages/students/CreateStudent'))
 const EditStudent = lazy(() => import('./pages/students/EditStudent'))
@@ -58,6 +57,7 @@ const EditUser = lazy(() => import('./pages/users/EditUser'))
 const ReviewRegistration = lazy(() => import('./pages/users/ReviewRegistration'))
 const Profile = lazy(() => import('./pages/Profile'))
 const Settings = lazy(() => import('./pages/Settings'))
+const Notifications = lazy(() => import('./pages/Notifications'))
 const Library = lazy(() => import('./pages/library/Library'))
 const BookReader = lazy(() => import('./pages/library/BookReader'))
 const AcademicLevels = lazy(() => import('./pages/levels/AcademicLevels'))
@@ -251,14 +251,6 @@ function App() {
                   }
                 />
                 <Route
-                  path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/users"
-                  element={
-                    <ProtectedRoute requireAdmin>
-                      <SemesterUsers />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
                   path=":projectId/centers/:centerId/semesters/:semesterId/dashboard/students/new"
                   element={
                     <ProtectedRoute permission="students.manage">
@@ -411,6 +403,17 @@ function App() {
               </Route>
 
               <Route
+                path="/notifications"
+                element={
+                  <ProtectedRoute standaloneDenied>
+                    <Layout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<Notifications />} />
+              </Route>
+
+              <Route
                 path="/academic-levels"
                 element={
                   <ProtectedRoute requireAdmin standaloneDenied>
@@ -444,6 +447,7 @@ function App() {
                 <Route path=":userId/details" element={<UserDetails />} />
                 <Route path=":userId/edit" element={<EditUser />} />
                 <Route path=":userId/review" element={<ReviewRegistration />} />
+                <Route path=":userId/restore" element={<ReviewRegistration mode="restore" />} />
               </Route>
 
               <Route
