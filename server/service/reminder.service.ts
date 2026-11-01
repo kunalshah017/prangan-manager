@@ -2,7 +2,13 @@ import { indiaToday } from "../lib/role-assignments.js";
 import { prisma } from "../lib/prisma.js";
 import { calendarDate } from "../utils/dateHelpers.js";
 import { getRelevantCommittedDays } from "./attendance.service.js";
-import { notifyUsers, registrationKey, registrationRequestMessage } from "./notification.service.js";
+import {
+  notifyUsers,
+  registrationKey,
+  registrationRequestMessage,
+  sendPush,
+  type NotificationMessage,
+} from "./notification.service.js";
 
 // Hour in India when whatever is still unmarked gets a reminder:
 // Saturday evening, Sunday morning.
@@ -11,13 +17,20 @@ const KEEP_NOTIFICATIONS_DAYS = 60;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const INDIA_OFFSET_MS = 330 * 60 * 1000;
 
-// The reminder due at this moment, if any. Pure clock arithmetic: no database,
-// so the 5-minute uptime ping that calls this never wakes Neon.
-export const dueReminderKey = (now: Date = new Date()): string | null => {
+// Every day at 10 in India, people with to-dos still open get a reminder.
+const DIGEST_HOUR_IN_INDIA = 10;
+
+// The runs due at this moment, in order. Pure clock arithmetic: no database,
+// so the 5-minute uptime ping that calls this never wakes Neon. On Sunday the
+// daily reminder goes first, so it doesn't repeat that day's new attendance to-do.
+export const dueReminderKeys = (now: Date = new Date()): string[] => {
   const india = new Date(now.getTime() + INDIA_OFFSET_MS);
+  const day = india.toISOString().slice(0, 10);
+  const keys: string[] = [];
+  if (india.getUTCHours() >= DIGEST_HOUR_IN_INDIA) keys.push(`digest:${day}`);
   const hour = REMINDER_HOUR_IN_INDIA[india.getUTCDay()];
-  if (hour === undefined || india.getUTCHours() < hour) return null;
-  return `reminders:${india.toISOString().slice(0, 10)}`;
+  if (hour !== undefined && india.getUTCHours() >= hour) keys.push(`reminders:${day}`);
+  return keys;
 };
 
 // A day's reminders disappear at midnight in India.
@@ -380,8 +393,7 @@ export const sendStudentDetailsReminders = async (day: string) => {
         kind: "TASK",
         key: detailsKey(semester.id),
         expiresAt,
-      },
-    );
+      });
   }
 };
 
@@ -449,10 +461,12 @@ export const sendExamScoreReminders = async (day: string) => {
   await prisma.notification.deleteMany({ where: { key: { in: exams.map((exam) => examKey(exam.id)) } } });
   const managers = await managersBySemester(exams.map((exam) => exam.semesterId));
   const expiresAt = untilNextWeek(day);
+  const examsByManager = new Map<string, number>();
 
   for (const exam of exams) {
     const count = await studentsWithoutScores(exam);
     if (count === 0) continue;
+    for (const manager of managers(exam.semesterId)) examsByManager.set(manager, (examsByManager.get(manager) ?? 0) + 1);
     await notifyUsers(managers(exam.semesterId), {
       title: "Enter exam scores",
       body: examBody(exam, count),
@@ -461,6 +475,15 @@ export const sendExamScoreReminders = async (day: string) => {
       kind: "TASK",
       key: examKey(exam.id),
       expiresAt,
+    }, { push: false });
+  }
+  // One phone notification per centre manager, however many exams: each is listed in the app.
+  for (const [manager, examCount] of examsByManager) {
+    await sendPush([manager], {
+      title: "Enter exam scores",
+      body: `${plural(examCount, "exam has", "exams have")} students without scores.`,
+      href: "/notifications",
+      key: "exam-scores",
     });
   }
 };
@@ -515,9 +538,11 @@ export const sendPayRateReminders = async (day: string) => {
   if (semesters.length === 0) return;
   const admins = await prisma.user.findMany({ where: { role: "ADMIN", status: "APPROVED" }, select: { id: true } });
   const expiresAt = untilNextWeek(day);
+  let missing = 0;
 
   for (const semester of semesters) {
     for (const person of await peopleWithoutRates(semester.id)) {
+      missing += 1;
       await notifyUsers(
         admins.map((admin) => admin.id),
         {
@@ -529,9 +554,20 @@ export const sendPayRateReminders = async (day: string) => {
           kind: "TASK",
           key: payRateKey(semester.id, person.userId),
           expiresAt,
-        },
-      );
+        }, { push: false });
     }
+  }
+  // One phone notification per admin, however many people: each is listed in the app.
+  if (missing > 0) {
+    await sendPush(
+      admins.map((admin) => admin.id),
+      {
+        title: "Pay rates missing",
+        body: `${plural(missing, "person has", "people have")} no pay rate.`,
+        href: "/notifications",
+        key: "pay-rates",
+      },
+    );
   }
 };
 
@@ -747,6 +783,63 @@ export const sendRegistrationReminders = async () => {
   }
 };
 
+// The daily reminder: an update (it can be dismissed) for each person with
+// to-dos still open, listing them, sent to their phone too. Yesterday's is
+// replaced, and nobody with nothing open gets one. Bank details count too: the
+// app works that to-do out from the profile, so it is worked out here the same way.
+const BANK_FIELDS = ["bankAccountNumber", "bankAccountName", "bankIfsc", "bankName", "bankBranch", "upiId"] as const;
+export const TODO_REMINDER_KEY = "todo-reminder";
+
+export const buildTodoReminders = (openTodos: Array<{ userId: string; title: string }>, missingBankDetails: string[]) => {
+  const titlesByUser = new Map<string, string[]>();
+  for (const { userId, title } of openTodos) titlesByUser.set(userId, [...(titlesByUser.get(userId) ?? []), title]);
+  for (const userId of missingBankDetails) titlesByUser.set(userId, [...(titlesByUser.get(userId) ?? []), "Add your bank details"]);
+
+  return new Map(
+    [...titlesByUser].map(([userId, titles]) => {
+      const counts = new Map<string, number>();
+      for (const title of titles) counts.set(title, (counts.get(title) ?? 0) + 1);
+      const list = [...counts].map(([title, count]) => (count > 1 ? `${title} (${count})` : title));
+      return [
+        userId,
+        {
+          title: titles.length === 1 ? "You have a pending to-do" : `You have ${titles.length} pending to-dos`,
+          body: listNames(list),
+          href: "/notifications",
+          kind: "UPDATE" as const,
+          key: TODO_REMINDER_KEY,
+        },
+      ] as const;
+    }),
+  );
+};
+
+export const sendTodoReminders = async (now: Date = new Date()) => {
+  const [openTodos, payees] = await Promise.all([
+    prisma.notification.findMany({
+      where: { kind: "TASK", OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+      select: { userId: true, title: true },
+    }),
+    prisma.user.findMany({
+      where: {
+        status: "APPROVED",
+        roleAssignments: { some: { isActive: true, subRole: { in: ["EDUCATOR", "CENTER_MANAGER"] } } },
+        OR: BANK_FIELDS.map((field) => ({ OR: [{ [field]: null }, { [field]: "" }] })),
+      },
+      select: { id: true },
+    }),
+  ]);
+  await prisma.notification.deleteMany({ where: { key: TODO_REMINDER_KEY } });
+  // People with the same list share one write.
+  const usersByMessage = new Map<string, { userIds: string[]; message: NotificationMessage }>();
+  for (const [userId, message] of buildTodoReminders(openTodos, payees.map((payee) => payee.id))) {
+    const group = usersByMessage.get(message.title + message.body) ?? { userIds: [] as string[], message };
+    group.userIds.push(userId);
+    usersByMessage.set(message.title + message.body, group);
+  }
+  for (const { userIds, message } of usersByMessage.values()) await notifyUsers(userIds, message);
+};
+
 // Housekeeping rides on the weekend reminder run, so it adds no database
 // wake-ups. Dismissed updates and finished to-dos are deleted straight away;
 // this clears expired to-dos, updates older than KEEP_NOTIFICATIONS_DAYS, and
@@ -759,37 +852,47 @@ export const cleanUpNotifications = async (now: Date) => {
   await prisma.reminderRun.deleteMany({ where: { createdAt: { lt: cutoff } } });
 };
 
-let handledKey: string | null = null;
+const handledKeys = new Set<string>();
 let running = false;
 
-// Called on every /health ping. Sends each day's reminders once: the
-// ReminderRun row stops a repeat after a restart.
+const runWeekendReminders = async (day: string, now: Date) => {
+  const senders =
+    calendarDate(day).getUTCDay() === 6
+      ? [sendAttendanceReminders, sendCurriculumReminders, sendExamScoreReminders, sendPayRateReminders, sendBirthdayReminders, sendRegistrationReminders]
+      : [sendAttendanceReminders, sendStudentDetailsReminders, sendMissedClassReminders, sendRegistrationReminders];
+  // Each runs on its own: one failing doesn't stop the rest.
+  for (const send of senders) {
+    try {
+      await send(day);
+    } catch (error) {
+      console.error(`${send.name} failed:`, (error as Error).message);
+    }
+  }
+  await cleanUpNotifications(now);
+};
+
+// Called on every /health ping. Each run (the daily to-do reminder, the weekend
+// reminders) happens once a day: the ReminderRun row stops a repeat after a restart.
 export const runDueReminders = async (now: Date = new Date()) => {
-  const key = dueReminderKey(now);
-  if (!key || key === handledKey || running) return;
+  if (running) return;
+  const keys = dueReminderKeys(now).filter((key) => !handledKeys.has(key));
+  if (keys.length === 0) return;
   running = true;
-  // One attempt per day: retrying a failure on every ping would keep Neon awake.
-  handledKey = key;
   try {
-    const claimed = await prisma.reminderRun.createMany({ data: [{ key }], skipDuplicates: true });
-    if (claimed.count === 0) return;
-    // shortcut: a failed run skips that day's reminders; add a retry if it happens in practice.
-    const day = key.slice("reminders:".length);
-    const senders =
-      calendarDate(day).getUTCDay() === 6
-        ? [sendAttendanceReminders, sendCurriculumReminders, sendExamScoreReminders, sendPayRateReminders, sendBirthdayReminders, sendRegistrationReminders]
-        : [sendAttendanceReminders, sendStudentDetailsReminders, sendMissedClassReminders, sendRegistrationReminders];
-    // Each runs on its own: one failing doesn't stop the rest.
-    for (const send of senders) {
+    for (const key of keys) {
+      // One attempt per run: retrying a failure on every ping would keep Neon awake.
+      handledKeys.add(key);
       try {
-        await send(day);
+        const claimed = await prisma.reminderRun.createMany({ data: [{ key }], skipDuplicates: true });
+        if (claimed.count === 0) continue;
+        // shortcut: a failed run is skipped for the day; add a retry if it happens in practice.
+        const [kind, day] = key.split(":");
+        if (kind === "digest") await sendTodoReminders(now);
+        else await runWeekendReminders(day, now);
       } catch (error) {
-        console.error(`${send.name} failed:`, (error as Error).message);
+        console.error("Reminders failed:", (error as Error).message);
       }
     }
-    await cleanUpNotifications(now);
-  } catch (error) {
-    console.error("Reminders failed:", (error as Error).message);
   } finally {
     running = false;
   }

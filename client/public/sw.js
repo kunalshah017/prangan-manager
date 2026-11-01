@@ -1,5 +1,5 @@
 // Service worker for PWA functionality with proper cache management
-const CACHE_VERSION = "v11";
+const CACHE_VERSION = "v12";
 const STATIC_CACHE = `prangan-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `prangan-runtime-${CACHE_VERSION}`;
 const PDF_CACHE = "prangan-pdfs-v3";
@@ -278,16 +278,33 @@ self.addEventListener("push", (event) => {
   );
 });
 
-// Tapping a notification opens its page: in the app if it is open, else a new window.
+// Tapping a notification opens its page. The open app is brought forward and
+// asked to move there itself (no reload). If nothing in it answers (signed out,
+// or a full-screen page without the menu), the window is sent to the page
+// directly; with no window open, a new one opens on it.
+const askAppToOpen = (client, href) =>
+  new Promise((resolve) => {
+    const channel = new MessageChannel();
+    const timer = setTimeout(() => resolve(false), 1500);
+    channel.port1.onmessage = () => {
+      clearTimeout(timer);
+      resolve(true);
+    };
+    client.postMessage({ type: "notification-open", href }, [channel.port2]);
+  });
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const href = event.notification.data?.href || "/";
+  const url = new URL(href, location.origin).href;
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
-      const open = windows.find((client) => client.url.startsWith(location.origin));
-      if (!open) return self.clients.openWindow(href);
-      open.postMessage({ type: "notification-open", href });
-      return open.focus();
-    }),
+    (async () => {
+      const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const app = windows.find((client) => client.url.startsWith(location.origin));
+      if (!app) return self.clients.openWindow(url);
+      const focused = (await app.focus().catch(() => null)) || app;
+      if (await askAppToOpen(focused, href)) return undefined;
+      return focused.navigate ? focused.navigate(url).catch(() => self.clients.openWindow(url)) : self.clients.openWindow(url);
+    })(),
   );
 });

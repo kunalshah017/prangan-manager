@@ -7,7 +7,9 @@ import { notifyRemunerationPaidInBackground } from "../../service/expense.servic
 import { notifyUsers, registrationRequestMessage } from "../../service/notification.service.js";
 import { dismissNotifications, newRoleMessage, parsePushSubscription } from "../../service/notification.service.js";
 import {
-  dueReminderKey,
+  dueReminderKeys,
+  buildTodoReminders,
+  sendTodoReminders,
   endOfIndiaDay,
   resolveAttendanceReminders,
   resolveCurriculumReminders,
@@ -93,17 +95,18 @@ test("a new role names its place; several roles are summed up", () => {
   assert.equal(newRoleMessage([]), null);
 });
 
-test("attendance reminders are due Saturday 6 pm and Sunday 10 am in India, and expire at midnight", () => {
+test("the daily to-do reminder is due at 10 am, weekend reminders Saturday 6 pm and Sunday 10 am", () => {
   // Saturday 31 Oct 2026; 12:30 UTC is 6 pm in India.
-  assert.equal(dueReminderKey(new Date("2026-10-31T12:30:00Z")), "reminders:2026-10-31");
-  assert.equal(dueReminderKey(new Date("2026-10-31T12:29:00Z")), null);
-  // Late Saturday UTC is already early Sunday in India: not due yet.
-  assert.equal(dueReminderKey(new Date("2026-10-31T20:00:00Z")), null);
-  // Sunday 1 Nov; 04:30 UTC is 10 am in India.
-  assert.equal(dueReminderKey(new Date("2026-11-01T04:30:00Z")), "reminders:2026-11-01");
-  assert.equal(dueReminderKey(new Date("2026-11-01T04:29:00Z")), null);
-  // Monday in India.
-  assert.equal(dueReminderKey(new Date("2026-11-02T08:00:00Z")), null);
+  assert.deepEqual(dueReminderKeys(new Date("2026-10-31T12:30:00Z")), ["digest:2026-10-31", "reminders:2026-10-31"]);
+  assert.deepEqual(dueReminderKeys(new Date("2026-10-31T12:29:00Z")), ["digest:2026-10-31"]);
+  // Late Saturday UTC is already early Sunday in India: nothing yet.
+  assert.deepEqual(dueReminderKeys(new Date("2026-10-31T20:00:00Z")), []);
+  // Sunday 1 Nov; 04:30 UTC is 10 am in India. The to-do reminder goes first.
+  assert.deepEqual(dueReminderKeys(new Date("2026-11-01T04:30:00Z")), ["digest:2026-11-01", "reminders:2026-11-01"]);
+  assert.deepEqual(dueReminderKeys(new Date("2026-11-01T04:29:00Z")), []);
+  // Monday in India: only the to-do reminder, from 10 am.
+  assert.deepEqual(dueReminderKeys(new Date("2026-11-02T04:29:00Z")), []);
+  assert.deepEqual(dueReminderKeys(new Date("2026-11-02T08:00:00Z")), ["digest:2026-11-02"]);
   // Midnight in India at the end of Saturday.
   assert.equal(endOfIndiaDay("2026-10-31").toISOString(), "2026-10-31T18:30:00.000Z");
 });
@@ -243,11 +246,11 @@ test("a day's reminders run once, and pings outside the window never touch the d
   };
 
   try {
-    await runDueReminders(new Date("2026-11-02T08:00:00Z")); // Monday: not due
+    await runDueReminders(new Date("2026-11-02T04:00:00Z")); // Monday 9:30 am: nothing due
     assert.equal(claims, 0);
-    await runDueReminders(new Date("2026-11-07T13:00:00Z")); // Saturday 6:30 pm: claim attempted
+    await runDueReminders(new Date("2026-11-07T13:00:00Z")); // Saturday 6:30 pm: to-do reminder and weekend run claimed
     await runDueReminders(new Date("2026-11-07T13:05:00Z")); // next ping: remembered
-    assert.equal(claims, 1);
+    assert.equal(claims, 2);
     assert.equal(semesterQueries, 0);
   } finally {
     db.reminderRun.createMany = originals.claim;
@@ -270,7 +273,7 @@ test("a failing reminder run is not retried on every ping", async () => {
     await runDueReminders(new Date("2026-11-14T13:00:00Z")); // Saturday 6:30 pm
     await runDueReminders(new Date("2026-11-14T13:05:00Z"));
     await runDueReminders(new Date("2026-11-14T13:10:00Z"));
-    assert.equal(attempts, 1);
+    assert.equal(attempts, 2); // once for each run due, never again that day
   } finally {
     db.reminderRun.createMany = original;
     console.error = originalError;
@@ -757,6 +760,59 @@ test("the weekend check adds missing sign-up to-dos and removes ones no longer w
       },
     ]);
     assert.deepEqual(sent.map((item) => [item.userId, item.body]), [["admin-1", "Neha Patil asked to join Prangan Manager."]]);
+  } finally {
+    restore();
+  }
+});
+
+test("the daily reminder is a dismissible update listing each person's open to-dos", () => {
+  const reminders = buildTodoReminders(
+    [
+      { userId: "manager", title: "Enter exam scores" },
+      { userId: "manager", title: "Enter exam scores" },
+      { userId: "manager", title: "Complete student details" },
+    ],
+    ["educator", "manager"],
+  );
+  assert.deepEqual(reminders.get("manager"), {
+    title: "You have 4 pending to-dos",
+    body: "Enter exam scores (2), Complete student details, Add your bank details",
+    href: "/notifications",
+    kind: "UPDATE",
+    key: "todo-reminder",
+  });
+  assert.equal(reminders.get("educator")?.title, "You have a pending to-do");
+  assert.equal(reminders.get("educator")?.body, "Add your bank details");
+});
+
+test("the daily reminder replaces yesterday's and only reaches people with something open", async () => {
+  const wheres: unknown[] = [];
+  const cleared: unknown[] = [];
+  const sent: Sent[] = [];
+  const now = new Date("2026-11-02T04:30:00Z");
+  const restore = stub({
+    "notification.findMany": async ({ where }: any) => {
+      wheres.push(where);
+      return where.kind === "TASK" ? [{ userId: "manager", title: "Enter exam scores" }] : [];
+    },
+    "user.findMany": async ({ where }: any) => {
+      wheres.push(where);
+      return [];
+    },
+    "notification.deleteMany": async (args: unknown) => {
+      cleared.push(args);
+      return { count: 1 };
+    },
+    "notification.createMany": capture(sent),
+  });
+  try {
+    await sendTodoReminders(now);
+    assert.deepEqual(wheres[0], { kind: "TASK", OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] });
+    const staff = wheres[1] as any;
+    assert.deepEqual(staff.roleAssignments, { some: { isActive: true, subRole: { in: ["EDUCATOR", "CENTER_MANAGER"] } } });
+    assert.equal(staff.OR.length, 6);
+    assert.deepEqual(cleared, [{ where: { key: "todo-reminder" } }]);
+    assert.deepEqual(sent.map((item) => [item.userId, item.title, item.kind]), [["manager", "You have a pending to-do", "UPDATE"]]);
   } finally {
     restore();
   }

@@ -106,7 +106,7 @@ export const dismissNotifications = (userId: string, id?: string) =>
   prisma.notification.deleteMany({ where: { userId, kind: "UPDATE", ...(id && { id }) } });
 
 // Push text shows on lock screens, so callers keep it free of personal details.
-const sendPush = async (userIds: string[], message: NotificationMessage) => {
+export const sendPush = async (userIds: string[], message: NotificationMessage) => {
   if (!pushConfigured()) return;
   const subscriptions = await prisma.pushSubscription.findMany({ where: { userId: { in: userIds } } });
   const payload = JSON.stringify({
@@ -142,7 +142,12 @@ const sendPush = async (userIds: string[], message: NotificationMessage) => {
 
 // Saves the notification for each person, then pushes it to their devices.
 // A keyed message reaches each person once: anyone who already has it is skipped.
-export const notifyUsers = async (userIds: string[], message: NotificationMessage) => {
+// Quiet ones ({ push: false }) only appear in the app and in the daily to-do reminder.
+export const notifyUsers = async (
+  userIds: string[],
+  message: NotificationMessage,
+  { push = true }: { push?: boolean } = {},
+) => {
   let recipients = [...new Set(userIds)];
   if (message.key && recipients.length > 0) {
     const existing = await prisma.notification.findMany({
@@ -159,7 +164,7 @@ export const notifyUsers = async (userIds: string[], message: NotificationMessag
       return { userId, ...stored, href: message.href ?? null };
     }),
   });
-  await sendPush(recipients, message);
+  if (push) await sendPush(recipients, message);
 };
 
 // For events: a failed notification must never fail the action that caused it.

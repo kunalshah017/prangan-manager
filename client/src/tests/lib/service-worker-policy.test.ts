@@ -43,6 +43,10 @@ const loadWorker = async (cacheNames: string[] = []) => {
       location: { origin },
       URL,
       Response,
+      MessageChannel,
+      // Looked up per call so a test's fake timers apply.
+      setTimeout: (...args: Parameters<typeof setTimeout>) => setTimeout(...args),
+      clearTimeout: (timer: ReturnType<typeof setTimeout>) => clearTimeout(timer),
       console: { log: vi.fn() },
     }),
     { filename: "public/sw.js" },
@@ -112,7 +116,7 @@ describe("public service worker policy", () => {
     expect(respondWith).toHaveBeenCalledOnce();
     await responsePromise;
     expect(fetchMock).toHaveBeenCalledOnce();
-    expect(caches.open).toHaveBeenCalledWith("prangan-runtime-v11");
+    expect(caches.open).toHaveBeenCalledWith("prangan-runtime-v12");
     expect(runtimeCache.put).toHaveBeenCalledOnce();
   });
 
@@ -142,7 +146,7 @@ describe("public service worker policy", () => {
   );
 
   it("deletes only prior namespaced caches during activation", async () => {
-    const currentCaches = ["prangan-static-v11", "prangan-runtime-v11", "prangan-pdfs-v3"];
+    const currentCaches = ["prangan-static-v12", "prangan-runtime-v12", "prangan-pdfs-v3"];
     const priorCaches = [
       "prangan-static",
       "prangan-runtime",
@@ -214,7 +218,7 @@ describe("public service worker policy", () => {
   it("uses versioned app caches and only removes prior app cache versions", async () => {
     const source = await readWorker();
 
-    expect(source).toContain('const CACHE_VERSION = "v11";');
+    expect(source).toContain('const CACHE_VERSION = "v12";');
     expect(source).toContain(
       "const STATIC_CACHE = `prangan-static-${CACHE_VERSION}`;",
     );
@@ -296,5 +300,68 @@ describe("coursebook cache", () => {
 
     expect(await open(`${store}/books/b1.pdf?s=1`, ["Range"])).toBeUndefined();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("tapping a notification", () => {
+  const tap = async (windows: unknown[]) => {
+    const { listeners, clients } = await loadWorker();
+    const openWindow = vi.fn().mockResolvedValue(undefined);
+    Object.assign(clients, { matchAll: vi.fn().mockResolvedValue(windows), openWindow });
+    let done: Promise<unknown> = Promise.resolve();
+    const close = vi.fn();
+    listeners.get("notificationclick")!({
+      notification: { close, data: { href: "/users/u1/review" } },
+      waitUntil: (work: Promise<unknown>) => {
+        done = work;
+      },
+    });
+    return { done, close, openWindow };
+  };
+
+  it("brings the open app forward and lets it move to the page without a reload", async () => {
+    const calls: string[] = [];
+    const app = {
+      url: `${origin}/projects`,
+      focus: vi.fn(async () => {
+        calls.push("focus");
+        return app;
+      }),
+      postMessage: vi.fn((message: { href: string }, [port]: MessagePort[]) => {
+        calls.push(`message ${message.href}`);
+        port.postMessage("opened");
+      }),
+      navigate: vi.fn().mockResolvedValue(undefined),
+    };
+    const { done, close, openWindow } = await tap([app]);
+    await done;
+    expect(close).toHaveBeenCalled();
+    expect(calls).toEqual(["focus", "message /users/u1/review"]);
+    expect(app.navigate).not.toHaveBeenCalled();
+    expect(openWindow).not.toHaveBeenCalled();
+  });
+
+  it("sends the window to the page when the app doesn't answer, e.g. on the sign-in page", async () => {
+    vi.useFakeTimers();
+    try {
+      const app = {
+        url: `${origin}/login`,
+        focus: vi.fn(async () => app),
+        postMessage: vi.fn(),
+        navigate: vi.fn().mockResolvedValue(undefined),
+      };
+      const { done } = await tap([app]);
+      await vi.advanceTimersByTimeAsync(1500);
+      await done;
+      expect(app.navigate).toHaveBeenCalledWith(`${origin}/users/u1/review`);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("opens a new window on the page when the app isn't open", async () => {
+    const { done, openWindow } = await tap([]);
+    await done;
+    expect(openWindow).toHaveBeenCalledWith(`${origin}/users/u1/review`);
   });
 });

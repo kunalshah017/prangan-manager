@@ -96,6 +96,8 @@ const LayoutShell = () => {
             }
             if (event.data?.type === "notification-open" && typeof event.data.href === "string") {
                 navigate(event.data.href);
+                // Tells the service worker the app moved, so it doesn't reload the page.
+                event.ports[0]?.postMessage("opened");
             }
         };
         navigator.serviceWorker.addEventListener("message", onMessage);
