@@ -19,6 +19,9 @@ import type { User } from "@/types/api";
 
 type UsersView = "users" | "requests" | "revoked";
 
+// A device with push on; the server only sends this field to admins.
+const notificationsOn = (user: User) => (user._count?.pushSubscriptions ?? 0) > 0;
+
 const formatDate = (value: string) =>
   new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
@@ -37,6 +40,7 @@ const Users = () => {
   const [projectFilter, setProjectFilter] = useState("ALL");
   const [centerFilter, setCenterFilter] = useState("ALL");
   const [semesterFilter, setSemesterFilter] = useState("ALL");
+  const [notificationsFilter, setNotificationsFilter] = useState<"ALL" | "ON" | "OFF">("ALL");
 
   const centreNames = useMemo(() => new Map(centers.map((center) => [center.id, center.name])), [centers]);
   // Filters follow the hierarchy: project, then centre, then semester. With a
@@ -70,10 +74,11 @@ const Users = () => {
     const query = search.trim().toLowerCase();
     const matchesSearch = !query || user.name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query);
     const matchesRole = roleFilter === "ALL" || user.role === roleFilter;
+    const matchesNotifications = notificationsFilter === "ALL" || notificationsOn(user) === (notificationsFilter === "ON");
     const assignments = activeAssignments(user);
     const matchesProject = !hasProjectChoice || projectFilter === "ALL" || assignments.some((assignment) => assignment.projectId === projectFilter);
-    return matchesSearch && matchesRole && matchesProject && (centerFilter === "ALL" || assignments.some((assignment) => assignment.centerId === centerFilter)) && (semesterFilter === "ALL" || assignments.some((assignment) => assignment.semesterId === semesterFilter));
-  }).sort((first, second) => first.name.localeCompare(second.name)), [approvedUsers, centerFilter, hasProjectChoice, projectFilter, roleFilter, search, semesterFilter]);
+    return matchesSearch && matchesRole && matchesNotifications && matchesProject && (centerFilter === "ALL" || assignments.some((assignment) => assignment.centerId === centerFilter)) && (semesterFilter === "ALL" || assignments.some((assignment) => assignment.semesterId === semesterFilter));
+  }).sort((first, second) => first.name.localeCompare(second.name)), [approvedUsers, centerFilter, hasProjectChoice, notificationsFilter, projectFilter, roleFilter, search, semesterFilter]);
   const filteredRequests = useMemo(() => requests.filter((request) => {
     const query = search.trim().toLowerCase();
     return !query || request.name.toLowerCase().includes(query) || request.email.toLowerCase().includes(query) || request.phone?.toLowerCase().includes(query);
@@ -86,11 +91,11 @@ const Users = () => {
       .sort((first, second) => first.name.localeCompare(second.name));
   }, [revokedUsers, search]);
 
-  const activeFilterCount = [roleFilter, hasProjectChoice ? projectFilter : "ALL", centerFilter, semesterFilter].filter((value) => value !== "ALL").length;
+  const activeFilterCount = [roleFilter, notificationsFilter, hasProjectChoice ? projectFilter : "ALL", centerFilter, semesterFilter].filter((value) => value !== "ALL").length;
   const hasFilters = !!search || activeFilterCount > 0;
   const resultCount = view === "users" ? filteredUsers.length : view === "requests" ? filteredRequests.length : filteredRevoked.length;
   const setView = (nextView: UsersView) => setSearchParams(nextView === "users" ? {} : { view: nextView });
-  const clearFilters = () => { setSearch(""); setRoleFilter("ALL"); setProjectFilter("ALL"); setCenterFilter("ALL"); setSemesterFilter("ALL"); };
+  const clearFilters = () => { setSearch(""); setRoleFilter("ALL"); setProjectFilter("ALL"); setCenterFilter("ALL"); setSemesterFilter("ALL"); setNotificationsFilter("ALL"); };
 
   if (usersLoading || requestsLoading) {
     return <WorkspacePage><PageTitle title="Users" /><ListPageSkeleton label="Loading users" rows={6} /></WorkspacePage>;
@@ -174,6 +179,14 @@ const Users = () => {
               <SelectItem value="USER">Volunteers</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={notificationsFilter} onValueChange={(value) => setNotificationsFilter(value as "ALL" | "ON" | "OFF")}>
+            <SelectTrigger aria-label="Filter by notifications"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">Any notifications</SelectItem>
+              <SelectItem value="ON">Notifications on</SelectItem>
+              <SelectItem value="OFF">Notifications off</SelectItem>
+            </SelectContent>
+          </Select>
           {hasProjectChoice && (
             <Select value={projectFilter} onValueChange={changeProjectFilter}>
               <SelectTrigger aria-label="Filter by project"><SelectValue /></SelectTrigger>
@@ -241,7 +254,10 @@ const Users = () => {
                   href={`/users/${user.id}/details`}
                   title={user.name}
                   leading={<ProfilePicture imageUrl={user.profileImageUrl} name={user.name} size="md" colorScheme="orange" className="shrink-0" />}
-                  status={user.role === "ADMIN" ? <StatusBadge tone="inactive" label="Admin" /> : undefined}
+                  status={<>
+                    {user.role === "ADMIN" && <StatusBadge tone="inactive" label="Admin" />}
+                    {!notificationsOn(user) && <StatusBadge tone="draft" label="Notifications off" />}
+                  </>}
                   meta={<span className="block truncate">{assignmentSummary(user, centreNames)}</span>}
                 />
               ))}

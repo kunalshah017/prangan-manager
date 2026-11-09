@@ -10,9 +10,11 @@ import {
   type NotificationMessage,
 } from "./notification.service.js";
 
-// Hour in India when whatever is still unmarked gets a reminder:
-// Saturday evening, Sunday morning.
+// Hour in India of the weekly checks: Saturday evening, Sunday morning.
 const REMINDER_HOUR_IN_INDIA: Record<number, number> = { 6: 18, 0: 10 };
+// Unmarked attendance is pushed every hour from the end of class until
+// midnight, when educators (students) and centre managers (staff) can no longer mark it.
+const ATTENDANCE_FROM_HOUR_IN_INDIA: Record<number, number> = { 6: 18, 0: 11 };
 const KEEP_NOTIFICATIONS_DAYS = 60;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const INDIA_OFFSET_MS = 330 * 60 * 1000;
@@ -22,14 +24,23 @@ const DIGEST_HOUR_IN_INDIA = 10;
 
 // The runs due at this moment, in order. Pure clock arithmetic: no database,
 // so the 5-minute uptime ping that calls this never wakes Neon. On Sunday the
-// daily reminder goes first, so it doesn't repeat that day's new attendance to-do.
+// daily reminder goes first, so it doesn't repeat that day's new to-dos.
 export const dueReminderKeys = (now: Date = new Date()): string[] => {
   const india = new Date(now.getTime() + INDIA_OFFSET_MS);
   const day = india.toISOString().slice(0, 10);
+  const hour = india.getUTCHours();
+  const weekday = india.getUTCDay();
   const keys: string[] = [];
-  if (india.getUTCHours() >= DIGEST_HOUR_IN_INDIA) keys.push(`digest:${day}`);
-  const hour = REMINDER_HOUR_IN_INDIA[india.getUTCDay()];
-  if (hour !== undefined && india.getUTCHours() >= hour) keys.push(`reminders:${day}`);
+  if (hour >= DIGEST_HOUR_IN_INDIA) {
+    keys.push(`digest:${day}`);
+    // The morning after a class day, what was left unmarked is reported.
+    if (weekday === 0 || weekday === 1) keys.push(`missed:${new Date(india.getTime() - DAY_MS).toISOString().slice(0, 10)}`);
+  }
+  const weekly = REMINDER_HOUR_IN_INDIA[weekday];
+  if (weekly !== undefined && hour >= weekly) keys.push(`reminders:${day}`);
+  // Only this hour's: an hour no ping reached is skipped, not sent late.
+  const attendance = ATTENDANCE_FROM_HOUR_IN_INDIA[weekday];
+  if (attendance !== undefined && hour >= attendance) keys.push(`attendance:${day}:${hour}`);
   return keys;
 };
 
@@ -48,7 +59,7 @@ const pendingAttendance = async (semesterId: string, day: string) => {
     prisma.studentEnrollments.findMany({
       where: { semesterId, isActive: true },
       distinct: ["semesterLevelId"],
-      select: { semesterLevelId: true },
+      select: { semesterLevelId: true, semesterLevel: { select: { academicLevel: { select: { name: true } } } } },
     }),
     prisma.studentAttendance.findMany({
       where: { semesterId, date },
@@ -75,13 +86,19 @@ const pendingAttendance = async (semesterId: string, day: string) => {
     (member) => (!member.committedDays || workingToday.includes(member.committedDays)) && !markedStaff.has(member.userId),
   );
   const managers = team.filter((member) => member.subRole === "CENTER_MANAGER").map((member) => member.userId);
-  const educators = team
-    .filter((member) => member.subRole === "EDUCATOR" && member.semesterLevelId && unmarkedLevels.has(member.semesterLevelId))
-    .map((member) => member.userId);
+  const educatorsOf = (semesterLevelId: string) =>
+    team.filter((member) => member.subRole === "EDUCATOR" && member.semesterLevelId === semesterLevelId).map((member) => member.userId);
+  const missedLevels = enrolledLevels
+    .filter((level) => unmarkedLevels.has(level.semesterLevelId))
+    .map((level) => ({ name: level.semesterLevel.academicLevel.name, educators: educatorsOf(level.semesterLevelId) }));
 
   return {
-    students: unmarkedLevels.size > 0 ? [...new Set([...educators, ...managers])] : [],
+    students: unmarkedLevels.size > 0 ? [...new Set([...missedLevels.flatMap((level) => level.educators), ...managers])] : [],
     staff: unmarkedStaff.length > 0 ? managers : [],
+    // For the report the morning after.
+    missedLevels,
+    staffMissed: unmarkedStaff.length > 0,
+    managers,
   };
 };
 
@@ -119,8 +136,15 @@ const managersBySemester = async (semesterIds: string[]) => {
 const listNames = (names: string[]) =>
   names.length <= 5 ? names.join(", ") : `${names.slice(0, 5).join(", ")} and ${names.length - 5} more`;
 
+// Saved once, pushed on every run to everyone still behind.
+const remindEveryRun = async (userIds: string[], message: NotificationMessage) => {
+  await notifyUsers(userIds, message, { push: false });
+  if (userIds.length > 0) await sendPush(userIds, message);
+};
+
 // A to-do for everyone with attendance still to mark in each semester running
-// that day. It clears once they mark it (resolveAttendanceReminders) or at midnight.
+// that day, pushed every hour until they mark it (resolveAttendanceReminders)
+// or it expires at midnight.
 export const sendAttendanceReminders = async (day: string) => {
   const date = calendarDate(day);
   const semesters = await prisma.semesters.findMany({
@@ -133,7 +157,7 @@ export const sendAttendanceReminders = async (day: string) => {
     const pending = await pendingAttendance(semester.id, day);
     const link = semesterLink(semester);
     const body = `${semester.center.name}: not marked yet today.`;
-    await notifyUsers(pending.students, {
+    await remindEveryRun(pending.students, {
       title: "Mark student attendance",
       body,
       href: `${link}/student-attendance/mark`,
@@ -142,7 +166,7 @@ export const sendAttendanceReminders = async (day: string) => {
       key: studentKey(semester.id, day),
       expiresAt,
     });
-    await notifyUsers(pending.staff, {
+    await remindEveryRun(pending.staff, {
       title: "Mark staff attendance",
       body,
       href: `${link}/attendance/mark`,
@@ -150,6 +174,59 @@ export const sendAttendanceReminders = async (day: string) => {
       kind: "TASK",
       key: staffKey(semester.id, day),
       expiresAt,
+    });
+  }
+};
+
+// "Saturday 31 Oct": reports stay in the app for weeks, so not "yesterday".
+const dayLabel = (day: string) =>
+  new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "short", timeZone: "UTC" }).format(calendarDate(day));
+
+// The morning after a class day: educators can no longer mark that day's
+// students, nor centre managers its staff. Educators are asked to report it to
+// their centre manager, centre managers hear which levels were missed and are
+// asked to report missing staff attendance to an admin, and admins hear every centre's.
+export const sendMissedAttendanceReports = async (day: string) => {
+  const semesters = await prisma.semesters.findMany({ where: runningOn(calendarDate(day)), select: semesterSelect });
+  if (semesters.length === 0) return;
+  const admins = (await prisma.user.findMany({ where: { role: "ADMIN", status: "APPROVED" }, select: { id: true } })).map(
+    (admin) => admin.id,
+  );
+  const when = dayLabel(day);
+  let centres = 0;
+
+  for (const semester of semesters) {
+    const missed = await pendingAttendance(semester.id, day);
+    const { staffMissed } = missed;
+    if (missed.missedLevels.length === 0 && !staffMissed) continue;
+    centres += 1;
+    const centre = semester.center.name;
+    const message = { title: "Attendance missed", href: semesterLink(semester) };
+    for (const level of missed.missedLevels) {
+      // Centre managers teaching a level get their own message below.
+      await notifyUsers(level.educators.filter((userId) => !missed.managers.includes(userId)), {
+        ...message,
+        body: `${centre}: no attendance for ${level.name} students on ${when}. Report it to your centre manager.`,
+      });
+    }
+    const what = [
+      ...(missed.missedLevels.length > 0 ? [`${listNames(missed.missedLevels.map((level) => level.name))} students`] : []),
+      ...(staffMissed ? ["staff"] : []),
+    ].join(" and ");
+    const body = `${centre}: no attendance for ${what} on ${when}.`;
+    await notifyUsers(missed.managers, {
+      ...message,
+      body: staffMissed ? `${body} Report the missing staff attendance to the Prangan admin.` : body,
+    });
+    await notifyUsers(admins, { ...message, body }, { push: false });
+  }
+  // One phone notification per admin, however many centres: each is listed in the app.
+  if (centres > 0) {
+    await sendPush(admins, {
+      title: "Attendance missed",
+      body: `${plural(centres, "centre", "centres")} missed attendance on ${when}.`,
+      href: "/notifications",
+      key: "attendance-missed",
     });
   }
 };
@@ -858,8 +935,8 @@ let running = false;
 const runWeekendReminders = async (day: string, now: Date) => {
   const senders =
     calendarDate(day).getUTCDay() === 6
-      ? [sendAttendanceReminders, sendCurriculumReminders, sendExamScoreReminders, sendPayRateReminders, sendBirthdayReminders, sendRegistrationReminders]
-      : [sendAttendanceReminders, sendStudentDetailsReminders, sendMissedClassReminders, sendRegistrationReminders];
+      ? [sendCurriculumReminders, sendExamScoreReminders, sendPayRateReminders, sendBirthdayReminders, sendRegistrationReminders]
+      : [sendStudentDetailsReminders, sendMissedClassReminders, sendRegistrationReminders];
   // Each runs on its own: one failing doesn't stop the rest.
   for (const send of senders) {
     try {
@@ -871,8 +948,9 @@ const runWeekendReminders = async (day: string, now: Date) => {
   await cleanUpNotifications(now);
 };
 
-// Called on every /health ping. Each run (the daily to-do reminder, the weekend
-// reminders) happens once a day: the ReminderRun row stops a repeat after a restart.
+// Called on every /health ping. Each run (the daily to-do reminder, the missed
+// attendance report, the weekend checks, each hour's attendance reminder) happens
+// once: the ReminderRun row stops a repeat after a restart.
 export const runDueReminders = async (now: Date = new Date()) => {
   if (running) return;
   const keys = dueReminderKeys(now).filter((key) => !handledKeys.has(key));
@@ -888,6 +966,8 @@ export const runDueReminders = async (now: Date = new Date()) => {
         // shortcut: a failed run is skipped for the day; add a retry if it happens in practice.
         const [kind, day] = key.split(":");
         if (kind === "digest") await sendTodoReminders(now);
+        else if (kind === "missed") await sendMissedAttendanceReports(day);
+        else if (kind === "attendance") await sendAttendanceReminders(day);
         else await runWeekendReminders(day, now);
       } catch (error) {
         console.error("Reminders failed:", (error as Error).message);

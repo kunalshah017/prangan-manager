@@ -26,6 +26,7 @@ import {
   resolvePayRateReminders,
   sendBirthdayReminders,
   sendExamScoreReminders,
+  sendMissedAttendanceReports,
   sendMissedClassReminders,
   sendPayRateReminders,
   studentsMissingClasses,
@@ -95,18 +96,32 @@ test("a new role names its place; several roles are summed up", () => {
   assert.equal(newRoleMessage([]), null);
 });
 
-test("the daily to-do reminder is due at 10 am, weekend reminders Saturday 6 pm and Sunday 10 am", () => {
+test("the daily to-do reminder is due at 10 am, weekend checks Saturday 6 pm and Sunday 10 am, attendance hourly after class", () => {
   // Saturday 31 Oct 2026; 12:30 UTC is 6 pm in India.
-  assert.deepEqual(dueReminderKeys(new Date("2026-10-31T12:30:00Z")), ["digest:2026-10-31", "reminders:2026-10-31"]);
+  assert.deepEqual(dueReminderKeys(new Date("2026-10-31T12:30:00Z")), [
+    "digest:2026-10-31",
+    "reminders:2026-10-31",
+    "attendance:2026-10-31:18",
+  ]);
   assert.deepEqual(dueReminderKeys(new Date("2026-10-31T12:29:00Z")), ["digest:2026-10-31"]);
+  // Every hour until midnight, each hour its own run.
+  assert.deepEqual(dueReminderKeys(new Date("2026-10-31T18:29:00Z")).at(-1), "attendance:2026-10-31:23");
   // Late Saturday UTC is already early Sunday in India: nothing yet.
   assert.deepEqual(dueReminderKeys(new Date("2026-10-31T20:00:00Z")), []);
-  // Sunday 1 Nov; 04:30 UTC is 10 am in India. The to-do reminder goes first.
-  assert.deepEqual(dueReminderKeys(new Date("2026-11-01T04:30:00Z")), ["digest:2026-11-01", "reminders:2026-11-01"]);
+  // Sunday 1 Nov; 04:30 UTC is 10 am in India. The to-do reminder goes first,
+  // then Saturday's missed attendance; Sunday's attendance waits for 11 am.
+  assert.deepEqual(dueReminderKeys(new Date("2026-11-01T04:30:00Z")), [
+    "digest:2026-11-01",
+    "missed:2026-10-31",
+    "reminders:2026-11-01",
+  ]);
   assert.deepEqual(dueReminderKeys(new Date("2026-11-01T04:29:00Z")), []);
-  // Monday in India: only the to-do reminder, from 10 am.
+  assert.deepEqual(dueReminderKeys(new Date("2026-11-01T05:30:00Z")).at(-1), "attendance:2026-11-01:11");
+  // Monday in India: the to-do reminder and Sunday's missed attendance, from 10 am.
   assert.deepEqual(dueReminderKeys(new Date("2026-11-02T04:29:00Z")), []);
-  assert.deepEqual(dueReminderKeys(new Date("2026-11-02T08:00:00Z")), ["digest:2026-11-02"]);
+  assert.deepEqual(dueReminderKeys(new Date("2026-11-02T08:00:00Z")), ["digest:2026-11-02", "missed:2026-11-01"]);
+  // Tuesday: only the to-do reminder.
+  assert.deepEqual(dueReminderKeys(new Date("2026-11-03T08:00:00Z")), ["digest:2026-11-03"]);
   // Midnight in India at the end of Saturday.
   assert.equal(endOfIndiaDay("2026-10-31").toISOString(), "2026-10-31T18:30:00.000Z");
 });
@@ -123,7 +138,8 @@ const mockSemesterDay = () => {
     userAttendance: db.userAttendance.findMany,
   };
   db.semesters.findMany = async () => [{ id: "s", centerId: "c", center: { name: "Tulip", projectId: "p" } }];
-  db.studentEnrollments.findMany = async () => [{ semesterLevelId: "level-1" }, { semesterLevelId: "level-2" }];
+  const level = (id: string, name: string) => ({ semesterLevelId: id, semesterLevel: { academicLevel: { name } } });
+  db.studentEnrollments.findMany = async () => [level("level-1", "Level 1"), level("level-2", "Level 2")];
   db.studentAttendance.findMany = async () => [{ enrollment: { semesterLevelId: "level-1" } }];
   db.userRoleAssignments.findMany = async () => [
     { userId: "educator-1", subRole: "EDUCATOR", semesterLevelId: "level-1", committedDays: "BOTH" },
@@ -211,6 +227,39 @@ test("saving attendance clears the to-dos of people with nothing left to mark", 
   }
 });
 
+test("the morning after, missed attendance is reported to educators, centre managers and admins", async () => {
+  const db = prisma as any;
+  const restore = mockSemesterDay();
+  const sent: Sent[] = [];
+  const restoreDb = stub({ "notification.createMany": capture(sent), "user.findMany": async () => [{ id: "admin" }] });
+
+  try {
+    await sendMissedAttendanceReports("2026-10-31");
+    const bodies = Object.fromEntries(sent.map((item) => [item.userId, item.body]));
+    assert.deepEqual(bodies, {
+      "educator-2": "Tulip: no attendance for Level 2 students on Saturday 31 Oct. Report it to your centre manager.",
+      manager:
+        "Tulip: no attendance for Level 2 students and staff on Saturday 31 Oct. Report the missing staff attendance to the Prangan admin.",
+      admin: "Tulip: no attendance for Level 2 students and staff on Saturday 31 Oct.",
+    });
+    for (const item of sent) {
+      assert.equal(item.title, "Attendance missed");
+      assert.equal(item.kind, undefined); // updates: dismissible
+      assert.equal(item.href, "/projects/p/centers/c/semesters/s/dashboard");
+    }
+
+    // Everything marked: nobody hears anything.
+    sent.length = 0;
+    db.studentAttendance.findMany = async () => [{ enrollment: { semesterLevelId: "level-1" } }, { enrollment: { semesterLevelId: "level-2" } }];
+    db.userAttendance.findMany = async () => [{ userId: "educator-1" }, { userId: "educator-2" }, { userId: "manager" }];
+    await sendMissedAttendanceReports("2026-10-31");
+    assert.deepEqual(sent, []);
+  } finally {
+    restore();
+    restoreDb();
+  }
+});
+
 test("only updates can be dismissed", async () => {
   const db = prisma as any;
   const original = db.notification.deleteMany;
@@ -248,9 +297,11 @@ test("a day's reminders run once, and pings outside the window never touch the d
   try {
     await runDueReminders(new Date("2026-11-02T04:00:00Z")); // Monday 9:30 am: nothing due
     assert.equal(claims, 0);
-    await runDueReminders(new Date("2026-11-07T13:00:00Z")); // Saturday 6:30 pm: to-do reminder and weekend run claimed
+    await runDueReminders(new Date("2026-11-07T13:00:00Z")); // Saturday 6:30 pm: to-do reminder, weekend run, 6 pm attendance claimed
     await runDueReminders(new Date("2026-11-07T13:05:00Z")); // next ping: remembered
-    assert.equal(claims, 2);
+    assert.equal(claims, 3);
+    await runDueReminders(new Date("2026-11-07T13:30:00Z")); // 7 pm: the next hour's attendance
+    assert.equal(claims, 4);
     assert.equal(semesterQueries, 0);
   } finally {
     db.reminderRun.createMany = originals.claim;
@@ -273,7 +324,7 @@ test("a failing reminder run is not retried on every ping", async () => {
     await runDueReminders(new Date("2026-11-14T13:00:00Z")); // Saturday 6:30 pm
     await runDueReminders(new Date("2026-11-14T13:05:00Z"));
     await runDueReminders(new Date("2026-11-14T13:10:00Z"));
-    assert.equal(attempts, 2); // once for each run due, never again that day
+    assert.equal(attempts, 3); // once for each run due, never again that day
   } finally {
     db.reminderRun.createMany = original;
     console.error = originalError;

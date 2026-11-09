@@ -98,6 +98,8 @@ export const adminUserSelect = {
   createdAt: true,
   updatedAt: true,
   roleAssignments: activeRoleAssignments,
+  // Devices with notifications on, for the Users page.
+  _count: { select: { pushSubscriptions: true } },
 } as const satisfies Prisma.UserSelect;
 
 export const adminUserDetailSelect = {

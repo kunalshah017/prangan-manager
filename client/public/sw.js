@@ -1,5 +1,5 @@
 // Service worker for PWA functionality with proper cache management
-const CACHE_VERSION = "v12";
+const CACHE_VERSION = "v13";
 const STATIC_CACHE = `prangan-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `prangan-runtime-${CACHE_VERSION}`;
 const PDF_CACHE = "prangan-pdfs-v3";
@@ -265,8 +265,9 @@ self.addEventListener("push", (event) => {
       self.registration.showNotification(message.title, {
         body: message.body,
         icon: "/pwa-icon-192.png",
-        // A newer reminder for the same to-do replaces the old one.
+        // A newer reminder for the same to-do replaces the old one, and alerts again.
         tag: message.key || undefined,
+        renotify: Boolean(message.key),
         data: { href: message.href || "/", key: message.key || null },
         // Android shows a to-do's button under the message; tapping it opens href too.
         actions: message.actionLabel ? [{ action: "open", title: message.actionLabel }] : [],

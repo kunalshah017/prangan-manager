@@ -38,6 +38,8 @@ export interface User {
   address?: string;
   dob?: string;
   profileImageUrl?: string;
+  // Admin view only: devices with notifications on.
+  _count?: { pushSubscriptions: number };
   reimbursementAmount?: number;
   remunerationRates?: Array<{
     semesterId: string;
