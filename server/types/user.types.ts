@@ -11,7 +11,7 @@ export interface UserRegistrationRequest {
   phone?: string;
   qualification?: string;
   address?: string;
-  profileImageUrl?: string;
+  profileImageUrl?: string; // The photo as a data URL; the server uploads it.
   dob?: string; // Accept as string in API, convert to Date in controller
 }
 

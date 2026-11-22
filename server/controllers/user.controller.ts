@@ -55,6 +55,12 @@ import {
 } from "../generated/prisma/index.js";
 import { prisma } from "../lib/prisma.js";
 import {
+  deleteRegistrationPhotoInBackground,
+  REGISTRATION_PHOTO,
+  REGISTRATION_PHOTO_MAX_LENGTH,
+  uploadRegistrationPhoto,
+} from "../lib/cloudinary.js";
+import {
   indiaToday,
   endedAssignmentData,
   findSecondEducatorLevel,
@@ -271,9 +277,42 @@ export const updateUserBankDetailsAsAdmin = asyncHandle(
   },
 );
 
+// Anyone can send a sign-up, so its text is capped (it is stored and shown to
+// admins) and all sign-ups share one hourly allowance.
+const REGISTRATION_TEXT_FIELDS = [
+  ["name", "Name", 150],
+  ["firstName", "First name", 50],
+  ["middleName", "Middle name", 50],
+  ["lastName", "Last name", 50],
+  ["email", "Email", 254],
+  ["phone", "Phone number", 32],
+  ["qualification", "Qualification", 200],
+  ["address", "Address", 500],
+] as const;
+const REGISTRATIONS_PER_HOUR = 20;
+const HOUR_MS = 60 * 60 * 1000;
+
 export const registerUser = asyncHandle(
   async (request: FastifyRequest, reply: FastifyReply) => {
     const data = request.body as UserRegistrationRequest;
+
+    for (const [field, label, maxLength] of REGISTRATION_TEXT_FIELDS) {
+      const value: unknown = data[field];
+      if (value == null) continue;
+      if (typeof value !== "string" || value.length > maxLength) {
+        return errorHandle(`${label} can be at most ${maxLength} characters.`, reply, 400);
+      }
+    }
+    // The photo itself, as a data URL; it is uploaded only once the rest is valid.
+    const photo: unknown = data.profileImageUrl;
+    if (
+      photo &&
+      (typeof photo !== "string" ||
+        photo.length > REGISTRATION_PHOTO_MAX_LENGTH ||
+        !REGISTRATION_PHOTO.test(photo))
+    ) {
+      return errorHandle("The profile photo must be a JPEG, PNG or WebP image.", reply, 400);
+    }
 
     if (typeof data.email !== "string" || !isEmailAddress(data.email.trim())) {
       return errorHandle("A valid email address is required.", reply, 400);
@@ -330,6 +369,30 @@ export const registerUser = asyncHandle(
       return errorHandle("User already exists with this email.", reply, 400);
     }
 
+    const recentRequests = await prisma.user.count({
+      where: {
+        status: UserStatus.PENDING,
+        createdAt: { gte: new Date(Date.now() - HOUR_MS) },
+      },
+    });
+    if (recentRequests >= REGISTRATIONS_PER_HOUR) {
+      return errorHandle(
+        "We're getting a lot of sign-ups right now. Please try again in an hour.",
+        reply,
+        429,
+      );
+    }
+
+    let profileImageUrl: string | null = null;
+    if (photo) {
+      try {
+        profileImageUrl = await uploadRegistrationPhoto(photo as string);
+      } catch (error) {
+        console.error("Failed to upload a sign-up photo:", error);
+        return errorHandle("We couldn't save your photo. Please try again.", reply, 502);
+      }
+    }
+
     const userData = {
       ...resolvedName,
       email: data.email,
@@ -339,7 +402,7 @@ export const registerUser = asyncHandle(
       phone: data.phone || null,
       qualification: data.qualification || null,
       address: data.address || null,
-      profileImageUrl: data.profileImageUrl || null,
+      profileImageUrl,
       status: UserStatus.PENDING, // Use Prisma enum
       bankAccountNumber: null,
       bankAccountName: null,
@@ -352,6 +415,7 @@ export const registerUser = asyncHandle(
     const user = await createUser(userData);
 
     if (typeof user === "string") {
+      deleteRegistrationPhotoInBackground(profileImageUrl);
       return errorHandle(user, reply, 500);
     }
 
@@ -809,7 +873,7 @@ export const verifyUser = asyncHandle(
 
     const notificationUser = await prisma.user.findUnique({
       where: { id: data.userId },
-      select: { email: true, name: true, status: true },
+      select: { email: true, name: true, status: true, profileImageUrl: true },
     });
     if (!notificationUser) {
       return errorHandle("User not found.", reply, 404);
@@ -851,6 +915,7 @@ export const verifyUser = asyncHandle(
           );
         }
         clearRegistrationRequestInBackground(data.userId);
+        deleteRegistrationPhotoInBackground(notificationUser.profileImageUrl);
         if (emailApplicant) emitCommitTrigger(EMAIL_JOB_COMMITTED);
         return successHandle(
           {

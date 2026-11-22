@@ -60,7 +60,12 @@ export const userRoutes = async (fastify: FastifyInstance): Promise<void> => {
   await fastify.register(rateLimit, { global: false, hook: "preHandler" });
 
   // User routes
-  fastify.post("/users/register", limitPerEmail(5, "1 hour"), registerUser);
+  // The sign-up photo comes in the body (shrunk by the browser to well under 1 MB).
+  fastify.post(
+    "/users/register",
+    { ...limitPerEmail(5, "1 hour"), bodyLimit: 2 * 1024 * 1024 },
+    registerUser,
+  );
   fastify.post("/users/login", limitPerEmail(10, "15 minutes"), loginUser);
   fastify.post("/users/logout", { preHandler: authChecker }, logoutUser);
   fastify.post("/users/activate", activateAccount);

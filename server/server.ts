@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import { unhandledErrorHandler } from "./utils/handler.js";
 import dotenv from "dotenv";
 
 import { userRoutes } from "./routes/user.route.js";
@@ -48,6 +49,7 @@ fastify.register(import("@fastify/cors"), {
 });
 
 fastify.addHook("preHandler", requireCsrfToken);
+fastify.setErrorHandler(unhandledErrorHandler);
 
 fastify.get("/api/v1/auth/csrf", async (_request, reply) => {
   const csrfToken = createCsrfToken();

@@ -2,19 +2,17 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { v2 as cloudinary } from "cloudinary";
 
+import { cloudinaryCredentials } from "../lib/cloudinary.js";
 import { authChecker } from "../utils/authChecker.js";
 import { errorHandle } from "../utils/handler.js";
 
-// Browsers upload straight to Cloudinary, but only with a signature from here,
-// so the account accepts no anonymous (unsigned) uploads.
+// Signed-in people upload straight to Cloudinary, but only with a signature from
+// here, so the account accepts no anonymous (unsigned) uploads. Sign-up photos
+// go through the server instead (registerUser).
 const signImageUpload =
   (folder: string) => async (_request: FastifyRequest, reply: FastifyReply) => {
-    const {
-      CLOUDINARY_CLOUD_NAME: cloudName,
-      CLOUDINARY_API_KEY: apiKey,
-      CLOUDINARY_API_SECRET: apiSecret,
-    } = process.env;
-    if (!cloudName || !apiKey || !apiSecret) {
+    const credentials = cloudinaryCredentials();
+    if (!credentials) {
       return errorHandle("Image upload isn't available right now.", reply, 503);
     }
 
@@ -24,10 +22,10 @@ const signImageUpload =
       timestamp: Math.floor(Date.now() / 1000),
     };
     return {
-      cloudName,
-      apiKey,
+      cloudName: credentials.cloud_name,
+      apiKey: credentials.api_key,
       ...params,
-      signature: cloudinary.utils.api_sign_request(params, apiSecret),
+      signature: cloudinary.utils.api_sign_request(params, credentials.api_secret),
     };
   };
 
@@ -47,21 +45,5 @@ export const uploadRoutes = async (fastify: FastifyInstance): Promise<void> => {
       },
     },
     signImageUpload("prangan-manager"),
-  );
-
-  // Registration happens before sign-in. Anonymous callers can't be told apart
-  // behind the proxies, so they share one small hourly allowance.
-  fastify.get(
-    "/uploads/registration-image-signature",
-    {
-      config: {
-        rateLimit: {
-          max: 20,
-          timeWindow: "1 hour",
-          keyGenerator: () => "registration",
-        },
-      },
-    },
-    signImageUpload("prangan-manager/registrations"),
   );
 };

@@ -766,6 +766,7 @@ test("a sign-up is a to-do naming the person, sent to each admin once", async ()
   assert.deepEqual(registrationRequestMessage({ id: "u1", name: "Neha Patil" }), {
     title: "New registration request",
     body: "Neha Patil asked to join Prangan Manager.",
+    pushBody: "Someone asked to join Prangan Manager.",
     href: "/users/u1/review",
     actionLabel: "Review request",
     kind: "TASK",

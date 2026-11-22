@@ -95,9 +95,11 @@ Register a new user (status will be PENDING by default).
   "phone": "1234567890",
   "qualification": "Bachelor's",
   "address": "123 Main St",
-  "profileImageUrl": "https://example.com/profile.jpg"
+  "profileImageUrl": "data:image/jpeg;base64,/9j/4AAQ..."
 }
 ```
+
+`profileImageUrl` is the photo itself as a JPEG, PNG or WebP data URL (up to about 1 MB); the server uploads it to Cloudinary once the rest is valid. Text fields are capped (names 50, email 254, phone 32, qualification 200, address 500 characters). All sign-ups share 20 pending requests an hour (429 after that), and each email 5 attempts an hour.
 
 **Response (201):**
 
@@ -1416,10 +1418,6 @@ List attendance records. Optional query parameters: `studentId`, `projectId`, `c
 #### GET /api/v1/uploads/image-signature
 
 Signed in. Returns `{ cloudName, apiKey, allowed_formats, folder, timestamp, signature }` for one direct Cloudinary image upload. Limited to 30 an hour per person.
-
-#### GET /api/v1/uploads/registration-image-signature
-
-Public, for the sign-up photo. Same response, `prangan-manager/registrations` folder. All anonymous callers share 20 an hour.
 
 #### GET /api/v1/library/books/:bookId/pdf-url
 

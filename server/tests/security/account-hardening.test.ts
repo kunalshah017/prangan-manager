@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import bcryptjs from "bcryptjs";
+import { v2 as cloudinary } from "cloudinary";
 import Fastify from "fastify";
 
 import {
@@ -55,6 +56,7 @@ test("a new registration does not get a password anyone knows", async () => {
   let created: { password: string } | undefined;
   const restore = [
     stub(prisma.user, "findUnique", async () => null),
+    stub(prisma.user, "count", async () => 0),
     stub(prisma.user, "create", async ({ data }: { data: { password: string } }) => {
       created = data;
       return { id: "user-1", ...data };
@@ -83,6 +85,94 @@ test("registration refuses an email field holding several addresses", async () =
   );
 
   assert.equal(response.statusCode, 400);
+});
+
+test("registration caps its text and takes the photo itself, never a link", async () => {
+  const register = async (body: Record<string, unknown>) => {
+    const { reply, response } = createReply();
+    await registerUser({ body: { ...registration, ...body } } as never, reply);
+    return response;
+  };
+
+  const longAddress = await register({ address: "x".repeat(501) });
+  assert.equal(longAddress.statusCode, 400);
+  assert.deepEqual(longAddress.payload, {
+    message: "Address can be at most 500 characters.",
+  });
+  assert.equal((await register({ phone: { $gt: "" } })).statusCode, 400);
+  assert.equal(
+    (await register({ profileImageUrl: "https://evil.example/tracker.png" })).statusCode,
+    400,
+  );
+  assert.equal(
+    (await register({ profileImageUrl: "data:image/svg+xml;base64,PHN2Zz4=" })).statusCode,
+    400,
+  );
+});
+
+test("sign-ups share one hourly allowance and nothing is uploaded past it", async () => {
+  let uploads = 0;
+  const restore = [
+    stub(prisma.user, "findUnique", async () => null),
+    stub(prisma.user, "count", async () => 20),
+    stub(cloudinary.uploader, "upload", async () => {
+      uploads += 1;
+    }),
+  ];
+  try {
+    const { reply, response } = createReply();
+    await registerUser(
+      { body: { ...registration, profileImageUrl: "data:image/jpeg;base64,/9j/4AAQ" } } as never,
+      reply,
+    );
+
+    assert.equal(response.statusCode, 429);
+    assert.equal(uploads, 0);
+  } finally {
+    restore.forEach((undo) => undo());
+  }
+});
+
+test("the server uploads the sign-up photo, shrunk, and stores its link", async () => {
+  const env = { ...process.env };
+  Object.assign(process.env, {
+    CLOUDINARY_CLOUD_NAME: "demo",
+    CLOUDINARY_API_KEY: "key-1",
+    CLOUDINARY_API_SECRET: "secret-1",
+  });
+  let uploadOptions: Record<string, unknown> | undefined;
+  let created: { profileImageUrl: string | null } | undefined;
+  const storedUrl =
+    "https://res.cloudinary.com/demo/image/upload/v1/prangan-manager/registrations/abc.jpg";
+  const restore = [
+    stub(prisma.user, "findUnique", async () => null),
+    stub(prisma.user, "count", async () => 19),
+    stub(cloudinary.uploader, "upload", async (_file: string, options: Record<string, unknown>) => {
+      uploadOptions = options;
+      return { secure_url: storedUrl };
+    }),
+    stub(prisma.user, "create", async ({ data }: { data: { profileImageUrl: string | null } }) => {
+      created = data;
+      return { id: "user-1", name: "Asha Kumar Shah", ...data };
+    }),
+  ];
+  try {
+    const { reply, response } = createReply();
+    await registerUser(
+      { body: { ...registration, profileImageUrl: "data:image/jpeg;base64,/9j/4AAQ" } } as never,
+      reply,
+    );
+
+    assert.equal(response.statusCode, 201);
+    assert.equal(created?.profileImageUrl, storedUrl);
+    assert.equal(uploadOptions?.folder, "prangan-manager/registrations");
+    assert.deepEqual(uploadOptions?.transformation, [
+      { width: 1200, height: 1200, crop: "limit", quality: 80 },
+    ]);
+  } finally {
+    restore.forEach((undo) => undo());
+    process.env = env;
+  }
 });
 
 test("people cannot change their own email address", async () => {

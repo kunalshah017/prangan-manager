@@ -10,17 +10,10 @@ type UploadSignature = {
 };
 
 // The server signs each upload; the Cloudinary account takes no unsigned ones.
-// People registering aren't signed in yet, so they use the public signature.
-export const uploadToCloudinary = async (
-  file: File,
-  { forRegistration = false } = {},
-): Promise<string> => {
+// Sign-up photos don't come here: they go with the registration form.
+export const uploadToCloudinary = async (file: File): Promise<string> => {
   try {
-    const signed = await api.get<UploadSignature>(
-      forRegistration
-        ? "/uploads/registration-image-signature"
-        : "/uploads/image-signature",
-    );
+    const signed = await api.get<UploadSignature>("/uploads/image-signature");
     const formData = new FormData();
     formData.append("file", file);
     formData.append("api_key", signed.apiKey);
@@ -46,7 +39,7 @@ export const uploadToCloudinary = async (
   }
 };
 
-// Validate image file
+// Any size is fine: the crop step shrinks every photo before it is sent.
 export const validateImageFile = (file: File): string | null => {
   const allowedTypes = [
     "image/jpeg",
@@ -55,14 +48,9 @@ export const validateImageFile = (file: File): string | null => {
     "image/gif",
     "image/webp",
   ];
-  const maxSize = 10 * 1024 * 1024; // 10MB
 
   if (!allowedTypes.includes(file.type)) {
     return "Please select a valid image file (JPEG, PNG, GIF, or WebP)";
-  }
-
-  if (file.size > maxSize) {
-    return "Image size must be less than 10MB";
   }
 
   return null;

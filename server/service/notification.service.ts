@@ -214,6 +214,8 @@ export const registrationKey = (userId: string) => `registration:${userId}`;
 export const registrationRequestMessage = (applicant: { id: string; name: string }): NotificationMessage => ({
   title: "New registration request",
   body: `${applicant.name} asked to join Prangan Manager.`,
+  // Anyone can sign up, so the name they typed stays off admins' lock screens.
+  pushBody: "Someone asked to join Prangan Manager.",
   href: `/users/${applicant.id}/review`,
   actionLabel: "Review request",
   kind: "TASK",

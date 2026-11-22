@@ -6,6 +6,14 @@ import LoadingButterfly from '@/components/LoadingButterfly';
 import { Modal } from './modal';
 import { ImageCropDialog } from './image-crop-dialog';
 
+const readAsDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+    });
+
 interface ImageUploadProps {
     value?: string;
     fallbackValue?: string;
@@ -59,7 +67,8 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
 
         setIsUploading(true);
         try {
-            const imageUrl = await uploadToCloudinary(file, { forRegistration });
+            // A sign-up photo goes with the form; the server uploads it once the request is valid.
+            const imageUrl = forRegistration ? await readAsDataUrl(file) : await uploadToCloudinary(file);
             onChange(imageUrl);
         } catch (err) {
             setError('Failed to upload image. Please try again.');
@@ -257,7 +266,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
                                     {placeholder}
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-1">
-                                    PNG, JPG, GIF, WebP up to 10MB
+                                    PNG, JPG, GIF or WebP
                                 </p>
                             </div>
                         )}

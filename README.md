@@ -32,6 +32,7 @@ not remove it from history.
 - [Troubleshooting](#troubleshooting)
 - [Internal documentation](#internal-documentation)
 - [Maintaining this handbook](#maintaining-this-handbook)
+- [License](#license)
 
 ## What the application manages
 
@@ -220,7 +221,8 @@ flowchart LR
     A -->|Creates EmailJob rows| D
     Q -->|Claims queued jobs| D
     Q --> S
-    C -->|Unsigned preset upload| M
+    C -->|Signed upload| M
+    A -->|Sign-up photos| M
     C -->|Streams books| B
 ```
 
@@ -702,11 +704,13 @@ update recovery. PDF responses are not stored in the runtime cache.
 
 ### Images
 
-The browser uploads images directly to Cloudinary with a signature from the API
-(`/uploads/image-signature`, or `/uploads/registration-image-signature` on the
-public sign-up page, which is limited to a few uploads an hour). Keep every
-unsigned upload preset disabled in Cloudinary; the API secret never reaches
-the client.
+The crop step shrinks every photo in the browser to at most 1200 px, as JPEG.
+Signed-in people then upload it straight to Cloudinary with a signature from
+`/uploads/image-signature`. A sign-up photo instead goes with the registration
+form as a data URL; the API uploads it to `prangan-manager/registrations` only
+once the request is valid, and deletes it when the request is rejected. Keep
+every unsigned upload preset disabled in Cloudinary; the API secret never
+reaches the client.
 
 ### Library data
 
@@ -942,9 +946,10 @@ The application deliberately does not runtime-cache PDF files.
 
 ### Image upload fails
 
-Confirm the `CLOUDINARY_*` settings on the API: the signature endpoints return
-503 without them. A 429 from `/uploads/registration-image-signature` means the
-hourly sign-up allowance is used up. Never solve an upload failure by adding
+Confirm the `CLOUDINARY_*` settings on the API: the signature endpoint returns
+503 without them, and sign-ups with a photo fail with 502. A 429 from
+`/users/register` means the hourly sign-up allowance (20 pending requests) is
+used up. Never solve an upload failure by adding
 `CLOUDINARY_API_SECRET` to the client or re-enabling an unsigned preset.
 
 ## Internal documentation
@@ -972,3 +977,9 @@ Before handing off a documentation change:
 Use concise commit messages that describe the behavior or operational contract
 being changed. Pair code changes with their tests, migrations, and handbook
 updates when those artifacts must stay in sync.
+
+## License
+
+Copyright (c) 2025-2026 Prangan Foundation. All rights reserved. The code is
+public to read, but not open source: using, copying, modifying, or hosting any
+part of it needs written permission from the Foundation. See [LICENSE](LICENSE).
