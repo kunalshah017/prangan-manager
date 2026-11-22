@@ -4,6 +4,7 @@
   "devCommand": "npm run dev",
   "installCommand": "npm install",
   "framework": "vite",
+  "ignoreCommand": "git diff --quiet \"${VERCEL_GIT_PREVIOUS_SHA:-HEAD^}\" HEAD -- .",
   "rewrites": [
     {
       "source": "/api/v1/:path*",
