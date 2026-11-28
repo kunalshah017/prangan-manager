@@ -8,12 +8,12 @@ const PDF_CACHE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days, as the old publi
 // changes always load fresh.
 const DEV_MODE = /[?&]dev\b/.test(location.search || "");
 
-// Coursebooks come from the private Blob store through links that expire, so the
+// Coursebooks come from the private R2 bucket through links that expire, so the
 // browser cache (keyed by the whole link) would download them on every opening.
 // Keep each book under its link without the signature instead: streamed the
 // first time, read from the device after that, fetched again after 30 days.
 const isBookRequest = (request, url) =>
-  url.hostname.endsWith(".private.blob.vercel-storage.com") &&
+  url.hostname.endsWith(".r2.cloudflarestorage.com") &&
   url.pathname.startsWith("/books/") &&
   !request.headers.has("Range");
 

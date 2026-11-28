@@ -257,7 +257,7 @@ worker before closing Fastify.
 | Database | PostgreSQL, Prisma 6 |
 | Authentication | Signed JWT session cookies, CSRF token cookie and header |
 | Email | Nodemailer with a PostgreSQL-backed outbox worker |
-| Media | Cloudinary for uploaded images, remote blob storage for books |
+| Media | Cloudinary for uploaded images, a private Cloudflare R2 bucket for books |
 | Client hosting | Vercel |
 | API hosting | Azure App Service |
 | CI/CD | GitHub Actions for the API, Vercel project configuration for the client |
@@ -441,7 +441,10 @@ client environment.
 | `CLOUDINARY_CLOUD_NAME` | For uploads | Cloudinary account name. |
 | `CLOUDINARY_API_KEY` | For uploads | Cloudinary API key, returned with each upload signature. |
 | `CLOUDINARY_API_SECRET` | For uploads | Signs browser uploads. Never expose it to Vite. |
-| `BLOB_READ_WRITE_TOKEN` | For the library | Key of the private Vercel Blob store that holds the coursebook PDFs at `books/<bookId>.pdf`. The server uses it to sign links that expire after an hour. |
+| `R2_ACCOUNT_ID` | For the library | Cloudflare account ID of the private R2 bucket that holds the coursebook PDFs at `books/<bookId>.pdf`. |
+| `R2_BUCKET` | For the library | Name of that bucket. |
+| `R2_ACCESS_KEY_ID` | For the library | R2 API token access key, read-only and limited to that bucket. |
+| `R2_SECRET_ACCESS_KEY` | For the library | Secret of that token. The server signs links that expire after an hour with it; never expose it to Vite. |
 
 Azure sets `WEBSITE_SITE_NAME` or `WEBSITE_HOSTNAME`. The session configuration
 uses those values to detect Azure production behavior and allow the managed
@@ -718,9 +721,11 @@ Book covers, printed-page offsets, levels, sections, topics, and table of
 contents entries are code-managed in
 [`client/src/data/books.ts`](client/src/data/books.ts). Update its related tests
 when changing a book's page alignment or structure. The PDFs live in a private
-Vercel Blob store at `books/<bookId>.pdf`; the reader asks
+Cloudflare R2 bucket at `books/<bookId>.pdf`; the reader asks
 `/library/books/:bookId/pdf-url` for a link that expires after an hour. To add
-or replace a book, upload its PDF to the store under that name.
+or replace a book, upload its PDF to the bucket under that name from the
+Cloudflare dashboard. The bucket's CORS policy must allow `GET` and `HEAD` from
+every client origin, or the reader can't download the PDF.
 
 ## Deployment
 
@@ -776,7 +781,10 @@ EMAIL_FROM_ADDRESS
 CLOUDINARY_CLOUD_NAME
 CLOUDINARY_API_KEY
 CLOUDINARY_API_SECRET
-BLOB_READ_WRITE_TOKEN
+R2_ACCOUNT_ID
+R2_BUCKET
+R2_ACCESS_KEY_ID
+R2_SECRET_ACCESS_KEY
 ```
 
 Set `CLIENT_ORIGIN` when adding an approved client origin that is not already

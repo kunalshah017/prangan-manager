@@ -39,7 +39,7 @@ describe("library PDF performance", () => {
       "Learn with Cambridge: Primary C — Semester 2",
     ]);
     // Book links come from the API only, never from the public bundle.
-    expect(JSON.stringify(bookCatalog)).not.toContain("blob.vercel-storage.com");
+    expect(JSON.stringify(bookCatalog)).not.toContain("r2.cloudflarestorage.com");
   });
 
   it("shows the reviewed table of contents for every Primary book", () => {
