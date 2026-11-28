@@ -3,7 +3,7 @@ import test from "node:test";
 import cookie from "@fastify/cookie";
 import Fastify from "fastify";
 
-import { bookPathname, libraryRoutes } from "../../routes/library.routes.js";
+import { bookPathname, libraryRoutes, signBookUrl } from "../../routes/library.routes.js";
 
 test("book links need a session", async () => {
   const app = Fastify();
@@ -23,4 +23,21 @@ test("only plain book ids map to a file in the store", () => {
   for (const bookId of ["", "../secret", "books/x", "Book-1", "a.pdf", "x".repeat(101)]) {
     assert.equal(bookPathname(bookId), undefined, bookId);
   }
+});
+
+test("book links are signed for an hour without exposing the key", async () => {
+  const env = {
+    R2_ACCOUNT_ID: "acct123",
+    R2_ACCESS_KEY_ID: "AKIDEXAMPLE",
+    R2_SECRET_ACCESS_KEY: "secret-never-in-links",
+    R2_BUCKET: "prangan-books",
+  };
+  const url = new URL((await signBookUrl("books/grammar-gear-level-1.pdf", env))!);
+  assert.equal(url.origin, "https://prangan-books.acct123.r2.cloudflarestorage.com");
+  assert.equal(url.pathname, "/books/grammar-gear-level-1.pdf");
+  assert.equal(url.searchParams.get("X-Amz-Expires"), "3600");
+  assert.match(url.searchParams.get("X-Amz-Signature") ?? "", /^[0-9a-f]{64}$/);
+  assert.doesNotMatch(url.href, /secret-never-in-links/);
+
+  assert.equal(await signBookUrl("books/x.pdf", { ...env, R2_SECRET_ACCESS_KEY: "" }), undefined);
 });

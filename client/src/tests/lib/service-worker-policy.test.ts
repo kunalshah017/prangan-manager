@@ -237,7 +237,7 @@ describe("public service worker policy", () => {
 });
 
 describe("coursebook cache", () => {
-  const store = "https://abc.private.blob.vercel-storage.com";
+  const store = "https://prangan-books.acct123.r2.cloudflarestorage.com";
   const DAY = 24 * 60 * 60 * 1000;
 
   const loadBookWorker = async (saved: Record<string, Response> = {}) => {
@@ -272,8 +272,8 @@ describe("coursebook cache", () => {
   it("downloads a book once and reopens it from the device under any signature", async () => {
     const { open, fetchMock, stored } = await loadBookWorker();
 
-    expect(await open(`${store}/books/b1.pdf?vercel-blob-signature=first`)).toEqual({ status: 200, body: "%PDF-1.7 book" });
-    expect(await open(`${store}/books/b1.pdf?vercel-blob-signature=second`)).toEqual({ status: 200, body: "%PDF-1.7 book" });
+    expect(await open(`${store}/books/b1.pdf?X-Amz-Signature=first`)).toEqual({ status: 200, body: "%PDF-1.7 book" });
+    expect(await open(`${store}/books/b1.pdf?X-Amz-Signature=second`)).toEqual({ status: 200, body: "%PDF-1.7 book" });
 
     expect(fetchMock).toHaveBeenCalledOnce();
     expect([...stored.keys()]).toEqual([`${store}/books/b1.pdf`]);
